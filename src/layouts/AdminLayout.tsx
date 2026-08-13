@@ -23,6 +23,7 @@ import {
   Settings,
   Server,
   Handshake,
+  Tag,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { usePendingTaskCount } from "../hooks/usePendingTaskCount";
@@ -45,6 +46,7 @@ const primaryNavItems = [
 const libraryNavItems = [
   { to: "/assessments/packages", icon: ClipboardList, label: "Assessments", category: "assessments" },
   { to: "/diagnostics/packages", icon: FlaskConical, label: "Diagnostics", category: "diagnostics" },
+  { to: "/discounts", icon: Tag, label: "Discounts", category: "discounts" },
   { to: "/payments/bookings", icon: CreditCard, label: "Payments", category: "payments_bookings" },
   { to: "/checklists", icon: ClipboardCheck, label: "Checklist templates", category: "checklists_tasks" },
   { to: "/library/health-metrics", icon: Activity, label: "Health Metrics", category: "diagnostics" },
@@ -60,6 +62,7 @@ function isLibraryPath(pathname: string) {
   return (
     pathname.startsWith("/assessments") ||
     pathname.startsWith("/diagnostics") ||
+    pathname.startsWith("/discounts") ||
     pathname.startsWith("/payments") ||
     pathname.startsWith("/checklists") ||
     pathname.startsWith("/library") ||

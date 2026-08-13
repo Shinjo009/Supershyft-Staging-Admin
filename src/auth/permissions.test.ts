@@ -12,7 +12,7 @@ describe("RBAC permission contracts", () => {
     expect(PERMISSION_CATEGORIES).toEqual([
       "users", "organizations", "engagements", "engagement_console",
       "assessments", "diagnostics", "reports", "experts",
-      "payments_bookings", "notifications", "checklists_tasks", "support",
+      "payments_bookings", "discounts", "notifications", "checklists_tasks", "support",
       "employees", "partners", "platform_settings", "system_monitoring",
     ]);
   });
@@ -25,7 +25,7 @@ describe("RBAC permission contracts", () => {
     });
     expect(permissions.users).toBe("edit");
     expect(permissions.support).toBe("view");
-    expect(Object.keys(permissions)).toHaveLength(16);
+    expect(Object.keys(permissions)).toHaveLength(17);
   });
 
   it("normalizes the permissions envelope returned by users/me", () => {
@@ -75,5 +75,6 @@ describe("RBAC permission contracts", () => {
     expect(categoryForPath("/organisations/camps/12/reports")).toBe("reports");
     expect(categoryForPath("/engagements/55/console")).toBe("engagement_console");
     expect(categoryForPath("/engagements")).toBe("engagements");
+    expect(categoryForPath("/discounts")).toBe("discounts");
   });
 });

@@ -8,6 +8,7 @@ export const PERMISSION_CATEGORIES = [
   "reports",
   "experts",
   "payments_bookings",
+  "discounts",
   "notifications",
   "checklists_tasks",
   "support",
@@ -48,6 +49,7 @@ export const PERMISSION_METADATA: ReadonlyArray<{
   { key: "reports", label: "Reports", description: "Camp and participant reports" },
   { key: "experts", label: "Experts", description: "Experts, types and consultations" },
   { key: "payments_bookings", label: "Payments & Bookings", description: "Payment and booking records" },
+  { key: "discounts", label: "Discounts", description: "Discount codes, instances, allowlists, and reports" },
   { key: "notifications", label: "Notifications", description: "Notifications, services and events" },
   { key: "checklists_tasks", label: "Checklists & Tasks", description: "Checklist templates and task administration" },
   { key: "support", label: "Support", description: "Support tickets" },
@@ -184,6 +186,7 @@ export function categoryForPath(pathname: string): PermissionCategory | null {
   if (pathname.startsWith("/diagnostics") || pathname.startsWith("/library/health-metrics")) return "diagnostics";
   if (pathname.startsWith("/experts")) return "experts";
   if (pathname.startsWith("/payments")) return "payments_bookings";
+  if (pathname.startsWith("/discounts")) return "discounts";
   if (pathname.startsWith("/notifications")) return "notifications";
   if (pathname.startsWith("/checklists")) return "checklists_tasks";
   if (pathname.startsWith("/support")) return "support";

@@ -16,6 +16,7 @@ import { Users } from "./features/users/Users";
 import { ParticipantJourneyPage } from "./features/users/ParticipantJourneyPage";
 import { DiagnosticPackages } from "./features/diagnostics/DiagnosticPackages";
 import { Bookings } from "./features/payments/Bookings";
+import { Discounts } from "./features/discounts/Discounts";
 import { DiagnosticFilterChips } from "./features/diagnostics/DiagnosticFilterChips";
 import { SupportTickets } from "./features/support/SupportTickets";
 import { ChecklistTemplates } from "./features/checklists/ChecklistTemplates";
@@ -240,6 +241,7 @@ function AppRoutes() {
         <Route path="diagnostics" element={<Navigate to="/diagnostics/packages" replace />} />
         <Route path="diagnostics/packages" element={<PermissionRoute category="diagnostics"><DiagnosticPackages /></PermissionRoute>} />
         <Route path="diagnostics/filters-chips" element={<PermissionRoute category="diagnostics"><DiagnosticFilterChips /></PermissionRoute>} />
+        <Route path="discounts" element={<PermissionRoute category="discounts"><Discounts /></PermissionRoute>} />
         <Route path="payments" element={<Navigate to="/payments/bookings" replace />} />
         <Route path="payments/bookings" element={<PermissionRoute category="payments_bookings"><Bookings /></PermissionRoute>} />
         <Route path="checklists" element={<PermissionRoute category="checklists_tasks"><ChecklistTemplates /></PermissionRoute>} />
