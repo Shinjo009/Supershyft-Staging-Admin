@@ -777,6 +777,133 @@ export const employeesApi = {
     ),
 };
 
+export type DiscountType =
+  | "percentage"
+  | "fixed_amount"
+  | "percentage_capped"
+  | "fixed_final_price";
+
+export type DiscountScopeMode = "all" | "selected";
+
+export interface DiscountCode {
+  discount_code_id: number;
+  code: string;
+  name: string;
+  discount_type: DiscountType | string;
+  percent_off?: number | null;
+  amount_off_paise?: number | null;
+  max_discount_paise?: number | null;
+  fixed_final_price_paise?: number | null;
+  scope_mode: DiscountScopeMode | string;
+  package_ids: number[];
+  group_ids: number[];
+  excluded_package_ids: number[];
+  engagement_ids: number[];
+  min_bill_paise?: number | null;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  total_use_limit?: number | null;
+  per_user_use_limit?: number | null;
+  stackable: boolean;
+  status: string;
+  effective_status: string;
+  reserved_count: number;
+  consumed_count: number;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface DiscountCodeCreate {
+  code: string;
+  name: string;
+  discount_type: DiscountType;
+  percent_off?: number | null;
+  amount_off_paise?: number | null;
+  max_discount_paise?: number | null;
+  fixed_final_price_paise?: number | null;
+  scope_mode?: DiscountScopeMode;
+  package_ids?: number[];
+  group_ids?: number[];
+  excluded_package_ids?: number[];
+  engagement_ids?: number[];
+  min_bill_paise?: number | null;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  total_use_limit?: number | null;
+  per_user_use_limit?: number | null;
+  stackable?: boolean;
+}
+
+export interface DiscountRedemption {
+  redemption_id: number;
+  discount_code_id: number;
+  user_id: number;
+  order_id?: number | null;
+  engagement_id?: number | null;
+  status: string;
+  subtotal_paise: number;
+  discount_paise: number;
+  taxable_paise: number;
+  gst_paise: number;
+  total_paise: number;
+  code_snapshot: string;
+  package_ids_snapshot?: number[] | null;
+  created_at?: string | null;
+}
+
+export interface DiscountPreviewResult {
+  ok: boolean;
+  message: string;
+  discount_code_id?: number | null;
+  code?: string | null;
+  subtotal_paise?: number;
+  discount_paise?: number;
+  taxable_paise?: number;
+  gst_paise?: number;
+  total_paise?: number;
+  eligible_package_ids?: number[];
+  line_taxable_paise?: Record<string, number>;
+  reasons?: string[];
+}
+
+export const discountsApi = {
+  list: (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    sort_by?: string;
+    sort_dir?: "asc" | "desc";
+  }) =>
+    api.get<{ data: DiscountCode[]; meta: { page: number; limit: number; total: number } }>(
+      "/discounts",
+      { params }
+    ),
+  get: (id: number) => api.get<{ data: DiscountCode }>(`/discounts/${id}`),
+  create: (payload: DiscountCodeCreate) =>
+    api.post<{ data: DiscountCode }>("/discounts", payload),
+  update: (id: number, payload: Partial<DiscountCodeCreate> & {
+    clear_min_bill?: boolean;
+    clear_starts_at?: boolean;
+    clear_ends_at?: boolean;
+    clear_total_use_limit?: boolean;
+    clear_per_user_use_limit?: boolean;
+  }) => api.put<{ data: DiscountCode }>(`/discounts/${id}`, payload),
+  updateStatus: (id: number, status: string) =>
+    api.patch<{ data: DiscountCode }>(`/discounts/${id}/status`, { status }),
+  redemptions: (id: number, params?: { page?: number; limit?: number }) =>
+    api.get<{ data: DiscountRedemption[]; meta: { page: number; limit: number; total: number } }>(
+      `/discounts/${id}/redemptions`,
+      { params }
+    ),
+  explain: (payload: {
+    code: string;
+    items: { user_id?: number; entity_type: string; entity_id: number }[];
+    engagement_id?: number;
+    user_id?: number;
+  }) => api.post<{ data: DiscountPreviewResult }>("/discounts/explain", payload),
+};
+
 // Organizations
 export type CityContactAssignments = {
   managers: number[];
@@ -3077,6 +3204,7 @@ export interface DiagnosticPackageListItem {
   collection_type?: string | null;
   price?: number | null;
   original_price?: number | null;
+  minimum_price?: number | null;
   discount_percent?: number | null;
   is_most_popular?: boolean | null;
   complementary_consultation?: Record<string, boolean> | null;
@@ -3111,6 +3239,7 @@ export interface DiagnosticPackageCreate {
   bookings_count?: number | null;
   price?: number | null;
   original_price?: number | null;
+  minimum_price?: number | null;
   is_most_popular?: boolean | null;
   complementary_consultation?: Record<string, boolean> | null;
   gender_suitability?: string | null;

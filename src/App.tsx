@@ -30,6 +30,7 @@ import { ExpertCampConsultationParticipantsPage } from "./features/experts/Exper
 import { Notifications } from "./features/notifications/Notifications";
 import { EngagementConsolePage } from "./features/console/EngagementConsolePage";
 import { ConsoleEngagementsPage } from "./features/console/ConsoleEngagementsPage";
+import { DiscountCodes } from "./features/discounts/DiscountCodes";
 import { ServerHealth } from "./features/server/ServerHealth";
 
 import { loginPathWithRedirect } from "./lib/authStorage";
@@ -199,6 +200,7 @@ function AppRoutes() {
         <Route path="diagnostics" element={<Navigate to="/diagnostics/packages" replace />} />
         <Route path="diagnostics/packages" element={<DiagnosticPackages />} />
         <Route path="diagnostics/filters-chips" element={<DiagnosticFilterChips />} />
+        <Route path="discounts" element={<DiscountCodes />} />
         <Route path="payments" element={<Navigate to="/payments/bookings" replace />} />
         <Route path="payments/bookings" element={<Bookings />} />
         <Route path="checklists" element={<ChecklistTemplates />} />
