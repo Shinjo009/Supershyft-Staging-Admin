@@ -19,6 +19,7 @@ import { BarcodeScannerModal } from "./BarcodeScannerModal";
 import { HomeCollectionBookingModal } from "./HomeCollectionBookingModal";
 import { ParticipantQuestionnaireModal } from "./ParticipantQuestionnaireModal";
 import { useAuth } from "../../contexts/AuthContext";
+import { usePermissions } from "../../contexts/PermissionContext";
 import {
   consoleApi,
   getApiError,
@@ -63,6 +64,9 @@ type ModalMode = "detail" | "book" | "book_home_collection" | "cancel_confirm" |
 export function EngagementConsolePage() {
   const { engagementId } = useParams<{ engagementId: string }>();
   const { employeeRole } = useAuth();
+  const { canEditTask } = usePermissions();
+  const mayEditBookings = canEditTask("engagement_console", "bookings");
+  const mayEditQuestionnaires = canEditTask("engagement_console", "questionnaires");
   const isAdmin = employeeRole === "admin";
   const isOrgManager = employeeRole === "organization_manager";
   const engId = Number(engagementId);
@@ -106,8 +110,7 @@ export function EngagementConsolePage() {
       const [engRes, parts] = await Promise.all([
         consoleApi.getEngagement(engId),
         fetchAllPages<Participant>(
-          (page, limit) =>
-            consoleApi.listParticipants(engId, { page, limit }) as any,
+          (page, limit) => consoleApi.listParticipants(engId, { page, limit }),
           100
         ),
       ]);
@@ -229,10 +232,10 @@ export function EngagementConsolePage() {
     (engagement?.status ?? "").toLowerCase() === "running";
 
   const canBookParticipant = (p: Participant | null) =>
-    Boolean(p && isEngagementRunning && !isParticipantBooked(p));
+    Boolean(mayEditBookings && p && isEngagementRunning && !isParticipantBooked(p));
 
   const canCancelBooking = (p: Participant | null) =>
-    Boolean(p && isEngagementRunning && isParticipantBooked(p));
+    Boolean(mayEditBookings && p && isEngagementRunning && isParticipantBooked(p));
 
   const closeActionMenu = () => {
     setActionMenuRow(null);
@@ -301,7 +304,7 @@ export function EngagementConsolePage() {
       setModalMode("detail");
 
       void fetchAllPages<Participant>(
-        (page, limit) => consoleApi.listParticipants(engId, { page, limit }) as any,
+        (page, limit) => consoleApi.listParticipants(engId, { page, limit }),
         100
       ).then((parts) => {
         setParticipants(parts);
@@ -341,7 +344,7 @@ export function EngagementConsolePage() {
       setModalMode("detail");
 
       void fetchAllPages<Participant>(
-        (page, limit) => consoleApi.listParticipants(engId, { page, limit }) as any,
+        (page, limit) => consoleApi.listParticipants(engId, { page, limit }),
         100
       ).then((parts) => {
         setParticipants(parts);
@@ -845,7 +848,7 @@ export function EngagementConsolePage() {
               prev ? { ...prev, booking_id: bid } : prev
             );
             void fetchAllPages<Participant>(
-              (page, limit) => consoleApi.listParticipants(engId, { page, limit }) as any,
+              (page, limit) => consoleApi.listParticipants(engId, { page, limit }),
               100
             ).then((parts) => {
               setParticipants(parts);
@@ -862,7 +865,7 @@ export function EngagementConsolePage() {
           onClose={closeModal}
           engagementId={engId}
           participant={selectedParticipant}
-          isEngagementRunning={isEngagementRunning}
+          isEngagementRunning={isEngagementRunning && mayEditQuestionnaires}
         />
       )}
     </ConsoleLayout>

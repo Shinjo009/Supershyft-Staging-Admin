@@ -1,5 +1,11 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { authStorage, loginPathWithRedirect } from "./authStorage";
+import type {
+  EmployeeRole,
+  PermissionCategory,
+} from "../auth/permissions";
+
+export const PERMISSIONS_STALE_EVENT = "dev-admin:permissions-stale";
 
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
 
@@ -19,9 +25,9 @@ const authHttp = axios.create({
 });
 
 let isRefreshing = false;
-let failedQueue: Array<{ resolve: (token: string) => void; reject: (err: any) => void }> = [];
+let failedQueue: Array<{ resolve: (token: string) => void; reject: (err: unknown) => void }> = [];
 
-const processQueue = (error: any, token: string | null = null) => {
+const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue.forEach((prom) => {
     if (error) {
       prom.reject(error);
@@ -111,6 +117,10 @@ api.interceptors.response.use(
       );
     }
 
+    if (err.response?.status === 403) {
+      window.dispatchEvent(new CustomEvent(PERMISSIONS_STALE_EVENT));
+    }
+
     return Promise.reject(err);
   }
 );
@@ -132,7 +142,8 @@ export interface UserProfile {
   profile_photo?: string | null;
   employee?: {
     employee_id: number;
-    role: "admin" | "onboarding_assistant" | "organization_manager" | "expert";
+    role: EmployeeRole;
+    permissions?: unknown;
   } | null;
 }
 
@@ -405,6 +416,8 @@ export interface AuthTokens {
 export const authApi = {
   sendOtp: (phone: string) =>
     authHttp.post<{ data: { session_id: number } }>("/auth/send-otp", { phone }),
+  resendOtp: (phone: string) =>
+    authHttp.post<{ data: { session_id: number } }>("/auth/resend-otp", { phone }),
   verifyOtp: (phone: string, otp: string) =>
     authHttp.post<{ data: AuthTokens }>("/auth/verify-otp", { phone, otp }),
   refreshToken: (refreshToken: string) =>
@@ -494,7 +507,7 @@ export const usersApi = {
   get: (id: number) =>
     api.get<{ data: UserDetail }>(`/users/${id}`),
   create: (payload: UserCreate) =>
-    api.post<{ data: { user_id: number } }>("/users", payload),
+    api.post<{ data: { user_id: number } }>("/employees/users", payload),
   update: (id: number, payload: UserUpdate) =>
     api.put<{ data: { user_id: number; status: string } }>(`/users/${id}`, payload),
   updateMetsightsProfileId: (id: number, metsights_profile_id: string) =>
@@ -726,6 +739,7 @@ export const uploadsApi = {
 // Employees
 export type EmployeeRoleValue =
   | "admin"
+  | "inferior_admin"
   | "onboarding_assistant"
   | "organization_manager"
   | "expert";
@@ -735,6 +749,7 @@ export interface EmployeeListItem {
   user_id: number;
   role?: EmployeeRoleValue | string | null;
   status?: string | null;
+  permissions_version?: number;
   first_name?: string | null;
   last_name?: string | null;
 }
@@ -743,11 +758,57 @@ export interface EmployeeCreate {
   user_id: number;
   role: EmployeeRoleValue | string;
   status?: string | null;
+  permissions?: CategoryGrantPayload[];
 }
 
 export interface EmployeeUpdate {
   user_id: number;
   role: EmployeeRoleValue | string;
+  expected_version?: number;
+  permissions?: CategoryGrantPayload[];
+}
+
+export interface PermissionCatalogItem {
+  category_key: PermissionCategory;
+  display_name?: string;
+  description?: string;
+  display_order?: number;
+  tasks: Array<{
+    task_key: string;
+    display_name: string;
+    description?: string;
+    display_order?: number;
+  }>;
+}
+
+export interface EmployeePermissions {
+  employee_id: number;
+  role?: EmployeeRoleValue | string | null;
+  version: number;
+  permissions: Array<{
+    category_key: PermissionCategory;
+    can_view: boolean;
+    can_edit: boolean;
+    tasks?: TaskGrantPayload[] | null;
+  }>;
+}
+
+export interface TaskGrantPayload {
+  task_key: string;
+  can_view: boolean;
+  can_edit: boolean;
+}
+
+export interface CategoryGrantPayload {
+  category_key: PermissionCategory;
+  can_view: boolean;
+  can_edit: boolean;
+  tasks?: TaskGrantPayload[];
+}
+
+export interface EmployeePermissionsUpdate {
+  expected_version: number;
+  permissions: CategoryGrantPayload[];
 }
 
 export const employeesApi = {
@@ -775,133 +836,15 @@ export const employeesApi = {
       `/employees/${id}/status`,
       { status }
     ),
-};
-
-export type DiscountType =
-  | "percentage"
-  | "fixed_amount"
-  | "percentage_capped"
-  | "fixed_final_price";
-
-export type DiscountScopeMode = "all" | "selected";
-
-export interface DiscountCode {
-  discount_code_id: number;
-  code: string;
-  name: string;
-  discount_type: DiscountType | string;
-  percent_off?: number | null;
-  amount_off_paise?: number | null;
-  max_discount_paise?: number | null;
-  fixed_final_price_paise?: number | null;
-  scope_mode: DiscountScopeMode | string;
-  package_ids: number[];
-  group_ids: number[];
-  excluded_package_ids: number[];
-  engagement_ids: number[];
-  min_bill_paise?: number | null;
-  starts_at?: string | null;
-  ends_at?: string | null;
-  total_use_limit?: number | null;
-  per_user_use_limit?: number | null;
-  stackable: boolean;
-  status: string;
-  effective_status: string;
-  reserved_count: number;
-  consumed_count: number;
-  created_at?: string | null;
-  updated_at?: string | null;
-}
-
-export interface DiscountCodeCreate {
-  code: string;
-  name: string;
-  discount_type: DiscountType;
-  percent_off?: number | null;
-  amount_off_paise?: number | null;
-  max_discount_paise?: number | null;
-  fixed_final_price_paise?: number | null;
-  scope_mode?: DiscountScopeMode;
-  package_ids?: number[];
-  group_ids?: number[];
-  excluded_package_ids?: number[];
-  engagement_ids?: number[];
-  min_bill_paise?: number | null;
-  starts_at?: string | null;
-  ends_at?: string | null;
-  total_use_limit?: number | null;
-  per_user_use_limit?: number | null;
-  stackable?: boolean;
-}
-
-export interface DiscountRedemption {
-  redemption_id: number;
-  discount_code_id: number;
-  user_id: number;
-  order_id?: number | null;
-  engagement_id?: number | null;
-  status: string;
-  subtotal_paise: number;
-  discount_paise: number;
-  taxable_paise: number;
-  gst_paise: number;
-  total_paise: number;
-  code_snapshot: string;
-  package_ids_snapshot?: number[] | null;
-  created_at?: string | null;
-}
-
-export interface DiscountPreviewResult {
-  ok: boolean;
-  message: string;
-  discount_code_id?: number | null;
-  code?: string | null;
-  subtotal_paise?: number;
-  discount_paise?: number;
-  taxable_paise?: number;
-  gst_paise?: number;
-  total_paise?: number;
-  eligible_package_ids?: number[];
-  line_taxable_paise?: Record<string, number>;
-  reasons?: string[];
-}
-
-export const discountsApi = {
-  list: (params?: {
-    page?: number;
-    limit?: number;
-    search?: string;
-    status?: string;
-    sort_by?: string;
-    sort_dir?: "asc" | "desc";
-  }) =>
-    api.get<{ data: DiscountCode[]; meta: { page: number; limit: number; total: number } }>(
-      "/discounts",
-      { params }
+  permissionCatalog: () =>
+    api.get<{ data: PermissionCatalogItem[] }>("/employees/permission-categories"),
+  getPermissions: (id: number) =>
+    api.get<{ data: EmployeePermissions }>(`/employees/${id}/permissions`),
+  updatePermissions: (id: number, payload: EmployeePermissionsUpdate) =>
+    api.put<{ data: { employee_id: number; version: number } }>(
+      `/employees/${id}/permissions`,
+      payload
     ),
-  get: (id: number) => api.get<{ data: DiscountCode }>(`/discounts/${id}`),
-  create: (payload: DiscountCodeCreate) =>
-    api.post<{ data: DiscountCode }>("/discounts", payload),
-  update: (id: number, payload: Partial<DiscountCodeCreate> & {
-    clear_min_bill?: boolean;
-    clear_starts_at?: boolean;
-    clear_ends_at?: boolean;
-    clear_total_use_limit?: boolean;
-    clear_per_user_use_limit?: boolean;
-  }) => api.put<{ data: DiscountCode }>(`/discounts/${id}`, payload),
-  updateStatus: (id: number, status: string) =>
-    api.patch<{ data: DiscountCode }>(`/discounts/${id}/status`, { status }),
-  redemptions: (id: number, params?: { page?: number; limit?: number }) =>
-    api.get<{ data: DiscountRedemption[]; meta: { page: number; limit: number; total: number } }>(
-      `/discounts/${id}/redemptions`,
-      { params }
-    ),
-  explain: (payload: {
-    code: string;
-    items: { user_id?: number; entity_type: string; entity_id: number }[];
-    engagement_id?: number;
-    user_id?: number;
-  }) => api.post<{ data: DiscountPreviewResult }>("/discounts/explain", payload),
 };
 
 // Organizations
