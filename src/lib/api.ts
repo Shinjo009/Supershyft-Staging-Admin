@@ -665,7 +665,19 @@ export interface PublicUserOnboardCategoryQuestionnaire {
 }
 
 export interface PublicUserOnboardPayload {
-  user_id: number;
+  user_id?: number | null;
+  age?: number | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  gender?: string | null;
+  dob?: string | null;
+  address?: string | null;
+  pincode?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
   engagement_type?: string;
   blood_collection_date?: string | null;
   blood_collection_time_slot?: string | null;

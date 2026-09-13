@@ -217,12 +217,16 @@ export function Users() {
   const sendMsgOpenRequestId = useRef(0);
   const sendMsgPrepareRequestId = useRef(0);
 
-  const [onboardUserId, setOnboardUserId] = useState<number | null>(null);
+  const [onboardOpen, setOnboardOpen] = useState(false);
   const [onboardSuccessMsg, setOnboardSuccessMsg] = useState<string | null>(null);
 
-  const openOnboard = (userId: number) => {
+  const openOnboardCreate = () => {
     setOnboardSuccessMsg(null);
-    setOnboardUserId(userId);
+    setOnboardOpen(true);
+  };
+
+  const closeOnboard = () => {
+    setOnboardOpen(false);
   };
 
   useEffect(() => {
@@ -872,6 +876,16 @@ export function Users() {
               have a metsights_profile_id
             </span>
           </span>
+          <PermissionGate category="users" taskKey="profiles" action="edit">
+            <button
+              type="button"
+              onClick={openOnboardCreate}
+              className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg border border-zinc-300 text-zinc-800 text-sm font-medium hover:bg-zinc-50"
+            >
+              <UserPlus className="w-4 h-4 shrink-0" />
+              <span className="hidden sm:inline">Onboard User</span>
+            </button>
+          </PermissionGate>
           <PermissionGate category="users" taskKey="profiles" action="edit"><button
             onClick={openAdd}
             className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800"
@@ -942,22 +956,6 @@ export function Users() {
               setDeleteConfirm(r);
             }}
             onSendMessage={maySendNotifications ? openSendMessage : undefined}
-            renderExtraMenuItems={
-              mayEditUsers
-                ? (row, closeMenu) => (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        openOnboard(row.user_id);
-                        closeMenu();
-                      }}
-                      className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2"
-                    >
-                      <UserPlus className="w-4 h-4" /> Onboard User
-                    </button>
-                  )
-                : undefined
-            }
             pagination={{ page, limit, total, onPageChange: setPage }}
           />
         )}
@@ -1052,17 +1050,6 @@ export function Users() {
               >
                 <ListTree className="w-4 h-4 shrink-0" />
                 Participant journey
-              </button>}
-              {mayEditUsers && <button
-                type="button"
-                onClick={() => {
-                  setModalOpen(false);
-                  openOnboard(selected.user_id);
-                }}
-                className="w-full sm:w-auto px-4 py-2 rounded-lg border border-zinc-300 text-zinc-800 text-sm font-medium hover:bg-zinc-50 inline-flex items-center justify-center gap-2"
-              >
-                <UserPlus className="w-4 h-4 shrink-0" />
-                Onboard User
               </button>}
               {mayEditUsers && <button
                 onClick={() => {
@@ -1711,9 +1698,10 @@ export function Users() {
       )}
 
       <OnboardUserModal
-        open={onboardUserId != null}
-        userId={onboardUserId}
-        onClose={() => setOnboardUserId(null)}
+        open={onboardOpen}
+        mode="create"
+        userId={null}
+        onClose={closeOnboard}
         onSuccess={(result) => {
           void fetchList();
           void fetchStats();
