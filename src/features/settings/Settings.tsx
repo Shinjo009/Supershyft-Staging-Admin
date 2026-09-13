@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Loader2, Pause, Play, RefreshCw, Save, ScrollText, Search, Users } from "lucide-react";
 import { DuplicatedUsersModal } from "./DuplicatedUsersModal";
+import { MetsightsBloodMappingSection } from "./MetsightsBloodMappingSection";
 import { IntegrationSyncLogsModal } from "../assessments/IntegrationSyncLogsModal";
 import { usePermissions } from "../../contexts/PermissionContext";
 import {
@@ -101,14 +102,14 @@ function labelDiagnostic(p: DiagnosticPackageListItem) {
 }
 
 function labelPartner(p: PartnerListItem | DefaultOnboardingAssistantItem) {
-  if ("name" in p && typeof (p as { name?: string }).name === "string" && (p as { name?: string }).name?.trim()) {
-    return (p as { name: string }).name.trim();
+  if ("partner_id" in p) {
+    const name = p.name?.trim();
+    return name || `Partner #${p.partner_id}`;
   }
   const first = p.first_name?.trim() ?? "";
   const last = p.last_name?.trim() ?? "";
   const full = `${first} ${last}`.trim();
-  const id = "partner_id" in p ? (p as PartnerListItem).partner_id : p.employee_id;
-  return full || `Partner #${id}`;
+  return full || `Partner #${p.employee_id}`;
 }
 
 const BLOOD_COLLECTION_TYPE_OPTIONS: { value: BloodCollectionType | ""; label: string }[] = [
@@ -179,6 +180,7 @@ export function Settings() {
   const mayViewNotifications = canViewTask("notifications", "defaults");
   const mayEditNotifications = canEditTask("notifications", "defaults");
   const mayEditUsers = canEditTask("users", "profiles");
+  const mayViewIntegrations = canViewTask("assessments", "integrations");
   const mayViewSystemMonitoring = canViewTask("system_monitoring", "audit_logs");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1675,6 +1677,8 @@ export function Settings() {
           </div>
         ) : null}
       </section>
+
+      {mayViewIntegrations && <MetsightsBloodMappingSection />}
 
       {mayEditUsers && <section className="bg-white border border-zinc-200 rounded-xl p-5 shadow-sm">
         <h2 className="text-sm font-semibold text-zinc-900">User maintenance</h2>

@@ -274,7 +274,7 @@ export function Users() {
   useEffect(() => {
     employeesApi
       .get(ALWAYS_ACTIVE_EMPLOYEE_ID)
-      .then((res) => setAlwaysActiveUserId(res.data.data.user_id))
+      .then((res) => setAlwaysActiveUserId(res.data.data.user_id ?? null))
       .catch(() => setAlwaysActiveUserId(null));
   }, []);
 
