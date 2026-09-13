@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Plus, Loader2, ListTree, Info, AlertTriangle } from "lucide-react";
+import { Search, Plus, Loader2, ListTree, Info, AlertTriangle, UserPlus } from "lucide-react";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
 import { Modal } from "../../shared/ui/Modal";
 import { Engagements } from "../engagements/Engagements";
+import { OnboardUserModal } from "./OnboardUserModal";
 import {
   usersApi,
   employeesApi,
@@ -215,6 +216,14 @@ export function Users() {
   const [sendMsgSuccess, setSendMsgSuccess] = useState<string | null>(null);
   const sendMsgOpenRequestId = useRef(0);
   const sendMsgPrepareRequestId = useRef(0);
+
+  const [onboardUserId, setOnboardUserId] = useState<number | null>(null);
+  const [onboardSuccessMsg, setOnboardSuccessMsg] = useState<string | null>(null);
+
+  const openOnboard = (userId: number) => {
+    setOnboardSuccessMsg(null);
+    setOnboardUserId(userId);
+  };
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
@@ -879,6 +888,11 @@ export function Users() {
           {error}
         </div>
       )}
+      {onboardSuccessMsg && (
+        <div className="mb-4 p-3 rounded-lg bg-emerald-50 text-emerald-800 text-sm">
+          {onboardSuccessMsg}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="mb-4 flex flex-col sm:flex-row gap-3">
@@ -928,6 +942,22 @@ export function Users() {
               setDeleteConfirm(r);
             }}
             onSendMessage={maySendNotifications ? openSendMessage : undefined}
+            renderExtraMenuItems={
+              mayEditUsers
+                ? (row, closeMenu) => (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        openOnboard(row.user_id);
+                        closeMenu();
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2"
+                    >
+                      <UserPlus className="w-4 h-4" /> Onboard User
+                    </button>
+                  )
+                : undefined
+            }
             pagination={{ page, limit, total, onPageChange: setPage }}
           />
         )}
@@ -1022,6 +1052,17 @@ export function Users() {
               >
                 <ListTree className="w-4 h-4 shrink-0" />
                 Participant journey
+              </button>}
+              {mayEditUsers && <button
+                type="button"
+                onClick={() => {
+                  setModalOpen(false);
+                  openOnboard(selected.user_id);
+                }}
+                className="w-full sm:w-auto px-4 py-2 rounded-lg border border-zinc-300 text-zinc-800 text-sm font-medium hover:bg-zinc-50 inline-flex items-center justify-center gap-2"
+              >
+                <UserPlus className="w-4 h-4 shrink-0" />
+                Onboard User
               </button>}
               {mayEditUsers && <button
                 onClick={() => {
@@ -1668,6 +1709,24 @@ export function Users() {
           onCloseModal={() => setEngagementDetailId(null)}
         />
       )}
+
+      <OnboardUserModal
+        open={onboardUserId != null}
+        userId={onboardUserId}
+        onClose={() => setOnboardUserId(null)}
+        onSuccess={(result) => {
+          void fetchList();
+          void fetchStats();
+          const code = result.engagement_code ? ` (${result.engagement_code})` : "";
+          setOnboardSuccessMsg(
+            `User #${result.user_id} onboarded into engagement${code}` +
+              (result.engagement_participant_id != null
+                ? `; participant #${result.engagement_participant_id}`
+                : "") +
+              "."
+          );
+        }}
+      />
     </div>
   );
 }
