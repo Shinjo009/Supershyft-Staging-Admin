@@ -655,6 +655,53 @@ export interface DuplicateUserGroupApi {
   users: Pick<UserListItem, "user_id" | "first_name" | "last_name" | "phone" | "email" | "status">[];
 }
 
+export interface PublicUserOnboardQuestionnaireResponse {
+  question_id: number;
+  answer: unknown;
+}
+
+export interface PublicUserOnboardCategoryQuestionnaire {
+  responses: PublicUserOnboardQuestionnaireResponse[];
+}
+
+export interface PublicUserOnboardPayload {
+  user_id?: number | null;
+  age?: number | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  gender?: string | null;
+  dob?: string | null;
+  address?: string | null;
+  pincode?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  engagement_type?: string;
+  blood_collection_date?: string | null;
+  blood_collection_time_slot?: string | null;
+  participants_employee_id?: string | null;
+  participant_department?: string | null;
+  participant_blood_group?: string | null;
+  want_doctor_consultation?: boolean | null;
+  want_nutritionist_consultation?: boolean | null;
+  want_doctor_and_nutritionist_consultation?: boolean | null;
+  questionnaire?: Record<string, PublicUserOnboardCategoryQuestionnaire> | null;
+}
+
+export interface PublicUserOnboardResponse {
+  user_id: number;
+  created: boolean;
+  is_participant: boolean;
+  engagement_id?: number | null;
+  engagement_code?: string | null;
+  engagement_participant_id?: number | null;
+  assessment_instance_id?: number | null;
+  metsights_record_id?: string | null;
+  preview_available?: boolean;
+}
+
 export const usersApi = {
   me: () => api.get<{ data: UserProfile }>("/users/me"),
   list: (params?: {
@@ -704,6 +751,8 @@ export const usersApi = {
       `/users/${id}`,
       { params }
     ),
+  publicOnboard: (payload: PublicUserOnboardPayload) =>
+    api.post<{ data: PublicUserOnboardResponse }>("/users/public/onboard", payload),
 };
 
 // Participant journey (employee: per-user assessments + questionnaire)
@@ -3416,6 +3465,7 @@ export interface DiagnosticPackageListItem {
   collection_type?: string | null;
   price?: number | null;
   original_price?: number | null;
+  minimum_price?: number | null;
   discount_percent?: number | null;
   is_most_popular?: boolean | null;
   complementary_consultation?: Record<string, boolean> | null;
@@ -3450,6 +3500,7 @@ export interface DiagnosticPackageCreate {
   bookings_count?: number | null;
   price?: number | null;
   original_price?: number | null;
+  minimum_price?: number | null;
   is_most_popular?: boolean | null;
   complementary_consultation?: Record<string, boolean> | null;
   gender_suitability?: string | null;

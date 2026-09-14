@@ -31,6 +31,7 @@ const EMPTY_FORM: DiagnosticPackageCreate = {
   report_duration_hours: null,
   price: null,
   original_price: null,
+  minimum_price: null,
   is_most_popular: false,
   complementary_consultation: {},
   health_areas_covered: "",
@@ -234,6 +235,7 @@ export function DiagnosticPackages() {
       report_duration_hours: row.report_duration_hours ?? null,
       price: row.price ?? null,
       original_price: row.original_price ?? null,
+      minimum_price: row.minimum_price ?? null,
       is_most_popular: !!row.is_most_popular,
       complementary_consultation: row.complementary_consultation ?? {},
       health_areas_covered: "",
@@ -341,6 +343,7 @@ export function DiagnosticPackages() {
         report_duration_hours: form.report_duration_hours ?? null,
         price: form.price ?? null,
         original_price: form.original_price ?? null,
+        minimum_price: form.minimum_price ?? null,
         is_most_popular: !!form.is_most_popular,
         complementary_consultation: form.complementary_consultation ?? {},
         health_areas_covered: form.health_areas_covered?.trim() || null,
@@ -770,6 +773,15 @@ export function DiagnosticPackages() {
                 type="number"
                 value={form.original_price ?? ""}
                 onChange={(e) => setForm((prev) => ({ ...prev, original_price: toNumberOrNull(e.target.value) }))}
+                className="w-full border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">Minimum price (floor)</label>
+              <input
+                type="number"
+                value={form.minimum_price ?? ""}
+                onChange={(e) => setForm((prev) => ({ ...prev, minimum_price: toNumberOrNull(e.target.value) }))}
                 className="w-full border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900"
               />
             </div>

@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Plus, Loader2, ListTree, Info, AlertTriangle } from "lucide-react";
+import { Search, Plus, Loader2, ListTree, Info, AlertTriangle, UserPlus } from "lucide-react";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
 import { Modal } from "../../shared/ui/Modal";
 import { Engagements } from "../engagements/Engagements";
+import { OnboardUserModal } from "./OnboardUserModal";
 import {
   usersApi,
   employeesApi,
@@ -215,6 +216,18 @@ export function Users() {
   const [sendMsgSuccess, setSendMsgSuccess] = useState<string | null>(null);
   const sendMsgOpenRequestId = useRef(0);
   const sendMsgPrepareRequestId = useRef(0);
+
+  const [onboardOpen, setOnboardOpen] = useState(false);
+  const [onboardSuccessMsg, setOnboardSuccessMsg] = useState<string | null>(null);
+
+  const openOnboardCreate = () => {
+    setOnboardSuccessMsg(null);
+    setOnboardOpen(true);
+  };
+
+  const closeOnboard = () => {
+    setOnboardOpen(false);
+  };
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
@@ -863,6 +876,16 @@ export function Users() {
               have a metsights_profile_id
             </span>
           </span>
+          <PermissionGate category="users" taskKey="profiles" action="edit">
+            <button
+              type="button"
+              onClick={openOnboardCreate}
+              className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg border border-zinc-300 text-zinc-800 text-sm font-medium hover:bg-zinc-50"
+            >
+              <UserPlus className="w-4 h-4 shrink-0" />
+              <span className="hidden sm:inline">Onboard User</span>
+            </button>
+          </PermissionGate>
           <PermissionGate category="users" taskKey="profiles" action="edit"><button
             onClick={openAdd}
             className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800"
@@ -877,6 +900,11 @@ export function Users() {
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">
           {error}
+        </div>
+      )}
+      {onboardSuccessMsg && (
+        <div className="mb-4 p-3 rounded-lg bg-emerald-50 text-emerald-800 text-sm">
+          {onboardSuccessMsg}
         </div>
       )}
 
@@ -1668,6 +1696,25 @@ export function Users() {
           onCloseModal={() => setEngagementDetailId(null)}
         />
       )}
+
+      <OnboardUserModal
+        open={onboardOpen}
+        mode="create"
+        userId={null}
+        onClose={closeOnboard}
+        onSuccess={(result) => {
+          void fetchList();
+          void fetchStats();
+          const code = result.engagement_code ? ` (${result.engagement_code})` : "";
+          setOnboardSuccessMsg(
+            `User #${result.user_id} onboarded into engagement${code}` +
+              (result.engagement_participant_id != null
+                ? `; participant #${result.engagement_participant_id}`
+                : "") +
+              "."
+          );
+        }}
+      />
     </div>
   );
 }
