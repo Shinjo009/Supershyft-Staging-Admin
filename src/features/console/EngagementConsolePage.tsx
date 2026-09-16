@@ -11,12 +11,14 @@ import {
   Camera,
   CalendarPlus,
   Ban,
+  RefreshCw,
 } from "lucide-react";
 import { ConsoleLayout } from "../../layouts/ConsoleLayout";
 import { Modal } from "../../shared/ui/Modal";
 import { PortalMenu } from "../../shared/ui/PortalMenu";
 import { BarcodeScannerModal } from "./BarcodeScannerModal";
 import { HomeCollectionBookingModal } from "./HomeCollectionBookingModal";
+import { HomeCollectionRescheduleModal } from "./HomeCollectionRescheduleModal";
 import { ParticipantQuestionnaireModal } from "./ParticipantQuestionnaireModal";
 import { useAuth } from "../../contexts/AuthContext";
 import { usePermissions } from "../../contexts/PermissionContext";
@@ -59,7 +61,7 @@ function applyBookingToParticipant(
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-type ModalMode = "detail" | "book" | "book_home_collection" | "cancel_confirm" | "cancel" | "questionnaires" | null;
+type ModalMode = "detail" | "book" | "book_home_collection" | "reschedule_home_collection" | "cancel_confirm" | "cancel" | "questionnaires" | null;
 
 export function EngagementConsolePage() {
   const { engagementId } = useParams<{ engagementId: string }>();
@@ -237,6 +239,9 @@ export function EngagementConsolePage() {
   const canCancelBooking = (p: Participant | null) =>
     Boolean(mayEditBookings && p && isEngagementRunning && isParticipantBooked(p));
 
+  const canRescheduleParticipant = (p: Participant | null) =>
+    Boolean(isHomeCollection && canCancelBooking(p));
+
   const closeActionMenu = () => {
     setActionMenuRow(null);
     actionMenuAnchorRef.current = null;
@@ -273,6 +278,12 @@ export function EngagementConsolePage() {
     setCancelRemarks("");
     setCancelError(null);
     setModalMode("cancel_confirm");
+    closeActionMenu();
+  };
+
+  const openRescheduleFor = (p: Participant) => {
+    setSelectedParticipant(p);
+    setModalMode("reschedule_home_collection");
     closeActionMenu();
   };
 
@@ -623,6 +634,21 @@ export function EngagementConsolePage() {
                 Book
               </button>
             )}
+            {canRescheduleParticipant(actionMenuParticipant) && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (actionMenuParticipant) {
+                    openRescheduleFor(actionMenuParticipant);
+                  }
+                }}
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Reschedule
+              </button>
+            )}
             {canCancelBooking(actionMenuParticipant) && (
               <button
                 type="button"
@@ -846,6 +872,49 @@ export function EngagementConsolePage() {
             );
             setSelectedParticipant((prev) =>
               prev ? { ...prev, booking_id: bid } : prev
+            );
+            void fetchAllPages<Participant>(
+              (page, limit) => consoleApi.listParticipants(engId, { page, limit }),
+              100
+            ).then((parts) => {
+              setParticipants(parts);
+              const updated = parts.find((p) => p.user_id === userId);
+              if (updated) setSelectedParticipant(updated);
+            });
+          }}
+        />
+      )}
+
+      {selectedParticipant && (
+        <HomeCollectionRescheduleModal
+          key={`reschedule-${selectedParticipant.user_id}-${selectedParticipant.booking_id ?? "none"}`}
+          open={modalMode === "reschedule_home_collection"}
+          onClose={closeModal}
+          engagementId={engId}
+          participant={selectedParticipant}
+          onRescheduled={(result) => {
+            const userId = selectedParticipant.user_id;
+            setParticipants((prev) =>
+              prev.map((p) =>
+                p.user_id === userId
+                  ? {
+                      ...p,
+                      booking_id: result.booking_id,
+                      engagement_date: result.engagement_date,
+                      slot_start_time: result.slot_start_time,
+                    }
+                  : p
+              )
+            );
+            setSelectedParticipant((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    booking_id: result.booking_id,
+                    engagement_date: result.engagement_date,
+                    slot_start_time: result.slot_start_time,
+                  }
+                : prev
             );
             void fetchAllPages<Participant>(
               (page, limit) => consoleApi.listParticipants(engId, { page, limit }),

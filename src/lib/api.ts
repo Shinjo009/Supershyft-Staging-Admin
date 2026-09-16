@@ -3083,7 +3083,13 @@ export const consoleApi = {
   checkHomeCollectionServiceAvailability: (
     engagementId: number,
     userId: number,
-    payload: { address_line: string; landmark?: string; city: string; pincode: string }
+    payload: {
+      address_line: string;
+      landmark?: string;
+      city: string;
+      pincode: string;
+      for_reschedule?: boolean;
+    }
   ) =>
     api.post<{ data: { status: string; message: string; zone_id?: string | number | null; engagement_id: number; user_id: number } }>(
       `/engagements/${engagementId}/console/participants/${userId}/book-home-collection/check-service-availability`,
@@ -3110,6 +3116,34 @@ export const consoleApi = {
   bookHomeCollection: (engagementId: number, userId: number) =>
     api.post<{ data: { status?: boolean; message?: string; booking_id?: string; lead_id?: number | null; resCode?: string; engagement_participant_id?: number; user_id: number; engagement_id: number } }>(
       `/engagements/${engagementId}/console/participants/${userId}/book-home-collection/book`
+    ),
+  rescheduleHomeCollection: (
+    engagementId: number,
+    userId: number,
+    payload: {
+      blood_collection_date: string;
+      blood_collection_time_slot_id: string;
+      blood_collection_time_slot: string;
+    }
+  ) =>
+    api.patch<{
+      data: {
+        status?: boolean;
+        message?: string;
+        booking_id?: string;
+        lead_id?: number | null;
+        resCode?: string;
+        engagement_participant_id?: number;
+        user_id: number;
+        engagement_id: number;
+        blood_collection_date?: string;
+        blood_collection_time_slot?: string;
+        blood_collection_time_slot_id?: string;
+        slot_start_time?: string | null;
+      };
+    }>(
+      `/engagements/${engagementId}/console/participants/${userId}/book-home-collection/reschedule`,
+      payload
     ),
 };
 
