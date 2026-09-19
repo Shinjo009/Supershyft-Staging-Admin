@@ -56,12 +56,49 @@ function applyBookingToParticipant(
     ...p,
     booking_id: result.booking_id ?? p.booking_id,
     barcode: result.barcode ?? p.barcode,
+    engagement_date:
+      result.engagement_date !== undefined && result.engagement_date !== null
+        ? result.engagement_date
+        : p.engagement_date,
+    slot_start_time:
+      result.slot_start_time !== undefined && result.slot_start_time !== null
+        ? result.slot_start_time
+        : p.slot_start_time,
   };
+}
+
+/** Combine engagement_date + slot_start_time into a local Date, or null if incomplete. */
+function parseParticipantCollectionAt(p: Participant): Date | null {
+  const dateStr = (p.engagement_date ?? "").trim();
+  const slotStr = (p.slot_start_time ?? "").trim();
+  if (!dateStr || !slotStr) return null;
+
+  const timePart = slotStr.length === 5 ? `${slotStr}:00` : slotStr;
+  const parsed = new Date(`${dateStr}T${timePart}`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
+
+const FIFTEEN_MIN_MS = 15 * 60 * 1000;
+
+function isCollectionOffByMoreThan15Min(p: Participant, now = new Date()): boolean {
+  const scheduled = parseParticipantCollectionAt(p);
+  if (!scheduled) return false;
+  return Math.abs(now.getTime() - scheduled.getTime()) > FIFTEEN_MIN_MS;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-type ModalMode = "detail" | "book" | "book_home_collection" | "reschedule_home_collection" | "cancel_confirm" | "cancel" | "questionnaires" | null;
+type ModalMode =
+  | "detail"
+  | "book"
+  | "book_schedule_confirm"
+  | "book_home_collection"
+  | "reschedule_home_collection"
+  | "cancel_confirm"
+  | "cancel"
+  | "questionnaires"
+  | null;
 
 export function EngagementConsolePage() {
   const { engagementId } = useParams<{ engagementId: string }>();
@@ -96,6 +133,7 @@ export function EngagementConsolePage() {
     useState<Participant | null>(null);
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [barcode, setBarcode] = useState("");
+  const [syncCollectionToNow, setSyncCollectionToNow] = useState(false);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [cancelRemarks, setCancelRemarks] = useState("");
@@ -197,9 +235,25 @@ export function EngagementConsolePage() {
     setSelectedParticipant(null);
     setBarcode("");
     setBookingError(null);
+    setSyncCollectionToNow(false);
     setCancelRemarks("");
     setCancelError(null);
     setBarcodeScannerOpen(false);
+  };
+
+  const openCampBookModal = (syncToNow: boolean) => {
+    setSyncCollectionToNow(syncToNow);
+    setBarcode("");
+    setBookingError(null);
+    setModalMode("book");
+  };
+
+  const startCampBookFlow = (p: Participant) => {
+    if (isCollectionOffByMoreThan15Min(p)) {
+      setModalMode("book_schedule_confirm");
+      return;
+    }
+    openCampBookModal(false);
   };
 
   const openCancelConfirm = () => {
@@ -221,13 +275,12 @@ export function EngagementConsolePage() {
   const isHomeCollection = engagement?.blood_collection_type === "home_collection";
 
   const openBookModal = () => {
+    if (!selectedParticipant) return;
     if (isHomeCollection) {
       setModalMode("book_home_collection");
       return;
     }
-    setBarcode("");
-    setBookingError(null);
-    setModalMode("book");
+    startCampBookFlow(selectedParticipant);
   };
 
   const isEngagementRunning =
@@ -268,9 +321,7 @@ export function EngagementConsolePage() {
       setModalMode("book_home_collection");
       return;
     }
-    setBarcode("");
-    setBookingError(null);
-    setModalMode("book");
+    startCampBookFlow(p);
   };
 
   const openCancelFor = (p: Participant) => {
@@ -300,6 +351,7 @@ export function EngagementConsolePage() {
     try {
       const res = await consoleApi.bookParticipant(engId, userId, {
         barcode: trimmed,
+        ...(syncCollectionToNow ? { sync_collection_to_now: true } : {}),
       });
       const result = res.data.data;
 
@@ -312,6 +364,7 @@ export function EngagementConsolePage() {
         prev ? applyBookingToParticipant(prev, result) : prev
       );
       setBarcode("");
+      setSyncCollectionToNow(false);
       setModalMode("detail");
 
       void fetchAllPages<Participant>(
@@ -786,6 +839,45 @@ export function EngagementConsolePage() {
                 className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50"
               >
                 {cancelLoading ? "Cancelling…" : "Confirm cancel"}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={modalMode === "book_schedule_confirm"}
+        onClose={closeModal}
+        title="Confirm Collection Time"
+        maxWidthClassName="max-w-md"
+      >
+        {selectedParticipant && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-200">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-900">
+                The collection was at{" "}
+                <span className="font-medium">
+                  {selectedParticipant.engagement_date ?? "—"}{" "}
+                  {selectedParticipant.slot_start_time ?? "—"}
+                </span>
+                . Want to book now?
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeModal}
+                className="px-4 py-2 rounded-lg border border-zinc-300 text-sm text-zinc-700 hover:bg-zinc-50"
+              >
+                No
+              </button>
+              <button
+                type="button"
+                onClick={() => openCampBookModal(true)}
+                className="px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800"
+              >
+                Yes
               </button>
             </div>
           </div>

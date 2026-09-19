@@ -2953,6 +2953,8 @@ export interface ConsoleParticipantBookResponse {
   barcode?: string | null;
   engagement_participant_id?: number | null;
   user_id?: number | null;
+  engagement_date?: string | null;
+  slot_start_time?: string | null;
 }
 
 export interface ConsoleParticipantAssessment {
@@ -3021,7 +3023,7 @@ export const consoleApi = {
   bookParticipant: (
     engagementId: number,
     userId: number,
-    payload: { barcode: string }
+    payload: { barcode: string; sync_collection_to_now?: boolean }
   ) =>
     api.post<{ data: ConsoleParticipantBookResponse }>(
       `/engagements/${engagementId}/console/participants/${userId}/book`,
