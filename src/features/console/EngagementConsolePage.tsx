@@ -225,7 +225,7 @@ export function EngagementConsolePage() {
       setModalMode("book_home_collection");
       return;
     }
-    setBarcode("");
+    setBarcode((selectedParticipant?.barcode ?? "").trim());
     setBookingError(null);
     setModalMode("book");
   };
@@ -268,7 +268,7 @@ export function EngagementConsolePage() {
       setModalMode("book_home_collection");
       return;
     }
-    setBarcode("");
+    setBarcode((p.barcode ?? "").trim());
     setBookingError(null);
     setModalMode("book");
   };
@@ -323,6 +323,14 @@ export function EngagementConsolePage() {
         if (updated) setSelectedParticipant(updated);
       });
     } catch (err) {
+      // Barcode is persisted server-side even when Healthians booking fails;
+      // keep it on the local participant row so the console reflects it immediately.
+      setParticipants((prev) =>
+        prev.map((p) => (p.user_id === userId ? { ...p, barcode: trimmed } : p))
+      );
+      setSelectedParticipant((prev) =>
+        prev ? { ...prev, barcode: trimmed } : prev
+      );
       setBookingError(getApiError(err));
     } finally {
       setBookingLoading(false);
