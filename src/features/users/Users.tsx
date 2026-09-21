@@ -19,6 +19,7 @@ import {
   type ParticipantJourneyInstanceSummary,
   getApiError,
 } from "../../lib/api";
+import { isMaskedContact } from "../../lib/isMaskedContact";
 function hasMetsightsProfileId(user: UserListItem): boolean {
   return Boolean((user.metsights_profile_id ?? "").trim());
 }
@@ -367,11 +368,13 @@ export function Users() {
     setSubmitting(true);
     setError(null);
     try {
+      const phoneValue = formData.phone.trim();
+      const emailValue = (formData.email || "").trim();
       const payload: UserCreate = {
         first_name: formData.first_name?.trim() || null,
         last_name: formData.last_name || null,
-        phone: formData.phone.trim(),
-        email: formData.email || null,
+        phone: phoneValue,
+        email: emailValue || null,
         profile_photo: formData.profile_photo || null,
         date_of_birth: formData.date_of_birth || null,
         gender: formData.gender || null,
@@ -388,8 +391,14 @@ export function Users() {
         payload.age = Math.trunc(formData.age);
       }
       if (modalMode === "add") {
+        if (isMaskedContact(phoneValue) || isMaskedContact(emailValue)) {
+          setError("Enter a full phone and email when creating a user.");
+          setSubmitting(false);
+          return;
+        }
         await usersApi.create(payload);
       } else if (selected) {
+        // Masked values are ignored server-side and keep the stored contact.
         await usersApi.update(selected.user_id, payload);
       }
       setModalOpen(false);
@@ -779,19 +788,19 @@ export function Users() {
                 return;
               }
               const nextStatus = isActive ? "inactive" : "active";
-              usersApi
-                .update(row.user_id, {
-                  age: Number(row.age),
-                  first_name: row.first_name ?? null,
-                  last_name: row.last_name ?? null,
-                  phone,
-                  email: row.email ?? null,
-                  status: nextStatus,
-                })
-                .then(() => fetchList())
-                .catch((err) => setError(getApiError(err)));
-            }}
-            className={`inline-flex items-center w-12 h-6 rounded-full transition disabled:cursor-not-allowed disabled:opacity-80 ${
+              const request =
+                nextStatus === "inactive"
+                  ? usersApi.deactivate(row.user_id)
+                  : usersApi.update(row.user_id, {
+                      age: Number(row.age),
+                      first_name: row.first_name ?? null,
+                      last_name: row.last_name ?? null,
+                      phone,
+                      email: row.email ?? null,
+                      status: nextStatus,
+                    });
+              request.then(() => fetchList()).catch((err) => setError(getApiError(err)));
+            }}            className={`inline-flex items-center w-12 h-6 rounded-full transition disabled:cursor-not-allowed disabled:opacity-80 ${
               isActive ? "bg-emerald-500" : "bg-zinc-300"
             }`}
             aria-pressed={isActive}
