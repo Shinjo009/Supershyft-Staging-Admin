@@ -1448,13 +1448,13 @@ export interface CampReportSectionPayload {
     blood_test_percent?: number;
     doctor_consultation?: number;
     nutritionist_consultation?: number;
-    doctor_and_nutritionist_consultation?: number;
     questionnaire_completed?: number;
     bio_ai_report_generated?: number;
     high_risk_group?: number;
     caution_risk_group?: number;
     good_risk_group?: number;
     consultations?: Record<string, number>;
+    consultation_done?: Record<string, number>;
   };
 }
 

@@ -156,18 +156,31 @@ function formatEstimatedTime(seconds: number): string {
   return `about ${hours}h ${remMinutes}m`;
 }
 
+function formatConsultationFieldLabel(
+  prefix: "consultations" | "consultation_done",
+  key: string,
+): string {
+  const expertKey = key.slice(`${prefix}.`.length);
+  const parts = expertKey.split("_").filter(Boolean);
+  const suffix = prefix === "consultation_done" ? " consultations done" : " consultations";
+  if (parts.length === 0) {
+    return prefix === "consultation_done" ? "Consultations done" : "Consultations";
+  }
+  if (parts.length === 1) {
+    return `${parts[0][0].toUpperCase()}${parts[0].slice(1)}${suffix}`;
+  }
+  if (parts.length === 2) {
+    return `${parts[0][0].toUpperCase()}${parts[0].slice(1)} and ${parts[1]}${suffix}`;
+  }
+  return `${parts.map((p, i) => (i === 0 ? p[0].toUpperCase() + p.slice(1) : p)).join(", ")}${suffix}`;
+}
+
 function formatFieldLabel(key: string): string {
   if (key.startsWith("consultations.")) {
-    const expertKey = key.slice("consultations.".length);
-    const parts = expertKey.split("_").filter(Boolean);
-    if (parts.length === 0) return "Consultations";
-    if (parts.length === 1) {
-      return `${parts[0][0].toUpperCase()}${parts[0].slice(1)} consultations`;
-    }
-    if (parts.length === 2) {
-      return `${parts[0][0].toUpperCase()}${parts[0].slice(1)} and ${parts[1]} consultations`;
-    }
-    return `${parts.map((p, i) => (i === 0 ? p[0].toUpperCase() + p.slice(1) : p)).join(", ")} consultations`;
+    return formatConsultationFieldLabel("consultations", key);
+  }
+  if (key.startsWith("consultation_done.")) {
+    return formatConsultationFieldLabel("consultation_done", key);
   }
   if (key.startsWith("enrolled.")) {
     return `People in ${key.slice("enrolled.".length)}`;
@@ -223,7 +236,6 @@ function formatFieldLabel(key: string): string {
     risk_groups_sum: "Risk groups add up to Bio AI",
     doctor_consultation: "Doctor consultations",
     nutritionist_consultation: "Nutritionist consultations",
-    doctor_and_nutritionist_consultation: "Doctor and nutritionist consultations",
     total_enrolled: "Total people enrolled",
     age_group: "Age groups",
     buckets_sum: "Age-group counts add up",
