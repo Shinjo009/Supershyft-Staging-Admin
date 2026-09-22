@@ -1078,6 +1078,56 @@ export const employeesApi = {
     ),
 };
 
+export type ExportType = "participants" | "database_backup";
+export type ExportFormat = "csv" | "xlsx";
+export type ExportSourceKind = "engagement" | "organization" | "camp" | "system";
+
+export interface ExportLogCreatePayload {
+  reason: string;
+  export_type: ExportType;
+  export_format: ExportFormat;
+  source_kind: ExportSourceKind;
+  source_id?: string | null;
+  row_count?: number | null;
+  details?: Record<string, unknown> | null;
+}
+
+export interface ExportLogItem {
+  export_log_id: number;
+  employee_id: number | null;
+  partner_id: number | null;
+  actor_name: string;
+  actor_role: string;
+  reason: string;
+  export_type: string;
+  export_format: string;
+  source_kind: string;
+  source_id: string | null;
+  row_count: number | null;
+  details: Record<string, unknown> | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+}
+
+export const exportLogsApi = {
+  create: (payload: ExportLogCreatePayload) =>
+    api.post<{ data: { export_log_id: number } }>("/export-logs", payload),
+  list: (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    employee_id?: number;
+    export_type?: string;
+    created_from?: string;
+    created_to?: string;
+  }) =>
+    api.get<{ data: ExportLogItem[]; meta: { page: number; limit: number; total: number } }>(
+      "/employees/export-logs",
+      { params }
+    ),
+};
+
 // Organizations
 export type CityContactAssignments = {
   managers: number[];

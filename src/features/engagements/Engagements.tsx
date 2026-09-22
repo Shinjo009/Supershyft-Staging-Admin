@@ -1841,7 +1841,22 @@ export function Engagements({
 
   const columns: Column<EngagementListItem>[] = useMemo(() => {
     const base: Column<EngagementListItem>[] = [
-      { key: "engagement_name", label: "Name", sortable: true, render: (r) => r.engagement_name || r.engagement_code || "—" },
+      { key: "engagement_name", label: "Name", sortable: true, render: (r) => {
+        const name = r.engagement_name || r.engagement_code || "—";
+        return (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              openView(r);
+            }}
+            className="block max-w-[16rem] truncate text-left text-zinc-900 hover:underline focus:outline-none focus:underline"
+            title={name}
+          >
+            {name}
+          </button>
+        );
+      } },
     ];
 
     if (listTab === "organizations") {
@@ -2132,6 +2147,7 @@ export function Engagements({
             sortKey={sortKey}
             sortDir={sortDir}
             onSort={handleSort}
+            onView={openView}
             onParticipants={mayEditParticipants ? openParticipants : undefined}
             onOccupiedSlots={openOccupiedSlots}
             onAssistants={mayEditParticipants ? openAssistantsModal : undefined}

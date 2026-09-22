@@ -2,6 +2,10 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Search, Loader2, Users, Download, Trash2, AlertTriangle, Bell, X, Pencil, TestTubes, Brain, Send, Clock, ChevronDown, FileX, MousePointerClick } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Modal } from "./Modal";
+import {
+  ExportSelectedParticipantsDialog,
+  logThenDownloadParticipantsExport,
+} from "./ExportSelectedParticipantsDialog";
 import { usePermissions } from "../../contexts/PermissionContext";
 import { UserDetailsModal } from "./UserDetailsModal";
 import {
@@ -9,6 +13,8 @@ import {
   engagementsApi,
   organizationsApi,
   expertTypesApi,
+  exportLogsApi,
+  type ExportSourceKind,
   type Participant,
   type Engagement,
   type OrganizationDepartment,
@@ -618,6 +624,42 @@ function exportFilename(filenamePrefix: string, extension: "csv" | "xlsx"): stri
   return `${filenamePrefix}-${datePart}.${extension}`;
 }
 
+function exportSourceMeta(source: Source): {
+  sourceKind: ExportSourceKind;
+  sourceId: string | null;
+  sourceName: string | null;
+} {
+  if (source.kind === "engagement-id") {
+    return {
+      sourceKind: "engagement",
+      sourceId: String(source.engagementId),
+      sourceName: source.name?.trim() || `Engagement #${source.engagementId}`,
+    };
+  }
+  if (source.kind === "engagement-code") {
+    return {
+      sourceKind: "engagement",
+      sourceId: source.code,
+      sourceName: source.name?.trim() || source.code,
+    };
+  }
+  if (source.kind === "camp") {
+    return {
+      sourceKind: "camp",
+      sourceId: String(source.campNo),
+      sourceName: source.campName?.trim() || `Camp #${source.campNo}`,
+    };
+  }
+  if (source.kind === "organization") {
+    return {
+      sourceKind: "organization",
+      sourceId: String(source.orgId),
+      sourceName: source.orgName?.trim() || `Organization #${source.orgId}`,
+    };
+  }
+  return { sourceKind: "system", sourceId: null, sourceName: "Public (B2C)" };
+}
+
 function exportParticipantsToCsv(
   rows: Participant[],
   filenamePrefix: string,
@@ -685,6 +727,9 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
   const [exportFormatOpen, setExportFormatOpen] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>("csv");
   const [exportWithAddress, setExportWithAddress] = useState(false);
+  const [exportReason, setExportReason] = useState("");
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportSubmitting, setExportSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Participant | null>(null);
   const [deleteSelectedOpen, setDeleteSelectedOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -737,6 +782,7 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
   const bulkActionsRef = useRef<HTMLDivElement>(null);
   const [orgDepartments, setOrgDepartments] = useState<OrganizationDepartment[]>([]);
   const [organizationId, setOrganizationId] = useState<number | null>(null);
+  const [organizationName, setOrganizationName] = useState<string | null>(null);
   const [departmentEditMode, setDepartmentEditMode] = useState(false);
   const [departmentConfirm, setDepartmentConfirm] = useState<{
     participant: Participant;
@@ -864,14 +910,27 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
   }, [source, debouncedSearch, columnFilters]);
 
   const fetchOrganizationDepartments = useCallback(async () => {
+    if (source.kind === "organization") {
+      setOrganizationId(source.orgId);
+      setOrganizationName(source.orgName?.trim() || null);
+      setOrgDepartments([]);
+      setEngagementConsultations(null);
+      setEngagementPublicSlotDetail(null);
+      setEngagementBloodCollectionType(null);
+      setConsultationConfigLoaded(true);
+      return;
+    }
+
     if (source.kind === "camp") {
       try {
         const orgRes = await organizationsApi.get(source.organizationId);
         setOrganizationId(source.organizationId);
+        setOrganizationName(orgRes.data.data.name?.trim() || null);
         setOrgDepartments(orgRes.data.data.departments ?? []);
       } catch {
         setOrgDepartments([]);
         setOrganizationId(source.organizationId);
+        setOrganizationName(null);
       }
       return;
     }
@@ -879,6 +938,7 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
     if (source.kind !== "engagement-id") {
       setOrgDepartments([]);
       setOrganizationId(null);
+      setOrganizationName(null);
       setEngagementConsultations(null);
       setEngagementPublicSlotDetail(null);
       setEngagementBloodCollectionType(null);
@@ -895,13 +955,16 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
       setOrganizationId(orgId);
       if (orgId) {
         const orgRes = await organizationsApi.get(orgId);
+        setOrganizationName(orgRes.data.data.name?.trim() || null);
         setOrgDepartments(orgRes.data.data.departments ?? []);
       } else {
+        setOrganizationName(null);
         setOrgDepartments([]);
       }
     } catch {
       setOrgDepartments([]);
       setOrganizationId(null);
+      setOrganizationName(null);
       setEngagementConsultations(null);
       setEngagementPublicSlotDetail(null);
       setEngagementBloodCollectionType(null);
@@ -1611,6 +1674,8 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
       setExportParticipants(rows);
       setExportFormat("csv");
       setExportWithAddress(false);
+      setExportReason("");
+      setExportError(null);
       setExportFormatOpen(true);
     } finally {
       setResolvingSelection(false);
@@ -1632,7 +1697,7 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
     }
   };
 
-  const handleConfirmExport = () => {
+  const handleConfirmExport = async () => {
     const rows = exportParticipants.length > 0 ? exportParticipants : selectedParticipants;
     if (rows.length === 0) return;
     const codePart =
@@ -1652,13 +1717,55 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
       offeredKeys,
       withAddress: exportWithAddress,
     });
-    if (exportFormat === "excel") {
-      exportParticipantsToExcel(rows, filenamePrefix, exportColumns);
-    } else {
-      exportParticipantsToCsv(rows, filenamePrefix, exportColumns);
+    const { sourceKind, sourceId, sourceName } = exportSourceMeta(source);
+    setExportSubmitting(true);
+    setExportError(null);
+    try {
+      const logged = await logThenDownloadParticipantsExport({
+        reason: exportReason,
+        createLog: (payload) => exportLogsApi.create(payload),
+        payload: {
+          export_type: "participants",
+          export_format: exportFormat === "excel" ? "xlsx" : "csv",
+          source_kind: sourceKind,
+          source_id: sourceId,
+          row_count: rows.length,
+          details: {
+            with_address: exportWithAddress,
+            filename_prefix: filenamePrefix,
+            source_name: sourceName,
+            ...(organizationName ? { organization_name: organizationName } : {}),
+            ...(source.kind === "engagement-id" && source.name
+              ? { engagement_name: source.name.trim() }
+              : {}),
+            ...(source.kind === "engagement-code"
+              ? {
+                  engagement_code: source.code,
+                  ...(source.name ? { engagement_name: source.name.trim() } : {}),
+                }
+              : {}),
+            ...(source.kind === "camp" && source.campName
+              ? { camp_name: source.campName.trim() }
+              : {}),
+          },
+        },
+        download: () => {
+          if (exportFormat === "excel") {
+            exportParticipantsToExcel(rows, filenamePrefix, exportColumns);
+          } else {
+            exportParticipantsToCsv(rows, filenamePrefix, exportColumns);
+          }
+        },
+      });
+      if (!logged) return;
+      setExportFormatOpen(false);
+      setExportParticipants([]);
+      setExportReason("");
+    } catch (err) {
+      setExportError(getApiError(err));
+    } finally {
+      setExportSubmitting(false);
     }
-    setExportFormatOpen(false);
-    setExportParticipants([]);
   };
 
   const handleConfirmDelete = async () => {
@@ -3571,64 +3678,25 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
       )}
 
       {exportFormatOpen && (
-        <Modal
+        <ExportSelectedParticipantsDialog
           open={exportFormatOpen}
-          onClose={() => setExportFormatOpen(false)}
-          title="Export selected participants"
-          maxWidthClassName="max-w-md"
-        >
-          <div className="space-y-4">
-            <p className="text-sm text-zinc-700">
-              Export{" "}
-              <span className="font-semibold">{selectedCount}</span> selected participant
-              {selectedCount !== 1 ? "s" : ""} in the format below.
-            </p>
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="export-format" className="text-xs font-medium text-zinc-500">
-                Format
-              </label>
-              <select
-                id="export-format"
-                value={exportFormat}
-                onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
-                className={filterSelectClass}
-              >
-                <option value="csv">CSV</option>
-                <option value="excel">Excel</option>
-              </select>
-            </div>
-            <label
-              htmlFor="export-with-address"
-              className="flex items-center gap-2 text-sm text-zinc-700 cursor-pointer"
-            >
-              <input
-                id="export-with-address"
-                type="checkbox"
-                checked={exportWithAddress}
-                onChange={(e) => setExportWithAddress(e.target.checked)}
-                className="rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
-              />
-              with-address
-            </label>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setExportFormatOpen(false)}
-                className="px-4 py-2 rounded-lg border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmExport}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800"
-              >
-                <Download className="w-4 h-4" />
-                Export
-              </button>
-            </div>
-          </div>
-        </Modal>
+          selectedCount={selectedCount}
+          format={exportFormat}
+          withAddress={exportWithAddress}
+          reason={exportReason}
+          submitting={exportSubmitting}
+          error={exportError}
+          onFormatChange={setExportFormat}
+          onWithAddressChange={setExportWithAddress}
+          onReasonChange={setExportReason}
+          onCancel={() => {
+            if (exportSubmitting) return;
+            setExportFormatOpen(false);
+          }}
+          onConfirm={() => {
+            void handleConfirmExport();
+          }}
+        />
       )}
 
       <UserDetailsModal

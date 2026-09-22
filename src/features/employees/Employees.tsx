@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { Search, Plus, Loader2, ShieldCheck } from "lucide-react";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { Modal } from "../../shared/ui/Modal";
+import { ExportLogsTab } from "./ExportLogsTab";
 import {
   employeesApi,
   type EmployeeListItem,
@@ -29,6 +31,9 @@ const STAFF_ROLES = [
   { value: "inferior_admin", label: "Employee" },
 ] as const;
 
+type TabKey = "employees" | "logs";
+const TAB_KEYS: TabKey[] = ["employees", "logs"];
+
 function staffRoleLabel(role: string | null | undefined): string {
   if (!role) return "—";
   const match = STAFF_ROLES.find((r) => r.value === role);
@@ -46,8 +51,15 @@ function employeeDisplayName(row: EmployeeListItem): string {
 }
 
 export function Employees() {
-  const { canEditTask, isFullAdmin } = usePermissions();
+  const { canEditTask, canViewTask, isFullAdmin } = usePermissions();
   const mayEditEmployeeStatus = canEditTask("employees", "status");
+  const mayViewLogs = canViewTask("employees", "export_logs");
+  const navigate = useNavigate();
+  const { tab: tabParam } = useParams<{ tab?: string }>();
+  const activeTab: TabKey =
+    tabParam === "logs" && mayViewLogs
+      ? "logs"
+      : "employees";
   const [data, setData] = useState<EmployeeListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -120,6 +132,12 @@ export function Employees() {
   useEffect(() => {
     fetchList();
   }, [fetchList]);
+
+  useEffect(() => {
+    if (tabParam !== activeTab) {
+      navigate(`/employees/${activeTab}`, { replace: true });
+    }
+  }, [activeTab, navigate, tabParam]);
 
   useEffect(() => {
     setPage(1);
@@ -457,7 +475,7 @@ export function Employees() {
     <div>
       <div className="flex items-center justify-between gap-3 mb-6">
         <h1 className="text-lg sm:text-xl font-semibold text-zinc-900">Employees</h1>
-        {isFullAdmin && <button
+        {activeTab === "employees" && isFullAdmin && <button
           onClick={openAdd}
           className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 shrink-0"
         >
@@ -466,6 +484,28 @@ export function Employees() {
         </button>}
       </div>
 
+      {mayViewLogs && (
+        <div className="flex gap-1 mb-5 border-b border-zinc-200">
+          {TAB_KEYS.map((tab) => (
+            <button
+              key={tab}
+              onClick={() => navigate(`/employees/${tab}`)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap ${
+                activeTab === tab
+                  ? "border-zinc-900 text-zinc-900"
+                  : "border-transparent text-zinc-500 hover:text-zinc-700"
+              }`}
+            >
+              {tab === "employees" ? "Employees" : "Logs"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {activeTab === "logs" ? (
+        <ExportLogsTab />
+      ) : (
+        <>
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">
           {error}
@@ -532,6 +572,8 @@ export function Employees() {
           />
         )}
       </div>
+        </>
+      )}
 
       <Modal
         open={modalOpen}

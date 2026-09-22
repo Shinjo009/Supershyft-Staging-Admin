@@ -196,7 +196,8 @@ function AppRoutes() {
         <Route path="organisations/camps/:campNo/reports" element={<PermissionRoute category="reports"><CampReportsPage /></PermissionRoute>} />
         <Route path="organisations/:tab" element={<PermissionRoute category="organizations"><Organisations /></PermissionRoute>} />
         <Route path="engagements" element={<PermissionRoute category="engagements"><Engagements /></PermissionRoute>} />
-        <Route path="employees" element={<PermissionRoute category="employees"><Employees /></PermissionRoute>} />
+        <Route path="employees" element={<Navigate to="/employees/employees" replace />} />
+        <Route path="employees/:tab" element={<PermissionRoute category="employees"><Employees /></PermissionRoute>} />
         <Route path="partners" element={<PermissionRoute category="partners"><Partners /></PermissionRoute>} />
         <Route
           path="assessments"
