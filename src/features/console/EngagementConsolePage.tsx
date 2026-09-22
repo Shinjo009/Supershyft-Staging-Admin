@@ -241,9 +241,9 @@ export function EngagementConsolePage() {
     setBarcodeScannerOpen(false);
   };
 
-  const openCampBookModal = (syncToNow: boolean) => {
+  const openCampBookModal = (syncToNow: boolean, p?: Participant | null) => {
     setSyncCollectionToNow(syncToNow);
-    setBarcode("");
+    setBarcode(((p ?? selectedParticipant)?.barcode ?? "").trim());
     setBookingError(null);
     setModalMode("book");
   };
@@ -253,7 +253,7 @@ export function EngagementConsolePage() {
       setModalMode("book_schedule_confirm");
       return;
     }
-    openCampBookModal(false);
+    openCampBookModal(false, p);
   };
 
   const openCancelConfirm = () => {
@@ -376,6 +376,14 @@ export function EngagementConsolePage() {
         if (updated) setSelectedParticipant(updated);
       });
     } catch (err) {
+      // Barcode is persisted server-side even when Healthians booking fails;
+      // keep it on the local participant row so the console reflects it immediately.
+      setParticipants((prev) =>
+        prev.map((p) => (p.user_id === userId ? { ...p, barcode: trimmed } : p))
+      );
+      setSelectedParticipant((prev) =>
+        prev ? { ...prev, barcode: trimmed } : prev
+      );
       setBookingError(getApiError(err));
     } finally {
       setBookingLoading(false);
