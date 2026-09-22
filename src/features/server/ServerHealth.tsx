@@ -8,7 +8,9 @@ import {
   serverHealthApi,
   type HealthCheck,
   type HealthRun,
+  type ServerHealthCpuAlert,
   type ServerHealthCurrent,
+  type ServerHealthLatestMetrics,
 } from "../../lib/api";
 import { VitalMonitors } from "./VitalMonitors";
 const REFRESH_MS = 60_000;
@@ -173,6 +175,40 @@ function StatusBannerWithCounts({ run }: { run: HealthRun }) {
   );
 }
 
+function formatLoad(metrics: ServerHealthLatestMetrics | null | undefined): string | null {
+  if (!metrics) return null;
+  const load = Number.isFinite(metrics.load_1m) ? metrics.load_1m.toFixed(2) : String(metrics.load_1m);
+  return `${load} load / ${metrics.cores} core${metrics.cores === 1 ? "" : "s"}`;
+}
+
+function CpuAlertBanner({ alert, cpuPct }: { alert: ServerHealthCpuAlert; cpuPct: number | null }) {
+  const threshold = Math.round(alert.threshold_pct);
+  if (alert.is_alerting) {
+    return (
+      <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-4 sm:px-5">
+        <p className="text-sm font-semibold text-red-800">CPU above {threshold}% threshold</p>
+        <p className="text-sm text-red-700 mt-1">
+          {alert.hostname ? `${alert.hostname} is at ` : "Usage is "}
+          {cpuPct == null ? "an elevated level" : `${Math.round(cpuPct)}%`}.
+          An alert email was sent
+          {alert.last_alerted_at ? ` at ${formatRunAt(alert.last_alerted_at)}` : ""}.
+          Further emails are suppressed until CPU recovers.
+        </p>
+      </div>
+    );
+  }
+  if (alert.last_recovered_at) {
+    return (
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 sm:px-5">
+        <p className="text-sm text-emerald-800">
+          CPU is below {threshold}%. Last recovered {formatRunAt(alert.last_recovered_at)}.
+        </p>
+      </div>
+    );
+  }
+  return null;
+}
+
 export function ServerHealth() {
   const { employeeRole } = useAuth();
   const [current, setCurrent] = useState<ServerHealthCurrent | null>(null);
@@ -307,6 +343,8 @@ export function ServerHealth() {
           </div>
           <p className="text-sm text-zinc-500">
             Production server health checks (refreshes every 60 seconds).
+            {current?.latest_metrics?.hostname ? ` Host ${current.latest_metrics.hostname}.` : ""}
+            {formatLoad(current?.latest_metrics) ? ` ${formatLoad(current?.latest_metrics)}.` : ""}
             {lastRefreshedAt ? ` Last updated ${lastRefreshedAt.toLocaleTimeString()}.` : ""}
           </p>
         </div>
@@ -343,7 +381,16 @@ export function ServerHealth() {
         </div>
       ) : null}
 
-      <VitalMonitors history={history} loading={loadingHistory} />
+      {current?.cpu_alert ? (
+        <CpuAlertBanner alert={current.cpu_alert} cpuPct={current.run?.cpu_pct ?? current.latest_metrics?.cpu_usage ?? null} />
+      ) : null}
+
+      <VitalMonitors
+        history={history}
+        loading={loadingHistory}
+        latestMetrics={current?.latest_metrics}
+        thresholdPct={current?.cpu_alert?.threshold_pct ?? 75}
+      />
 
       <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden">
         <div className="px-4 sm:px-5 py-4 border-b border-zinc-100">

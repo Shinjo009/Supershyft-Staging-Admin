@@ -4603,9 +4603,29 @@ export interface HealthChecksByCategory {
   checks: HealthCheck[];
 }
 
+export interface ServerHealthLatestMetrics {
+  hostname: string;
+  cpu_usage: number;
+  memory_usage: number;
+  storage_usage: number;
+  load_1m: number;
+  cores: number;
+  timestamp: string;
+}
+
+export interface ServerHealthCpuAlert {
+  is_alerting: boolean;
+  threshold_pct: number;
+  hostname?: string | null;
+  last_alerted_at?: string | null;
+  last_recovered_at?: string | null;
+}
+
 export interface ServerHealthCurrent {
   run: HealthRun;
   checks_by_category: HealthChecksByCategory[];
+  latest_metrics?: ServerHealthLatestMetrics | null;
+  cpu_alert?: ServerHealthCpuAlert | null;
 }
 
 export const serverHealthApi = {

@@ -1,9 +1,11 @@
 import { useMemo } from "react";
-import type { HealthRun } from "../../lib/api";
+import type { HealthRun, ServerHealthLatestMetrics } from "../../lib/api";
 
 interface VitalMonitorProps {
   history: HealthRun[];
   loading?: boolean;
+  latestMetrics?: ServerHealthLatestMetrics | null;
+  thresholdPct?: number;
 }
 
 function buildPoints(
@@ -30,18 +32,26 @@ function buildPoints(
     .join(" ");
 }
 
+function thresholdY(thresholdPct: number, height: number, pad = 8): number {
+  const innerH = height - pad * 2;
+  const clamped = Math.min(100, Math.max(0, thresholdPct));
+  return pad + innerH - (clamped / 100) * innerH;
+}
+
 function MonitorPanel({
   label,
   unit,
   latest,
   values,
   stroke,
+  thresholdPct,
 }: {
   label: string;
   unit: string;
   latest: number | null;
   values: Array<number | null | undefined>;
   stroke: string;
+  thresholdPct?: number;
 }) {
   const width = 480;
   const height = 120;
@@ -49,6 +59,7 @@ function MonitorPanel({
   const display = latest == null ? "—" : `${Math.round(latest)}${unit}`;
   const gradId = `fade-${label.replace(/\s+/g, "-")}`;
   const gridId = `grid-${label.replace(/\s+/g, "-")}`;
+  const warn = thresholdPct != null && latest != null && latest >= thresholdPct;
 
   return (
     <div className="rounded-xl border border-zinc-800 bg-[#0b1220] overflow-hidden shadow-sm">
@@ -57,13 +68,19 @@ function MonitorPanel({
           <span className="relative flex h-2 w-2">
             <span
               className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60"
-              style={{ backgroundColor: stroke }}
+              style={{ backgroundColor: warn ? "#f87171" : stroke }}
             />
-            <span className="relative inline-flex h-2 w-2 rounded-full" style={{ backgroundColor: stroke }} />
+            <span
+              className="relative inline-flex h-2 w-2 rounded-full"
+              style={{ backgroundColor: warn ? "#f87171" : stroke }}
+            />
           </span>
           <span className="text-xs font-semibold tracking-[0.14em] uppercase text-zinc-300">{label}</span>
         </div>
-        <span className="text-2xl font-semibold tabular-nums tracking-tight" style={{ color: stroke }}>
+        <span
+          className="text-2xl font-semibold tabular-nums tracking-tight"
+          style={{ color: warn ? "#f87171" : stroke }}
+        >
           {display}
         </span>
       </div>
@@ -88,6 +105,18 @@ function MonitorPanel({
           <line x1="0" y1={height * 0.25} x2={width} y2={height * 0.25} stroke="#243044" strokeWidth="1" />
           <line x1="0" y1={height * 0.5} x2={width} y2={height * 0.5} stroke="#2b3a52" strokeWidth="1" />
           <line x1="0" y1={height * 0.75} x2={width} y2={height * 0.75} stroke="#243044" strokeWidth="1" />
+          {thresholdPct != null ? (
+            <line
+              x1="0"
+              y1={thresholdY(thresholdPct, height)}
+              x2={width}
+              y2={thresholdY(thresholdPct, height)}
+              stroke="#f87171"
+              strokeWidth="1.25"
+              strokeDasharray="5 4"
+              strokeOpacity="0.85"
+            />
+          ) : null}
 
           {points ? (
             <>
@@ -122,18 +151,26 @@ function MonitorPanel({
         </svg>
         <p className="px-2 pb-1 text-[11px] text-zinc-500">
           Last {values.length || 0} samples · 0–100{unit} scale · updates every health run (~15m)
+          {thresholdPct != null ? ` · alert at ${Math.round(thresholdPct)}${unit}` : ""}
         </p>
       </div>
     </div>
   );
 }
 
-export function VitalMonitors({ history, loading }: VitalMonitorProps) {
+export function VitalMonitors({ history, loading, latestMetrics, thresholdPct = 75 }: VitalMonitorProps) {
   const chronological = useMemo(() => [...history].reverse(), [history]);
   const cpuValues = chronological.map((r) => r.cpu_pct ?? null);
   const memValues = chronological.map((r) => r.mem_pct ?? null);
   const storageValues = chronological.map((r) => r.storage_pct ?? null);
-  const latest = chronological.length ? chronological[chronological.length - 1] : null;
+  const latestHistory = chronological.length ? chronological[chronological.length - 1] : null;
+  const latestCpu = latestMetrics?.cpu_usage ?? latestHistory?.cpu_pct ?? null;
+  const latestMem = latestMetrics?.memory_usage ?? latestHistory?.mem_pct ?? null;
+  const latestStorage = latestMetrics?.storage_usage ?? latestHistory?.storage_pct ?? null;
+  const loadPct =
+    latestMetrics && latestMetrics.cores > 0
+      ? Math.min(100, Math.max(0, (latestMetrics.load_1m / latestMetrics.cores) * 100))
+      : null;
 
   if (loading) {
     return (
@@ -151,31 +188,41 @@ export function VitalMonitors({ history, loading }: VitalMonitorProps) {
         <h2 className="text-sm font-semibold text-zinc-900">Live vitals</h2>
         <p className="text-xs text-zinc-500 mt-0.5">
           CPU, memory, and storage trends (hospital-monitor style). Storage is root filesystem usage.
+          {latestMetrics
+            ? ` Latest sample from ${latestMetrics.hostname} · load ${latestMetrics.load_1m.toFixed(2)} on ${latestMetrics.cores} cores.`
+            : ""}
         </p>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <MonitorPanel
           label="CPU"
           unit="%"
-          latest={latest?.cpu_pct ?? null}
+          latest={latestCpu}
           values={cpuValues}
           stroke="#34d399"
+          thresholdPct={thresholdPct}
         />
         <MonitorPanel
           label="Memory"
           unit="%"
-          latest={latest?.mem_pct ?? null}
+          latest={latestMem}
           values={memValues}
           stroke="#38bdf8"
         />
         <MonitorPanel
           label="Storage"
           unit="%"
-          latest={latest?.storage_pct ?? null}
+          latest={latestStorage}
           values={storageValues}
           stroke="#fbbf24"
         />
       </div>
+      {latestMetrics ? (
+        <p className="text-xs text-zinc-500">
+          Load average {latestMetrics.load_1m.toFixed(2)} ({loadPct == null ? "—" : `${Math.round(loadPct)}%`} of
+          core capacity).
+        </p>
+      ) : null}
     </div>
   );
 }
