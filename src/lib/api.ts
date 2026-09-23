@@ -679,6 +679,7 @@ export interface PublicUserOnboardPayload {
   state?: string | null;
   country?: string | null;
   engagement_type?: string;
+  diagnostic_package_id?: number | null;
   blood_collection_date?: string | null;
   blood_collection_time_slot?: string | null;
   participants_employee_id?: string | null;
