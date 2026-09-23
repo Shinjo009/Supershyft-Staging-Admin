@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { Calendar, CheckCircle2, Loader2, UserRound } from "lucide-react";
 import { Modal } from "../../shared/ui/Modal";
+import { getTypeConfig } from "../engagements/engagementTypeConfig";
 import {
+  diagnosticPackagesApi,
   engagementTypesApi,
   getApiError,
+  platformSettingsApi,
   usersApi,
+  type B2cOnboardingDefaults,
+  type DiagnosticPackageListItem,
   type EngagementTypeItem,
   type PublicUserOnboardPayload,
   type PublicUserOnboardResponse,
@@ -64,6 +69,20 @@ function fullName(u: UserDetail | null): string {
   return name || u.email || u.phone || `User #${u.user_id}`;
 }
 
+function labelDiagnostic(p: DiagnosticPackageListItem): string {
+  const name = p.package_name?.trim() || `Package ${p.diagnostic_package_id}`;
+  return `${name} (#${p.diagnostic_package_id})`;
+}
+
+function defaultDiagnosticForType(
+  defaults: B2cOnboardingDefaults | null,
+  typeCode: string
+): number | "" {
+  const entry = defaults?.defaults_by_engagement_type?.[typeCode];
+  const id = entry?.diagnostic_package_id;
+  return id != null && id > 0 ? id : "";
+}
+
 interface Props {
   open: boolean;
   mode: OnboardUserMode;
@@ -83,6 +102,9 @@ export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Pro
 
   const [engagementTypes, setEngagementTypes] = useState<EngagementTypeItem[]>([]);
   const [engagementType, setEngagementType] = useState("bio_ai");
+  const [diagnosticPackages, setDiagnosticPackages] = useState<DiagnosticPackageListItem[]>([]);
+  const [b2cDefaults, setB2cDefaults] = useState<B2cOnboardingDefaults | null>(null);
+  const [diagnosticPackageId, setDiagnosticPackageId] = useState<number | "">("");
   const [bloodCollectionDate, setBloodCollectionDate] = useState("");
   const [bloodCollectionTimeSlot, setBloodCollectionTimeSlot] = useState("");
   const [employeeId, setEmployeeId] = useState("");
@@ -98,7 +120,20 @@ export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Pro
   const [successResult, setSuccessResult] = useState<PublicUserOnboardResponse | null>(null);
 
   const isVifc = engagementType.trim().toLowerCase() === "vifc";
+  const needsDiagnostic = getTypeConfig(engagementType).needsDiagnostic;
   const isCreate = mode === "create";
+
+  const applyEngagementType = useCallback(
+    (code: string, defaults: B2cOnboardingDefaults | null = b2cDefaults) => {
+      setEngagementType(code);
+      if (getTypeConfig(code).needsDiagnostic) {
+        setDiagnosticPackageId(defaultDiagnosticForType(defaults, code));
+      } else {
+        setDiagnosticPackageId("");
+      }
+    },
+    [b2cDefaults]
+  );
 
   const resetState = useCallback(() => {
     setStep(1);
@@ -108,6 +143,9 @@ export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Pro
     setCreateForm(EMPTY_CREATE_FORM);
     setStep1Error(null);
     setEngagementType("bio_ai");
+    setDiagnosticPackages([]);
+    setB2cDefaults(null);
+    setDiagnosticPackageId("");
     setBloodCollectionDate("");
     setBloodCollectionTimeSlot("");
     setEmployeeId("");
@@ -132,26 +170,41 @@ export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Pro
 
     let cancelled = false;
     (async () => {
+      const loadShared = async () => {
+        const [typesRes, pkgsRes, defaultsSettled] = await Promise.all([
+          engagementTypesApi.list({ is_active: true }),
+          diagnosticPackagesApi.list(),
+          platformSettingsApi.getB2cOnboarding().catch(() => null),
+        ]);
+        if (cancelled) return null;
+        const types = typesRes.data.data ?? [];
+        const pkgs = (pkgsRes.data.data ?? []).filter(
+          (p) => (p.status || "").toLowerCase() === "active"
+        );
+        const defaults = defaultsSettled?.data.data ?? null;
+        setEngagementTypes(types);
+        setDiagnosticPackages(pkgs);
+        setB2cDefaults(defaults);
+        const hasBioAi = types.some((t) => t.code === "bio_ai");
+        const initialType = hasBioAi ? "bio_ai" : types[0]?.code || "bio_ai";
+        setEngagementType(initialType);
+        if (getTypeConfig(initialType).needsDiagnostic) {
+          setDiagnosticPackageId(defaultDiagnosticForType(defaults, initialType));
+        } else {
+          setDiagnosticPackageId("");
+        }
+        return types;
+      };
+
       if (mode === "existing") {
         if (userId == null) return;
         setUserLoading(true);
         setUserError(null);
         setUser(null);
         try {
-          const [userRes, typesRes] = await Promise.all([
-            usersApi.get(userId),
-            engagementTypesApi.list({ is_active: true }),
-          ]);
+          const [userRes] = await Promise.all([usersApi.get(userId), loadShared()]);
           if (cancelled) return;
           setUser(userRes.data.data);
-          const types = typesRes.data.data ?? [];
-          setEngagementTypes(types);
-          const hasBioAi = types.some((t) => t.code === "bio_ai");
-          if (!hasBioAi && types[0]?.code) {
-            setEngagementType(types[0].code);
-          } else {
-            setEngagementType("bio_ai");
-          }
         } catch (err) {
           if (!cancelled) setUserError(getApiError(err));
         } finally {
@@ -160,20 +213,11 @@ export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Pro
         return;
       }
 
-      // create mode: load engagement types only
+      // create mode
       setUserLoading(true);
       setUserError(null);
       try {
-        const typesRes = await engagementTypesApi.list({ is_active: true });
-        if (cancelled) return;
-        const types = typesRes.data.data ?? [];
-        setEngagementTypes(types);
-        const hasBioAi = types.some((t) => t.code === "bio_ai");
-        if (!hasBioAi && types[0]?.code) {
-          setEngagementType(types[0].code);
-        } else {
-          setEngagementType("bio_ai");
-        }
+        await loadShared();
       } catch (err) {
         if (!cancelled) setUserError(getApiError(err));
       } finally {
@@ -211,6 +255,12 @@ export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Pro
       setStep2Error("Engagement type is required.");
       return false;
     }
+    if (needsDiagnostic) {
+      if (diagnosticPackageId === "" || Number(diagnosticPackageId) <= 0) {
+        setStep2Error("Diagnostic package is required.");
+        return false;
+      }
+    }
     if (!isVifc) {
       if (!bloodCollectionDate) {
         setStep2Error("Blood collection date is required.");
@@ -233,6 +283,9 @@ export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Pro
     try {
       const booking: PublicUserOnboardPayload = {
         engagement_type: engagementType,
+        diagnostic_package_id: needsDiagnostic
+          ? Number(diagnosticPackageId)
+          : null,
         blood_collection_date: isVifc ? null : bloodCollectionDate || null,
         blood_collection_time_slot: isVifc ? null : bloodCollectionTimeSlot.trim() || null,
         participants_employee_id: employeeId.trim() || null,
@@ -621,7 +674,7 @@ export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Pro
                   </label>
                   <select
                     value={engagementType}
-                    onChange={(e) => setEngagementType(e.target.value)}
+                    onChange={(e) => applyEngagementType(e.target.value)}
                     className={inputClass}
                   >
                     {engagementTypes.length === 0 && <option value="bio_ai">bio_ai</option>}
@@ -632,6 +685,29 @@ export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Pro
                     ))}
                   </select>
                 </div>
+
+                {needsDiagnostic && (
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 mb-1">
+                      Diagnostic package *
+                    </label>
+                    <select
+                      value={diagnosticPackageId === "" ? 0 : diagnosticPackageId}
+                      onChange={(e) => {
+                        const next = Number(e.target.value);
+                        setDiagnosticPackageId(next > 0 ? next : "");
+                      }}
+                      className={inputClass}
+                    >
+                      <option value={0}>Select package</option>
+                      {diagnosticPackages.map((p) => (
+                        <option key={p.diagnostic_package_id} value={p.diagnostic_package_id}>
+                          {labelDiagnostic(p)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {!isVifc && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

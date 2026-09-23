@@ -12,6 +12,7 @@ import {
   type UserCreate,
   type UserDetail,
 } from "../../lib/api";
+import { isMaskedContact } from "../../lib/isMaskedContact";
 
 const STATUS_OPTIONS = ["active", "inactive"];
 const GENDER_OPTIONS = ["male", "female", "other"];
@@ -221,11 +222,23 @@ export function UserDetailsModal({
     setSubmitting(true);
     setError(null);
     try {
+      const phoneValue = formData.phone.trim();
+      const emailValue = (formData.email || "").trim();
+      if (isMaskedContact(phoneValue) && phoneValue !== (selected.phone ?? "").trim()) {
+        setError("Enter a full phone number to change it.");
+        setSubmitting(false);
+        return;
+      }
+      if (isMaskedContact(emailValue) && emailValue !== (selected.email ?? "").trim()) {
+        setError("Enter a full email to change it.");
+        setSubmitting(false);
+        return;
+      }
       const payload: UserCreate = {
         first_name: formData.first_name?.trim() || null,
         last_name: formData.last_name || null,
-        phone: formData.phone.trim(),
-        email: formData.email || null,
+        phone: phoneValue,
+        email: emailValue || null,
         profile_photo: formData.profile_photo || null,
         date_of_birth: formData.date_of_birth || null,
         gender: formData.gender || null,

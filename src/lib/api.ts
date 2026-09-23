@@ -679,6 +679,7 @@ export interface PublicUserOnboardPayload {
   state?: string | null;
   country?: string | null;
   engagement_type?: string;
+  diagnostic_package_id?: number | null;
   blood_collection_date?: string | null;
   blood_collection_time_slot?: string | null;
   participants_employee_id?: string | null;
@@ -3003,6 +3004,8 @@ export interface ConsoleParticipantBookResponse {
   barcode?: string | null;
   engagement_participant_id?: number | null;
   user_id?: number | null;
+  engagement_date?: string | null;
+  slot_start_time?: string | null;
 }
 
 export interface ConsoleParticipantAssessment {
@@ -3071,7 +3074,7 @@ export const consoleApi = {
   bookParticipant: (
     engagementId: number,
     userId: number,
-    payload: { barcode: string }
+    payload: { barcode: string; sync_collection_to_now?: boolean }
   ) =>
     api.post<{ data: ConsoleParticipantBookResponse }>(
       `/engagements/${engagementId}/console/participants/${userId}/book`,
