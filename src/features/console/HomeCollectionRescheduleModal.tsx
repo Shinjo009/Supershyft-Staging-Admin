@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Loader2, CheckCircle2, MapPin, Calendar, RefreshCw } from "lucide-react";
+import { Loader2, CheckCircle2, MapPin, Calendar, Lock, RefreshCw } from "lucide-react";
 import { Modal } from "../../shared/ui/Modal";
 import { consoleApi, getApiError, type Participant } from "../../lib/api";
 import { usePermissions } from "../../contexts/PermissionContext";
@@ -16,12 +16,13 @@ interface Props {
   }) => void;
 }
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2 | 3 | 4;
 
 const STEP_LABELS = [
   { step: 1 as Step, label: "Address", icon: MapPin },
   { step: 2 as Step, label: "Slot", icon: Calendar },
-  { step: 3 as Step, label: "Done", icon: CheckCircle2 },
+  { step: 3 as Step, label: "Confirm", icon: Lock },
+  { step: 4 as Step, label: "Done", icon: CheckCircle2 },
 ];
 
 interface SlotItem {
@@ -75,6 +76,10 @@ export function HomeCollectionRescheduleModal({
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [slotsError, setSlotsError] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<SlotItem | null>(null);
+  const [lockLoading, setLockLoading] = useState(false);
+  const [lockError, setLockError] = useState<string | null>(null);
+
+  const [rescheduleReason, setRescheduleReason] = useState("");
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [rescheduleError, setRescheduleError] = useState<string | null>(null);
 
@@ -130,8 +135,31 @@ export function HomeCollectionRescheduleModal({
     }
   };
 
+  const handleLockSlot = async () => {
+    if (!selectedSlot || !selectedDate) return;
+    setLockLoading(true);
+    setLockError(null);
+    try {
+      await consoleApi.lockHomeCollectionSlot(engagementId, participant.user_id, {
+        blood_collection_date: selectedDate,
+        blood_collection_time_slot_id: selectedSlot.stm_id ?? "",
+        blood_collection_time_slot: selectedSlot.slot_time ?? "",
+      });
+      setStep(3);
+    } catch (err) {
+      setLockError(getApiError(err));
+    } finally {
+      setLockLoading(false);
+    }
+  };
+
   const handleReschedule = async () => {
     if (!selectedSlot || !selectedDate) return;
+    const reason = rescheduleReason.trim();
+    if (!reason) {
+      setRescheduleError("Reschedule reason is required.");
+      return;
+    }
     setRescheduleLoading(true);
     setRescheduleError(null);
     try {
@@ -139,11 +167,12 @@ export function HomeCollectionRescheduleModal({
         blood_collection_date: selectedDate,
         blood_collection_time_slot_id: selectedSlot.stm_id ?? "",
         blood_collection_time_slot: selectedSlot.slot_time ?? "",
+        reschedule_reason: reason,
       });
       const data = res.data.data;
       const bid = data.booking_id ?? "";
       setBookingId(bid);
-      setStep(3);
+      setStep(4);
       onRescheduled({
         booking_id: bid,
         engagement_date: data.blood_collection_date ?? selectedDate,
@@ -160,10 +189,12 @@ export function HomeCollectionRescheduleModal({
     setStep(1);
     setStep1Error(null);
     setSlotsError(null);
+    setLockError(null);
     setRescheduleError(null);
     setSlots([]);
     setSelectedDate(null);
     setSelectedSlot(null);
+    setRescheduleReason("");
     setBookingId(null);
     onClose();
   };
@@ -336,7 +367,7 @@ export function HomeCollectionRescheduleModal({
               <p className="text-sm text-zinc-500 text-center py-4">No slots available for this date.</p>
             )}
 
-            {rescheduleError && <p className="text-sm text-red-600">{rescheduleError}</p>}
+            {lockError && <p className="text-sm text-red-600">{lockError}</p>}
 
             <div className="flex justify-end gap-2 pt-2">
               <button
@@ -348,8 +379,53 @@ export function HomeCollectionRescheduleModal({
               </button>
               <button
                 type="button"
+                onClick={() => void handleLockSlot()}
+                disabled={!selectedSlot || lockLoading}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 disabled:opacity-60"
+              >
+                {lockLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                <Lock className="w-4 h-4" />
+                Lock Slot
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="space-y-4">
+            <div className="p-3 rounded-lg bg-zinc-50 border border-zinc-200 text-sm text-zinc-700">
+              {selectedDate && (
+                <p>
+                  <span className="font-medium">Date:</span> {formatDate(selectedDate)}
+                </p>
+              )}
+              <p>
+                <span className="font-medium">Time:</span> {selectedSlot?.slot_time ?? "—"}
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">Reschedule reason</label>
+              <textarea
+                value={rescheduleReason}
+                onChange={(e) => setRescheduleReason(e.target.value)}
+                rows={3}
+                placeholder="Why is this collection being rescheduled?"
+                className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
+              />
+            </div>
+            {rescheduleError && <p className="text-sm text-red-600">{rescheduleError}</p>}
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={handleClose}
+                className="px-4 py-2 rounded-lg border border-zinc-300 text-sm text-zinc-700 hover:bg-zinc-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
                 onClick={() => void handleReschedule()}
-                disabled={!selectedSlot || rescheduleLoading}
+                disabled={rescheduleLoading}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 disabled:opacity-60"
               >
                 {rescheduleLoading && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -360,7 +436,7 @@ export function HomeCollectionRescheduleModal({
           </div>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <div className="space-y-4 text-center py-4">
             <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto" />
             <div>

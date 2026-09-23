@@ -48,6 +48,16 @@ function isParticipantBooked(p: Participant): boolean {
   return Boolean(p.booking_id?.trim());
 }
 
+function isCollectionDateAfterToday(p: Participant): boolean {
+  const d = (p.engagement_date ?? "").trim();
+  if (!d) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const coll = new Date(`${d}T00:00:00`);
+  if (Number.isNaN(coll.getTime())) return false;
+  return coll.getTime() > today.getTime();
+}
+
 function applyBookingToParticipant(
   p: Participant,
   result: ConsoleParticipantBookResponse
@@ -240,7 +250,14 @@ export function EngagementConsolePage() {
     Boolean(mayEditBookings && p && isEngagementRunning && isParticipantBooked(p));
 
   const canRescheduleParticipant = (p: Participant | null) =>
-    Boolean(isHomeCollection && canCancelBooking(p));
+    Boolean(
+      isHomeCollection &&
+        mayEditBookings &&
+        p &&
+        isEngagementRunning &&
+        isParticipantBooked(p) &&
+        isCollectionDateAfterToday(p)
+    );
 
   const closeActionMenu = () => {
     setActionMenuRow(null);
@@ -702,6 +719,16 @@ export function EngagementConsolePage() {
                   className="px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800"
                 >
                   Book
+                </button>
+              )}
+              {canRescheduleParticipant(selectedParticipant) && (
+                <button
+                  type="button"
+                  onClick={() => openRescheduleFor(selectedParticipant)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-zinc-300 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Reschedule
                 </button>
               )}
               {canCancelBooking(selectedParticipant) && (

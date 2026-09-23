@@ -3174,6 +3174,7 @@ export const consoleApi = {
       blood_collection_date: string;
       blood_collection_time_slot_id: string;
       blood_collection_time_slot: string;
+      reschedule_reason: string;
     }
   ) =>
     api.patch<{
