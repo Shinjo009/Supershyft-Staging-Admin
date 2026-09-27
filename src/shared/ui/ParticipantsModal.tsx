@@ -3,6 +3,7 @@ import { Search, Loader2, Users, Download, Trash2, AlertTriangle, Bell, X, Penci
 import * as XLSX from "xlsx";
 import { Modal } from "./Modal";
 import { ParticipantBloodCollectionsDrawer } from "./ParticipantBloodCollectionsDrawer";
+import { summarizeBloodCollections } from "../../lib/bloodCollectionsSummary";
 import {
   ExportSelectedParticipantsDialog,
   logThenDownloadParticipantsExport,
@@ -2713,17 +2714,11 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
                         >
                           <button
                             type="button"
-                            className="text-sm text-zinc-800 underline decoration-zinc-300 hover:decoration-zinc-800"
+                            title={summarizeBloodCollections(p.blood_bookings ?? []).hint}
+                            className="text-sm text-left text-zinc-800 underline decoration-zinc-300 hover:decoration-zinc-800 max-w-[140px]"
                             onClick={() => setCollectionsDrawerParticipant(p)}
                           >
-                            {(p.blood_bookings?.length ?? 0) > 0
-                              ? `${p.blood_bookings!.length} record${p.blood_bookings!.length === 1 ? "" : "s"}`
-                              : "View"}
-                            {(p.blood_bookings?.some(
-                              (b) => b.relation === "redraw" || b.relation === "resample"
-                            ) ?? false)
-                              ? " ·"
-                              : ""}
+                            {summarizeBloodCollections(p.blood_bookings ?? []).shortLabel}
                           </button>
                         </td>
                         <td
@@ -3725,14 +3720,19 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
         />
       )}
 
-      <ParticipantBloodCollectionsDrawer
-        open={collectionsDrawerParticipant != null}
-        onClose={() => setCollectionsDrawerParticipant(null)}
-        participantName={
-          collectionsDrawerParticipant ? fullName(collectionsDrawerParticipant) : ""
-        }
-        bookings={collectionsDrawerParticipant?.blood_bookings ?? []}
-      />
+      {engagementIdForDepartment != null && collectionsDrawerParticipant != null && (
+        <ParticipantBloodCollectionsDrawer
+          open
+          onClose={() => setCollectionsDrawerParticipant(null)}
+          participantName={fullName(collectionsDrawerParticipant)}
+          engagementId={engagementIdForDepartment}
+          userId={collectionsDrawerParticipant.user_id}
+          bookings={collectionsDrawerParticipant.blood_bookings ?? []}
+          onChanged={() => {
+            void fetchParticipants();
+          }}
+        />
+      )}
 
       <UserDetailsModal
         open={detailsUserId != null}

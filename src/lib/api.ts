@@ -2783,6 +2783,29 @@ export const participantsApi = {
       `/engagements/${engagementId}/participants/${userId}`,
       payload
     ),
+  createBloodBooking: (
+    engagementId: number,
+    userId: number,
+    payload: Partial<ParticipantBloodBooking> & { relation?: ParticipantBloodBooking["relation"] }
+  ) =>
+    api.post<{ data: ParticipantBloodBooking }>(
+      `/engagements/${engagementId}/participants/${userId}/blood-bookings`,
+      payload
+    ),
+  updateBloodBooking: (
+    engagementId: number,
+    userId: number,
+    bloodBookingId: number,
+    payload: Partial<ParticipantBloodBooking>
+  ) =>
+    api.patch<{ data: ParticipantBloodBooking }>(
+      `/engagements/${engagementId}/participants/${userId}/blood-bookings/${bloodBookingId}`,
+      payload
+    ),
+  deleteBloodBooking: (engagementId: number, userId: number, bloodBookingId: number) =>
+    api.delete<{ data: { blood_booking_id: number; result: string } }>(
+      `/engagements/${engagementId}/participants/${userId}/blood-bookings/${bloodBookingId}`
+    ),
   updateDepartment: (
     engagementId: number,
     userId: number,
