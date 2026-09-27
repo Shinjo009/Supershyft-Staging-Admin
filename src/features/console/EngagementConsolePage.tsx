@@ -1109,6 +1109,28 @@ function ParticipantDetail({ participant: p }: { participant: Participant }) {
       {field("Barcode", p.barcode)}
       {field("Booking ID", p.booking_id)}
       {field("Booked by user ID", p.booked_by_user_id)}
+      {(p.blood_bookings?.length ?? 0) > 0 && (
+        <div className="sm:col-span-2 flex flex-col gap-2">
+          <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+            All collections
+          </span>
+          <ul className="space-y-2">
+            {p.blood_bookings!.map((b) => (
+              <li
+                key={b.id ?? b.booking_id}
+                className="text-sm border border-zinc-200 rounded-lg px-3 py-2 bg-zinc-50"
+              >
+                <span className="font-medium capitalize">{b.relation ?? "primary"}</span>
+                <span className="text-zinc-500"> · {b.status ?? "active"}</span>
+                <div className="font-mono text-zinc-800 mt-0.5">{b.booking_id || "No booking ID"}</div>
+                <div className="text-zinc-600">
+                  {[b.collection_date, b.collection_time, b.collection_cabin].filter(Boolean).join(" · ")}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

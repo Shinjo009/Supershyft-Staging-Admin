@@ -2601,6 +2601,23 @@ export interface Participant {
   city?: string | null;
   state?: string | null;
   country?: string | null;
+  blood_bookings?: ParticipantBloodBooking[];
+}
+
+export interface ParticipantBloodBooking {
+  id?: number;
+  booking_id?: string | null;
+  barcode?: string | null;
+  collection_date?: string | null;
+  collection_time?: string | null;
+  collection_cabin?: string | null;
+  collection_time_slot_id?: string | null;
+  collected_at?: string | null;
+  relation?: "primary" | "resample" | "redraw" | "reschedule";
+  parent_booking_id?: string | null;
+  status?: "active" | "superseded" | "cancelled";
+  diagnostic_report_url?: string | null;
+  has_blood_parameters?: boolean;
 }
 
 export interface EngagementParticipantUpdatePayload {

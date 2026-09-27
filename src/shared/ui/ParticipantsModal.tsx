@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Search, Loader2, Users, Download, Trash2, AlertTriangle, Bell, X, Pencil, TestTubes, Brain, Send, Clock, ChevronDown, FileX, MousePointerClick } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Modal } from "./Modal";
+import { ParticipantBloodCollectionsDrawer } from "./ParticipantBloodCollectionsDrawer";
 import {
   ExportSelectedParticipantsDialog,
   logThenDownloadParticipantsExport,
@@ -797,6 +798,9 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
   const [expertTypes, setExpertTypes] = useState<ExpertTypeItem[]>([]);
   const [consultationUpdateLoading, setConsultationUpdateLoading] = useState<string | null>(null);
   const [consultationUpdateError, setConsultationUpdateError] = useState<string | null>(null);
+  const [collectionsDrawerParticipant, setCollectionsDrawerParticipant] = useState<Participant | null>(
+    null
+  );
   const [bookingIdEditMode, setBookingIdEditMode] = useState(false);
   const [bookingIdUpdateLoading, setBookingIdUpdateLoading] = useState<number | null>(null);
   const [bookingIdUpdateError, setBookingIdUpdateError] = useState<string | null>(null);
@@ -2540,6 +2544,9 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
                       />
                     </th>
                     <th className="px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap">
+                      Collections
+                    </th>
+                    <th className="px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap">
                       <EditableColumnHeader
                         label="Engagement Date"
                         editable={canEditSchedule}
@@ -2699,6 +2706,25 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
                           ) : (
                             p.booking_id || "—"
                           )}
+                        </td>
+                        <td
+                          className="px-3 sm:px-4 py-2.5 sm:py-3 text-zinc-600 whitespace-nowrap"
+                          onClick={(ev) => ev.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            className="text-sm text-zinc-800 underline decoration-zinc-300 hover:decoration-zinc-800"
+                            onClick={() => setCollectionsDrawerParticipant(p)}
+                          >
+                            {(p.blood_bookings?.length ?? 0) > 0
+                              ? `${p.blood_bookings!.length} record${p.blood_bookings!.length === 1 ? "" : "s"}`
+                              : "View"}
+                            {(p.blood_bookings?.some(
+                              (b) => b.relation === "redraw" || b.relation === "resample"
+                            ) ?? false)
+                              ? " ·"
+                              : ""}
+                          </button>
                         </td>
                         <td
                           className="px-3 sm:px-4 py-2.5 sm:py-3 text-zinc-600 whitespace-nowrap"
@@ -3698,6 +3724,15 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
           }}
         />
       )}
+
+      <ParticipantBloodCollectionsDrawer
+        open={collectionsDrawerParticipant != null}
+        onClose={() => setCollectionsDrawerParticipant(null)}
+        participantName={
+          collectionsDrawerParticipant ? fullName(collectionsDrawerParticipant) : ""
+        }
+        bookings={collectionsDrawerParticipant?.blood_bookings ?? []}
+      />
 
       <UserDetailsModal
         open={detailsUserId != null}
