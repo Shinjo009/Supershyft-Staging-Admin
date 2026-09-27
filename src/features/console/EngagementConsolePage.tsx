@@ -1120,7 +1120,15 @@ function ParticipantDetail({ participant: p }: { participant: Participant }) {
                 key={b.id ?? b.booking_id}
                 className="text-sm border border-zinc-200 rounded-lg px-3 py-2 bg-zinc-50"
               >
-                <span className="font-medium capitalize">{b.relation ?? "primary"}</span>
+                <span className="font-medium">
+                  {b.relation === "redraw"
+                    ? "Redraw (new test)"
+                    : b.relation === "resample"
+                      ? "Resample (same report)"
+                      : b.relation === "reschedule"
+                        ? "Rescheduled"
+                        : "Primary draw"}
+                </span>
                 <span className="text-zinc-500"> · {b.status ?? "active"}</span>
                 <div className="font-mono text-zinc-800 mt-0.5">{b.booking_id || "No booking ID"}</div>
                 <div className="text-zinc-600">
