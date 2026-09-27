@@ -1038,6 +1038,7 @@ export function Engagements({
     create_profile_on_metsights: false,
     enroll_for_fitprint_full: false,
     load_prev_assessment_questionnaires: false,
+    load_prev_questionnaire_category_keys: null,
     slot_detail: null,
   });
   const [submitting, setSubmitting] = useState(false);
@@ -1310,6 +1311,7 @@ export function Engagements({
       create_profile_on_metsights: preset?.create_profile_on_metsights ?? false,
       enroll_for_fitprint_full: preset?.enroll_for_fitprint_full ?? false,
       load_prev_assessment_questionnaires: preset?.load_prev_assessment_questionnaires ?? false,
+      load_prev_questionnaire_category_keys: preset?.load_prev_questionnaire_category_keys ?? null,
       slot_detail: preset?.slot_detail ?? null,
     });
     setModalMode("add");
@@ -1361,6 +1363,7 @@ export function Engagements({
         create_profile_on_metsights: Boolean(e.create_profile_on_metsights),
         enroll_for_fitprint_full: Boolean(e.enroll_for_fitprint_full),
         load_prev_assessment_questionnaires: Boolean(e.load_prev_assessment_questionnaires),
+        load_prev_questionnaire_category_keys: e.load_prev_questionnaire_category_keys ?? null,
         slot_detail: e.slot_detail ?? null,
       });
       setModalMode("edit");
@@ -1434,6 +1437,7 @@ export function Engagements({
           create_profile_on_metsights: Boolean(data.create_profile_on_metsights),
           enroll_for_fitprint_full: Boolean(data.enroll_for_fitprint_full),
           load_prev_assessment_questionnaires: Boolean(data.load_prev_assessment_questionnaires),
+          load_prev_questionnaire_category_keys: data.load_prev_questionnaire_category_keys ?? null,
           notifications: data.notifications ?? [],
           camp_no: computeCampNo(orgId, data.start_date),
           slot_detail: data.slot_detail ?? null,
@@ -1474,6 +1478,7 @@ export function Engagements({
           create_profile_on_metsights: Boolean(data.create_profile_on_metsights),
           enroll_for_fitprint_full: Boolean(data.enroll_for_fitprint_full),
           load_prev_assessment_questionnaires: Boolean(data.load_prev_assessment_questionnaires),
+          load_prev_questionnaire_category_keys: data.load_prev_questionnaire_category_keys ?? null,
           notifications: data.notifications ?? [],
           slot_detail: data.slot_detail ?? null,
         };

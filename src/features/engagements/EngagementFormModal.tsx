@@ -20,7 +20,13 @@ import {
   expertTypesApi,
   getApiError,
   notificationEventsApi,
+  questionnaireCategoriesApi,
+  type QuestionnaireCategory,
 } from "../../lib/api";
+import {
+  DEFAULT_LOAD_PREV_QUESTIONNAIRE_CATEGORY_KEYS,
+  effectiveLoadPrevCategoryKeys,
+} from "./loadPrevQuestionnaireDefaults";
 import { NotificationEventServicesInput, normalizeNotificationServiceConfigs, validateNotificationServiceConfigs } from "../../shared/ui/NotificationEventServicesInput";
 import { AddressAutocomplete } from "./AddressAutocomplete";
 import { EngagementScheduleStep } from "./EngagementScheduleStep";
@@ -137,6 +143,7 @@ export function EngagementFormModal({
   const [notificationEvents, setNotificationEvents] = useState<NotificationEventItem[]>([]);
   const [notificationConfig, setNotificationConfig] = useState<Record<number, NotificationServiceConfigItem[]>>({});
   const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [questionnaireCategories, setQuestionnaireCategories] = useState<QuestionnaireCategory[]>([]);
   const editConfigLoaded = useRef(false);
 
   useEffect(() => {
@@ -159,6 +166,45 @@ export function EngagementFormModal({
   useEffect(() => {
     expertTypesApi.list().then((res) => setExpertTypes(res.data.data)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    questionnaireCategoriesApi
+      .list({ status: "active", limit: 200 })
+      .then((res) => setQuestionnaireCategories(res.data.data ?? []))
+      .catch(() => setQuestionnaireCategories([]));
+  }, [open]);
+
+  const selectedLoadPrevCategoryKeys = useMemo(
+    () => effectiveLoadPrevCategoryKeys(formData.load_prev_questionnaire_category_keys),
+    [formData.load_prev_questionnaire_category_keys]
+  );
+
+  const loadPrevCategoriesByGroup = useMemo(() => {
+    const metsights: QuestionnaireCategory[] = [];
+    const supershyft: QuestionnaireCategory[] = [];
+    for (const row of questionnaireCategories) {
+      if ((row.category_of ?? "supershyft").toLowerCase() === "metsights") {
+        metsights.push(row);
+      } else {
+        supershyft.push(row);
+      }
+    }
+    return { metsights, supershyft };
+  }, [questionnaireCategories]);
+
+  const toggleLoadPrevCategoryKey = (categoryKey: string) => {
+    const next = new Set(selectedLoadPrevCategoryKeys);
+    if (next.has(categoryKey)) {
+      next.delete(categoryKey);
+    } else {
+      next.add(categoryKey);
+    }
+    setFormData({
+      ...formData,
+      load_prev_questionnaire_category_keys: Array.from(next).sort(),
+    });
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -745,6 +791,10 @@ export function EngagementFormModal({
       load_prev_assessment_questionnaires: typeConfig.needsAssessment
         ? Boolean(formData.load_prev_assessment_questionnaires)
         : false,
+      load_prev_questionnaire_category_keys:
+        typeConfig.needsAssessment && formData.load_prev_assessment_questionnaires
+          ? selectedLoadPrevCategoryKeys
+          : null,
     });
   };
 
@@ -1061,7 +1111,14 @@ export function EngagementFormModal({
                       name="load_prev_assessment_questionnaires"
                       checked={Boolean(formData.load_prev_assessment_questionnaires)}
                       onChange={() =>
-                        setFormData({ ...formData, load_prev_assessment_questionnaires: true })
+                        setFormData({
+                          ...formData,
+                          load_prev_assessment_questionnaires: true,
+                          load_prev_questionnaire_category_keys:
+                            formData.load_prev_questionnaire_category_keys?.length
+                              ? formData.load_prev_questionnaire_category_keys
+                              : [...DEFAULT_LOAD_PREV_QUESTIONNAIRE_CATEGORY_KEYS],
+                        })
                       }
                     />
                     Yes
@@ -1083,6 +1140,40 @@ export function EngagementFormModal({
                   Basic or Pro assessment into the new assessment instance. Vitals and blood-parameter
                   answers are not copied.
                 </p>
+                {Boolean(formData.load_prev_assessment_questionnaires) && (
+                  <div className="mt-3 space-y-3 rounded-lg border border-zinc-200 p-3">
+                    <p className="text-xs font-medium text-zinc-700">
+                      Categories to copy from previous engagement
+                    </p>
+                    {(["metsights", "supershyft"] as const).map((group) => {
+                      const rows =
+                        group === "metsights"
+                          ? loadPrevCategoriesByGroup.metsights
+                          : loadPrevCategoriesByGroup.supershyft;
+                      if (rows.length === 0) return null;
+                      return (
+                        <div key={group}>
+                          <p className="text-xs text-zinc-500 mb-1 capitalize">{group}</p>
+                          <div className="flex flex-wrap gap-x-4 gap-y-2">
+                            {rows.map((cat) => (
+                              <label
+                                key={cat.category_id}
+                                className="inline-flex items-center gap-2 text-sm text-zinc-700"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedLoadPrevCategoryKeys.includes(cat.category_key)}
+                                  onChange={() => toggleLoadPrevCategoryKey(cat.category_key)}
+                                />
+                                {cat.display_name || cat.category_key}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 

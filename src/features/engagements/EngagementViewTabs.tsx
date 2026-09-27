@@ -409,6 +409,12 @@ export function EngagementDetailsTab({
           <Field label="Load previous assessment questionnaires">
             {engagement.load_prev_assessment_questionnaires ? "Yes" : "No"}
           </Field>
+          {engagement.load_prev_assessment_questionnaires &&
+            (engagement.load_prev_questionnaire_category_keys?.length ?? 0) > 0 && (
+              <Field label="Load-prev categories">
+                {(engagement.load_prev_questionnaire_category_keys ?? []).join(", ")}
+              </Field>
+            )}
         </div>
       </div>
 

@@ -2048,6 +2048,7 @@ export interface Engagement {
   create_profile_on_metsights?: boolean | null;
   enroll_for_fitprint_full?: boolean | null;
   load_prev_assessment_questionnaires?: boolean | null;
+  load_prev_questionnaire_category_keys?: string[] | null;
   /** @deprecated Use notifications array instead */
   onboarding_notification?: string | null;
   /** @deprecated Use notifications array instead */
@@ -2103,6 +2104,7 @@ export interface EngagementListItem {
   create_profile_on_metsights?: boolean | null;
   enroll_for_fitprint_full?: boolean | null;
   load_prev_assessment_questionnaires?: boolean | null;
+  load_prev_questionnaire_category_keys?: string[] | null;
   onboarding_notification?: string | null;
   pretest_guidelines_notification?: string | null;
   questionnaire_reminder_1?: string | null;
@@ -2143,6 +2145,7 @@ export interface EngagementCreate {
   create_profile_on_metsights?: boolean;
   enroll_for_fitprint_full?: boolean;
   load_prev_assessment_questionnaires?: boolean;
+  load_prev_questionnaire_category_keys?: string[] | null;
   /** @deprecated Use notifications array instead */
   onboarding_notification?: string | null;
   /** @deprecated Use notifications array instead */
