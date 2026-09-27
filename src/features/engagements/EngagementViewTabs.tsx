@@ -255,6 +255,11 @@ export function EngagementDetailsTab({
     (engagement.diagnostic_package_id != null
       ? String(engagement.diagnostic_package_id)
       : "—");
+  const packageName = (packageId: number | null | undefined) =>
+    diagnosticPackages.find((p) => p.diagnostic_package_id === packageId)?.package_name ??
+    (packageId != null ? String(packageId) : "—");
+  const splitPackages =
+    engagement.diagnostic_package_id_male != null && engagement.diagnostic_package_id_female != null;
 
   const hasCoords =
     engagement.latitude != null &&
@@ -399,7 +404,18 @@ export function EngagementDetailsTab({
             {engagement.slot_duration != null ? `${engagement.slot_duration} min` : "—"}
           </Field>
           <Field label="Assessment package">{assessmentName}</Field>
-          <Field label="Diagnostic package">{diagnosticName}</Field>
+          {splitPackages ? (
+            <>
+              <Field label="Male diagnostic package">
+                {packageName(engagement.diagnostic_package_id_male)}
+              </Field>
+              <Field label="Female diagnostic package">
+                {packageName(engagement.diagnostic_package_id_female)}
+              </Field>
+            </>
+          ) : (
+            <Field label="Diagnostic package">{diagnosticName}</Field>
+          )}
           <Field label="Create profile on Metsights">
             {engagement.create_profile_on_metsights ? "Yes" : "No"}
           </Field>

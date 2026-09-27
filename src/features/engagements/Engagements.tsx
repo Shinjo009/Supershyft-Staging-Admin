@@ -1021,6 +1021,8 @@ export function Engagements({
     engagement_code: "",
     assessment_package_id: 0,
     diagnostic_package_id: undefined,
+    diagnostic_package_id_male: undefined,
+    diagnostic_package_id_female: undefined,
     city: "",
     address: "",
     sub_locality: "",
@@ -1292,6 +1294,8 @@ export function Engagements({
       engagement_code: preset?.engagement_code ?? "",
       assessment_package_id: nextAssessmentPackageId,
       diagnostic_package_id: undefined,
+      diagnostic_package_id_male: undefined,
+      diagnostic_package_id_female: undefined,
       city: preset?.city ?? "",
       address: preset?.address ?? "",
       sub_locality: preset?.sub_locality ?? "",
@@ -1344,6 +1348,8 @@ export function Engagements({
         engagement_code: e.engagement_code ?? "",
         assessment_package_id: e.assessment_package_id ?? 0,
         diagnostic_package_id: e.diagnostic_package_id ?? undefined,
+        diagnostic_package_id_male: e.diagnostic_package_id_male ?? undefined,
+        diagnostic_package_id_female: e.diagnostic_package_id_female ?? undefined,
         city: e.city ?? "",
         address: e.address ?? "",
         sub_locality: e.sub_locality ?? "",
@@ -1430,6 +1436,14 @@ export function Engagements({
             data.diagnostic_package_id && data.diagnostic_package_id > 0
               ? data.diagnostic_package_id
               : null,
+          diagnostic_package_id_male:
+            data.diagnostic_package_id_male && data.diagnostic_package_id_male > 0
+              ? data.diagnostic_package_id_male
+              : null,
+          diagnostic_package_id_female:
+            data.diagnostic_package_id_female && data.diagnostic_package_id_female > 0
+              ? data.diagnostic_package_id_female
+              : null,
           healthians_zone_id: data.healthians_zone_id?.trim() || null,
           external_camp_id: data.external_camp_id ?? null,
           blood_collection_type: data.blood_collection_type || null,
@@ -1466,6 +1480,14 @@ export function Engagements({
           diagnostic_package_id:
             data.diagnostic_package_id && data.diagnostic_package_id > 0
               ? data.diagnostic_package_id
+              : null,
+          diagnostic_package_id_male:
+            data.diagnostic_package_id_male && data.diagnostic_package_id_male > 0
+              ? data.diagnostic_package_id_male
+              : null,
+          diagnostic_package_id_female:
+            data.diagnostic_package_id_female && data.diagnostic_package_id_female > 0
+              ? data.diagnostic_package_id_female
               : null,
           ...locationFields,
           slot_duration: data.slot_duration,
