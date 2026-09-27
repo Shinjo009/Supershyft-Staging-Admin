@@ -24,6 +24,7 @@ import {
   type QuestionnaireCategory,
 } from "../../lib/api";
 import {
+  applyLinkedLoadPrevCategoryKeys,
   DEFAULT_LOAD_PREV_QUESTIONNAIRE_CATEGORY_KEYS,
   effectiveLoadPrevCategoryKeys,
 } from "./loadPrevQuestionnaireDefaults";
@@ -194,15 +195,18 @@ export function EngagementFormModal({
   }, [questionnaireCategories]);
 
   const toggleLoadPrevCategoryKey = (categoryKey: string) => {
+    const wasChecked = selectedLoadPrevCategoryKeys.includes(categoryKey);
+    const nowChecked = !wasChecked;
     const next = new Set(selectedLoadPrevCategoryKeys);
-    if (next.has(categoryKey)) {
-      next.delete(categoryKey);
-    } else {
+    if (nowChecked) {
       next.add(categoryKey);
+    } else {
+      next.delete(categoryKey);
     }
+    const linked = applyLinkedLoadPrevCategoryKeys(next, categoryKey, nowChecked);
     setFormData({
       ...formData,
-      load_prev_questionnaire_category_keys: Array.from(next).sort(),
+      load_prev_questionnaire_category_keys: linked,
     });
   };
 
