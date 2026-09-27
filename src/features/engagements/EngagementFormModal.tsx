@@ -170,7 +170,7 @@ export function EngagementFormModal({
   useEffect(() => {
     if (!open) return;
     questionnaireCategoriesApi
-      .list({ status: "active", limit: 200 })
+      .list({ status: "active", limit: 100 })
       .then((res) => setQuestionnaireCategories(res.data.data ?? []))
       .catch(() => setQuestionnaireCategories([]));
   }, [open]);
