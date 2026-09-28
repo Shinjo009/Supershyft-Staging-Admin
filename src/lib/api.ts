@@ -3596,7 +3596,7 @@ export interface DiagnosticPackageListItem {
   collection_type?: string | null;
   price?: number | null;
   original_price?: number | null;
-  minimum_price?: number | null;
+  min_price?: number | null;
   discount_percent?: number | null;
   is_most_popular?: boolean | null;
   complementary_consultation?: Record<string, boolean> | null;
@@ -3631,7 +3631,7 @@ export interface DiagnosticPackageCreate {
   bookings_count?: number | null;
   price?: number | null;
   original_price?: number | null;
-  minimum_price?: number | null;
+  min_price?: number | null;
   is_most_popular?: boolean | null;
   complementary_consultation?: Record<string, boolean> | null;
   gender_suitability?: string | null;
