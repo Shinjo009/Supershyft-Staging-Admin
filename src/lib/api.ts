@@ -2026,6 +2026,8 @@ export interface Engagement {
   public_slot_detail?: PublicSlotDetail | null;
   assessment_package_id?: number | null;
   diagnostic_package_id?: number | null;
+  diagnostic_package_id_male?: number | null;
+  diagnostic_package_id_female?: number | null;
   city?: string | null;
   address?: string | null;
   sub_locality?: string | null;
@@ -2082,6 +2084,8 @@ export interface EngagementListItem {
   slot_detail?: SlotDetail | null;
   assessment_package_id?: number | null;
   diagnostic_package_id?: number | null;
+  diagnostic_package_id_male?: number | null;
+  diagnostic_package_id_female?: number | null;
   city?: string | null;
   address?: string | null;
   sub_locality?: string | null;
@@ -2126,6 +2130,8 @@ export interface EngagementCreate {
   engagement_code?: string | null;
   assessment_package_id?: number | null;
   diagnostic_package_id?: number | null;
+  diagnostic_package_id_male?: number | null;
+  diagnostic_package_id_female?: number | null;
   city?: string | null;
   address?: string | null;
   sub_locality?: string | null;
