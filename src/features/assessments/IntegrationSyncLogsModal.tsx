@@ -102,6 +102,13 @@ function parseNutritionScore(log: IntegrationSyncLog): string {
   return "—";
 }
 
+function defaultPayloadTab(log: IntegrationSyncLog): PayloadTab {
+  if (log.provider === "bio_ai_reports" && log.api_endpoint_url.includes("internal://bioai-report/")) {
+    return "response";
+  }
+  return "request";
+}
+
 function summarizeEndpoint(log: IntegrationSyncLog): string {
   const url = log.api_endpoint_url;
   if (log.provider === "n8n") return parseWebhookFromUrl(url);
@@ -119,7 +126,8 @@ function summarizeEndpoint(log: IntegrationSyncLog): string {
     }
   }
   if (log.provider === "bio_ai_reports") {
-    if (url.includes("internal://bioai-report/")) return "generate BioReport";
+    if (url.includes("internal://bioai-report/")) return "generate BioReport (full JSON)";
+    if (url.includes("/api/reports/regenerate")) return "regenerate PDF";
     if (url.includes("/api/reports")) return "register PDF";
     return "bio-ai-reports";
   }
@@ -611,7 +619,7 @@ export function IntegrationSyncLogsModal({
                         className="hover:bg-zinc-50 cursor-pointer"
                         onClick={() => {
                           setExpandedId(expanded ? null : log.sync_log_id);
-                          setPayloadTab("request");
+                          setPayloadTab(defaultPayloadTab(log));
                         }}
                       >
                         <td className="px-3 py-2">
