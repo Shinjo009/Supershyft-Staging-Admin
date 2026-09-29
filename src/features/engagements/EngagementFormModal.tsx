@@ -14,6 +14,7 @@ import {
   type NotificationServiceItem,
   type OrganizationListItem,
   type SlotDetail,
+  diagnosticPackagesApi,
   engagementsApi,
   engagementNotificationsApi,
   engagementTypesApi,
@@ -50,6 +51,13 @@ import {
   normalizeSlotDetail,
   slotDetailForSubmit,
 } from "./slotDetailUtils";
+import {
+  METSIGHTS_PRO_PACKAGE_CODE,
+  collectParameterKeysFromTests,
+  diagnosticPackageIdForProGate,
+  isMetsightsProAllowed,
+  missingMetsightsProHormones,
+} from "./metsightsProGate";
 
 const BLOOD_COLLECTION_TYPE_OPTIONS = [
   { value: "", label: "Select mode" },
@@ -372,6 +380,65 @@ export function EngagementFormModal({
     [selectedTypeCode]
   );
 
+  const metsightsProPackageId = useMemo(() => {
+    const row = assessmentPackages.find(
+      (p) => (p.package_code ?? "").trim() === METSIGHTS_PRO_PACKAGE_CODE
+    );
+    return row?.package_id ?? null;
+  }, [assessmentPackages]);
+
+  const proGatePackageId = useMemo(
+    () => diagnosticPackageIdForProGate(packageMode, formData),
+    [packageMode, formData.diagnostic_package_id, formData.diagnostic_package_id_female]
+  );
+
+  const [proGateParameterKeys, setProGateParameterKeys] = useState<Set<string>>(() => new Set());
+  const [proGateLoading, setProGateLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open || !typeConfig.needsAssessment) {
+      setProGateParameterKeys(new Set());
+      return;
+    }
+    if (!proGatePackageId) {
+      setProGateParameterKeys(new Set());
+      return;
+    }
+    let cancelled = false;
+    setProGateLoading(true);
+    diagnosticPackagesApi
+      .getTests(proGatePackageId)
+      .then((res) => {
+        if (cancelled) return;
+        setProGateParameterKeys(collectParameterKeysFromTests(res.data.data));
+      })
+      .catch(() => {
+        if (!cancelled) setProGateParameterKeys(new Set());
+      })
+      .finally(() => {
+        if (!cancelled) setProGateLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, proGatePackageId, typeConfig.needsAssessment]);
+
+  const metsightsProAllowed = useMemo(
+    () => isMetsightsProAllowed(proGateParameterKeys, proGatePackageId),
+    [proGateParameterKeys, proGatePackageId]
+  );
+
+  const metsightsProMissingLabels = useMemo(() => {
+    if (!proGatePackageId) return [];
+    return missingMetsightsProHormones(proGateParameterKeys);
+  }, [proGateParameterKeys, proGatePackageId]);
+
+  useEffect(() => {
+    if (!metsightsProPackageId || formData.assessment_package_id !== metsightsProPackageId) return;
+    if (metsightsProAllowed) return;
+    setFormData((prev) => ({ ...prev, assessment_package_id: 0 }));
+  }, [metsightsProAllowed, metsightsProPackageId, formData.assessment_package_id]);
+
   const steps = useMemo(
     () =>
       buildSteps(
@@ -590,11 +657,6 @@ export function EngagementFormModal({
       return false;
     }
 
-    if (typeConfig.needsAssessment && !(formData.assessment_package_id && formData.assessment_package_id > 0)) {
-      setStepError("Select an assessment package");
-      return false;
-    }
-
     if (typeConfig.needsDiagnostic) {
       if (packageMode === "split") {
         const hasMale = !!(formData.diagnostic_package_id_male && formData.diagnostic_package_id_male > 0);
@@ -607,6 +669,28 @@ export function EngagementFormModal({
         setStepError("Select a diagnostic package");
         return false;
       }
+    }
+
+    if (typeConfig.needsAssessment && !(formData.assessment_package_id && formData.assessment_package_id > 0)) {
+      setStepError("Select an assessment package");
+      return false;
+    }
+
+    if (
+      metsightsProPackageId &&
+      formData.assessment_package_id === metsightsProPackageId &&
+      !metsightsProAllowed
+    ) {
+      const scope =
+        packageMode === "split" ? "the female diagnostic package" : "the diagnostic package";
+      const missing =
+        metsightsProMissingLabels.length > 0
+          ? metsightsProMissingLabels.join(", ")
+          : "LH, FSH, total testosterone";
+      setStepError(
+        `Metsights Pro requires ${missing} on ${scope}. Choose a different assessment or diagnostic package.`
+      );
+      return false;
     }
 
     if (typeConfig.needsBloodCollection && !formData.blood_collection_type) {
@@ -1120,106 +1204,6 @@ export function EngagementFormModal({
               </p>
             )}
 
-            {typeConfig.needsAssessment && (
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-zinc-700 mb-1">
-                  Assessment package *
-                </label>
-                <select
-                  value={formData.assessment_package_id ?? 0}
-                  onChange={(e) =>
-                    setFormData({ ...formData, assessment_package_id: Number(e.target.value) })
-                  }
-                  className={inputClass}
-                >
-                  <option value={0}>Select package</option>
-                  {assessmentPackages.map((p) => (
-                    <option key={p.package_id} value={p.package_id}>
-                      {p.display_name ?? p.package_code ?? p.package_id}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {typeConfig.needsAssessment && (
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-zinc-700 mb-1">
-                  Load previous assessment questionnaires
-                </label>
-                <div className="flex gap-5 py-2">
-                  <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
-                    <input
-                      type="radio"
-                      name="load_prev_assessment_questionnaires"
-                      checked={Boolean(formData.load_prev_assessment_questionnaires)}
-                      onChange={() =>
-                        setFormData({
-                          ...formData,
-                          load_prev_assessment_questionnaires: true,
-                          load_prev_questionnaire_category_keys:
-                            formData.load_prev_questionnaire_category_keys?.length
-                              ? formData.load_prev_questionnaire_category_keys
-                              : [...DEFAULT_LOAD_PREV_QUESTIONNAIRE_CATEGORY_KEYS],
-                        })
-                      }
-                    />
-                    Yes
-                  </label>
-                  <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
-                    <input
-                      type="radio"
-                      name="load_prev_assessment_questionnaires"
-                      checked={!formData.load_prev_assessment_questionnaires}
-                      onChange={() =>
-                        setFormData({ ...formData, load_prev_assessment_questionnaires: false })
-                      }
-                    />
-                    No
-                  </label>
-                </div>
-                <p className="text-xs text-zinc-500 mt-1">
-                  On onboard, copy questionnaire answers from the user&apos;s latest prior Metsights
-                  Basic or Pro assessment into the new assessment instance. Vitals and blood-parameter
-                  answers are not copied.
-                </p>
-                {Boolean(formData.load_prev_assessment_questionnaires) && (
-                  <div className="mt-3 space-y-3 rounded-lg border border-zinc-200 p-3">
-                    <p className="text-xs font-medium text-zinc-700">
-                      Categories to copy from previous engagement
-                    </p>
-                    {(["metsights", "supershyft"] as const).map((group) => {
-                      const rows =
-                        group === "metsights"
-                          ? loadPrevCategoriesByGroup.metsights
-                          : loadPrevCategoriesByGroup.supershyft;
-                      if (rows.length === 0) return null;
-                      return (
-                        <div key={group}>
-                          <p className="text-xs text-zinc-500 mb-1 capitalize">{group}</p>
-                          <div className="flex flex-wrap gap-x-4 gap-y-2">
-                            {rows.map((cat) => (
-                              <label
-                                key={cat.category_id}
-                                className="inline-flex items-center gap-2 text-sm text-zinc-700"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={selectedLoadPrevCategoryKeys.includes(cat.category_key)}
-                                  onChange={() => toggleLoadPrevCategoryKey(cat.category_key)}
-                                />
-                                {cat.display_name || cat.category_key}
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-
             {typeConfig.needsDiagnostic && (
               <div className="md:col-span-2 space-y-3">
                 <div>
@@ -1346,6 +1330,132 @@ export function EngagementFormModal({
                         ))}
                       </select>
                     </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {typeConfig.needsAssessment && (
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-zinc-700 mb-1">
+                  Assessment package *
+                </label>
+                <select
+                  value={formData.assessment_package_id ?? 0}
+                  onChange={(e) =>
+                    setFormData({ ...formData, assessment_package_id: Number(e.target.value) })
+                  }
+                  className={inputClass}
+                >
+                  <option value={0}>Select package</option>
+                  {assessmentPackages.map((p) => {
+                    const isPro =
+                      (p.package_code ?? "").trim() === METSIGHTS_PRO_PACKAGE_CODE;
+                    const disabled = isPro && !metsightsProAllowed;
+                    const label = p.display_name ?? p.package_code ?? String(p.package_id);
+                    return (
+                      <option key={p.package_id} value={p.package_id} disabled={disabled}>
+                        {label}
+                        {disabled
+                          ? " (needs LH, FSH, total testosterone on diagnostic package)"
+                          : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+                {typeConfig.needsDiagnostic && metsightsProPackageId != null && (
+                  <p className="text-xs text-zinc-500 mt-1">
+                    {proGateLoading
+                      ? "Checking diagnostic package for Metsights Pro hormones…"
+                      : !proGatePackageId
+                        ? packageMode === "split"
+                          ? "Select the female diagnostic package before choosing Metsights Pro."
+                          : "Select a diagnostic package before choosing Metsights Pro."
+                        : metsightsProMissingLabels.length > 0
+                          ? `Metsights Pro needs LH, FSH, and total testosterone on ${
+                              packageMode === "split"
+                                ? "the female diagnostic package"
+                                : "this diagnostic package"
+                            }. Missing: ${metsightsProMissingLabels.join(", ")}.`
+                          : "This diagnostic package includes the hormones required for Metsights Pro."}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {typeConfig.needsAssessment && (
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-zinc-700 mb-1">
+                  Load previous assessment questionnaires
+                </label>
+                <div className="flex gap-5 py-2">
+                  <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
+                    <input
+                      type="radio"
+                      name="load_prev_assessment_questionnaires"
+                      checked={Boolean(formData.load_prev_assessment_questionnaires)}
+                      onChange={() =>
+                        setFormData({
+                          ...formData,
+                          load_prev_assessment_questionnaires: true,
+                          load_prev_questionnaire_category_keys:
+                            formData.load_prev_questionnaire_category_keys?.length
+                              ? formData.load_prev_questionnaire_category_keys
+                              : [...DEFAULT_LOAD_PREV_QUESTIONNAIRE_CATEGORY_KEYS],
+                        })
+                      }
+                    />
+                    Yes
+                  </label>
+                  <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
+                    <input
+                      type="radio"
+                      name="load_prev_assessment_questionnaires"
+                      checked={!formData.load_prev_assessment_questionnaires}
+                      onChange={() =>
+                        setFormData({ ...formData, load_prev_assessment_questionnaires: false })
+                      }
+                    />
+                    No
+                  </label>
+                </div>
+                <p className="text-xs text-zinc-500 mt-1">
+                  On onboard, copy questionnaire answers from the user&apos;s latest prior Metsights
+                  Basic or Pro assessment into the new assessment instance. Vitals and blood-parameter
+                  answers are not copied.
+                </p>
+                {Boolean(formData.load_prev_assessment_questionnaires) && (
+                  <div className="mt-3 space-y-3 rounded-lg border border-zinc-200 p-3">
+                    <p className="text-xs font-medium text-zinc-700">
+                      Categories to copy from previous engagement
+                    </p>
+                    {(["metsights", "supershyft"] as const).map((group) => {
+                      const rows =
+                        group === "metsights"
+                          ? loadPrevCategoriesByGroup.metsights
+                          : loadPrevCategoriesByGroup.supershyft;
+                      if (rows.length === 0) return null;
+                      return (
+                        <div key={group}>
+                          <p className="text-xs text-zinc-500 mb-1 capitalize">{group}</p>
+                          <div className="flex flex-wrap gap-x-4 gap-y-2">
+                            {rows.map((cat) => (
+                              <label
+                                key={cat.category_id}
+                                className="inline-flex items-center gap-2 text-sm text-zinc-700"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedLoadPrevCategoryKeys.includes(cat.category_key)}
+                                  onChange={() => toggleLoadPrevCategoryKey(cat.category_key)}
+                                />
+                                {cat.display_name || cat.category_key}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
