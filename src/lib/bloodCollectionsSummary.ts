@@ -1,4 +1,46 @@
-import type { ParticipantBloodBooking } from "./api";
+import type { Participant, ParticipantBloodBooking } from "./api";
+
+function collectedAtSortKey(b: ParticipantBloodBooking): number | null {
+  if (!b.collected_at) return null;
+  const t = Date.parse(b.collected_at);
+  return Number.isNaN(t) ? null : t;
+}
+
+/** Mirrors API `get_current_collection`: active, not resample; newest by collected_at then id. */
+export function pickCurrentBloodBooking(
+  bookings: ParticipantBloodBooking[]
+): ParticipantBloodBooking | undefined {
+  const candidates = (bookings ?? []).filter(
+    (b) => b.status === "active" && b.relation !== "resample"
+  );
+  if (candidates.length === 0) return undefined;
+
+  candidates.sort((a, b) => {
+    const ta = collectedAtSortKey(a);
+    const tb = collectedAtSortKey(b);
+    if (ta === null && tb === null) {
+      return (b.id ?? 0) - (a.id ?? 0);
+    }
+    if (ta === null) return 1;
+    if (tb === null) return -1;
+    if (tb !== ta) return tb - ta;
+    return (b.id ?? 0) - (a.id ?? 0);
+  });
+  return candidates[0];
+}
+
+export function applyParticipantBookingId(
+  participant: Participant,
+  bookingId: string | null
+): Participant {
+  const bookings = participant.blood_bookings ?? [];
+  const current = pickCurrentBloodBooking(bookings);
+  const nextBookings =
+    current?.id != null
+      ? bookings.map((b) => (b.id === current.id ? { ...b, booking_id: bookingId } : b))
+      : bookings;
+  return { ...participant, booking_id: bookingId, blood_bookings: nextBookings };
+}
 
 const RELATION_HELP: Record<string, string> = {
   primary: "First scheduled blood draw for this participant.",

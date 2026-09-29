@@ -3,7 +3,10 @@ import { Search, Loader2, Users, Download, Trash2, AlertTriangle, Bell, X, Penci
 import * as XLSX from "xlsx";
 import { Modal } from "./Modal";
 import { ParticipantBloodCollectionsDrawer } from "./ParticipantBloodCollectionsDrawer";
-import { summarizeBloodCollections } from "../../lib/bloodCollectionsSummary";
+import {
+  applyParticipantBookingId,
+  summarizeBloodCollections,
+} from "../../lib/bloodCollectionsSummary";
 import {
   ExportSelectedParticipantsDialog,
   logThenDownloadParticipantsExport,
@@ -1013,6 +1016,14 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
   }, [mayViewExperts]);
 
   useEffect(() => {
+    const userId = collectionsDrawerParticipant?.user_id;
+    if (userId == null) return;
+    const fresh = participants.find((p) => p.user_id === userId);
+    if (!fresh) return;
+    setCollectionsDrawerParticipant(fresh);
+  }, [participants, collectionsDrawerParticipant?.user_id]);
+
+  useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search), 300);
     return () => window.clearTimeout(timer);
   }, [search]);
@@ -1314,8 +1325,15 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
       const saved = res.data.data.booking_id ?? normalized;
       setParticipants((prevRows) =>
         prevRows.map((row) =>
-          row.user_id === participant.user_id ? { ...row, booking_id: saved } : row
+          row.user_id === participant.user_id
+            ? applyParticipantBookingId(row, saved)
+            : row
         )
+      );
+      setCollectionsDrawerParticipant((drawerRow) =>
+        drawerRow?.user_id === participant.user_id
+          ? applyParticipantBookingId(drawerRow, saved)
+          : drawerRow
       );
     } catch (err) {
       setBookingIdUpdateError(getApiError(err));
@@ -2426,6 +2444,12 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
             )}
             {bookingIdUpdateError && (
               <p className="text-sm text-red-600 mb-3">{bookingIdUpdateError}</p>
+            )}
+            {bookingIdEditMode && canEditBookingId && (
+              <p className="text-xs text-zinc-500 mb-3">
+                Updates the current active collection&apos;s Healthians booking ID (same as in Blood
+                collection history).
+              </p>
             )}
             {scheduleUpdateError && (
               <p className="text-sm text-red-600 mb-3">{scheduleUpdateError}</p>
@@ -3728,8 +3752,8 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
           engagementId={engagementIdForDepartment}
           userId={collectionsDrawerParticipant.user_id}
           bookings={collectionsDrawerParticipant.blood_bookings ?? []}
-          onChanged={() => {
-            void fetchParticipants();
+          onChanged={async () => {
+            await fetchParticipants();
           }}
         />
       )}
