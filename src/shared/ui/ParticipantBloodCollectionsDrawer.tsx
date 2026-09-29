@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import type { ParticipantBloodBooking } from "../../lib/api";
-import { participantsApi } from "../../lib/api";
+import { getApiError, participantsApi } from "../../lib/api";
 import {
   collectionsStoryLine,
   formatCollectionWhen,
@@ -119,7 +119,7 @@ export function ParticipantBloodCollectionsDrawer({
       cancelEdit();
       onChanged();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Could not save collection");
+      setError(getApiError(e));
     } finally {
       setSaving(false);
     }
@@ -138,7 +138,7 @@ export function ParticipantBloodCollectionsDrawer({
       await participantsApi.deleteBloodBooking(engagementId, userId, b.id);
       onChanged();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Could not delete");
+      setError(getApiError(e));
     } finally {
       setSaving(false);
     }
