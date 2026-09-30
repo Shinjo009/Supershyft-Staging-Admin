@@ -735,6 +735,10 @@ export const usersApi = {
       `/users/${id}/metsights-profile-id`,
       { metsights_profile_id }
     ),
+  retryMetsightsProfile: (id: number) =>
+    api.post<{ data: { user_id: number; metsights_profile_id: string | null } }>(
+      `/users/${id}/retry-metsights-profile`
+    ),
   deactivate: (id: number) =>
     api.patch<{ data: { user_id: number; status: string } }>(`/users/${id}/deactivate`),
   deleteImpact: (id: number) =>

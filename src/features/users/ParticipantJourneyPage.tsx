@@ -191,6 +191,7 @@ export function ParticipantJourneyPage() {
   const [openCategories, setOpenCategories] = useState<Record<number, boolean>>({});
   const [metsightsProfileInput, setMetsightsProfileInput] = useState("");
   const [metsightsProfileSaving, setMetsightsProfileSaving] = useState(false);
+  const [metsightsProfileCreating, setMetsightsProfileCreating] = useState(false);
   const [metsightsProfileError, setMetsightsProfileError] = useState<string | null>(null);
   const [metsightsProfileSuccess, setMetsightsProfileSuccess] = useState<string | null>(null);
   const [importingInstanceId, setImportingInstanceId] = useState<number | null>(null);
@@ -389,6 +390,28 @@ export function ParticipantJourneyPage() {
 
   const handleClearMetsightsProfileId = () => saveMetsightsProfileId("");
 
+  const handleCreateMetsightsProfile = async () => {
+    if (!Number.isFinite(userId)) return;
+    setMetsightsProfileCreating(true);
+    setMetsightsProfileError(null);
+    setMetsightsProfileSuccess(null);
+    try {
+      const res = await usersApi.retryMetsightsProfile(userId);
+      const saved = res.data.data.metsights_profile_id ?? "";
+      setMetsightsProfileInput(saved);
+      setUser((prev) =>
+        prev ? { ...prev, metsights_profile_id: res.data.data.metsights_profile_id } : prev
+      );
+      setMetsightsProfileSuccess(
+        saved ? "Metsights profile created." : "Metsights profile request completed."
+      );
+    } catch (err) {
+      setMetsightsProfileError(getApiError(err));
+    } finally {
+      setMetsightsProfileCreating(false);
+    }
+  };
+
   const metsightsProfileDirty =
     (metsightsProfileInput.trim() || "") !== ((user?.metsights_profile_id ?? "").trim() || "");
 
@@ -527,10 +550,23 @@ export function ParticipantJourneyPage() {
               </p>
             </div>
             {mayEditUsers && <div className="flex flex-wrap gap-2 shrink-0">
+              {!(user.metsights_profile_id ?? "").trim() ? (
+                <button
+                  type="button"
+                  onClick={() => void handleCreateMetsightsProfile()}
+                  disabled={metsightsProfileCreating || metsightsProfileSaving}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-zinc-300 text-zinc-800 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50"
+                >
+                  {metsightsProfileCreating ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : null}
+                  {metsightsProfileCreating ? "Creating…" : "Create MetSights profile"}
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() => void handleSaveMetsightsProfileId()}
-                disabled={metsightsProfileSaving || !metsightsProfileDirty}
+                disabled={metsightsProfileSaving || metsightsProfileCreating || !metsightsProfileDirty}
                 className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 disabled:opacity-50 min-w-[5.5rem]"
               >
                 {metsightsProfileSaving ? (
