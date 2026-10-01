@@ -284,6 +284,12 @@ export interface SupportQueryNotification {
   default_support_query_notification?: string | null;
 }
 
+export type GeocodingProvider = "google" | "nominatim";
+
+export interface GeocodingProviderSettings {
+  geocoding_provider: GeocodingProvider;
+}
+
 export interface DefaultOnboardingAssistantItem {
   employee_id: number;
   user_id: number;
@@ -381,6 +387,15 @@ export const platformSettingsApi = {
   patchSupportQueryNotification: (payload: SupportQueryNotification) =>
     api.patch<{ data: SupportQueryNotification; meta: Record<string, unknown> }>(
       "/platform-settings/support-query-notification",
+      payload
+    ),
+  getGeocodingProvider: () =>
+    api.get<{ data: GeocodingProviderSettings; meta: Record<string, unknown> }>(
+      "/platform-settings/geocoding-provider"
+    ),
+  patchGeocodingProvider: (payload: GeocodingProviderSettings) =>
+    api.patch<{ data: GeocodingProviderSettings; meta: Record<string, unknown> }>(
+      "/platform-settings/geocoding-provider",
       payload
     ),
   getMetsightsProfileStats: () =>
@@ -2179,7 +2194,10 @@ export interface GeocodeSuggestion extends EngagementLocationFields {
 
 export const geocodeApi = {
   search: (q: string, limit = 3) =>
-    api.get<{ data: GeocodeSuggestion[] }>("/geocode/search", { params: { q, limit } }),
+    api.get<{
+      data: GeocodeSuggestion[];
+      meta: { geocoding_provider?: GeocodingProvider; geocoding_fallback_used?: boolean };
+    }>("/geocode/search", { params: { q, limit } }),
 };
 
 

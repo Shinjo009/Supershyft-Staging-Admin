@@ -29,6 +29,7 @@ import {
   type NotificationServiceConfigItem,
   type NotificationServiceItem,
   type SupportQueryNotification,
+  type GeocodingProvider,
   getApiError,
 } from "../../lib/api";
 import { NotificationServiceChipInput } from "../../shared/ui/NotificationServiceChipInput";
@@ -223,6 +224,11 @@ export function Settings() {
   const [supportQueryNotificationError, setSupportQueryNotificationError] = useState<string | null>(null);
   const [supportQueryNotificationSaveOk, setSupportQueryNotificationSaveOk] = useState<string | null>(null);
 
+  const [geocodingProvider, setGeocodingProvider] = useState<GeocodingProvider>("google");
+  const [savingGeocodingProvider, setSavingGeocodingProvider] = useState(false);
+  const [geocodingProviderError, setGeocodingProviderError] = useState<string | null>(null);
+  const [geocodingProviderSaveOk, setGeocodingProviderSaveOk] = useState<string | null>(null);
+
   const [msStats, setMsStats] = useState<MetsightsProfilesStats | null>(null);
   const [msStatsLoading, setMsStatsLoading] = useState(false);
   const [msStatsError, setMsStatsError] = useState<string | null>(null);
@@ -266,12 +272,13 @@ export function Settings() {
     setError(null);
     setSaveOk(null);
     try {
-      const [defaultsRes, typesRes, assistantDefaultsRes, supportQueryRes, notifServicesRes, aPkgs, dRes, partnersRes] =
+      const [defaultsRes, typesRes, assistantDefaultsRes, supportQueryRes, geocodingRes, notifServicesRes, aPkgs, dRes, partnersRes] =
         await Promise.all([
         platformSettingsApi.getB2cOnboarding(),
         engagementTypesApi.list({ is_active: true }),
         platformSettingsApi.getDefaultOnboardingAssistants(),
         platformSettingsApi.getSupportQueryNotification(),
+        platformSettingsApi.getGeocodingProvider(),
         mayViewNotifications ? notificationsApi.listServices() : Promise.resolve(null),
         mayViewAssessments
           ? fetchAllPages<AssessmentPackage>((page, limit) =>
@@ -300,6 +307,7 @@ export function Settings() {
       setSupportQueryNotification(
         supportQueryRes.data.data?.default_support_query_notification ?? null
       );
+      setGeocodingProvider(geocodingRes.data.data?.geocoding_provider ?? "google");
       setNotificationServices(
         (notifServicesRes?.data.data ?? []).filter((s) => s.is_active !== false)
       );
@@ -485,6 +493,24 @@ export function Settings() {
       setSupportQueryNotificationError(getApiError(err));
     } finally {
       setSavingSupportQueryNotification(false);
+    }
+  }
+
+  async function handleSaveGeocodingProvider(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingGeocodingProvider(true);
+    setGeocodingProviderError(null);
+    setGeocodingProviderSaveOk(null);
+    try {
+      const res = await platformSettingsApi.patchGeocodingProvider({
+        geocoding_provider: geocodingProvider,
+      });
+      setGeocodingProvider(res.data.data?.geocoding_provider ?? "google");
+      setGeocodingProviderSaveOk("Saved. Address search will use this provider (with automatic fallback).");
+    } catch (err) {
+      setGeocodingProviderError(getApiError(err));
+    } finally {
+      setSavingGeocodingProvider(false);
     }
   }
 
@@ -1089,6 +1115,65 @@ export function Settings() {
           </button>
         </form>
       )}
+
+      {!loading ? (
+        <form
+          onSubmit={(e) => void handleSaveGeocodingProvider(e)}
+          className="bg-white border border-zinc-200 rounded-xl p-5 space-y-4 shadow-sm"
+        >
+          <h2 className="text-sm font-semibold text-zinc-900">Geocoding provider</h2>
+          <p className="text-xs text-zinc-500 -mt-2">
+            Primary provider for address search. If the primary returns no results or errors, the other
+            provider is tried automatically.
+          </p>
+
+          <div>
+            <span className="block text-sm font-medium text-zinc-700 mb-1">Provider</span>
+            <div className="flex gap-5 py-2">
+              <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
+                <input
+                  type="radio"
+                  name="geocoding-provider"
+                  checked={geocodingProvider === "google"}
+                  onChange={() => setGeocodingProvider("google")}
+                />
+                Google
+              </label>
+              <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
+                <input
+                  type="radio"
+                  name="geocoding-provider"
+                  checked={geocodingProvider === "nominatim"}
+                  onChange={() => setGeocodingProvider("nominatim")}
+                />
+                Nominatim (OpenStreetMap)
+              </label>
+            </div>
+          </div>
+
+          {geocodingProviderError ? (
+            <p className="text-sm text-red-600" role="alert">
+              {geocodingProviderError}
+            </p>
+          ) : null}
+          {geocodingProviderSaveOk ? (
+            <p className="text-sm text-emerald-700">{geocodingProviderSaveOk}</p>
+          ) : null}
+
+          <button
+            type="submit"
+            disabled={savingGeocodingProvider}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-50 disabled:pointer-events-none"
+          >
+            {savingGeocodingProvider ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            Save geocoding provider
+          </button>
+        </form>
+      ) : null}
 
       {!loading ? (
         <form
