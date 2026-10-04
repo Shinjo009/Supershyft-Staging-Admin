@@ -319,15 +319,15 @@ export function EngagementFormModal({
     setFormData((prev) => {
       const next = {
         ...prev,
-        address: suggestion.display_name || suggestion.address || prev.address || "",
-        sub_locality: suggestion.sub_locality ?? prev.sub_locality ?? "",
-        landmark: suggestion.landmark ?? prev.landmark ?? "",
-        city: suggestion.city ?? prev.city ?? "",
-        pincode: suggestion.pincode ?? prev.pincode ?? "",
-        state: suggestion.state ?? prev.state ?? "",
-        country: suggestion.country ?? prev.country ?? "",
-        latitude: suggestion.latitude ?? prev.latitude ?? null,
-        longitude: suggestion.longitude ?? prev.longitude ?? null,
+        address: suggestion.address || suggestion.display_name || "",
+        sub_locality: suggestion.sub_locality || "",
+        landmark: suggestion.landmark || "",
+        city: suggestion.city || "",
+        pincode: suggestion.pincode || "",
+        state: suggestion.state || "",
+        country: suggestion.country || "",
+        latitude: suggestion.latitude ?? null,
+        longitude: suggestion.longitude ?? null,
       };
       const zonePackageId =
         packageMode === "split" ? next.diagnostic_package_id_male : next.diagnostic_package_id;
