@@ -24,7 +24,7 @@ const EMPTY_FORM: DiagnosticPackageCreate = {
   package_name: "",
   package_image: null,
   diagnostic_provider: "",
-  external_package_id: null,
+  external_package_code: null,
   collection_type: "",
   gender_suitability: "",
   package_for: "public",
@@ -229,7 +229,7 @@ export function DiagnosticPackages() {
       package_name: row.package_name,
       package_image: row.package_image ?? null,
       diagnostic_provider: row.diagnostic_provider ?? "",
-      external_package_id: row.external_package_id ?? null,
+      external_package_code: row.external_package_code ?? null,
       collection_type: row.collection_type ?? "",
       gender_suitability: row.gender_suitability ?? "",
       package_for: row.package_for ?? "public",
@@ -337,7 +337,7 @@ export function DiagnosticPackages() {
         package_name: form.package_name.trim(),
         package_image: form.package_image?.trim() || null,
         diagnostic_provider: form.diagnostic_provider?.trim() || null,
-        external_package_id: form.external_package_id ?? null,
+        external_package_code: form.external_package_code?.trim() || null,
         collection_type: form.collection_type?.trim() || null,
         gender_suitability: form.gender_suitability?.trim() || null,
         package_for: (form.package_for as "public" | "camp") || "public",
@@ -695,22 +695,32 @@ export function DiagnosticPackages() {
               >
                 <option value="">Select</option>
                 <option value="Healthians">Healthians</option>
+                <option value="orange_health">Orange Health</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1">
-                {form.diagnostic_provider
-                  ? `${form.diagnostic_provider} Package ID`
-                  : "Package ID"}
-              </label>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">External package code</label>
               <input
-                type="number"
-                value={form.external_package_id ?? ""}
+                type="text"
+                value={form.external_package_code ?? ""}
                 onChange={(e) =>
-                  setForm((prev) => ({ ...prev, external_package_id: toNumberOrNull(e.target.value) }))
+                  setForm((prev) => ({
+                    ...prev,
+                    external_package_code: e.target.value.trim() ? e.target.value.trim() : null,
+                  }))
+                }
+                placeholder={
+                  (form.diagnostic_provider ?? "").toLowerCase() === "orange_health"
+                    ? "Orange Health package_id"
+                    : "Healthians numeric package id"
                 }
                 className="w-full border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900"
               />
+              <p className="mt-1 text-xs text-zinc-500">
+                {(form.diagnostic_provider ?? "").toLowerCase() === "orange_health"
+                  ? "Stored as text and sent to Orange Health as package_id."
+                  : "Stored as text; API sends Healthians deal id package_{id}."}
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-zinc-700 mb-1">Collection type</label>

@@ -3063,6 +3063,7 @@ export interface ConsoleEngagementListItem {
   status?: string | null;
   participant_count?: number | null;
   blood_collection_type?: string | null;
+  diagnostic_provider?: string | null;
 }
 
 export interface ConsoleParticipantBookResponse {
@@ -3237,9 +3238,14 @@ export const consoleApi = {
       `/engagements/${engagementId}/console/participants/${userId}/book-home-collection/lock`,
       payload
     ),
-  bookHomeCollection: (engagementId: number, userId: number) =>
-    api.post<{ data: { status?: boolean; message?: string; booking_id?: string; lead_id?: number | null; resCode?: string; engagement_participant_id?: number; user_id: number; engagement_id: number } }>(
-      `/engagements/${engagementId}/console/participants/${userId}/book-home-collection/book`
+  bookHomeCollection: (
+    engagementId: number,
+    userId: number,
+    payload?: { partner_notes?: string | null }
+  ) =>
+    api.post<{ data: { status?: boolean | string; message?: string; booking_id?: string; lead_id?: number | null; resCode?: string; engagement_participant_id?: number; user_id: number; engagement_id: number } }>(
+      `/engagements/${engagementId}/console/participants/${userId}/book-home-collection/book`,
+      payload ?? {}
     ),
   rescheduleHomeCollection: (
     engagementId: number,
@@ -3551,7 +3557,7 @@ export interface DiagnosticTest {
   test_id: number;
   group_id: number;
   test_name: string;
-  external_parameter_id?: number | null;
+  external_parameter_code?: string | null;
   parameter_key?: string | null;
   unit?: string | null;
   meaning?: string | null;
@@ -3617,7 +3623,7 @@ export interface DiagnosticPackageListItem {
   package_name: string;
   package_image?: string | null;
   diagnostic_provider?: string | null;
-  external_package_id?: number | null;
+  external_package_code?: string | null;
   created_by_user_id?: number | null;
   no_of_tests?: number | null;
   report_duration_hours?: number | null;
@@ -3649,7 +3655,7 @@ export interface DiagnosticPackageCreate {
   package_name: string;
   package_image?: string | null;
   diagnostic_provider?: string | null;
-  external_package_id?: number | null;
+  external_package_code?: string | null;
   /** Public (false) vs custom/owned (true). Non-staff must use true; staff may use either. */
   custom?: boolean;
   report_duration_hours?: number | null;
@@ -3867,7 +3873,7 @@ export interface DiagnosticTestStandalone {
   test_id: number;
   parameter_type: HealthParameterType;
   test_name: string;
-  external_parameter_id?: number | null;
+  external_parameter_code?: string | null;
   parameter_key?: string | null;
   unit?: string | null;
   meaning?: string | null;
@@ -3943,7 +3949,7 @@ export interface PackageTestsResponse {
 export type HealthParameterCreatePayload = {
   parameter_type: HealthParameterType;
   test_name: string;
-  external_parameter_id?: number | null;
+  external_parameter_code?: string | null;
   parameter_key?: string | null;
   unit?: string | null;
   meaning?: string | null;
@@ -3975,7 +3981,7 @@ export type HealthParameterCreatePayload = {
 
 export type HealthParameterUpdatePayload = {
   test_name?: string;
-  external_parameter_id?: number | null;
+  external_parameter_code?: string | null;
   parameter_key?: string | null;
   unit?: string | null;
   meaning?: string | null;
@@ -4080,10 +4086,10 @@ export interface HealthiansConstituentsResponse {
 }
 
 export const healthiansApi = {
-  getConstituents: (external_package_id: number) =>
+  getConstituents: (external_package_code: string) =>
     api.post<{ data: HealthiansConstituentsResponse }>(
       "/diagnostics/healthians/constituents",
-      { external_package_id }
+      { external_package_code }
     ),
 };
 

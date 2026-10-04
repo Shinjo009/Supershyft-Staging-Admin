@@ -9,6 +9,7 @@ interface Props {
   onClose: () => void;
   engagementId: number;
   participant: Participant;
+  diagnosticProvider?: string | null;
   onBooked: (bookingId: string) => void;
 }
 
@@ -48,7 +49,22 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
 }
 
-export function HomeCollectionBookingModal({ open, onClose, engagementId, participant, onBooked }: Props) {
+function isOrangeHealthProvider(provider?: string | null): boolean {
+  return (provider ?? "").trim().toLowerCase() === "orange_health";
+}
+
+function providerLabel(provider?: string | null): string {
+  return isOrangeHealthProvider(provider) ? "Orange Health" : "Healthians";
+}
+
+export function HomeCollectionBookingModal({
+  open,
+  onClose,
+  engagementId,
+  participant,
+  diagnosticProvider,
+  onBooked,
+}: Props) {
   const { canEditTask } = usePermissions();
   const mayEditConsole = canEditTask("engagement_console", "bookings");
   const [step, setStep] = useState<Step>(1);
@@ -73,6 +89,8 @@ export function HomeCollectionBookingModal({ open, onClose, engagementId, partic
   const [bookError, setBookError] = useState<string | null>(null);
 
   const [bookingId, setBookingId] = useState<string | null>(null);
+  const [partnerNotes, setPartnerNotes] = useState("");
+  const orangeHealth = isOrangeHealthProvider(diagnosticProvider);
 
   const handleCheckServiceability = async () => {
     if (!addressLine.trim()) { setStep1Error("Address is required."); return; }
@@ -136,7 +154,11 @@ export function HomeCollectionBookingModal({ open, onClose, engagementId, partic
     setBookLoading(true);
     setBookError(null);
     try {
-      const res = await consoleApi.bookHomeCollection(engagementId, participant.user_id);
+      const res = await consoleApi.bookHomeCollection(
+        engagementId,
+        participant.user_id,
+        orangeHealth ? { partner_notes: partnerNotes.trim() || undefined } : undefined
+      );
       const bid = res.data.data.booking_id ?? "";
       setBookingId(bid);
       setStep(4);
@@ -158,6 +180,7 @@ export function HomeCollectionBookingModal({ open, onClose, engagementId, partic
     setSelectedDate(null);
     setSelectedSlot(null);
     setBookingId(null);
+    setPartnerNotes("");
     onClose();
   };
 
@@ -345,7 +368,7 @@ export function HomeCollectionBookingModal({ open, onClose, engagementId, partic
               >
                 {lockLoading && <Loader2 className="w-4 h-4 animate-spin" />}
                 <Lock className="w-4 h-4" />
-                Lock Slot
+                {orangeHealth ? "Confirm Slot" : "Lock Slot"}
               </button>
             </div>
           </div>
@@ -371,6 +394,19 @@ export function HomeCollectionBookingModal({ open, onClose, engagementId, partic
                 <span className="text-zinc-900">{selectedSlot?.slot_time ?? "—"}</span>
               </div>
             </div>
+            {orangeHealth && (
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">Partner notes (optional)</label>
+                <textarea
+                  value={partnerNotes}
+                  onChange={(e) => setPartnerNotes(e.target.value)}
+                  rows={3}
+                  maxLength={500}
+                  placeholder="Notes for the Orange Health collection team"
+                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
+                />
+              </div>
+            )}
             {bookError && <p className="text-sm text-red-600">{bookError}</p>}
             <div className="flex justify-end gap-2 pt-2">
               <button
@@ -400,7 +436,7 @@ export function HomeCollectionBookingModal({ open, onClose, engagementId, partic
             <div>
               <h4 className="text-lg font-medium text-zinc-900">Booking Created</h4>
               <p className="text-sm text-zinc-600 mt-1">
-                Healthians booking has been placed successfully.
+                {providerLabel(diagnosticProvider)} booking has been placed successfully.
               </p>
             </div>
             <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200">

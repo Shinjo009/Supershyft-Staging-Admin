@@ -990,6 +990,7 @@ export function EngagementConsolePage() {
           onClose={closeModal}
           engagementId={engId}
           participant={selectedParticipant}
+          diagnosticProvider={engagement?.diagnostic_provider}
           onBooked={(bid) => {
             const userId = selectedParticipant.user_id;
             setParticipants((prev) =>

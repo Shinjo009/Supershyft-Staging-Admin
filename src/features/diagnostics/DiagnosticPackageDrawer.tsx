@@ -89,7 +89,7 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
   const [mapModalOpen, setMapModalOpen] = useState(false);
   const [mapModalTestId, setMapModalTestId] = useState<number>(0);
   const [mapModalTestName, setMapModalTestName] = useState("");
-  const [mapModalCurrentParamId, setMapModalCurrentParamId] = useState<number | null>(null);
+  const [mapModalCurrentParamId, setMapModalCurrentParamId] = useState<string | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -512,7 +512,7 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
               <div className="bg-white border border-zinc-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 <div><p className="text-zinc-500">Package name</p><p className="text-zinc-900 font-medium">{detail?.package_name ?? "—"}</p></div>
                 <div><p className="text-zinc-500">Provider</p><p className="text-zinc-900">{detail?.diagnostic_provider ?? "—"}</p></div>
-                <div><p className="text-zinc-500">{detail?.diagnostic_provider ?? "Provider"} Package ID</p><p className="text-zinc-900">{detail?.external_package_id ?? "—"}</p></div>
+                <div><p className="text-zinc-500">{detail?.diagnostic_provider ?? "Provider"} Package ID</p><p className="text-zinc-900">{detail?.external_package_code ?? "—"}</p></div>
                 <div><p className="text-zinc-500">Tests</p><p className="text-zinc-900">{detail?.no_of_tests ?? "—"}</p></div>
                 <div><p className="text-zinc-500">Report duration (hrs)</p><p className="text-zinc-900">{detail?.report_duration_hours ?? "—"}</p></div>
                 <div><p className="text-zinc-500">Collection type</p><p className="text-zinc-900">{detail?.collection_type ?? "—"}</p></div>
@@ -709,7 +709,7 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
               {(() => {
                 const allTests = testGroups.flatMap((g) => g.tests ?? []);
                 const totalTests = allTests.length;
-                const mappedTests = allTests.filter((t) => t.external_parameter_id != null).length;
+                const mappedTests = allTests.filter((t) => t.external_parameter_code != null).length;
                 if (totalTests === 0) return null;
                 return (
                   <div className="flex items-center gap-2 px-1 text-sm text-zinc-600">
@@ -779,26 +779,26 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
                                             onClick={() => {
                                               setMapModalTestId(test.test_id);
                                               setMapModalTestName(test.test_name);
-                                              setMapModalCurrentParamId(test.external_parameter_id ?? null);
+                                              setMapModalCurrentParamId(test.external_parameter_code ?? null);
                                               setMapModalOpen(true);
                                             }}
                                             className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium ${
-                                              test.external_parameter_id
+                                              test.external_parameter_code
                                                 ? "border border-green-200 text-green-700 hover:bg-green-50"
                                                 : "border border-zinc-200 text-zinc-600 hover:bg-zinc-50"
                                             }`}
                                             title={
-                                              test.external_parameter_id
-                                                ? `Mapped (ID: ${test.external_parameter_id})`
+                                              test.external_parameter_code
+                                                ? `Mapped (ID: ${test.external_parameter_code})`
                                                 : `Map to ${detail?.diagnostic_provider ?? "provider"} parameter`
                                             }
                                           >
-                                            {test.external_parameter_id ? (
+                                            {test.external_parameter_code ? (
                                               <Eye className="w-3.5 h-3.5" />
                                             ) : (
                                               <Link className="w-3.5 h-3.5" />
                                             )}
-                                            {test.external_parameter_id ? "View" : "Map"}
+                                            {test.external_parameter_code ? "View" : "Map"}
                                           </button>
                                         </div>
                                       </div>
@@ -1156,12 +1156,12 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
           testName={mapModalTestName}
           currentHealthiansParameterId={mapModalCurrentParamId}
           diagnosticProvider={detail?.diagnostic_provider}
-          externalPackageId={detail?.external_package_id}
+          externalPackageCode={detail?.external_package_code}
           allTests={testGroups.flatMap((g) =>
             (g.tests ?? []).map((t) => ({
               test_id: t.test_id,
               test_name: t.test_name,
-              external_parameter_id: t.external_parameter_id,
+              external_parameter_code: t.external_parameter_code,
             }))
           )}
           onMapped={() => {
@@ -1171,7 +1171,7 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
           onSwitchTest={(next: MapModalTest) => {
             setMapModalTestId(next.test_id);
             setMapModalTestName(next.test_name);
-            setMapModalCurrentParamId(next.external_parameter_id ?? null);
+            setMapModalCurrentParamId(next.external_parameter_code ?? null);
           }}
         />
       </div>

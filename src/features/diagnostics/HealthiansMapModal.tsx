@@ -11,7 +11,7 @@ import { Modal } from "../../shared/ui/Modal";
 export interface MapModalTest {
   test_id: number;
   test_name: string;
-  external_parameter_id?: number | null;
+  external_parameter_code?: string | null;
 }
 
 interface HealthiansMapModalProps {
@@ -19,9 +19,9 @@ interface HealthiansMapModalProps {
   onClose: () => void;
   testId: number;
   testName: string;
-  currentHealthiansParameterId?: number | null;
+  currentHealthiansParameterId?: string | null;
   diagnosticProvider: string | null | undefined;
-  externalPackageId: number | null | undefined;
+  externalPackageCode: string | null | undefined;
   allTests: MapModalTest[];
   onMapped: () => void;
   onSwitchTest: (test: MapModalTest) => void;
@@ -34,7 +34,7 @@ export function HealthiansMapModal({
   testName,
   currentHealthiansParameterId,
   diagnosticProvider,
-  externalPackageId,
+  externalPackageCode,
   allTests,
   onMapped,
   onSwitchTest,
@@ -52,7 +52,7 @@ export function HealthiansMapModal({
   const providerLabel = diagnosticProvider ?? "provider";
   const providerValid =
     diagnosticProvider?.toLowerCase() === "healthians";
-  const packageIdValid = externalPackageId != null && externalPackageId > 0;
+  const packageIdValid = Boolean((externalPackageCode ?? "").trim());
 
   useEffect(() => {
     if (!open) {
@@ -73,7 +73,7 @@ export function HealthiansMapModal({
     (async () => {
       setLoading(true);
       try {
-        const res = await healthiansApi.getConstituents(externalPackageId!);
+        const res = await healthiansApi.getConstituents(externalPackageCode!.trim());
         if (cancelled) return;
         const data = res.data.data;
         setConstituents(data.constituents ?? []);
@@ -88,16 +88,16 @@ export function HealthiansMapModal({
     return () => {
       cancelled = true;
     };
-  }, [open, providerValid, packageIdValid, externalPackageId, dataLoaded]);
+  }, [open, providerValid, packageIdValid, externalPackageCode, dataLoaded]);
 
   const nextUnmappedTest = useMemo(() => {
     const currentIdx = allTests.findIndex((t) => t.test_id === testId);
     if (currentIdx === -1) return null;
     for (let i = currentIdx + 1; i < allTests.length; i++) {
-      if (allTests[i].external_parameter_id == null) return allTests[i];
+      if (allTests[i].external_parameter_code == null) return allTests[i];
     }
     for (let i = 0; i < currentIdx; i++) {
-      if (allTests[i].external_parameter_id == null) return allTests[i];
+      if (allTests[i].external_parameter_code == null) return allTests[i];
     }
     return null;
   }, [allTests, testId]);
@@ -105,9 +105,7 @@ export function HealthiansMapModal({
   const mappedConstituent = useMemo(() => {
     if (currentHealthiansParameterId == null) return null;
     return (
-      constituents.find(
-        (c) => parseInt(c.id, 10) === currentHealthiansParameterId
-      ) ?? null
+      constituents.find((c) => c.id === String(currentHealthiansParameterId)) ?? null
     );
   }, [constituents, currentHealthiansParameterId]);
 
@@ -123,7 +121,7 @@ export function HealthiansMapModal({
       setError(null);
       try {
         await diagnosticTestsApi.update(testId, {
-          external_parameter_id: parseInt(constituent.id, 10),
+          external_parameter_code: constituent.id,
         });
         onMapped();
         setConfirmConstituent(null);
@@ -149,7 +147,7 @@ export function HealthiansMapModal({
       setError(null);
       try {
         await diagnosticTestsApi.update(testId, {
-          external_parameter_id: parseInt(constituent.id, 10),
+          external_parameter_code: constituent.id,
         });
         onMapped();
         onClose();
