@@ -275,8 +275,7 @@ export function Partners() {
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 mb-6">
-        <h1 className="text-lg sm:text-xl font-semibold text-zinc-900">Partners</h1>
+      <div className="flex items-center justify-end gap-3 mb-6">
         <PermissionGate category="partners" taskKey="directory" action="edit">
           <button
             onClick={openAdd}

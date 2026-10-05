@@ -1002,10 +1002,6 @@ export function Experts() {
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-6">
-        <h1 className="text-lg sm:text-xl font-semibold text-zinc-900">Experts</h1>
-      </div>
-
       <div className="flex gap-1 mb-6 border-b border-zinc-200">
         {tabs.map((tab) => (
           <button

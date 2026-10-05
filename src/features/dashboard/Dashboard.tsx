@@ -1,230 +1,72 @@
-import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  Building2,
-  CalendarCheck,
-  Users,
-  UserRound,
-  ArrowRight,
-  AlertCircle,
-  RefreshCw,
-  TrendingUp,
-  ClipboardList,
-  Inbox,
-} from "lucide-react";
-import {
-  organizationsApi,
-  engagementsApi,
-  employeesApi,
-  usersApi,
-  checklistTasksApi,
-  type EngagementListItem,
-  type MyTask,
-  getApiError,
-} from "../../lib/api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { getApiError, usersApi } from "../../lib/api";
 import { usePermissions } from "../../contexts/PermissionContext";
 import { AccessDenied } from "../../pages/AccessDenied";
-import type { PermissionCategory } from "../../auth/permissions";
-
-interface StatCardProps {
-  label: string;
-  total: number | null;
-  active: number | null;
-  activeLabel?: string;
-  icon: React.ElementType;
-  color: string;
-  to: string;
-  loading: boolean;
-}
-
-function StatCard({ label, total, active, activeLabel = "active", icon: Icon, color, to, loading }: StatCardProps) {
-  const navigate = useNavigate();
-  return (
-    <button
-      type="button"
-      onClick={() => navigate(to)}
-      className="group bg-white rounded-xl border border-zinc-200 p-4 sm:p-5 text-left hover:border-zinc-300 hover:shadow-sm transition-all cursor-pointer w-full"
-    >
-      <div className="flex items-start justify-between gap-2 mb-3">
-        <div className={`p-2 rounded-lg ${color}`}>
-          <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
-        </div>
-        <ArrowRight className="w-4 h-4 text-zinc-300 group-hover:text-zinc-500 group-hover:translate-x-0.5 transition-all mt-0.5 shrink-0" />
-      </div>
-      {loading ? (
-        <div className="space-y-2">
-          <div className="h-7 w-16 bg-zinc-100 rounded animate-pulse" />
-          <div className="h-4 w-20 bg-zinc-100 rounded animate-pulse" />
-        </div>
-      ) : (
-        <>
-          <p className="text-2xl sm:text-3xl font-bold text-zinc-900 tabular-nums leading-none mb-1">
-            {total ?? "—"}
-          </p>
-          <p className="text-xs sm:text-sm text-zinc-500 font-medium">{label}</p>
-          {active !== null && total !== null && (
-            <p className="mt-1.5 text-xs text-emerald-600 font-medium">
-              {active} {activeLabel}
-            </p>
-          )}
-        </>
-      )}
-    </button>
-  );
-}
-
-interface Stats {
-  totalOrgs: number;
-  activeOrgs: number;
-  totalEngagements: number;
-  activeEngagements: number;
-  totalEmployees: number;
-  activeEmployees: number;
-  totalUsers: number;
-  activeUsers: number;
-}
+import { registerDashboardRefresh } from "./dashboardRefreshRegistry";
+import { OperationsDashboard } from "./operations/OperationsDashboard";
+import type { MonthPoint } from "./operations/overviewChartUtils";
 
 export function Dashboard() {
   const { canView, hasAnyAccess } = usePermissions();
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [recentEngagements, setRecentEngagements] = useState<EngagementListItem[]>([]);
-  const [myTasksPending, setMyTasksPending] = useState<{
-    count: number;
-    preview: MyTask[];
-  } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const showUsers = canView("users");
+  const [totalUsers, setTotalUsers] = useState<number | null>(null);
+  const [activeUsers, setActiveUsers] = useState<number | null>(null);
+  const [growth, setGrowth] = useState<MonthPoint[]>([]);
+  const [loading, setLoading] = useState(showUsers);
   const [error, setError] = useState<string | null>(null);
-  const navigate = useNavigate();
+  const operationsRefetch = useRef<() => void>(() => undefined);
+  const registerOperationsRefetch = useCallback((refetch: () => void) => {
+    operationsRefetch.current = refetch;
+  }, []);
 
-  const fetchData = useCallback(async () => {
+  const fetchUsers = useCallback(async () => {
+    if (!showUsers) {
+      setTotalUsers(null);
+      setActiveUsers(null);
+      setGrowth([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const permitted = (category: PermissionCategory) => canView(category);
-      const [orgsAll, orgsActive, engsAll, engsActive, empsAll, empsActive, usersAll, usersActive] =
-        await Promise.all([
-          permitted("organizations")
-            ? organizationsApi.list({ limit: 1 })
-            : Promise.resolve(null),
-          permitted("organizations")
-            ? organizationsApi.list({ limit: 1, status: "active" })
-            : Promise.resolve(null),
-          permitted("engagements")
-            ? engagementsApi.list({ limit: 5 })
-            : Promise.resolve(null),
-          permitted("engagements")
-            ? engagementsApi.list({ limit: 1, status: "running" })
-            : Promise.resolve(null),
-          permitted("employees")
-            ? employeesApi.list({ limit: 1 })
-            : Promise.resolve(null),
-          permitted("employees")
-            ? employeesApi.list({ limit: 1, status: "active" })
-            : Promise.resolve(null),
-          permitted("users")
-            ? usersApi.list({ limit: 1 })
-            : Promise.resolve(null),
-          permitted("users")
-            ? usersApi.list({ limit: 1, status: "active" })
-            : Promise.resolve(null),
-        ]);
-
-      setStats({
-        totalOrgs: orgsAll?.data.meta.total ?? 0,
-        activeOrgs: orgsActive?.data.meta.total ?? 0,
-        totalEngagements: engsAll?.data.meta.total ?? 0,
-        activeEngagements: engsActive?.data.meta.total ?? 0,
-        totalEmployees: empsAll?.data.meta.total ?? 0,
-        activeEmployees: empsActive?.data.meta.total ?? 0,
-        totalUsers: usersAll?.data.meta.total ?? 0,
-        activeUsers: usersActive?.data.meta.total ?? 0,
-      });
-
-      // Top 5 most recent engagements from the first call
-      setRecentEngagements(engsAll?.data.data.slice(0, 5) ?? []);
-
-      try {
-        const tasksRes = await checklistTasksApi.myTasks({ status: "pending" });
-        const list = tasksRes.data.data;
-        setMyTasksPending({
-          count: list.length,
-          preview: list.slice(0, 4),
-        });
-      } catch {
-        setMyTasksPending(null);
-      }
+      const [usersAll, usersActive, statsRes] = await Promise.all([
+        usersApi.list({ limit: 1 }),
+        usersApi.list({ limit: 1, status: "active" }),
+        usersApi.stats(),
+      ]);
+      setTotalUsers(usersAll.data.meta.total ?? 0);
+      setActiveUsers(usersActive.data.meta.total ?? 0);
+      const statsPayload = statsRes.data.data ?? statsRes.data;
+      const yearlyRows = Array.isArray(statsPayload.yearly_totals) ? statsPayload.yearly_totals : [];
+      setGrowth(
+        yearlyRows.map((row) => ({
+          key: String(row.year),
+          label: String(row.year),
+          value: Number(row.total_users) || 0,
+          count: row.new_users != null ? Number(row.new_users) : undefined,
+        }))
+      );
     } catch (err) {
       setError(getApiError(err));
+      setGrowth([]);
     } finally {
       setLoading(false);
     }
-  }, [canView]);
+  }, [showUsers]);
 
   useEffect(() => {
-    void fetchData();
-  }, [fetchData]);
+    void fetchUsers();
+  }, [fetchUsers]);
 
-  const statCards = [
-    {
-      label: "Organisations",
-      total: stats?.totalOrgs ?? null,
-      active: stats?.activeOrgs ?? null,
-      icon: Building2,
-      color: "bg-blue-50 text-blue-600",
-      to: "/organisations",
-    },
-    {
-      label: "Engagements",
-      total: stats?.totalEngagements ?? null,
-      active: stats?.activeEngagements ?? null,
-      activeLabel: "running",
-      icon: CalendarCheck,
-      color: "bg-violet-50 text-violet-600",
-      to: "/engagements",
-    },
-    {
-      label: "Employees",
-      total: stats?.totalEmployees ?? null,
-      active: stats?.activeEmployees ?? null,
-      icon: Users,
-      color: "bg-amber-50 text-amber-600",
-      to: "/employees",
-    },
-    {
-      label: "Users",
-      total: stats?.totalUsers ?? null,
-      active: stats?.activeUsers ?? null,
-      icon: UserRound,
-      color: "bg-emerald-50 text-emerald-600",
-      to: "/users",
-    },
-  ].filter((card) => canView(
-    card.to === "/organisations"
-      ? "organizations"
-      : card.to === "/engagements"
-        ? "engagements"
-        : card.to === "/employees"
-          ? "employees"
-          : "users"
-  ));
-
-  const quickLinks = [
-    { label: "Users", icon: UserRound, to: "/users" },
-    { label: "Organisations", icon: Building2, to: "/organisations" },
-    { label: "Engagements", icon: CalendarCheck, to: "/engagements" },
-    { label: "Assessments", icon: ClipboardList, to: "/assessments/packages" },
-    { label: "Employees", icon: Users, to: "/employees" },
-  ].filter((link) => canView(
-    link.to === "/organisations"
-      ? "organizations"
-      : link.to === "/engagements"
-        ? "engagements"
-        : link.to === "/assessments/packages"
-          ? "assessments"
-          : link.to === "/employees"
-            ? "employees"
-            : "users"
-  ));
+  useEffect(() => {
+    registerDashboardRefresh(() => {
+      void fetchUsers();
+      operationsRefetch.current();
+    });
+    return () => registerDashboardRefresh(null);
+  }, [fetchUsers]);
 
   if (!hasAnyAccess) {
     return (
@@ -237,215 +79,18 @@ export function Dashboard() {
   }
 
   return (
-    <div className="min-w-0 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg sm:text-xl font-semibold text-zinc-900">Dashboard</h1>
-          <p className="text-xs sm:text-sm text-zinc-500 mt-0.5">
-            Overview of your admin panel
-          </p>
-        </div>
-        {!loading && (
-          <button
-            type="button"
-            onClick={fetchData}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 transition-colors"
-            aria-label="Refresh stats"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline text-xs">Refresh</span>
-          </button>
-        )}
-      </div>
-
-      {/* Error state */}
-      {error && (
-        <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-100 text-red-700 text-sm">
-          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="font-medium">Failed to load stats</p>
-            <p className="text-red-500 text-xs mt-0.5">{error}</p>
-          </div>
-          <button
-            type="button"
-            onClick={fetchData}
-            className="shrink-0 text-xs font-medium underline underline-offset-2 hover:no-underline"
-          >
-            Retry
-          </button>
-        </div>
-      )}
-
-      {/* Stat Cards */}
-      {statCards.length > 0 && <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {statCards.map((card) => (
-          <StatCard key={card.label} {...card} loading={loading} />
-        ))}
-      </div>}
-
-      {/* Bottom section: Quick Links + My tasks + Recent Engagements */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="space-y-4">
-          {/* Quick Links */}
-          {quickLinks.length > 0 && <div className="bg-white rounded-xl border border-zinc-200 p-4 sm:p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="w-4 h-4 text-zinc-400" />
-              <h2 className="text-sm font-semibold text-zinc-900">Quick Links</h2>
-            </div>
-            <div className="space-y-1">
-              {quickLinks.map(({ label, icon: Icon, to }) => (
-                <button
-                  key={to}
-                  type="button"
-                  onClick={() => navigate(to)}
-                  className="group w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg hover:bg-zinc-50 transition-colors text-left"
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon className="w-4 h-4 text-zinc-400 group-hover:text-zinc-600 transition-colors shrink-0" />
-                    <span className="text-sm text-zinc-700 font-medium">{label}</span>
-                  </div>
-                  <ArrowRight className="w-3.5 h-3.5 text-zinc-300 group-hover:text-zinc-500 group-hover:translate-x-0.5 transition-all shrink-0" />
-                </button>
-              ))}
-            </div>
-          </div>}
-
-          {/* My tasks */}
-          <div className="bg-white rounded-xl border border-zinc-200 p-4 sm:p-5">
-            <div className="flex items-start justify-between gap-2 mb-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <Inbox className="w-4 h-4 text-zinc-400 shrink-0" />
-                <h2 className="text-sm font-semibold text-zinc-900">My tasks</h2>
-              </div>
-              {!loading && myTasksPending != null && myTasksPending.count > 0 ? (
-                <span className="shrink-0 min-w-[1.25rem] h-6 px-1.5 rounded-full bg-zinc-900 text-white text-xs font-semibold flex items-center justify-center tabular-nums">
-                  {myTasksPending.count > 99 ? "99+" : myTasksPending.count}
-                </span>
-              ) : null}
-            </div>
-            {loading ? (
-              <div className="space-y-2">
-                <div className="h-4 w-3/4 bg-zinc-100 rounded animate-pulse" />
-                <div className="h-4 w-1/2 bg-zinc-100 rounded animate-pulse" />
-              </div>
-            ) : myTasksPending == null ? (
-              <p className="text-sm text-zinc-500">Task list unavailable.</p>
-            ) : myTasksPending.count === 0 ? (
-              <p className="text-sm text-zinc-500">No pending tasks. You’re all caught up.</p>
-            ) : (
-              <>
-                <ul className="space-y-2 mb-4">
-                  {myTasksPending.preview.map((t) => (
-                    <li
-                      key={t.task_id}
-                      className="text-sm text-zinc-700 line-clamp-2 leading-snug"
-                    >
-                      {t.item_title}
-                    </li>
-                  ))}
-                </ul>
-                {myTasksPending.count > myTasksPending.preview.length ? (
-                  <p className="text-xs text-zinc-400 mb-3">
-                    +{myTasksPending.count - myTasksPending.preview.length} more
-                  </p>
-                ) : null}
-              </>
-            )}
-            <button
-              type="button"
-              onClick={() => navigate("/my-tasks")}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 transition-colors"
-            >
-              Open my tasks
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Recent Engagements */}
-        {canView("engagements") && <div className="lg:col-span-2 bg-white rounded-xl border border-zinc-200 p-4 sm:p-5">
-          <div className="flex items-center justify-between gap-2 mb-4">
-            <div className="flex items-center gap-2">
-              <CalendarCheck className="w-4 h-4 text-zinc-400" />
-              <h2 className="text-sm font-semibold text-zinc-900">Recent Engagements</h2>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate("/engagements")}
-              className="text-xs text-zinc-500 hover:text-zinc-700 font-medium flex items-center gap-1 shrink-0"
-            >
-              View all
-              <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
-
-          {loading ? (
-            <div className="space-y-3">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div className="h-4 flex-1 bg-zinc-100 rounded animate-pulse" />
-                  <div className="h-4 w-16 bg-zinc-100 rounded animate-pulse" />
-                </div>
-              ))}
-            </div>
-          ) : recentEngagements.length === 0 ? (
-            <div className="py-8 text-center">
-              <CalendarCheck className="w-8 h-8 text-zinc-200 mx-auto mb-2" />
-              <p className="text-sm text-zinc-400">No engagements yet</p>
-            </div>
-          ) : (
-            <div className="space-y-0.5">
-              {recentEngagements.map((eng) => {
-                const isRunning = (eng.status ?? "").toLowerCase() === "running";
-                return (
-                  <button
-                    key={eng.engagement_id}
-                    type="button"
-                    onClick={() => navigate("/engagements")}
-                    className="group w-full flex items-center gap-3 px-2 py-2.5 rounded-lg hover:bg-zinc-50 transition-colors text-left"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-zinc-800 truncate">
-                        {eng.engagement_name ?? `Engagement #${eng.engagement_id}`}
-                      </p>
-                      <p className="text-xs text-zinc-400 truncate mt-0.5">
-                        {eng.city ? `${eng.city} · ` : ""}
-                        {eng.start_date
-                          ? new Date(eng.start_date).toLocaleDateString("en-IN", {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            })
-                          : "—"}
-                        {eng.end_date
-                          ? ` – ${new Date(eng.end_date).toLocaleDateString("en-IN", {
-                              day: "numeric",
-                              month: "short",
-                            })}`
-                          : ""}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {eng.participant_count != null && (
-                        <span className="hidden sm:inline text-xs text-zinc-400">
-                          {eng.participant_count} participants
-                        </span>
-                      )}
-                      <span
-                        className={`inline-block w-2 h-2 rounded-full shrink-0 ${
-                          isRunning ? "bg-emerald-400" : "bg-zinc-300"
-                        }`}
-                      />
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>}
-      </div>
+    <div className="min-w-0 space-y-4">
+      <OperationsDashboard
+        registerRefetch={registerOperationsRefetch}
+        users={{
+          show: showUsers,
+          total: totalUsers,
+          active: activeUsers,
+          growth,
+          loading,
+          error,
+        }}
+      />
     </div>
   );
 }
-

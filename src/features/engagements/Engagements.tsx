@@ -60,7 +60,7 @@ import {
   type ChecklistTask,
   getApiError,
 } from "../../lib/api";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 const STATUS_OPTIONS = ["draft", "scheduled", "running", "completed", "cancelled"] as const;
 
@@ -968,6 +968,7 @@ export function Engagements({
   const mayEditParticipants = canEditTask("engagements", "participants");
   const mayEditChecklists = canEditTask("checklists_tasks", "assignments");
   const location = useLocation();
+  const navigate = useNavigate();
   const [data, setData] = useState<EngagementListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -1174,12 +1175,26 @@ export function Engagements({
 
   useEffect(() => {
     const state = location.state as
-      | { createEngagementFromOrg?: { organization_id: number; orgName?: string; city?: string } }
+      | {
+          createEngagementFromOrg?: { organization_id: number; orgName?: string; city?: string };
+          viewEngagementId?: number;
+        }
       | null
       | undefined;
-    if (!state?.createEngagementFromOrg) return;
-    setPendingEngagementPreset(state.createEngagementFromOrg);
-  }, [location.state]);
+    if (state?.createEngagementFromOrg) {
+      setPendingEngagementPreset(state.createEngagementFromOrg);
+    }
+    if (!state?.viewEngagementId) return;
+    setDrawerEngagementId(state.viewEngagementId);
+    setDrawerReadiness(null);
+    setDrawerOpen(true);
+    const nextState = { ...(state ?? {}) };
+    delete nextState.viewEngagementId;
+    navigate(`${location.pathname}${location.search}`, {
+      replace: true,
+      state: Object.keys(nextState).length > 0 ? nextState : null,
+    });
+  }, [location.pathname, location.search, location.state, navigate]);
 
   useEffect(() => {
     engagementsApi
@@ -2007,8 +2022,7 @@ export function Engagements({
   return (
     <>
       <div className={asModalForEngagementId ? "hidden" : ""}>
-        <div className="flex items-center justify-between gap-3 mb-6">
-        <h1 className="text-lg sm:text-xl font-semibold text-zinc-900">Engagements</h1>
+        <div className="flex items-center justify-end gap-3 mb-6">
         <div className="flex items-center gap-2">
           <PermissionGate category="engagements" taskKey="participants" action="edit"><button
             onClick={() => setManageParticipantsOpen(true)}

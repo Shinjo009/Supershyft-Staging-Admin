@@ -209,10 +209,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         permissions: null,
       };
       authStorage.setProfile(profile);
-      setState({
-        isAuthenticated: true,
-        ...profileToState(profile),
-        isLoading: false,
+      setState((prev) => {
+        if (
+          prev.isAuthenticated &&
+          !prev.isLoading &&
+          prev.authKind === "partner" &&
+          prev.displayName === profile.name &&
+          prev.partnerId === profile.partnerId &&
+          prev.employeeRole === profile.role
+        ) {
+          return prev;
+        }
+        return {
+          isAuthenticated: true,
+          ...profileToState(profile),
+          isLoading: false,
+        };
       });
       return;
     }
@@ -228,10 +240,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         permissions: data.permissions,
       };
       authStorage.setProfile(profile);
-      setState({
-        isAuthenticated: true,
-        ...profileToState(profile),
-        isLoading: false,
+      const nextPermissions = JSON.stringify(profile.permissions ?? null);
+      setState((prev) => {
+        if (
+          prev.isAuthenticated &&
+          !prev.isLoading &&
+          prev.authKind === "employee" &&
+          prev.displayName === profile.name &&
+          prev.employeeId === profile.employeeId &&
+          prev.employeeRole === profile.role &&
+          JSON.stringify(prev.permissions ?? null) === nextPermissions
+        ) {
+          return prev;
+        }
+        return {
+          isAuthenticated: true,
+          ...profileToState(profile),
+          isLoading: false,
+        };
       });
       return;
     }

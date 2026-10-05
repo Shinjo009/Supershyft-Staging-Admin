@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, Server, Loader2, RefreshCw } from "lucide-react";
+import { ChevronDown, Loader2, RefreshCw } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
@@ -337,10 +337,6 @@ export function ServerHealth() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Server className="w-5 h-5 text-zinc-400" />
-            <h1 className="text-xl font-semibold text-zinc-900 tracking-tight">Server</h1>
-          </div>
           <p className="text-sm text-zinc-500">
             Production server health checks (refreshes every 60 seconds).
             {current?.latest_metrics?.hostname ? ` Host ${current.latest_metrics.hostname}.` : ""}

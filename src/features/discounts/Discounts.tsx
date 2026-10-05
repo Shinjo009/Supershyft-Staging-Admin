@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Tag } from "lucide-react";
 import {
   discountsApi,
   type DiscountCodePayload,
@@ -235,15 +234,9 @@ export function Discounts() {
   return (
     <div className="space-y-6 p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-lg font-semibold text-zinc-900 sm:text-xl">
-            <Tag className="h-5 w-5" />
-            Discount codes
-          </h1>
-          <p className="text-sm text-zinc-500">
-            {total} codes · abuse events (24h): {abuseEvents}
-          </p>
-        </div>
+        <p className="text-sm text-zinc-500">
+          {total} codes · abuse events (24h): {abuseEvents}
+        </p>
         <PermissionGate category="discounts" taskKey="codes" action="edit">
           <button
             type="button"

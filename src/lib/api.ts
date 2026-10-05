@@ -160,6 +160,7 @@ export interface UserListItem {
   is_participant?: boolean | null;
   metsights_profile_id?: string | null;
   status?: string | null;
+  created_at?: string | null;
 }
 
 export function getApiError(err: unknown, context?: "auth" | "import"): string {
@@ -663,6 +664,7 @@ export type UserUpdate = UserCreate;
 export interface UserParticipantStats {
   with_metsights_profile: number;
   total_participants: number;
+  yearly_totals?: { year: number; new_users?: number; total_users: number }[];
 }
 
 export interface DuplicateUserGroupApi {
@@ -2965,9 +2967,26 @@ export interface EngagementDataCompletenessSummaryItem {
   summary: EngagementDataCompletenessResponse["summary"];
 }
 
+export type ParticipantIssueType =
+  | "missing_blood_slot"
+  | "missing_questionnaire"
+  | "missing_blood_report"
+  | "missing_bio_ai_report";
+
+export interface ParticipantIssueItem {
+  user_id: number;
+  participant_name: string;
+  engagement_id: number;
+  engagement_name?: string | null;
+  engagement_code?: string | null;
+  issue_type: ParticipantIssueType;
+  status: string;
+}
+
 export interface EngagementDataCompletenessSummaryResponse {
   rollup: EngagementDataCompletenessSummaryRollup;
   engagements: EngagementDataCompletenessSummaryItem[];
+  participant_issues?: ParticipantIssueItem[];
 }
 
 export interface EngagementDataCompletenessSummaryParams {
@@ -2980,6 +2999,9 @@ export interface EngagementDataCompletenessSummaryParams {
   camp_no?: number;
   sort_by?: string;
   sort_dir?: string;
+  date?: string;
+  include_participant_issues?: boolean;
+  limit?: number;
 }
 
 export const engagementDataCompletenessApi = {
@@ -4795,6 +4817,27 @@ export const engagementNotificationsApi = {
     api.put<{ data: NotificationDefaultItem[]; meta: Record<string, unknown> }>(
       "/platform-settings/engagement-notification-defaults",
       { engagement_type_id: engagementTypeId, defaults }
+    ),
+};
+
+// --- Admin dashboard aggregates ---
+
+export interface DashboardYearStats {
+  year: number;
+  blood_collection_total: number;
+  consultations_total: number;
+  consultations_by_expert_type: { expert_type: string; count: number }[];
+  available_years: number[];
+}
+
+export const dashboardApi = {
+  yearStats: (year: number) =>
+    api.get<{ data: DashboardYearStats }>("/admin/dashboard/year-stats", {
+      params: { year },
+    }),
+  participantStats: () =>
+    api.get<{ data: { engagement_participants_total: number } }>(
+      "/admin/dashboard/participant-stats"
     ),
 };
 

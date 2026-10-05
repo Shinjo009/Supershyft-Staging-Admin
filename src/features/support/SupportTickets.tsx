@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Loader2, Plus, Search } from "lucide-react";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
@@ -15,6 +16,8 @@ import {
 const STATUS_OPTIONS: SupportTicketStatus[] = ["open", "resolved", "closed"];
 
 export function SupportTickets() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { canEdit } = usePermissions();
   const mayEditSupport = canEdit("support");
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
@@ -94,6 +97,13 @@ export function SupportTickets() {
       setError(getApiError(err));
     }
   };
+
+  useEffect(() => {
+    const ticketId = (location.state as { viewTicketId?: number } | null)?.viewTicketId;
+    if (!ticketId) return;
+    void openDetails({ ticket_id: ticketId } as SupportTicket);
+    navigate("/support", { replace: true, state: null });
+  }, [location.state, navigate]);
 
   const handleSort = (key: string) => {
     const nextKey = key as "ticket_id" | "status" | "created_at";
@@ -207,8 +217,7 @@ export function SupportTickets() {
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 mb-6">
-        <h1 className="text-lg sm:text-xl font-semibold text-zinc-900">Support Tickets</h1>
+      <div className="flex items-center justify-end gap-3 mb-6">
         <PermissionGate category="support" action="edit"><button
           type="button"
           onClick={() => {

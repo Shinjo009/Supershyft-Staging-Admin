@@ -865,9 +865,8 @@ export function Users() {
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3 mb-6">
-        <h1 className="text-lg sm:text-xl font-semibold text-zinc-900">Users</h1>
+      {/* Header actions */}
+      <div className="flex items-center justify-end gap-3 mb-6">
         <div className="flex items-center gap-2 shrink-0">
           <span className="relative group/info">
             <button
