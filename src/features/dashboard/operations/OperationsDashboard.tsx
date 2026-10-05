@@ -14,7 +14,7 @@ import {
   formatShortDate,
 } from "./operationsDateUtils";
 import { DashboardOverview, type OverviewUsersStats } from "./DashboardOverview";
-import { OperationsTable, StatusPill, TruncateText, type OperationsColumn } from "./OperationsTable";
+import { StatusPill, TruncateText, type OperationsColumn } from "./OperationsTable";
 import { OperationsViewAllModal } from "./OperationsViewAllModal";
 import type { PendingPaymentRow, ServiceabilityIssueRow } from "./operationsTypes";
 import { useOperationsDashboard } from "./useOperationsDashboard";
@@ -308,7 +308,7 @@ export function OperationsDashboard({
         rows={paymentRows}
         columns={paymentColumns}
         rowKey={(row) => row.booking_id}
-        onRowClick={(row) => {
+        onRowClick={() => {
           setViewAllKind(null);
           navigate("/payments/bookings");
         }}
@@ -346,7 +346,7 @@ export function OperationsDashboard({
         rows={ticketRows}
         columns={ticketColumns}
         rowKey={(row) => row.ticket_id}
-        onRowClick={(row) => {
+        onRowClick={() => {
           setViewAllKind(null);
           navigate("/support");
         }}

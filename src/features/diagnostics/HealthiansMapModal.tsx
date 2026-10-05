@@ -251,8 +251,7 @@ export function HealthiansMapModal({
             </div>
           ) : (
             filtered.map((c) => {
-              const isMapped =
-                currentHealthiansParameterId === parseInt(c.id, 10);
+              const isMapped = currentHealthiansParameterId === c.id;
               return (
                 <div
                   key={c.id}

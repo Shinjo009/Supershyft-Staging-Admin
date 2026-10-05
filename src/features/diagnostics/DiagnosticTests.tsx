@@ -262,7 +262,7 @@ export function DiagnosticTests({ onRequestCreate }: DiagnosticTestsProps) {
   const openEdit = (row: DiagnosticTestStandalone) => {
     setModalMode("edit");
     setEditing(row);
-    const toStr = (v: number | null | undefined) => (v != null ? String(v) : "");
+    const toStr = (v: string | number | null | undefined) => (v != null && v !== "" ? String(v) : "");
     setForm({
       test_name: row.test_name,
       external_parameter_code: toStr(row.external_parameter_code),
