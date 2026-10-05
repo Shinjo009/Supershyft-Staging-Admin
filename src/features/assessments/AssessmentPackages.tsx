@@ -105,6 +105,7 @@ export function AssessmentPackages() {
     package_code: "",
     display_name: "",
     assessment_type_code: "",
+    subscription_id: "",
     status: "active",
   });
   const [pkgSubmitting, setPkgSubmitting] = useState(false);
@@ -366,7 +367,13 @@ export function AssessmentPackages() {
   const openAddPackage = () => {
     setPkgModalMode("add");
     setSelectedPkg(null);
-    setPkgForm({ package_code: "", display_name: "", assessment_type_code: "", status: "active" });
+    setPkgForm({
+      package_code: "",
+      display_name: "",
+      assessment_type_code: "",
+      subscription_id: "",
+      status: "active",
+    });
     setPkgFormError(null);
     setPkgModalOpen(true);
   };
@@ -390,6 +397,7 @@ export function AssessmentPackages() {
           package_code: item.package_code ?? "",
           display_name: item.display_name ?? "",
           assessment_type_code: item.assessment_type_code ?? "",
+          subscription_id: item.subscription_id ?? "",
           status: item.status ?? "active",
         });
         setPkgFormError(null);
@@ -414,6 +422,7 @@ export function AssessmentPackages() {
           package_code: pkgForm.package_code,
           display_name: pkgForm.display_name,
           assessment_type_code: pkgForm.assessment_type_code,
+          subscription_id: pkgForm.subscription_id?.trim() || null,
         });
       }
       setPkgModalOpen(false);
@@ -990,6 +999,15 @@ export function AssessmentPackages() {
       render: (row) => (
         <span className="font-mono text-xs bg-zinc-100 px-1.5 py-0.5 rounded">
           {row.assessment_type_code ?? "—"}
+        </span>
+      ),
+    },
+    {
+      key: "subscription_id",
+      label: "Subscription ID",
+      render: (row) => (
+        <span className="font-mono text-xs text-zinc-600 truncate max-w-[12rem] inline-block" title={row.subscription_id ?? ""}>
+          {row.subscription_id ?? "—"}
         </span>
       ),
     },
@@ -1791,6 +1809,10 @@ export function AssessmentPackages() {
                 <dt className="text-zinc-500 mb-0.5">Assessment Type Code</dt>
                 <dd className="font-medium text-zinc-900">{selectedPkg.assessment_type_code ?? "—"}</dd>
               </div>
+              <div className="sm:col-span-2">
+                <dt className="text-zinc-500 mb-0.5">MetSights Subscription ID</dt>
+                <dd className="font-mono text-xs text-zinc-900 break-all">{selectedPkg.subscription_id ?? "—"}</dd>
+              </div>
             </dl>
             {mayEditAssessments && <div className="flex flex-col sm:flex-row gap-2 pt-1">
               <button
@@ -1860,6 +1882,18 @@ export function AssessmentPackages() {
                 className="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
                 placeholder="e.g. 1, 2, 7"
                 required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">
+                MetSights Subscription ID
+              </label>
+              <input
+                type="text"
+                value={pkgForm.subscription_id ?? ""}
+                onChange={(e) => setPkgForm({ ...pkgForm, subscription_id: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 font-mono"
+                placeholder="Partner Portal subscription UUID"
               />
             </div>
             {pkgModalMode === "add" && (

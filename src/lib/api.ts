@@ -2310,6 +2310,7 @@ export interface AssessmentPackage {
   package_code?: string | null;
   display_name?: string | null;
   assessment_type_code?: string | null;
+  subscription_id?: string | null;
   status?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -2319,6 +2320,7 @@ export interface AssessmentPackageCreate {
   package_code: string;
   display_name: string;
   assessment_type_code: string;
+  subscription_id?: string | null;
   status?: string;
 }
 
@@ -2326,6 +2328,7 @@ export interface AssessmentPackageUpdate {
   package_code?: string;
   display_name?: string;
   assessment_type_code?: string;
+  subscription_id?: string | null;
 }
 
 export interface AssessmentPackageCategory {
