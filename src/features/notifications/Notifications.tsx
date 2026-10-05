@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Plus, Loader2, X, ScrollText, Search, Trash2 } from "lucide-react";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
@@ -153,14 +153,18 @@ function filterChipClass(active: boolean): string {
 // ── Notifications Tab ──────────────────────────────────────────────────
 
 function NotificationsTab() {
+  const location = useLocation();
   const { canEditTask } = usePermissions();
   const mayEditNotifications = canEditTask("notifications", "messages");
   const [data, setData] = useState<NotificationItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
-  const [statusFilters, setStatusFilters] = useState<string[]>([]);
-  const [timePreset, setTimePreset] = useState<TimePreset>(DEFAULT_TIME_PRESET);
+  const requestedStatus = (location.state as { statusFilter?: string } | null)?.statusFilter;
+  const [statusFilters, setStatusFilters] = useState<string[]>(
+    requestedStatus ? [requestedStatus] : []
+  );
+  const [timePreset, setTimePreset] = useState<TimePreset>(requestedStatus ? "" : DEFAULT_TIME_PRESET);
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [serviceKeyFilter, setServiceKeyFilter] = useState("");
@@ -172,8 +176,12 @@ function NotificationsTab() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
-  const [debouncedStatusFilters, setDebouncedStatusFilters] = useState<string[]>([]);
-  const [debouncedTimePreset, setDebouncedTimePreset] = useState<TimePreset>(DEFAULT_TIME_PRESET);
+  const [debouncedStatusFilters, setDebouncedStatusFilters] = useState<string[]>(
+    requestedStatus ? [requestedStatus] : []
+  );
+  const [debouncedTimePreset, setDebouncedTimePreset] = useState<TimePreset>(
+    requestedStatus ? "" : DEFAULT_TIME_PRESET
+  );
   const [debouncedCustomFrom, setDebouncedCustomFrom] = useState("");
   const [debouncedCustomTo, setDebouncedCustomTo] = useState("");
   const [debouncedServiceKey, setDebouncedServiceKey] = useState("");
@@ -1581,10 +1589,7 @@ export function Notifications() {
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between gap-3 mb-5">
-        <h1 className="text-xl sm:text-2xl font-semibold text-zinc-900">
-          Notifications
-        </h1>
+      <div className="flex items-center justify-end gap-3 mb-5">
         {activeTab === "notifications" && (
           <button
             type="button"

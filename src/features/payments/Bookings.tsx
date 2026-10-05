@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Search, Loader2 } from "lucide-react";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import {
@@ -121,6 +122,8 @@ function bookedByCell(row: BookingListItem) {
 }
 
 export function Bookings() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [data, setData] = useState<BookingListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -165,6 +168,14 @@ export function Bookings() {
   useEffect(() => {
     setPage(1);
   }, [search, statusFilter]);
+
+  useEffect(() => {
+    const bookingId = (location.state as { viewBookingId?: number } | null)?.viewBookingId;
+    if (!bookingId) return;
+    setSelectedBookingId(bookingId);
+    setModalOpen(true);
+    navigate("/payments/bookings", { replace: true, state: null });
+  }, [location.state, navigate]);
 
   const openView = (row: BookingListItem) => {
     setSelectedBookingId(row.booking_id);
@@ -272,13 +283,10 @@ export function Bookings() {
 
   return (
     <div>
-      <div className="flex flex-col gap-1 mb-6">
-        <h1 className="text-lg sm:text-xl font-semibold text-zinc-900">Bookings</h1>
-        <p className="text-sm text-zinc-600 max-w-3xl">
-          Each row is one member&apos;s package. <strong className="text-zinc-800">Booked by</strong>{" "}
-          shows who paid and how many members are included in that Razorpay checkout.
-        </p>
-      </div>
+      <p className="text-sm text-zinc-600 max-w-3xl mb-6">
+        Each row is one member&apos;s package. <strong className="text-zinc-800">Booked by</strong>{" "}
+        shows who paid and how many members are included in that Razorpay checkout.
+      </p>
 
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">{error}</div>

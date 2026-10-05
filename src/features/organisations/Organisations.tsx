@@ -779,42 +779,43 @@ export function Organisations() {
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 mb-6">
-        <h1 className="text-lg sm:text-xl font-semibold text-zinc-900">Organisations</h1>
-        {activeTab === "organizations" && !isOrgManager && (
-          <div className="flex items-center gap-3">
-            <PermissionGate category="organizations" taskKey="industries" action="edit">
+      {(activeTab === "organizations" && !isOrgManager) || activeTab === "camps" ? (
+        <div className="flex items-center justify-end gap-3 mb-6">
+          {activeTab === "organizations" && !isOrgManager && (
+            <div className="flex items-center gap-3">
+              <PermissionGate category="organizations" taskKey="industries" action="edit">
+              <button
+                onClick={() => setManageIndustriesOpen(true)}
+                className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-zinc-100 text-zinc-700 text-sm font-medium hover:bg-zinc-200 shrink-0 border border-zinc-200"
+              >
+                <span className="hidden sm:inline">Manage Industries</span>
+                <span className="sm:hidden">Industries</span>
+              </button>
+              </PermissionGate>
+              <PermissionGate category="organizations" taskKey="organizations" action="edit">
+              <button
+                onClick={openAdd}
+                className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 shrink-0"
+              >
+                <Plus className="w-4 h-4 shrink-0" />
+                <span className="hidden sm:inline">Add Organisation</span>
+              </button>
+              </PermissionGate>
+            </div>
+          )}
+          {activeTab === "camps" && (
+            <PermissionGate category="reports" taskKey="report_sections" action="edit">
             <button
-              onClick={() => setManageIndustriesOpen(true)}
-              className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-zinc-100 text-zinc-700 text-sm font-medium hover:bg-zinc-200 shrink-0 border border-zinc-200"
-            >
-              <span className="hidden sm:inline">Manage Industries</span>
-              <span className="sm:hidden">Industries</span>
-            </button>
-            </PermissionGate>
-            <PermissionGate category="organizations" taskKey="organizations" action="edit">
-            <button
-              onClick={openAdd}
+              onClick={() => setReportSectionsOpen(true)}
               className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 shrink-0"
             >
-              <Plus className="w-4 h-4 shrink-0" />
-              <span className="hidden sm:inline">Add Organisation</span>
+              <span className="hidden sm:inline">Manage Report Sections</span>
+              <span className="sm:hidden">Sections</span>
             </button>
             </PermissionGate>
-          </div>
-        )}
-        {activeTab === "camps" && (
-          <PermissionGate category="reports" taskKey="report_sections" action="edit">
-          <button
-            onClick={() => setReportSectionsOpen(true)}
-            className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 shrink-0"
-          >
-            <span className="hidden sm:inline">Manage Report Sections</span>
-            <span className="sm:hidden">Sections</span>
-          </button>
-          </PermissionGate>
-        )}
-      </div>
+          )}
+        </div>
+      ) : null}
 
       {!isOrgManager && (
       <div className="flex gap-1 mb-5 border-b border-zinc-200">

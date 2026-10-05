@@ -473,16 +473,17 @@ export function Employees() {
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 mb-6">
-        <h1 className="text-lg sm:text-xl font-semibold text-zinc-900">Employees</h1>
-        {activeTab === "employees" && isFullAdmin && <button
-          onClick={openAdd}
-          className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 shrink-0"
-        >
-          <Plus className="w-4 h-4 shrink-0" />
-          <span className="hidden sm:inline">Add Employee</span>
-        </button>}
-      </div>
+      {activeTab === "employees" && isFullAdmin ? (
+        <div className="flex items-center justify-end gap-3 mb-6">
+          <button
+            onClick={openAdd}
+            className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 shrink-0"
+          >
+            <Plus className="w-4 h-4 shrink-0" />
+            <span className="hidden sm:inline">Add Employee</span>
+          </button>
+        </div>
+      ) : null}
 
       {mayViewLogs && (
         <div className="flex gap-1 mb-5 border-b border-zinc-200">

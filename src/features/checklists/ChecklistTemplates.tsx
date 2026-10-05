@@ -436,8 +436,7 @@ export function ChecklistTemplates() {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <h1 className="text-lg sm:text-xl font-semibold text-zinc-900">Checklist Templates</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-4 mb-6">
         <PermissionGate category="checklists_tasks" taskKey="templates" action="edit"><button
           type="button"
           onClick={openAddModal}

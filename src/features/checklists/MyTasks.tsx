@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { Modal } from "../../shared/ui/Modal";
@@ -37,6 +38,8 @@ function isOverdue(due?: string | null, status?: string) {
 }
 
 export function MyTasks() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [data, setData] = useState<MyTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +72,18 @@ export function MyTasks() {
   useEffect(() => {
     void fetchTasks();
   }, [fetchTasks]);
+
+  useEffect(() => {
+    const taskId = (location.state as { highlightTaskId?: number } | null)?.highlightTaskId;
+    if (!taskId || loading) return;
+    const row = data.find((task) => task.task_id === taskId);
+    if (row) {
+      setEditRow(row);
+      setEditDue(dueDateToInput(row.due_date));
+      setEditNotes(row.notes ?? "");
+    }
+    navigate("/my-tasks", { replace: true, state: null });
+  }, [data, loading, location.state, navigate]);
 
   const handleSort = (key: string) => {
     setSortDir((d) => (sortKey === key ? (d === "asc" ? "desc" : "asc") : "asc"));
@@ -206,8 +221,7 @@ export function MyTasks() {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <h1 className="text-lg sm:text-xl font-semibold text-zinc-900">My Tasks</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-4 mb-6">
         <div className="flex gap-4 sm:gap-6 border-b border-zinc-200">
           <button type="button" className={tabClass(tab === "")} onClick={() => setTab("")}>
             All

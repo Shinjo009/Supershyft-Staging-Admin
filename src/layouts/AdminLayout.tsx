@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -24,11 +24,13 @@ import {
   Server,
   Handshake,
   Tag,
+  RefreshCw,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { usePendingTaskCount } from "../hooks/usePendingTaskCount";
 import { usePermissions } from "../contexts/PermissionContext";
 import type { PermissionCategory } from "../auth/permissions";
+import { runDashboardRefresh } from "../features/dashboard/dashboardRefreshRegistry";
 
 const primaryNavItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard", end: true as const, category: null },
@@ -70,6 +72,50 @@ function isLibraryPath(pathname: string) {
   );
 }
 
+function pageTitleForPath(pathname: string): string {
+  const exact: Record<string, string> = {
+    "/": "Dashboard",
+    "/users": "Users",
+    "/experts": "Experts",
+    "/organisations": "Organisations",
+    "/engagements": "Engagements",
+    "/engagements/console": "Engagement Console",
+    "/support": "Support Tickets",
+    "/server": "Server",
+    "/settings": "Settings",
+    "/employees": "Employees",
+    "/partners": "Partners",
+    "/my-tasks": "My Tasks",
+    "/assessments/packages": "Assessments",
+    "/diagnostics/packages": "Diagnostics",
+    "/discounts": "Discounts",
+    "/payments/bookings": "Payments",
+    "/checklists": "Checklist Templates",
+    "/library/health-metrics": "Health Metrics",
+    "/notifications/notifications": "Notifications",
+  };
+  if (exact[pathname]) return exact[pathname];
+
+  if (pathname.startsWith("/users/")) return "Users";
+  if (pathname.startsWith("/experts/")) return "Experts";
+  if (pathname.startsWith("/organisations/")) return "Organisations";
+  if (pathname.startsWith("/engagements/")) return "Engagements";
+  if (pathname.startsWith("/assessments/")) return "Assessments";
+  if (pathname.startsWith("/diagnostics/")) return "Diagnostics";
+  if (pathname.startsWith("/payments/")) return "Payments";
+  if (pathname.startsWith("/notifications/")) return "Notifications";
+  if (pathname.startsWith("/checklists/")) return "Checklist templates";
+  if (pathname.startsWith("/library/")) return "Health Metrics";
+  if (pathname.startsWith("/server")) return "Server";
+  if (pathname.startsWith("/settings")) return "Settings";
+  if (pathname.startsWith("/support")) return "Support Tickets";
+  if (pathname.startsWith("/employees")) return "Employees";
+  if (pathname.startsWith("/partners")) return "Partners";
+  if (pathname.startsWith("/discounts")) return "Discounts";
+  if (pathname.startsWith("/checklists")) return "Checklist Templates";
+  return "Admin";
+}
+
 export function AdminLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -87,6 +133,8 @@ export function AdminLayout() {
   const visibleLibraryItems = libraryNavItems.filter((item) =>
     canView(item.category as PermissionCategory)
   );
+  const pageTitle = useMemo(() => pageTitleForPath(location.pathname), [location.pathname]);
+  const isDashboard = location.pathname === "/";
 
   const handleLogout = async () => {
     await logout();
@@ -264,7 +312,7 @@ export function AdminLayout() {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 flex items-center justify-between px-4 sm:px-6 bg-white border-b border-zinc-200 shrink-0">
+        <header className="min-h-14 flex items-center justify-between gap-3 px-4 sm:px-6 py-2 bg-white border-b border-zinc-200 shrink-0">
           <button
             onClick={toggleMobileMenu}
             className="lg:hidden p-2 -ml-2 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
@@ -272,48 +320,69 @@ export function AdminLayout() {
           >
             <Menu className="w-5 h-5" />
           </button>
-          <div className="flex-1 min-w-0" />
-          {!isOrgManager && (
-          <NavLink
-            to="/my-tasks"
-            className={({ isActive }) =>
-              `relative flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${
-                isActive
-                  ? "bg-zinc-100 text-zinc-900"
-                  : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
-              }`
-            }
-            title="My tasks"
-            aria-label={
-              pendingTaskCount != null && pendingTaskCount > 0
-                ? `My tasks, ${pendingTaskCount} pending`
-                : "My tasks"
-            }
-          >
-            <Inbox className="w-5 h-5 shrink-0" />
-            <span className="hidden sm:inline">Tasks</span>
-            {pendingTaskCount != null && pendingTaskCount > 0 ? (
-              <span className="min-w-[1.125rem] h-5 px-1 rounded-full bg-zinc-900 text-white text-[11px] font-semibold flex items-center justify-center tabular-nums leading-none">
-                {pendingTaskCount > 99 ? "99+" : pendingTaskCount}
-              </span>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-sm sm:text-base font-semibold text-zinc-900 truncate">{pageTitle}</h1>
+            {isDashboard ? (
+              <p className="text-[11px] text-zinc-500 truncate leading-tight">
+                Overview of your admin panel
+              </p>
             ) : null}
-          </NavLink>
-          )}
-          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-            <span className="text-sm text-zinc-600 truncate max-w-[120px] sm:max-w-none">
-              {displayName ||
-                (userProfile?.first_name || userProfile?.last_name
-                  ? `${userProfile?.first_name ?? ""} ${userProfile?.last_name ?? ""}`.trim()
-                  : userId ?? "—")}
-            </span>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 shrink-0"
-              aria-label="Logout"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
+          </div>
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+            {isDashboard ? (
+              <button
+                type="button"
+                onClick={() => runDashboardRefresh()}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 transition-colors"
+                aria-label="Refresh dashboard"
+                title="Refresh"
+              >
+                <RefreshCw className="w-4 h-4 shrink-0" />
+                <span className="hidden sm:inline text-xs font-medium">Refresh</span>
+              </button>
+            ) : null}
+            {!isOrgManager && (
+              <NavLink
+                to="/my-tasks"
+                className={({ isActive }) =>
+                  `relative flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${
+                    isActive
+                      ? "bg-zinc-100 text-zinc-900"
+                      : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                  }`
+                }
+                title="My tasks"
+                aria-label={
+                  pendingTaskCount != null && pendingTaskCount > 0
+                    ? `My tasks, ${pendingTaskCount} pending`
+                    : "My tasks"
+                }
+              >
+                <Inbox className="w-5 h-5 shrink-0" />
+                <span className="hidden sm:inline">Tasks</span>
+                {pendingTaskCount != null && pendingTaskCount > 0 ? (
+                  <span className="min-w-[1.125rem] h-5 px-1 rounded-full bg-zinc-900 text-white text-[11px] font-semibold flex items-center justify-center tabular-nums leading-none">
+                    {pendingTaskCount > 99 ? "99+" : pendingTaskCount}
+                  </span>
+                ) : null}
+              </NavLink>
+            )}
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+              <span className="text-sm text-zinc-600 truncate max-w-[120px] sm:max-w-none">
+                {displayName ||
+                  (userProfile?.first_name || userProfile?.last_name
+                    ? `${userProfile?.first_name ?? ""} ${userProfile?.last_name ?? ""}`.trim()
+                    : userId ?? "—")}
+              </span>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 shrink-0"
+                aria-label="Logout"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">Logout</span>
+              </button>
+            </div>
           </div>
         </header>
 

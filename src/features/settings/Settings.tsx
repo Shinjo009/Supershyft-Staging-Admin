@@ -914,12 +914,9 @@ export function Settings() {
       onChangeCapture={mayEditSettings ? undefined : (event) => event.stopPropagation()}
     >
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-zinc-900 tracking-tight">Settings</h1>
-          <p className="text-sm text-zinc-500 mt-1">
-            Platform defaults and Metsights profile synchronization.
-          </p>
-        </div>
+        <p className="text-sm text-zinc-500">
+          Platform defaults and Metsights profile synchronization.
+        </p>
         {mayViewSystemMonitoring && <button
           type="button"
           onClick={() => setIntegrationLogsOpen(true)}
