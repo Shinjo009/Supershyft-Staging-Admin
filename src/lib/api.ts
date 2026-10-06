@@ -1860,8 +1860,88 @@ export interface ConsultationQuestionnairePayload {
   }>;
 }
 
+export type ExpertDashboardConsultationStatus = "upcoming" | "live_now" | "completed" | "cancelled";
+
+export interface ExpertDashboardSummary {
+  requests_waiting: number;
+  consultations_today: number;
+  consultations_today_completed: number;
+  consultations_today_upcoming: number;
+  open_camps: number;
+  hours_this_week: number;
+}
+
+export interface ExpertDashboardTodayConsultation {
+  consultation_id: number;
+  user_id: number;
+  first_name?: string | null;
+  last_name?: string | null;
+  expert_type: string;
+  engagement_id: number;
+  engagement_name?: string | null;
+  engagement_code?: string | null;
+  date?: string | null;
+  slot?: string | null;
+  meet_link?: string | null;
+  mode?: "online" | "offline" | string | null;
+  done: boolean;
+  status: ExpertDashboardConsultationStatus | string;
+}
+
+export interface ExpertDashboardRequestItem {
+  consultation_id?: number;
+  user_id: number;
+  first_name?: string | null;
+  last_name?: string | null;
+  expert_type: string;
+  engagement_id: number;
+  engagement_name?: string | null;
+  engagement_code?: string | null;
+  date?: string | null;
+  slot?: string | null;
+  created_at?: string | null;
+  waiting_minutes?: number;
+}
+
+export interface ExpertDashboardOpenCamp {
+  engagement_id: number;
+  engagement_name?: string | null;
+  engagement_code?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  camp_no?: number | null;
+  city?: string | null;
+  consultation_pending_count: number;
+  next_consultation_date?: string | null;
+  next_consultation_slot?: string | null;
+}
+
+export interface ExpertDashboardWeekDay {
+  date: string;
+  weekday: string;
+  hours: number;
+  count: number;
+}
+
+export interface ExpertDashboardWeeklyHours {
+  total_hours: number;
+  completed_count: number;
+  upcoming_count: number;
+  session_duration_mins: number;
+  days: ExpertDashboardWeekDay[];
+}
+
+export interface ExpertDashboardPayload {
+  summary: ExpertDashboardSummary;
+  todays_consultations: ExpertDashboardTodayConsultation[];
+  requests_waiting: ExpertDashboardRequestItem[];
+  open_camps: ExpertDashboardOpenCamp[];
+  weekly_hours: ExpertDashboardWeeklyHours;
+}
+
 export const expertsPortalApi = {
   me: () => api.get<{ data: ExpertDetail }>("/experts/portal/me"),
+  getDashboard: () => api.get<{ data: ExpertDashboardPayload }>("/experts/portal/dashboard"),
   listRequests: () =>
     api.get<{ data: ConsultationRequestItem[] }>("/experts/portal/requests"),
   confirmRequest: (payload: {

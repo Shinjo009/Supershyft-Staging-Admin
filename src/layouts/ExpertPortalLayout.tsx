@@ -13,6 +13,11 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import {
+  firstNameFromDisplayName,
+  formatLongDate,
+  greetingFromHour,
+} from "../features/experts/dashboard/dashboardUtils";
 
 const portalNavItems = [
   { to: "/experts/portal", icon: LayoutDashboard, label: "Dashboard", end: true },
@@ -49,6 +54,12 @@ export function ExpertPortalLayout({
       : userId != null
         ? String(userId)
         : "—");
+
+  const isDashboardHome =
+    location.pathname === "/experts/portal" || location.pathname === "/experts/portal/";
+  const greeting = greetingFromHour(new Date().getHours());
+  const firstName = firstNameFromDisplayName(displayName);
+  const todayLabel = formatLongDate();
 
   const handleLogout = async () => {
     await logout();
@@ -98,6 +109,20 @@ export function ExpertPortalLayout({
                 </>
               ) : null}
             </>
+          ) : isDashboardHome ? (
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <img
+                src="/super-shyft.png"
+                alt="Super Shyft"
+                className="h-7 w-7 rounded-sm object-contain shrink-0"
+              />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-zinc-900 truncate">
+                  Good {greeting}, {firstName} 👋
+                </p>
+                <p className="text-xs text-zinc-500 truncate">{todayLabel}</p>
+              </div>
+            </div>
           ) : (
             <Link to="/experts/portal" className="flex items-center gap-2 min-w-0">
               <img
