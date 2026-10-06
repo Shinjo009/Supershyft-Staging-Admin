@@ -55,6 +55,21 @@ import {
   normalizeSlotToHhmm,
 } from "../../features/engagements/bloodCollectionScheduleUtils";
 
+function parsePublicSlotDetail(raw: unknown): PublicSlotDetail | null {
+  if (raw == null) return null;
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw) as PublicSlotDetail;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof raw === "object") {
+    return raw as PublicSlotDetail;
+  }
+  return null;
+}
+
 type ScheduleDraft = {
   engagement_date: string;
   blood_collection_cabin: string;
@@ -888,7 +903,7 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
           const payload = res.data.data;
           const eng = payload.engagement as Record<string, unknown>;
           setEngagementConsultations((eng.consultations as typeof engagementConsultations) ?? null);
-          setEngagementPublicSlotDetail((eng.public_slot_detail as string | null) ?? null);
+          setEngagementPublicSlotDetail(parsePublicSlotDetail(eng.public_slot_detail));
           setEngagementBloodCollectionType((eng.blood_collection_type as string | null) ?? null);
           const orgId = (eng.organization_id as number | null) ?? null;
           setOrganizationId(orgId);

@@ -1227,6 +1227,7 @@ export interface Organization {
   departments?: OrganizationDepartment[] | null;
   camp_cities?: string[];
   report_access?: Record<string, unknown>;
+  contact_partner_labels?: Record<string, { name?: string | null; phone?: string | null }>;
 }
 
 export interface OrganizationListItem {
@@ -2061,6 +2062,9 @@ export const expertAvailabilityPortalApi = {
     api.get<{
       data: {
         expert_id: number;
+        session_duration_mins?: number | null;
+        effective_from?: string | null;
+        effective_until?: string | null;
         availability_blocks: AvailabilityBlock[];
         overrides: AvailabilityOverride[];
       };

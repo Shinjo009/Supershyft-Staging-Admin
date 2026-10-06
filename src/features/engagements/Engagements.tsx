@@ -30,8 +30,6 @@ import { OccupiedSlotsModal } from "../../shared/ui/OccupiedSlotsModal";
 import {
   engagementsApi,
   organizationsApi,
-  assessmentPackagesApi,
-  diagnosticPackagesApi,
   employeesApi,
   partnersApi,
   onboardingAssistantsApi,
@@ -53,7 +51,6 @@ import {
   engagementChecklistsApi,
   checklistTemplatesApi,
   checklistTasksApi,
-  notificationsApi,
   type NotificationServiceItem,
   type EngagementChecklist,
   type ChecklistTemplate,
@@ -1121,15 +1118,6 @@ export function Engagements({
     }
   };
 
-  const fetchOrgs = useCallback(async () => {
-    try {
-      const r = await organizationsApi.list({ page: 1, limit: 100 });
-      setOrganizations(r.data.data);
-    } catch (err) {
-      setError(getApiError(err));
-    }
-  }, []);
-
   const ensureOrgInList = useCallback(async (organizationId: number | null | undefined) => {
     if (!organizationId || organizationId <= 0) return;
     try {
@@ -1155,22 +1143,6 @@ export function Engagements({
     } catch {
       // Keep form usable even if the org lookup fails.
     }
-  }, []);
-  const fetchPackages = useCallback(() => {
-    assessmentPackagesApi.list().then((r) => setAssessmentPackages(r.data.data));
-  }, []);
-  const fetchDiagnostics = useCallback(() => {
-    Promise.all([
-      diagnosticPackagesApi.list({ package_for: "camp" }),
-      diagnosticPackagesApi.list({ package_for: "public" }),
-    ])
-      .then(([campRes, publicRes]) => {
-        const merged = [...(campRes.data.data ?? []), ...(publicRes.data.data ?? [])];
-        const uniqueById = new Map<number, DiagnosticPackageListItem>();
-        merged.forEach((pkg) => uniqueById.set(pkg.diagnostic_package_id, pkg));
-        setDiagnosticPackages(Array.from(uniqueById.values()));
-      })
-      .catch((err) => setError(getApiError(err)));
   }, []);
 
   const loadFormBootstrap = useCallback(async () => {

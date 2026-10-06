@@ -3,7 +3,6 @@ import { Loader2, Plus, X, Copy, Eraser } from "lucide-react";
 import { ExpertPortalLayout } from "../../layouts/ExpertPortalLayout";
 import {
   expertAvailabilityPortalApi,
-  expertsPortalApi,
   getApiError,
   type AvailabilityBlock,
   type AvailabilityBlockPayload,

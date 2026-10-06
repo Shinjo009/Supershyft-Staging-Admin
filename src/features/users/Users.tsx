@@ -8,7 +8,6 @@ import { Engagements } from "../engagements/Engagements";
 import { OnboardUserModal } from "./OnboardUserModal";
 import {
   usersApi,
-  employeesApi,
   uploadsApi,
   notificationsApi,
   participantJourneyApi,
@@ -388,7 +387,7 @@ export function Users() {
       }
       setModalOpen(false);
       fetchList();
-      fetchStats();
+      fetchList();
     } catch (err) {
       setError(getApiError(err));
     } finally {
@@ -406,7 +405,6 @@ export function Users() {
     setDeleteConfirm(null);
     setOrphanEngagementConfirm(null);
     fetchList();
-    fetchStats();
   };
 
   const handleDeleteFirstConfirm = async (row: UserListItem) => {
@@ -1697,7 +1695,7 @@ export function Users() {
         onClose={closeOnboard}
         onSuccess={(result) => {
           void fetchList();
-          void fetchStats();
+          void fetchList();
           const code = result.engagement_code ? ` (${result.engagement_code})` : "";
           setOnboardSuccessMsg(
             `User #${result.user_id} onboarded into engagement${code}` +

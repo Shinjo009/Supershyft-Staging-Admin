@@ -27,7 +27,6 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
-import { useAuth } from "../contexts/AuthContext";
 import { usePermissions } from "../contexts/PermissionContext";
 import type { PermissionCategory } from "../auth/permissions";
 import { runDashboardRefresh } from "../features/dashboard/dashboardRefreshRegistry";
