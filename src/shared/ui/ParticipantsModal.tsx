@@ -70,6 +70,82 @@ function parsePublicSlotDetail(raw: unknown): PublicSlotDetail | null {
   return null;
 }
 
+type ParticipantsBootstrapResponse = Awaited<
+  ReturnType<typeof participantsApi.bootstrap>
+>;
+
+/** When the combined bootstrap route fails (timeout, missing deploy), load the same data via legacy endpoints. */
+async function fetchEngagementParticipantsBootstrap(
+  engagementId: number,
+  options: { limit: number; includeExpertTypes: boolean }
+): Promise<ParticipantsBootstrapResponse> {
+  try {
+    return await participantsApi.bootstrap(engagementId, {
+      page: 1,
+      limit: options.limit,
+      include_expert_types: options.includeExpertTypes,
+    });
+  } catch (bootstrapErr) {
+    try {
+      const [listRes, filterRes, bookingRes, engRes] = await Promise.all([
+        participantsApi.byEngagementId(engagementId, { page: 1, limit: options.limit }),
+        participantsApi.filterOptions(engagementId),
+        participantsApi.bookingDates(engagementId),
+        engagementsApi.get(engagementId),
+      ]);
+      const eng = engRes.data.data;
+      let organization: Record<string, unknown> | null = null;
+      const orgId = eng.organization_id ?? null;
+      if (orgId != null) {
+        try {
+          const orgRes = await organizationsApi.get(orgId);
+          organization = orgRes.data.data as unknown as Record<string, unknown>;
+        } catch {
+          /* org details optional for list view */
+        }
+      }
+      let expert_types: ExpertTypeItem[] | undefined;
+      if (options.includeExpertTypes) {
+        try {
+          const typesRes = await expertTypesApi.list();
+          expert_types = typesRes.data.data;
+        } catch {
+          /* expert types optional */
+        }
+      }
+      const chunk = listRes.data.data ?? [];
+      const listMeta = listRes.data.meta;
+      return {
+        data: {
+          data: {
+            engagement: {
+              engagement_id: eng.engagement_id,
+              engagement_name: eng.engagement_name,
+              engagement_code: eng.engagement_code,
+              organization_id: orgId,
+              consultations: eng.consultations,
+              public_slot_detail: eng.public_slot_detail,
+              blood_collection_type: eng.blood_collection_type,
+            },
+            organization,
+            booking_dates: bookingRes.data.data,
+            filter_options: filterRes.data.data,
+            participants: chunk,
+            expert_types,
+          },
+          meta: {
+            page: listMeta?.page ?? 1,
+            limit: listMeta?.limit ?? options.limit,
+            total: listMeta?.total ?? chunk.length,
+          },
+        },
+      } as unknown as ParticipantsBootstrapResponse;
+    } catch {
+      throw bootstrapErr;
+    }
+  }
+}
+
 type ScheduleDraft = {
   engagement_date: string;
   blood_collection_cabin: string;
@@ -895,10 +971,9 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
           columnFiltersAreDefault(columnFilters)
         ) {
           setBookingDatesLoading(true);
-          const res = await participantsApi.bootstrap(source.engagementId, {
-            page: 1,
+          const res = await fetchEngagementParticipantsBootstrap(source.engagementId, {
             limit: PARTICIPANTS_PAGE_SIZE,
-            include_expert_types: mayViewExperts,
+            includeExpertTypes: mayViewExperts,
           });
           const payload = res.data.data;
           const eng = payload.engagement as Record<string, unknown>;
@@ -946,6 +1021,7 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
         setTotal(Number(res.data.meta?.total ?? chunk.length));
       }
     } catch (err) {
+      setBookingDatesLoading(false);
       if (!append) {
         setParticipants([]);
         setTotal(0);
