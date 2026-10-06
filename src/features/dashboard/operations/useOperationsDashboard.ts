@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { usePermissions } from "../../../contexts/PermissionContext";
-import { dashboardApi, getApiError, type DashboardOverviewPayload } from "../../../lib/api";
+import { dashboardApi, getApiError, usersApi, type DashboardOverviewPayload } from "../../../lib/api";
 import type { MonthPoint } from "./overviewChartUtils";
 import type {
   EngagementBuckets,
@@ -136,9 +136,11 @@ export function useOperationsDashboard() {
   const [overviewError, setOverviewError] = useState<string | null>(null);
   const [usersGrowth, setUsersGrowth] = useState<MonthPoint[]>([]);
   const [usersLoading, setUsersLoading] = useState(showUsers);
+  const [usersFallback, setUsersFallback] = useState<{ total: number; active: number } | null>(null);
 
   const load = useCallback(async () => {
     setOverviewError(null);
+    setUsersFallback(null);
     if (showUsers) setUsersLoading(true);
     try {
       const response = await dashboardApi.overview();
@@ -164,7 +166,14 @@ export function useOperationsDashboard() {
         })
       );
     } catch (reason) {
-      const message = getApiError(reason);
+      let message = getApiError(reason);
+      if (
+        message.includes("Network error") ||
+        message.includes("timed out") ||
+        message.includes("Timeout")
+      ) {
+        message = `${message} The overview endpoint is heavier than year stats; check API logs for GET /admin/dashboard/overview (502/504 or worker timeout).`;
+      }
       setOverviewError(message);
       setOverview(null);
       setUsersGrowth([]);
@@ -178,6 +187,24 @@ export function useOperationsDashboard() {
         tickets: showTickets ? errorSection : { status: "idle" },
         bookingIssues: showBookingIssues ? errorSection : { status: "idle" },
       });
+
+      if (showUsers) {
+        try {
+          const usersRes = await usersApi.list({ page: 1, limit: 1 });
+          const meta = usersRes.data.meta;
+          const total = Number(meta.total) || 0;
+          let active = total;
+          try {
+            const activeRes = await usersApi.list({ page: 1, limit: 1, status: "active" });
+            active = Number(activeRes.data.meta.total) || 0;
+          } catch {
+            // keep active = total
+          }
+          setUsersFallback({ total, active });
+        } catch {
+          // year-stats cards still load via YearStatsCards
+        }
+      }
     } finally {
       setUsersLoading(false);
     }
@@ -232,11 +259,11 @@ export function useOperationsDashboard() {
     overviewError,
     usersStats: {
       show: showUsers,
-      total: overview?.users?.total_users ?? null,
-      active: overview?.users?.active_users ?? null,
+      total: overview?.users?.total_users ?? usersFallback?.total ?? null,
+      active: overview?.users?.active_users ?? usersFallback?.active ?? null,
       growth: usersGrowth,
       loading: usersLoading,
-      error: overviewError,
+      error: overviewError && usersFallback == null ? overviewError : null,
     },
   };
 }
