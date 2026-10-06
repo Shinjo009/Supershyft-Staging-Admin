@@ -29,6 +29,7 @@ interface AuthState {
   employeeRole: SessionRole | null;
   /** Permissions envelope for inferior_admin (same shape as legacy users/me employee.permissions). */
   permissions: unknown;
+  pendingTaskCount: number | null;
   isLoading: boolean;
 }
 
@@ -65,7 +66,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 function profileToState(profile: AuthSessionProfile): Pick<
   AuthState,
-  "authKind" | "displayName" | "employeeId" | "partnerId" | "employeeRole" | "permissions"
+  "authKind" | "displayName" | "employeeId" | "partnerId" | "employeeRole" | "permissions" | "pendingTaskCount"
 > {
   return {
     authKind: profile.authKind,
@@ -74,6 +75,7 @@ function profileToState(profile: AuthSessionProfile): Pick<
     partnerId: profile.partnerId ?? null,
     employeeRole: profile.role,
     permissions: profile.permissions ?? null,
+    pendingTaskCount: profile.pendingTaskCount ?? null,
   };
 }
 
@@ -117,6 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       partnerId: null,
       employeeRole: null,
       permissions: null,
+      pendingTaskCount: null,
       isLoading: hasAccessToken,
     };
   });
@@ -149,6 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         employeeId: result.data.employee_id,
         partnerId: null,
         permissions: result.data.permissions,
+        pendingTaskCount: null,
       };
     } else {
       profile = {
@@ -190,6 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       partnerId: null,
       employeeRole: null,
       permissions: null,
+      pendingTaskCount: null,
       isLoading: false,
     });
   }, []);
@@ -207,8 +212,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         employeeId: null,
         partnerId: data.partner_id,
         permissions: null,
+        pendingTaskCount: null,
       };
-      authStorage.setProfile(profile);
+    authStorage.setProfile(profile);
       setState((prev) => {
         if (
           prev.isAuthenticated &&
@@ -238,6 +244,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         employeeId: data.employee_id,
         partnerId: null,
         permissions: data.permissions,
+        pendingTaskCount:
+          typeof data.pending_task_count === "number" ? data.pending_task_count : null,
       };
       authStorage.setProfile(profile);
       const nextPermissions = JSON.stringify(profile.permissions ?? null);
@@ -271,6 +279,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       partnerId: null,
       employeeRole: null,
       permissions: null,
+      pendingTaskCount: null,
       isLoading: false,
     });
   }, []);
@@ -294,6 +303,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           partnerId: null,
           employeeRole: null,
           permissions: null,
+          pendingTaskCount: null,
           isLoading: false,
         });
       }

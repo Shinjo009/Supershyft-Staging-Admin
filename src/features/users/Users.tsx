@@ -26,7 +26,6 @@ function hasMetsightsProfileId(user: UserListItem): boolean {
 
 const STATUS_OPTIONS = ["active", "inactive"];
 const GENDER_OPTIONS = ["male", "female", "other"];
-const ALWAYS_ACTIVE_EMPLOYEE_ID = 1;
 const SEARCH_DEBOUNCE_MS = 300;
 
 const METSIGHTS_BIOAI_TYPE_CODES = new Set(["1", "2"]);
@@ -235,18 +234,6 @@ export function Users() {
     return () => window.clearTimeout(timer);
   }, [search]);
 
-  const fetchStats = useCallback(async () => {
-    try {
-      const res = await usersApi.stats();
-      setMetsightsStats({
-        withProfile: res.data.data.with_metsights_profile,
-        totalParticipants: res.data.data.total_participants,
-      });
-    } catch {
-      // Stats are supplementary; keep the table usable if this fails.
-    }
-  }, []);
-
   const fetchList = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -261,6 +248,15 @@ export function Users() {
       });
       setData(res.data.data);
       setTotal(res.data.meta.total);
+      const meta = res.data.meta;
+      if (typeof meta.with_metsights_profile === "number" && typeof meta.total_participants === "number") {
+        setMetsightsStats({
+          withProfile: meta.with_metsights_profile,
+          totalParticipants: meta.total_participants,
+        });
+      }
+      const protectedIds = meta.protected_user_ids ?? [];
+      setAlwaysActiveUserId(protectedIds.length > 0 ? protectedIds[0] : null);
     } catch (err) {
       setError(getApiError(err));
     } finally {
@@ -269,19 +265,8 @@ export function Users() {
   }, [page, limit, statusFilter, debouncedSearch, sortKey, sortDir]);
 
   useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
-
-  useEffect(() => {
     fetchList();
   }, [fetchList]);
-
-  useEffect(() => {
-    employeesApi
-      .get(ALWAYS_ACTIVE_EMPLOYEE_ID)
-      .then((res) => setAlwaysActiveUserId(res.data.data.user_id ?? null))
-      .catch(() => setAlwaysActiveUserId(null));
-  }, []);
 
   const openView = (row: UserListItem) => {
     setUserEngagements([]);

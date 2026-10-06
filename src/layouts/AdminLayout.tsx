@@ -27,7 +27,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
-import { usePendingTaskCount } from "../hooks/usePendingTaskCount";
+import { useAuth } from "../contexts/AuthContext";
 import { usePermissions } from "../contexts/PermissionContext";
 import type { PermissionCategory } from "../auth/permissions";
 import { runDashboardRefresh } from "../features/dashboard/dashboardRefreshRegistry";
@@ -119,11 +119,12 @@ function pageTitleForPath(pathname: string): string {
 export function AdminLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { logout, userProfile, userId, displayName, employeeRole } = useAuth();
+  const { logout, userProfile, userId, displayName, employeeRole, pendingTaskCount } = useAuth();
   const { canView } = usePermissions();
   const navigate = useNavigate();
   const location = useLocation();
-  const pendingTaskCount = usePendingTaskCount(location.pathname);
+  const pendingBadgeCount =
+    employeeRole === "organization_manager" ? null : pendingTaskCount;
   const [libraryOpen, setLibraryOpen] = useState(() => isLibraryPath(location.pathname));
   const libraryExpanded = libraryOpen || isLibraryPath(location.pathname);
   const isOrgManager = employeeRole === "organization_manager";
@@ -353,16 +354,16 @@ export function AdminLayout() {
                 }
                 title="My tasks"
                 aria-label={
-                  pendingTaskCount != null && pendingTaskCount > 0
-                    ? `My tasks, ${pendingTaskCount} pending`
+                  pendingBadgeCount != null && pendingBadgeCount > 0
+                    ? `My tasks, ${pendingBadgeCount} pending`
                     : "My tasks"
                 }
               >
                 <Inbox className="w-5 h-5 shrink-0" />
                 <span className="hidden sm:inline">Tasks</span>
-                {pendingTaskCount != null && pendingTaskCount > 0 ? (
+                {pendingBadgeCount != null && pendingBadgeCount > 0 ? (
                   <span className="min-w-[1.125rem] h-5 px-1 rounded-full bg-zinc-900 text-white text-[11px] font-semibold flex items-center justify-center tabular-nums leading-none">
-                    {pendingTaskCount > 99 ? "99+" : pendingTaskCount}
+                    {pendingBadgeCount > 99 ? "99+" : pendingBadgeCount}
                   </span>
                 ) : null}
               </NavLink>

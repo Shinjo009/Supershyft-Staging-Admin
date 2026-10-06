@@ -237,7 +237,13 @@ function ExpertTypesTab() {
 
 // ─── Experts List Tab ──────────────────────────────────────────────────────────
 
-function ExpertsListTab({ expertTypes }: { expertTypes: ExpertTypeItem[] }) {
+function ExpertsListTab({
+  expertTypes,
+  onExpertTypesLoaded,
+}: {
+  expertTypes: ExpertTypeItem[];
+  onExpertTypesLoaded: (types: ExpertTypeItem[]) => void;
+}) {
   const { canEditTask } = usePermissions();
   const mayEditExperts = canEditTask("experts", "experts");
   const [data, setData] = useState<ExpertListItem[]>([]);
@@ -306,12 +312,15 @@ function ExpertsListTab({ expertTypes }: { expertTypes: ExpertTypeItem[] }) {
       });
       setData(res.data.data);
       setTotal(res.data.meta.total);
+      if (Array.isArray(res.data.meta.expert_types)) {
+        onExpertTypesLoaded(res.data.meta.expert_types);
+      }
     } catch (err) {
       setError(getApiError(err));
     } finally {
       setLoading(false);
     }
-  }, [page, limit, expertTypeFilter, statusFilter, search, sortKey, sortDir]);
+  }, [page, limit, expertTypeFilter, statusFilter, search, sortKey, sortDir, onExpertTypesLoaded]);
 
   useEffect(() => {
     fetchList();
@@ -982,16 +991,8 @@ export function Experts() {
   }, []);
 
   useEffect(() => {
-    // Initial remote data load for this tab.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchExpertTypes();
-  }, [fetchExpertTypes]);
-
-  useEffect(() => {
-    if (activeTab === "experts") {
-      // Refresh dependent type options when returning to the experts tab.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      fetchExpertTypes();
+    if (activeTab === "expert-types") {
+      void fetchExpertTypes();
     }
   }, [activeTab, fetchExpertTypes]);
 
@@ -1019,7 +1020,12 @@ export function Experts() {
         ))}
       </div>
 
-      {activeTab === "experts" && <ExpertsListTab expertTypes={expertTypes} />}
+      {activeTab === "experts" && (
+        <ExpertsListTab
+          expertTypes={expertTypes}
+          onExpertTypesLoaded={setExpertTypes}
+        />
+      )}
       {activeTab === "expert-types" && <ExpertTypesTab />}
     </div>
   );

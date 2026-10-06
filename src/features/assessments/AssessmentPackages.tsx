@@ -249,17 +249,10 @@ export function AssessmentPackages() {
       const pagedRows = sorted.slice((pkgPage - 1) * pkgLimit, pkgPage * pkgLimit);
       setPkgData(pagedRows);
 
-      const counts = await Promise.all(
-        pagedRows.map(async (pkg) => {
-          try {
-            const mapped = await assessmentPackagesApi.listCategories(pkg.package_id);
-            return [pkg.package_id, mapped.data.data.length] as const;
-          } catch {
-            return [pkg.package_id, 0] as const;
-          }
-        })
+      const counts = Object.fromEntries(
+        pagedRows.map((pkg) => [pkg.package_id, pkg.category_count ?? 0] as const)
       );
-      setPkgCategoryCounts(Object.fromEntries(counts));
+      setPkgCategoryCounts(counts);
     } catch (error) {
       setPkgError(getApiError(error));
     } finally {

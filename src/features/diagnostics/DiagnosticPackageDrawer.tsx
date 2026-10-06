@@ -243,11 +243,9 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
   const reorderReasons = async (nextRows: DiagnosticReason[]) => {
     if (!packageId) return;
     await withBusy("reorder-reasons", async () => {
-      await Promise.all(
-        nextRows.map((row, index) =>
-          diagnosticPackagesApi.updateReason(packageId, row.reason_id, { display_order: index + 1 })
-        )
-      );
+      await diagnosticPackagesApi.reorderReasons(packageId, {
+        reason_ids: nextRows.map((row) => row.reason_id),
+      });
     });
   };
 

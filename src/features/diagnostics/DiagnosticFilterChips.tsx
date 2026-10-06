@@ -145,13 +145,9 @@ export function DiagnosticFilterChips({ embedded = false }: DiagnosticFilterChip
   const persistOrder = async (rows: DiagnosticFilterChip[]) => {
     setReorderSaving(true);
     try {
-      await Promise.all(
-        rows.map((row, index) =>
-          diagnosticFilterChipsApi.update(row.filter_chip_id, {
-            display_order: index + 1,
-          })
-        )
-      );
+      await diagnosticFilterChipsApi.reorder({
+        filter_chip_ids: rows.map((row) => row.filter_chip_id),
+      });
       await fetchChips();
     } catch (err) {
       setError(getApiError(err));

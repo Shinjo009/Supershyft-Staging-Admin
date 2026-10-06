@@ -57,14 +57,16 @@ export function EngagementDrawer({
   const refreshEngagement = useCallback(async () => {
     if (!engagementId) return;
     try {
-      const [engRes, partRes] = await Promise.all([
-        engagementsApi.get(engagementId),
-        participantsApi.byEngagementId(engagementId, { page: 1, limit: 1 }),
-      ]);
+      const engRes = await engagementsApi.get(engagementId);
       const detail = engRes.data.data;
+      let participantCount = Number(detail.participant_count ?? 0);
+      if (participantCount <= 0) {
+        const partRes = await participantsApi.byEngagementId(engagementId, { page: 1, limit: 1 });
+        participantCount = Number(partRes.data.meta?.total ?? 0);
+      }
       setEngagement({
         ...detail,
-        participant_count: Number(partRes.data.meta?.total ?? detail.participant_count ?? 0),
+        participant_count: participantCount,
         readiness: readiness ?? undefined,
       } as Engagement & { readiness?: ChecklistReadiness | null });
     } catch (err) {

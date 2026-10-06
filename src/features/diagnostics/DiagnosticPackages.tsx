@@ -83,9 +83,10 @@ export function DiagnosticPackages() {
   const [openCreateTest, setOpenCreateTest] = useState<(() => void) | null>(null);
   const [expertTypes, setExpertTypes] = useState<ExpertTypeItem[]>([]);
 
-  useEffect(() => {
+  const loadExpertTypes = useCallback(() => {
+    if (expertTypes.length > 0) return;
     expertTypesApi.list().then((res) => setExpertTypes(res.data.data)).catch(() => {});
-  }, []);
+  }, [expertTypes.length]);
 
   const fetchPackages = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) {
@@ -95,28 +96,7 @@ export function DiagnosticPackages() {
     try {
       const res = await diagnosticPackagesApi.list({ include_inactive: true, type: "public_package" });
       const baseRows = sortPackagesByDisplayOrder(res.data.data ?? []);
-      const providerMissing = baseRows.some((row) => !row.diagnostic_provider);
-
-      // Some backend list responses can omit provider; hydrate from detail endpoint so table shows real values.
-      if (providerMissing) {
-        const detailed = await Promise.all(
-          baseRows.map(async (row) => {
-            if (row.diagnostic_provider) return row;
-            try {
-              const detailRes = await diagnosticPackagesApi.get(row.diagnostic_package_id);
-              return {
-                ...row,
-                diagnostic_provider: detailRes.data.data.diagnostic_provider ?? row.diagnostic_provider,
-              };
-            } catch {
-              return row;
-            }
-          })
-        );
-        setRows(sortPackagesByDisplayOrder(detailed));
-      } else {
-        setRows(baseRows);
-      }
+      setRows(baseRows);
     } catch (err) {
       setError(getApiError(err));
     } finally {
@@ -215,6 +195,7 @@ export function DiagnosticPackages() {
   }, [rows, search, providerFilter, genderFilter, statusFilter, tagFilter]);
 
   const openCreate = () => {
+    loadExpertTypes();
     setModalMode("add");
     setEditing(null);
     setForm({ ...EMPTY_FORM });
@@ -223,6 +204,7 @@ export function DiagnosticPackages() {
   };
 
   const openEdit = (row: DiagnosticPackageListItem) => {
+    loadExpertTypes();
     setModalMode("edit");
     setEditing(row);
     setForm({

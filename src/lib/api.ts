@@ -355,6 +355,16 @@ export interface NotificationDefaultItem {
 }
 
 export const platformSettingsApi = {
+  bootstrap: () =>
+    api.get<{
+      data: {
+        b2c_onboarding: B2cOnboardingDefaults;
+        default_onboarding_assistants: DefaultOnboardingAssistants;
+        support_query_notification: SupportQueryNotification;
+        geocoding_provider: GeocodingProviderSettings;
+        engagement_types: EngagementTypeItem[];
+      };
+    }>("/platform-settings/bootstrap"),
   getB2cOnboarding: () =>
     api.get<{ data: B2cOnboardingDefaults; meta: Record<string, unknown> }>("/platform-settings/b2c-onboarding"),
   patchB2cOnboarding: (payload: B2cOnboardingDefaults) =>
@@ -497,6 +507,7 @@ export interface EmployeeAuthMeResponse {
   role: string;
   status?: string | null;
   permissions?: unknown;
+  pending_task_count?: number;
 }
 
 export interface PartnerAuthVerifyResponse {
@@ -733,7 +744,17 @@ export const usersApi = {
     sort_by?: string;
     sort_dir?: "asc" | "desc";
   }) =>
-    api.get<{ data: UserListItem[]; meta: { page: number; limit: number; total: number } }>(
+    api.get<{
+      data: UserListItem[];
+      meta: {
+        page: number;
+        limit: number;
+        total: number;
+        with_metsights_profile?: number;
+        total_participants?: number;
+        protected_user_ids?: number[];
+      };
+    }>(
       "/users",
       { params }
     ),
@@ -870,6 +891,11 @@ export interface ParticipantJourneyDetail {
 }
 
 export const participantJourneyApi = {
+  pageBootstrap: (userId: number, params?: { page?: number; limit?: number }) =>
+    api.get<{
+      data: { user: UserDetail; journey: ParticipantJourneySummaryData };
+      meta: { page: number; limit: number; total: number };
+    }>(`/users/${userId}/participant-journey/page-bootstrap`, { params }),
   summary: (userId: number, params?: { page?: number; limit?: number }) =>
     api.get<{ data: ParticipantJourneySummaryData; meta: { page: number; limit: number; total: number } }>(
       `/users/${userId}/participant-journey`,
@@ -930,12 +956,20 @@ export const assessmentsApi = {
       },
       { timeout: 120_000 }
     ),
-  importMetsightsAnswersLegacy: (assessmentInstanceId: number) =>
-    api.post<{ data: MetsightsImportAnswersResult }>(
-      `/assessments/${assessmentInstanceId}/metsights/import-answers-legacy`,
-      undefined,
-      { timeout: 120_000 }
-    ),
+  importMetsightsCategoryAnswersBatch: (
+    assessmentInstanceId: number,
+    payload: { categories: MetsightsCategoryImportRequest[] }
+  ) =>
+    api.post<{
+      data: {
+        results: Array<
+          | { category: string; ok: true; result: MetsightsCategoryImportResult }
+          | { category: string; ok: false; error_code?: string; message?: string }
+        >;
+      };
+    }>(`/assessments/${assessmentInstanceId}/metsights/import-answers-batch`, payload, {
+      timeout: 120_000,
+    }),
   draftBloodParameters: (assessmentInstanceId: number) =>
     api.post<{ data: DraftBloodParametersResult }>(
       `/assessments/${assessmentInstanceId}/metsights/draft-blood-parameters`,
@@ -1253,10 +1287,19 @@ export const organizationsApi = {
     sort_by?: string;
     sort_dir?: "asc" | "desc";
   }) =>
-    api.get<{ data: OrganizationListItem[]; meta: { page: number; limit: number; total: number } }>(
-      "/organizations",
-      { params }
-    ),
+    api.get<{
+      data: OrganizationListItem[];
+      meta: {
+        page: number;
+        limit: number;
+        total: number;
+        filter_options?: {
+          cities: string[];
+          countries: string[];
+          industries: { industry_key: string; industry: string }[];
+        };
+      };
+    }>("/organizations", { params }),
   /** Orgs the current actor manages (contact JSON). Org managers must use this, not `list`. */
   listMine: (params?: {
     page?: number;
@@ -1334,6 +1377,7 @@ export interface CampListItem {
   organization_name: string;
   organization_logo: string | null;
   engagement_ids: number[];
+  report_initialized?: boolean;
   departments: {
     count: number;
     departments: { name: string; slug: string }[];
@@ -1657,7 +1701,15 @@ export const expertsApi = {
     sort_by?: string;
     sort_dir?: "asc" | "desc";
   }) =>
-    api.get<{ data: ExpertListItem[]; meta: { page: number; limit: number; total: number } }>("/experts", {
+    api.get<{
+      data: ExpertListItem[];
+      meta: {
+        page: number;
+        limit: number;
+        total: number;
+        expert_types?: ExpertTypeItem[];
+      };
+    }>("/experts", {
       params,
     }),
   get: (expertId: number) =>
@@ -1925,6 +1977,14 @@ export interface AvailabilityOverridePayload {
 }
 
 export const expertAvailabilityPortalApi = {
+  bootstrap: () =>
+    api.get<{
+      data: {
+        expert_id: number;
+        availability_blocks: AvailabilityBlock[];
+        overrides: AvailabilityOverride[];
+      };
+    }>("/experts/portal/availability/bootstrap"),
   listBlocks: () =>
     api.get<{ data: AvailabilityBlock[] }>("/experts/portal/availability"),
   createBlock: (payload: AvailabilityBlockPayload) =>
@@ -2218,12 +2278,28 @@ export const engagementsApi = {
     sort_dir?: "asc" | "desc";
     date?: string;
   }) =>
-    api.get<{ data: EngagementListItem[]; meta: { page: number; limit: number; total: number } }>(
-      "/engagements",
-      { params }
-    ),
+    api.get<{
+      data: EngagementListItem[];
+      meta: {
+        page: number;
+        limit: number;
+        total: number;
+        filter_options?: { engagement_types: string[]; cities: string[] };
+      };
+    }>("/engagements", { params }),
   filterOptions: () =>
     api.get<{ data: { engagement_types: string[]; cities: string[] } }>("/engagements/filter-options"),
+  formBootstrap: () =>
+    api.get<{
+      data: {
+        engagement_types: EngagementTypeItem[];
+        organizations: OrganizationListItem[];
+        assessment_packages: AssessmentPackage[];
+        diagnostic_packages: DiagnosticPackageListItem[];
+        notification_services: NotificationServiceItem[];
+        expert_types: ExpertTypeItem[];
+      };
+    }>("/engagements/form-bootstrap"),
   resolveHealthiansZone: (payload: {
     diagnostic_package_id: number;
     latitude: number;
@@ -2312,6 +2388,7 @@ export interface AssessmentPackage {
   assessment_type_code?: string | null;
   subscription_id?: string | null;
   status?: string | null;
+  category_count?: number;
   created_at?: string | null;
   updated_at?: string | null;
 }
@@ -2731,6 +2808,21 @@ export type RemoveReportsResult = {
 };
 
 export const participantsApi = {
+  bootstrap: (
+    engagementId: number,
+    params?: { page?: number; limit?: number; include_expert_types?: boolean }
+  ) =>
+    api.get<{
+      data: {
+        engagement: Record<string, unknown>;
+        organization: Record<string, unknown> | null;
+        booking_dates: Record<string, unknown>;
+        filter_options: EngagementParticipantFilterOptions;
+        participants: Participant[];
+        expert_types?: ExpertTypeItem[];
+      };
+      meta: { page: number; limit: number; total: number };
+    }>(`/engagements/${engagementId}/participants/bootstrap`, { params }),
   byEngagementId: (engagementId: number, params?: ParticipantListQueryParams) =>
     api.get<{ data: Participant[]; meta?: { page?: number; limit?: number; total: number } }>(
       `/engagements/${engagementId}/participants`,
@@ -3161,6 +3253,11 @@ export interface ConsoleQuestionnairePayload {
 export const consoleApi = {
   listEngagements: () =>
     api.get<{ data: ConsoleEngagementListItem[] }>("/engagements/console/engagements"),
+  bootstrap: (id: number, params?: { page?: number; limit?: number }) =>
+    api.get<{
+      data: { engagement: ConsoleEngagementListItem; participants: Participant[] };
+      meta: { page: number; limit: number; total: number };
+    }>(`/engagements/${id}/console/bootstrap`, { params }),
   getEngagement: (id: number) =>
     api.get<{ data: ConsoleEngagementListItem }>(`/engagements/${id}/console`),
   listParticipants: (id: number, params?: { page?: number; limit?: number }) =>
@@ -3737,6 +3834,8 @@ export const diagnosticPackagesApi = {
     api.post<{ data: DiagnosticReason }>(`/diagnostic-packages/${id}/reasons`, payload),
   updateReason: (id: number, reasonId: number, payload: { reason_text?: string; display_order?: number }) =>
     api.put<{ data: DiagnosticReason }>(`/diagnostic-packages/${id}/reasons/${reasonId}`, payload),
+  reorderReasons: (id: number, payload: { reason_ids: number[] }) =>
+    api.patch<{ data: { reordered: boolean } }>(`/diagnostic-packages/${id}/reasons/order`, payload),
   deleteReason: (id: number, reasonId: number) =>
     api.delete<{ data: { reason_id: number; deleted: boolean } }>(`/diagnostic-packages/${id}/reasons/${reasonId}`),
   addTag: (id: number, payload: { tag_name: string; display_order?: number }) =>
@@ -3890,6 +3989,8 @@ export const diagnosticFilterChipsApi = {
     api.delete<{ data: { filter_chip_id: number; deleted: boolean } }>(
       `/diagnostic-packages/filters-chips/${filterChipId}`
     ),
+  reorder: (payload: { filter_chip_ids: number[] }) =>
+    api.patch<{ data: { reordered: boolean } }>("/diagnostic-packages/filters-chips/order", payload),
 };
 
 export type HealthParameterType = "test" | "metric";
@@ -4260,7 +4361,10 @@ export interface DiscountOption {
 
 export const discountsApi = {
   list: (params?: { status?: string; search?: string; limit?: number; offset?: number }) =>
-    api.get<{ data: { items: DiscountCodeRow[]; total: number } }>("/discounts", { params }),
+    api.get<{
+      data: { items: DiscountCodeRow[]; total: number };
+      meta?: { abuse_events_24h?: number };
+    }>("/discounts", { params }),
 
   get: (id: number) => api.get<{ data: DiscountCodeRow }>(`/discounts/${id}`),
 
@@ -4319,6 +4423,7 @@ export interface ChecklistTemplate {
   audience?: "internal" | "user";
   created_at: string;
   created_employee_id?: number | null;
+  items_count?: number;
 }
 
 export interface ChecklistTemplateDetail extends ChecklistTemplate {
@@ -4379,6 +4484,11 @@ export const checklistTemplatesApi = {
   ) =>
     api.put<{ data: ChecklistTemplateItem; meta: Record<string, unknown> }>(
       `/checklist-templates/${templateId}/items/${itemId}`,
+      body
+    ),
+  reorderItems: (templateId: number, body: { item_ids: number[] }) =>
+    api.patch<{ data: { reordered: boolean } }>(
+      `/checklist-templates/${templateId}/items/order`,
       body
     ),
   deleteItem: (templateId: number, itemId: number) =>
@@ -4735,6 +4845,11 @@ export interface ServerHealthCurrent {
 }
 
 export const serverHealthApi = {
+  overview: (params?: { limit?: number }) =>
+    api.get<{
+      data: { current: ServerHealthCurrent | null; history: HealthRun[] };
+      meta: { limit: number; total: number };
+    }>("/server-health/overview", { params }),
   current: () => api.get<{ data: ServerHealthCurrent | null }>("/server-health/current"),
   history: (params?: { limit?: number; from?: string; to?: string }) =>
     api.get<{ data: HealthRun[]; meta: { limit: number; total: number } }>(
@@ -4833,7 +4948,45 @@ export interface DashboardYearStats {
   available_years: number[];
 }
 
+export interface DashboardOverviewPayload {
+  year_stats: DashboardYearStats;
+  users: {
+    total_users: number;
+    active_users: number;
+    yearly_totals: { year: number; new_users: number; total_users: number }[];
+  };
+  engagement_participants_total: number;
+  payment_status_totals: { pending: number; confirmed: number; cancelled: number };
+  ticket_counts: { open: number; resolved: number; closed: number };
+  failed_notifications_count: number;
+  generated_at: string;
+  operations: {
+    engagements: {
+      running_today: EngagementListItem[];
+      running_this_week: EngagementListItem[];
+      org_names: Record<number, string>;
+      truncated: boolean;
+    };
+    participant_issues: ParticipantIssueItem[];
+    pending_payments: (BookingListItem & { pending_minutes?: number })[];
+    failed_notifications: NotificationItem[];
+    tickets: { open: SupportTicket[] };
+    serviceability_issues: {
+      sync_log_id: number;
+      user_id: number | null;
+      engagement_id: number | null;
+      participant_label: string;
+      location_label: string;
+      issue_message: string;
+      engagement_label: string;
+      failed_at: string;
+    }[];
+  };
+}
+
 export const dashboardApi = {
+  overview: () =>
+    api.get<{ data: DashboardOverviewPayload }>("/admin/dashboard/overview"),
   yearStats: (year: number) =>
     api.get<{ data: DashboardYearStats }>("/admin/dashboard/year-stats", {
       params: { year },

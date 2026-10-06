@@ -1173,6 +1173,17 @@ export function Engagements({
       .catch((err) => setError(getApiError(err)));
   }, []);
 
+  const loadFormBootstrap = useCallback(async () => {
+    const res = await engagementsApi.formBootstrap();
+    const data = res.data.data;
+    setEngagementTypes(data.engagement_types ?? []);
+    setOrganizations(data.organizations ?? []);
+    setAssessmentPackages(data.assessment_packages ?? []);
+    setDiagnosticPackages(data.diagnostic_packages ?? []);
+    setNotificationServices((data.notification_services ?? []).filter((s) => s.is_active));
+    return data;
+  }, []);
+
   useEffect(() => {
     const state = location.state as
       | {
@@ -1195,34 +1206,6 @@ export function Engagements({
       state: Object.keys(nextState).length > 0 ? nextState : null,
     });
   }, [location.pathname, location.search, location.state, navigate]);
-
-  useEffect(() => {
-    engagementsApi
-      .filterOptions()
-      .then((res) => {
-        setCityOptions(res.data.data.cities);
-      })
-      .catch(() => {
-        setCityOptions([]);
-      });
-  }, []);
-
-  useEffect(() => {
-    engagementTypesApi
-      .list()
-      .then((res) => setEngagementTypes(res.data.data ?? []))
-      .catch(() => setEngagementTypes([]));
-  }, []);
-
-  useEffect(() => {
-    notificationsApi
-      .listServices()
-      .then((res) => {
-        const active = (res.data.data ?? []).filter((s) => s.is_active);
-        setNotificationServices(active);
-      })
-      .catch(() => setNotificationServices([]));
-  }, []);
 
   const notificationServiceLabel = (serviceKey: string | null | undefined) => {
     const key = (serviceKey ?? "").trim();
@@ -1248,6 +1231,12 @@ export function Engagements({
       });
       setData(res.data.data);
       setTotal(res.data.meta.total);
+      const filterOptions = res.data.meta.filter_options as
+        | { cities?: string[]; engagement_types?: string[] }
+        | undefined;
+      if (filterOptions?.cities) {
+        setCityOptions(filterOptions.cities);
+      }
     } catch (err) {
       setError(getApiError(err));
     } finally {
@@ -1265,12 +1254,6 @@ export function Engagements({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [statusFilterOpen]);
-
-  useEffect(() => {
-    fetchOrgs();
-    fetchPackages();
-    fetchDiagnostics();
-  }, [fetchOrgs, fetchPackages, fetchDiagnostics]);
 
   useEffect(() => {
     fetchList();
@@ -1294,14 +1277,17 @@ export function Engagements({
   };
 
   const openAdd = (preset?: Partial<EngagementCreate>) => {
-    setSelected(null);
-    const today = new Date().toISOString().slice(0, 10);
-    const nextOrganizationId =
-      preset?.organization_id ?? organizations[0]?.organization_id ?? 0;
-    const nextAssessmentPackageId =
-      preset?.assessment_package_id ?? assessmentPackages[0]?.package_id ?? 0;
+    void loadFormBootstrap().then((data) => {
+      setSelected(null);
+      const today = new Date().toISOString().slice(0, 10);
+      const orgs = data.organizations ?? [];
+      const packages = data.assessment_packages ?? [];
+      const nextOrganizationId =
+        preset?.organization_id ?? orgs[0]?.organization_id ?? 0;
+      const nextAssessmentPackageId =
+        preset?.assessment_package_id ?? packages[0]?.package_id ?? 0;
 
-    setFormData({
+      setFormData({
       engagement_name: preset?.engagement_name ?? "",
       metsights_engagement_id: preset?.metsights_engagement_id ?? "",
       organization_id: nextOrganizationId,
@@ -1332,25 +1318,28 @@ export function Engagements({
       load_prev_assessment_questionnaires: preset?.load_prev_assessment_questionnaires ?? false,
       load_prev_questionnaire_category_keys: preset?.load_prev_questionnaire_category_keys ?? null,
       slot_detail: preset?.slot_detail ?? null,
+      });
+      setModalMode("add");
+      setModalOpen(true);
     });
-    setModalMode("add");
-    setModalOpen(true);
   };
 
   useEffect(() => {
     if (!pendingEngagementPreset) return;
     if (modalOpen) return;
-    if (organizations.length === 0 || assessmentPackages.length === 0) return;
-    openAdd({
-      organization_id: pendingEngagementPreset.organization_id,
-      engagement_name: pendingEngagementPreset.orgName ?? "",
-      city: pendingEngagementPreset.city ?? "",
+    void loadFormBootstrap().then(() => {
+      openAdd({
+        organization_id: pendingEngagementPreset.organization_id,
+        engagement_name: pendingEngagementPreset.orgName ?? "",
+        city: pendingEngagementPreset.city ?? "",
+      });
+      setPendingEngagementPreset(null);
     });
-    setPendingEngagementPreset(null);
-  }, [pendingEngagementPreset, organizations, assessmentPackages, modalOpen]);
+  }, [pendingEngagementPreset, modalOpen, loadFormBootstrap]);
 
   const openEdit = (row: EngagementListItem) => {
-    engagementsApi.get(row.engagement_id).then(async (res) => {
+    void loadFormBootstrap().then(() =>
+      engagementsApi.get(row.engagement_id).then(async (res) => {
       const e = res.data.data;
       await ensureOrgInList(e.organization_id);
       setSelected(e);
@@ -1389,7 +1378,8 @@ export function Engagements({
       });
       setModalMode("edit");
       setModalOpen(true);
-    }).catch((err) => setError(getApiError(err)));
+    }).catch((err) => setError(getApiError(err)))
+    ).catch((err) => setError(getApiError(err)));
   };
 
   const resolveOrganizationId = (data: EngagementCreate) =>

@@ -267,18 +267,9 @@ export function Settings() {
   const engAbortRef = useRef<AbortController | null>(null);
   const engRunningRef = useRef(false);
 
-  const loadB2c = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    setSaveOk(null);
+  const loadB2cPickers = useCallback(async () => {
     try {
-      const [defaultsRes, typesRes, assistantDefaultsRes, supportQueryRes, geocodingRes, notifServicesRes, aPkgs, dRes, partnersRes] =
-        await Promise.all([
-        platformSettingsApi.getB2cOnboarding(),
-        engagementTypesApi.list({ is_active: true }),
-        platformSettingsApi.getDefaultOnboardingAssistants(),
-        platformSettingsApi.getSupportQueryNotification(),
-        platformSettingsApi.getGeocodingProvider(),
+      const [notifServicesRes, aPkgs, dRes, partnersRes] = await Promise.all([
         mayViewNotifications ? notificationsApi.listServices() : Promise.resolve(null),
         mayViewAssessments
           ? fetchAllPages<AssessmentPackage>((page, limit) =>
@@ -290,8 +281,29 @@ export function Settings() {
           ? partnersApi.list({ status: "active", role: "phlebo", limit: 100 })
           : Promise.resolve(null),
       ]);
+      setNotificationServices(
+        (notifServicesRes?.data.data ?? []).filter((s) => s.is_active !== false)
+      );
+      setAssessmentPackages(aPkgs);
+      setDefaultAssistantPartners(partnersRes?.data.data ?? []);
+      const dPkgs = (dRes?.data.data ?? []).filter(
+        (p) => (p.status ?? "active").toLowerCase() === "active"
+      );
+      setDiagnosticPackages(dPkgs);
+    } catch {
+      // Pickers are optional until a settings control needs them.
+    }
+  }, [mayViewAssessments, mayViewDiagnostics, mayViewPartners, mayViewNotifications]);
 
-      const types = typesRes.data.data ?? [];
+  const loadB2c = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setSaveOk(null);
+    try {
+      const bootstrapRes = await platformSettingsApi.bootstrap();
+      const payload = bootstrapRes.data.data;
+
+      const types = payload.engagement_types ?? [];
       const typeCodes = types.map((t) => t.code);
       setB2cEngagementTypes(types);
       setActiveEngagementType((prev) => {
@@ -299,36 +311,28 @@ export function Settings() {
         return typeCodes.includes("bio_ai") ? "bio_ai" : typeCodes[0];
       });
 
-      const d = defaultsRes.data.data;
+      const d = payload.b2c_onboarding;
       const mapped = buildDefaultsByType(typeCodes, d.defaults_by_engagement_type);
       setDefaultsByType(mapped);
       setSavedDefaultsByType(mapped);
-      setSelectedDefaultAssistantIds(new Set(assistantDefaultsRes.data.data.employee_ids ?? []));
+      setSelectedDefaultAssistantIds(
+        new Set(payload.default_onboarding_assistants.employee_ids ?? [])
+      );
       setSupportQueryNotification(
-        supportQueryRes.data.data?.default_support_query_notification ?? null
+        payload.support_query_notification?.default_support_query_notification ?? null
       );
-      setGeocodingProvider(geocodingRes.data.data?.geocoding_provider ?? "google");
-      setNotificationServices(
-        (notifServicesRes?.data.data ?? []).filter((s) => s.is_active !== false)
-      );
-
-      setAssessmentPackages(aPkgs);
-      setDefaultAssistantPartners(partnersRes?.data.data ?? []);
-      const dPkgs = (dRes?.data.data ?? []).filter(
-        (p) => (p.status ?? "active").toLowerCase() === "active"
-      );
-      setDiagnosticPackages(dPkgs);
+      setGeocodingProvider(payload.geocoding_provider?.geocoding_provider ?? "google");
     } catch (err) {
       setError(getApiError(err));
     } finally {
       setLoading(false);
     }
-  }, [
-    mayViewAssessments,
-    mayViewDiagnostics,
-    mayViewPartners,
-    mayViewNotifications,
-  ]);
+  }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    void loadB2cPickers();
+  }, [loading, loadB2cPickers]);
 
   const refreshMsStats = useCallback(async () => {
     setMsStatsLoading(true);

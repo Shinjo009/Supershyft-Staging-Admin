@@ -97,6 +97,17 @@ const DEFAULT_COLUMN_FILTERS: ColumnFilters = {
   consultationFilters: {},
 };
 
+function columnFiltersAreDefault(filters: ColumnFilters): boolean {
+  return (
+    !filters.engagementDate &&
+    !filters.bookingDate &&
+    !filters.department &&
+    filters.bookingId === "all" &&
+    filters.reportsReady === "all" &&
+    Object.keys(filters.consultationFilters).length === 0
+  );
+}
+
 const PARTICIPANTS_PAGE_SIZE = 50;
 /** Chunk size for load blood/BioAI requests — small enough for visible progress. */
 const LOAD_REPORTS_CHUNK_SIZE = 10;
@@ -863,13 +874,50 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
         setParticipants((prev) => (append ? [...prev, ...chunk] : chunk));
         setTotal(Number(res.data.meta?.total ?? chunk.length));
       } else if (source.kind === "engagement-id") {
-        const res = await participantsApi.byEngagementId(
-          source.engagementId,
-          buildListParams()
-        );
-        const chunk = res.data.data ?? [];
-        setParticipants((prev) => (append ? [...prev, ...chunk] : chunk));
-        setTotal(Number(res.data.meta?.total ?? chunk.length));
+        if (
+          page === 1 &&
+          !debouncedSearch &&
+          columnFiltersAreDefault(columnFilters)
+        ) {
+          setBookingDatesLoading(true);
+          const res = await participantsApi.bootstrap(source.engagementId, {
+            page: 1,
+            limit: PARTICIPANTS_PAGE_SIZE,
+            include_expert_types: mayViewExperts,
+          });
+          const payload = res.data.data;
+          const eng = payload.engagement as Record<string, unknown>;
+          setEngagementConsultations((eng.consultations as typeof engagementConsultations) ?? null);
+          setEngagementPublicSlotDetail((eng.public_slot_detail as string | null) ?? null);
+          setEngagementBloodCollectionType((eng.blood_collection_type as string | null) ?? null);
+          const orgId = (eng.organization_id as number | null) ?? null;
+          setOrganizationId(orgId);
+          const org = payload.organization as { name?: string; departments?: typeof orgDepartments } | null;
+          setOrganizationName(org?.name?.trim() || null);
+          setOrgDepartments(org?.departments ?? []);
+          const booking = payload.booking_dates as {
+            dates?: string[];
+            user_ids_by_date?: Record<string, number[]>;
+          };
+          setBookingDateOptions(booking?.dates ?? []);
+          setBookingDateUserIdsByDate(booking?.user_ids_by_date ?? {});
+          setEngagementDateOptions(payload.filter_options?.engagement_dates ?? []);
+          if (payload.expert_types) {
+            setExpertTypes(payload.expert_types);
+          }
+          setBookingDatesLoading(false);
+          const chunk = payload.participants ?? [];
+          setParticipants(chunk);
+          setTotal(Number(res.data.meta?.total ?? chunk.length));
+        } else {
+          const res = await participantsApi.byEngagementId(
+            source.engagementId,
+            buildListParams()
+          );
+          const chunk = res.data.data ?? [];
+          setParticipants((prev) => (append ? [...prev, ...chunk] : chunk));
+          setTotal(Number(res.data.meta?.total ?? chunk.length));
+        }
       } else {
         const res =
           source.kind === "engagement-code"
@@ -895,7 +943,7 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
         setLoading(false);
       }
     }
-  }, [source, page, buildListParams]);
+  }, [source, page, buildListParams, debouncedSearch, columnFilters, mayViewExperts]);
 
   const fetchParticipantStats = useCallback(async () => {
     if (source.kind !== "engagement-id") {
@@ -953,31 +1001,7 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
       setConsultationConfigLoaded(true);
       return;
     }
-    try {
-      const engagementRes = await engagementsApi.get(source.engagementId);
-      const orgId = engagementRes.data.data.organization_id ?? null;
-      setEngagementConsultations(engagementRes.data.data.consultations ?? null);
-      setEngagementPublicSlotDetail(engagementRes.data.data.public_slot_detail ?? null);
-      setEngagementBloodCollectionType(engagementRes.data.data.blood_collection_type ?? null);
-      setConsultationConfigLoaded(true);
-      setOrganizationId(orgId);
-      if (orgId) {
-        const orgRes = await organizationsApi.get(orgId);
-        setOrganizationName(orgRes.data.data.name?.trim() || null);
-        setOrgDepartments(orgRes.data.data.departments ?? []);
-      } else {
-        setOrganizationName(null);
-        setOrgDepartments([]);
-      }
-    } catch {
-      setOrgDepartments([]);
-      setOrganizationId(null);
-      setOrganizationName(null);
-      setEngagementConsultations(null);
-      setEngagementPublicSlotDetail(null);
-      setEngagementBloodCollectionType(null);
-      setConsultationConfigLoaded(true);
-    }
+    setConsultationConfigLoaded(true);
   }, [source]);
 
   const fetchBookingDates = useCallback(async () => {
@@ -987,33 +1011,16 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
       setEngagementDateOptions([]);
       return;
     }
-
-    setBookingDatesLoading(true);
-    try {
-      const [bookingDatesRes, filterOptionsRes] = await Promise.all([
-        participantsApi.bookingDates(source.engagementId),
-        participantsApi.filterOptions(source.engagementId),
-      ]);
-      const data = bookingDatesRes.data.data;
-      setBookingDateOptions(data.dates ?? []);
-      setBookingDateUserIdsByDate(data.user_ids_by_date ?? {});
-      setEngagementDateOptions(filterOptionsRes.data.data.engagement_dates ?? []);
-    } catch {
-      setBookingDateOptions([]);
-      setBookingDateUserIdsByDate({});
-      setEngagementDateOptions([]);
-    } finally {
-      setBookingDatesLoading(false);
-    }
+    // Populated via participants bootstrap on first page load.
   }, [source]);
 
   useEffect(() => {
-    if (!mayViewExperts) {
-      setExpertTypes([]);
+    if (!mayViewExperts || source.kind === "engagement-id") {
+      if (source.kind !== "engagement-id") setExpertTypes([]);
       return;
     }
     expertTypesApi.list().then((res) => setExpertTypes(res.data.data)).catch(() => {});
-  }, [mayViewExperts]);
+  }, [mayViewExperts, source.kind]);
 
   useEffect(() => {
     const userId = collectionsDrawerParticipant?.user_id;

@@ -205,17 +205,14 @@ export function ParticipantJourneyPage() {
     setLoading(true);
     setError(null);
     try {
-      const [userRes, journeyRes] = await Promise.all([
-        usersApi.get(userId),
-        participantJourneyApi.summary(userId, { page: 1, limit: 100 }),
-      ]);
-      const userData = userRes.data.data;
+      const res = await participantJourneyApi.pageBootstrap(userId, { page: 1, limit: 100 });
+      const userData = res.data.data.user;
       setUser(userData);
       setMetsightsProfileInput(userData.metsights_profile_id ?? "");
       setMetsightsProfileError(null);
       setMetsightsProfileSuccess(null);
-      setInstances(journeyRes.data.data.instances ?? []);
-      setMeta(journeyRes.data.meta);
+      setInstances(res.data.data.journey.instances ?? []);
+      setMeta(res.data.meta);
     } catch (err) {
       setError(getApiError(err));
       setUser(null);
@@ -263,25 +260,27 @@ export function ParticipantJourneyPage() {
       const importedByCategory: string[] = [];
       const errors: string[] = [];
 
-      for (const cat of metsightsCategories) {
-        try {
-          const res = await assessmentsApi.importMetsightsCategoryAnswers(instanceId, {
-            category: cat.category_key!.trim(),
-            category_of: "metsights",
-            reload: 1,
-          });
-          const result = res.data.data;
-          if (result.status === "skipped") {
-            categoriesSkipped += 1;
-          } else {
-            const n = result.responses_imported ?? 0;
-            totalImported += n;
-            if (n > 0) {
-              importedByCategory.push(`${cat.category_key}: ${n}`);
-            }
+      const batchRes = await assessmentsApi.importMetsightsCategoryAnswersBatch(instanceId, {
+        categories: metsightsCategories.map((cat) => ({
+          category: cat.category_key!.trim(),
+          category_of: "metsights",
+          reload: 1,
+        })),
+      });
+      for (const row of batchRes.data.data.results) {
+        if (!row.ok) {
+          errors.push(`${row.category}: ${row.message ?? "Import failed"}`);
+          continue;
+        }
+        const result = row.result;
+        if (result.status === "skipped") {
+          categoriesSkipped += 1;
+        } else {
+          const n = result.responses_imported ?? 0;
+          totalImported += n;
+          if (n > 0) {
+            importedByCategory.push(`${row.category}: ${n}`);
           }
-        } catch (err) {
-          errors.push(`${cat.category_key}: ${getApiError(err)}`);
         }
       }
 

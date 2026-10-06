@@ -74,11 +74,17 @@ async function fetchAllParticipants(engagementId: number): Promise<Participant[]
   let total = Infinity;
 
   while (all.length < total) {
-    const res = await participantsApi.byEngagementId(engagementId, {
-      page,
-      limit: PAGE_LIMIT,
-    });
-    const chunk = res.data.data ?? [];
+    const res =
+      page === 1
+        ? await participantsApi.bootstrap(engagementId, { page: 1, limit: PAGE_LIMIT })
+        : await participantsApi.byEngagementId(engagementId, {
+            page,
+            limit: PAGE_LIMIT,
+          });
+    const chunk =
+      page === 1
+        ? ((res.data.data as { participants?: Participant[] }).participants ?? [])
+        : (res.data.data ?? []);
     total = Number(res.data.meta?.total ?? chunk.length);
     all.push(...chunk);
     if (chunk.length === 0) break;

@@ -232,22 +232,30 @@ export function ServerHealth() {
     }
   }, []);
 
-  const fetchHistory = useCallback(async () => {
-    setLoadingHistory(true);
+  const loadOverview = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoadingCurrent(true);
+      setLoadingHistory(true);
+    }
     try {
-      const res = await serverHealthApi.history({ limit: 50 });
-      setHistory(res.data.data);
+      const res = await serverHealthApi.overview({ limit: 50 });
+      setCurrent(res.data.data.current);
+      setHistory(res.data.data.history ?? []);
       setError(null);
+      setLastRefreshedAt(new Date());
     } catch (err) {
       setError(getApiError(err));
     } finally {
-      setLoadingHistory(false);
+      if (!silent) {
+        setLoadingCurrent(false);
+        setLoadingHistory(false);
+      }
     }
   }, []);
 
   const refreshAll = useCallback(async (silent = false) => {
-    await Promise.all([fetchCurrent(silent), fetchHistory()]);
-  }, [fetchCurrent, fetchHistory]);
+    await loadOverview(silent);
+  }, [loadOverview]);
 
   useEffect(() => {
     void refreshAll();

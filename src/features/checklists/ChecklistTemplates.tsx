@@ -106,16 +106,10 @@ export function ChecklistTemplates() {
     try {
       const res = await checklistTemplatesApi.list();
       const templates = res.data.data;
-      const enriched: TemplateRow[] = await Promise.all(
-        templates.map(async (t) => {
-          try {
-            const d = await checklistTemplatesApi.get(t.template_id);
-            return { ...t, itemsCount: d.data.data.items?.length ?? 0 };
-          } catch {
-            return { ...t, itemsCount: 0 };
-          }
-        })
-      );
+      const enriched: TemplateRow[] = templates.map((t) => ({
+        ...t,
+        itemsCount: t.items_count ?? 0,
+      }));
       setRows(enriched);
     } catch (err) {
       setError(getApiError(err));
@@ -332,13 +326,9 @@ export function ChecklistTemplates() {
     setReorderSaving(true);
     setDrawerError(null);
     try {
-      await Promise.all(
-        optimistic.items.map((item, idx) =>
-          checklistTemplatesApi.updateItem(drawerDetail.template_id, item.item_id, {
-            display_order: idx + 1,
-          })
-        )
-      );
+      await checklistTemplatesApi.reorderItems(drawerDetail.template_id, {
+        item_ids: optimistic.items.map((item) => item.item_id),
+      });
       await refreshDrawer(drawerDetail.template_id);
       await fetchRows();
     } catch (err) {
