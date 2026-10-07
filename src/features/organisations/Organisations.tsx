@@ -187,21 +187,6 @@ export function Organisations() {
     }
   }, [activeTab, navigate, tabParam]);
 
-  useEffect(() => {
-    organizationsApi
-      .filterOptions()
-      .then((res) => {
-        setCityOptions(res.data.data.cities);
-        setCountryOptions(res.data.data.countries);
-        setIndustryOptions(res.data.data.industries || []);
-      })
-      .catch(() => {
-        setCityOptions([]);
-        setCountryOptions([]);
-        setIndustryOptions([]);
-      });
-  }, []);
-
   const fetchList = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -230,6 +215,14 @@ export function Organisations() {
         });
         setData(res.data.data);
         setTotal(res.data.meta.total);
+        const filterOptions = res.data.meta.filter_options as
+          | { cities?: string[]; countries?: string[]; industries?: { industry_key: string; industry: string }[] }
+          | undefined;
+        if (filterOptions) {
+          setCityOptions(filterOptions.cities ?? []);
+          setCountryOptions(filterOptions.countries ?? []);
+          setIndustryOptions(filterOptions.industries ?? []);
+        }
       }
     } catch (err) {
       setError(getApiError(err));
@@ -260,19 +253,13 @@ export function Organisations() {
         sort_by: campsSortKey,
         sort_dir: campsSortDir,
       };
-      const [res, initializedRes] = await Promise.all([
-        organizationsApi.listCamps({ ...params, initialized_only: false }),
-        organizationsApi.listCamps({
-          page: 1,
-          limit: 100,
-          search: campsSearch.trim() || undefined,
-          initialized_only: true,
-        }),
-      ]);
+      const res = await organizationsApi.listCamps({ ...params, initialized_only: false });
       const rows = res.data.data;
       setCampsData(rows);
       setCampsTotal(res.data.meta.total);
-      setInitializedCampNos(new Set(initializedRes.data.data.map((c) => c.camp_no)));
+      setInitializedCampNos(
+        new Set(rows.filter((c) => c.report_initialized).map((c) => c.camp_no))
+      );
       setSelectedCamp((curr) => {
         if (!curr) return curr;
         return rows.find((c) => c.camp_no === curr.camp_no) ?? curr;
@@ -418,11 +405,34 @@ export function Organisations() {
     return name ? `${name} (#${userId})` : `Partner #${userId}`;
   };
 
-  const loadContactPersonUsers = async (value: ContactPersonUserIds | null | undefined) => {
+  const loadContactPersonUsers = async (
+    value: ContactPersonUserIds | null | undefined,
+    labels?: Record<string, { name?: string | null; phone?: string | null }> | null
+  ) => {
     const partnerIds = collectContactPersonUserIds(value);
+    if (labels) {
+      setUsersById((prev) => {
+        const next = { ...prev };
+        for (const partnerId of partnerIds) {
+          if (next[partnerId]) continue;
+          const label = labels[String(partnerId)];
+          if (!label) continue;
+          const nameParts = (label.name ?? "").trim().split(/\s+/);
+          next[partnerId] = {
+            user_id: partnerId,
+            first_name: nameParts[0] ?? "",
+            last_name: nameParts.slice(1).join(" ") || null,
+            phone: label.phone,
+          } as UserListItem;
+        }
+        return next;
+      });
+      const missing = partnerIds.filter((id) => !labels[String(id)]);
+      if (missing.length === 0) return;
+    }
     await Promise.all(
       partnerIds.map(async (partnerId) => {
-        if (usersById[partnerId]) return;
+        if (labels?.[String(partnerId)]) return;
         try {
           const res = await partnersApi.get(partnerId);
           const p = res.data.data;
@@ -449,7 +459,7 @@ export function Organisations() {
     organizationsApi.get(row.organization_id).then(async (res) => {
       const org = res.data.data;
       setSelected(org);
-      await loadContactPersonUsers(org.contact_person_user_ids);
+      await loadContactPersonUsers(org.contact_person_user_ids, org.contact_partner_labels);
       await loadEngagementCitiesForOrg(org.organization_id);
       setModalMode("view");
       setModalOpen(true);

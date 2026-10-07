@@ -17,6 +17,7 @@ export interface AuthSessionProfile {
   employeeId?: number | null;
   partnerId?: number | null;
   permissions?: unknown;
+  pendingTaskCount?: number | null;
 }
 
 /** Migrate one-time from sessionStorage so existing sessions keep working. */

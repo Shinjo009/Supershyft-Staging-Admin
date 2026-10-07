@@ -30,7 +30,6 @@ import {
   type ConsoleEngagementListItem,
   type ConsoleParticipantBookResponse,
 } from "../../lib/api";
-import { fetchAllPages } from "../../lib/fetchAllPages";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -151,21 +150,23 @@ export function EngagementConsolePage() {
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [barcodeScannerOpen, setBarcodeScannerOpen] = useState(false);
 
+  const reloadParticipants = useCallback(async (): Promise<Participant[]> => {
+    if (!engId || isNaN(engId)) return [];
+    const res = await consoleApi.bootstrap(engId, { page: 1, limit: 100 });
+    const parts = res.data.data.participants;
+    setParticipants(parts);
+    return parts;
+  }, [engId]);
+
   const fetchData = useCallback(async () => {
     if (!engId || isNaN(engId)) return;
     setLoading(true);
     setError(null);
     setErrorKind(null);
     try {
-      const [engRes, parts] = await Promise.all([
-        consoleApi.getEngagement(engId),
-        fetchAllPages<Participant>(
-          (page, limit) => consoleApi.listParticipants(engId, { page, limit }),
-          100
-        ),
-      ]);
-      setEngagement(engRes.data.data);
-      setParticipants(parts);
+      const res = await consoleApi.bootstrap(engId, { page: 1, limit: 100 });
+      setEngagement(res.data.data.engagement);
+      setParticipants(res.data.data.participants);
     } catch (err) {
       const details = getApiErrorDetails(err);
       if (details.code === "ENGAGEMENT_NOT_RUNNING") {
@@ -384,11 +385,7 @@ export function EngagementConsolePage() {
       setSyncCollectionToNow(false);
       setModalMode("detail");
 
-      void fetchAllPages<Participant>(
-        (page, limit) => consoleApi.listParticipants(engId, { page, limit }),
-        100
-      ).then((parts) => {
-        setParticipants(parts);
+      void reloadParticipants().then((parts) => {
         const updated = parts.find((p) => p.user_id === userId);
         if (updated) setSelectedParticipant(updated);
       });
@@ -432,11 +429,7 @@ export function EngagementConsolePage() {
       setCancelRemarks("");
       setModalMode("detail");
 
-      void fetchAllPages<Participant>(
-        (page, limit) => consoleApi.listParticipants(engId, { page, limit }),
-        100
-      ).then((parts) => {
-        setParticipants(parts);
+      void reloadParticipants().then((parts) => {
         const updated = parts.find((p) => p.user_id === userId);
         if (updated) setSelectedParticipant(updated);
       });
@@ -1001,11 +994,7 @@ export function EngagementConsolePage() {
             setSelectedParticipant((prev) =>
               prev ? { ...prev, booking_id: bid } : prev
             );
-            void fetchAllPages<Participant>(
-              (page, limit) => consoleApi.listParticipants(engId, { page, limit }),
-              100
-            ).then((parts) => {
-              setParticipants(parts);
+            void reloadParticipants().then((parts) => {
               const updated = parts.find((p) => p.user_id === userId);
               if (updated) setSelectedParticipant(updated);
             });
@@ -1044,11 +1033,7 @@ export function EngagementConsolePage() {
                   }
                 : prev
             );
-            void fetchAllPages<Participant>(
-              (page, limit) => consoleApi.listParticipants(engId, { page, limit }),
-              100
-            ).then((parts) => {
-              setParticipants(parts);
+            void reloadParticipants().then((parts) => {
               const updated = parts.find((p) => p.user_id === userId);
               if (updated) setSelectedParticipant(updated);
             });

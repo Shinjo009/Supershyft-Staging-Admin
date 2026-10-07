@@ -82,17 +82,14 @@ export function Discounts() {
     setLoading(true);
     setError(null);
     try {
-      const [listRes, summaryRes] = await Promise.all([
-        discountsApi.list({
-          search: search || undefined,
-          status: statusFilter || undefined,
-          limit: 100,
-        }),
-        discountsApi.reportsSummary().catch(() => null),
-      ]);
+      const listRes = await discountsApi.list({
+        search: search || undefined,
+        status: statusFilter || undefined,
+        limit: 100,
+      });
       setItems(listRes.data.data.items || []);
       setTotal(listRes.data.data.total || 0);
-      if (summaryRes) setAbuseEvents(summaryRes.data.data.abuse_events_24h || 0);
+      setAbuseEvents(listRes.data.meta?.abuse_events_24h ?? 0);
     } catch (e: any) {
       setError(e?.response?.data?.message || e?.message || "Failed to load discounts");
     } finally {

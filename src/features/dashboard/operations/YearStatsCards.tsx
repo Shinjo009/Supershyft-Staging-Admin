@@ -231,13 +231,13 @@ export function YearStatsCards({
   engagements,
   showEngagements = false,
   onViewAllEngagements,
-  registerRefetch,
+  initialYearStats = null,
 }: {
   users: OverviewUsersStats;
   engagements?: SectionState<EngagementBuckets>;
   showEngagements?: boolean;
   onViewAllEngagements?: () => void;
-  registerRefetch?: (refetch: () => void) => void;
+  initialYearStats?: DashboardYearStats | null;
 }) {
   const navigate = useNavigate();
   const { canView } = usePermissions();
@@ -269,24 +269,44 @@ export function YearStatsCards({
       setBloodError(null);
       return;
     }
+    if (initialYearStats && bloodYear === initialYearStats.year) {
+      setBloodStats(initialYearStats);
+      if (showConsultations && bloodYear === consultationYear) {
+        setConsultationStats(initialYearStats);
+        setConsultationLoading(false);
+        setConsultationError(null);
+      }
+      setBloodLoading(false);
+      setBloodError(null);
+      return;
+    }
     setBloodLoading(true);
     setBloodError(null);
     try {
       const res = await dashboardApi.yearStats(bloodYear);
-      setBloodStats(res.data.data);
+      const payload = res.data.data;
+      setBloodStats(payload);
+      if (showConsultations && bloodYear === consultationYear) {
+        setConsultationStats(payload);
+        setConsultationLoading(false);
+        setConsultationError(null);
+      }
     } catch (err) {
       setBloodError(getApiError(err));
       setBloodStats(null);
     } finally {
       setBloodLoading(false);
     }
-  }, [showBlood, bloodYear]);
+  }, [showBlood, bloodYear, showConsultations, consultationYear, initialYearStats]);
 
   const fetchConsultationStats = useCallback(async () => {
     if (!showConsultations) {
       setConsultationStats(null);
       setConsultationLoading(false);
       setConsultationError(null);
+      return;
+    }
+    if (bloodYear === consultationYear) {
       return;
     }
     setConsultationLoading(true);
@@ -300,7 +320,7 @@ export function YearStatsCards({
     } finally {
       setConsultationLoading(false);
     }
-  }, [showConsultations, consultationYear]);
+  }, [showConsultations, consultationYear, bloodYear]);
 
   useEffect(() => {
     void fetchBloodStats();
@@ -309,13 +329,6 @@ export function YearStatsCards({
   useEffect(() => {
     void fetchConsultationStats();
   }, [fetchConsultationStats]);
-
-  useEffect(() => {
-    registerRefetch?.(() => {
-      void fetchBloodStats();
-      void fetchConsultationStats();
-    });
-  }, [fetchBloodStats, fetchConsultationStats, registerRefetch]);
 
   const bloodYears = bloodStats?.available_years?.length
     ? bloodStats.available_years

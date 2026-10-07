@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type {
   EngagementListItem,
@@ -13,7 +13,7 @@ import {
   formatPendingFor,
   formatShortDate,
 } from "./operationsDateUtils";
-import { DashboardOverview, type OverviewUsersStats } from "./DashboardOverview";
+import { DashboardOverview } from "./DashboardOverview";
 import { StatusPill, TruncateText, type OperationsColumn } from "./OperationsTable";
 import { OperationsViewAllModal } from "./OperationsViewAllModal";
 import type { PendingPaymentRow, ServiceabilityIssueRow } from "./operationsTypes";
@@ -58,33 +58,17 @@ function engagementStatusTone(status?: string | null): "emerald" | "amber" | "zi
 
 export function OperationsDashboard({
   registerRefetch,
-  users,
 }: {
   registerRefetch?: (refetch: () => void) => void;
-  users?: OverviewUsersStats;
 }) {
   const navigate = useNavigate();
   const ops = useOperationsDashboard();
-  const { refetch } = ops;
-  const yearStatsRefetch = useRef<() => void>(() => undefined);
-  const usersStats: OverviewUsersStats = users ?? {
-    show: false,
-    total: null,
-    active: null,
-    growth: [],
-    loading: false,
-    error: null,
-  };
+  const { refetch, usersStats, overview } = ops;
   const [viewAllKind, setViewAllKind] = useState<ViewAllKind | null>(null);
-
-  const registerYearStatsRefetch = useCallback((fn: () => void) => {
-    yearStatsRefetch.current = fn;
-  }, []);
 
   useEffect(() => {
     registerRefetch?.(() => {
       refetch();
-      yearStatsRefetch.current();
     });
   }, [refetch, registerRefetch]);
 
@@ -237,7 +221,7 @@ export function OperationsDashboard({
         engagements={ops.engagements}
         showEngagements={ops.showEngagements}
         onViewAllEngagements={() => openViewAll("engagements")}
-        registerRefetch={registerYearStatsRefetch}
+        initialYearStats={overview?.year_stats ?? null}
       />
 
       <DashboardOverview

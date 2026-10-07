@@ -55,6 +55,97 @@ import {
   normalizeSlotToHhmm,
 } from "../../features/engagements/bloodCollectionScheduleUtils";
 
+function parsePublicSlotDetail(raw: unknown): PublicSlotDetail | null {
+  if (raw == null) return null;
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw) as PublicSlotDetail;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof raw === "object") {
+    return raw as PublicSlotDetail;
+  }
+  return null;
+}
+
+type ParticipantsBootstrapResponse = Awaited<
+  ReturnType<typeof participantsApi.bootstrap>
+>;
+
+/** When the combined bootstrap route fails (timeout, missing deploy), load the same data via legacy endpoints. */
+async function fetchEngagementParticipantsBootstrap(
+  engagementId: number,
+  options: { limit: number; includeExpertTypes: boolean }
+): Promise<ParticipantsBootstrapResponse> {
+  try {
+    return await participantsApi.bootstrap(engagementId, {
+      page: 1,
+      limit: options.limit,
+      include_expert_types: options.includeExpertTypes,
+    });
+  } catch (bootstrapErr) {
+    try {
+      const [listRes, filterRes, bookingRes, engRes] = await Promise.all([
+        participantsApi.byEngagementId(engagementId, { page: 1, limit: options.limit }),
+        participantsApi.filterOptions(engagementId),
+        participantsApi.bookingDates(engagementId),
+        engagementsApi.get(engagementId),
+      ]);
+      const eng = engRes.data.data;
+      let organization: Record<string, unknown> | null = null;
+      const orgId = eng.organization_id ?? null;
+      if (orgId != null) {
+        try {
+          const orgRes = await organizationsApi.get(orgId);
+          organization = orgRes.data.data as unknown as Record<string, unknown>;
+        } catch {
+          /* org details optional for list view */
+        }
+      }
+      let expert_types: ExpertTypeItem[] | undefined;
+      if (options.includeExpertTypes) {
+        try {
+          const typesRes = await expertTypesApi.list();
+          expert_types = typesRes.data.data;
+        } catch {
+          /* expert types optional */
+        }
+      }
+      const chunk = listRes.data.data ?? [];
+      const listMeta = listRes.data.meta;
+      return {
+        data: {
+          data: {
+            engagement: {
+              engagement_id: eng.engagement_id,
+              engagement_name: eng.engagement_name,
+              engagement_code: eng.engagement_code,
+              organization_id: orgId,
+              consultations: eng.consultations,
+              public_slot_detail: eng.public_slot_detail,
+              blood_collection_type: eng.blood_collection_type,
+            },
+            organization,
+            booking_dates: bookingRes.data.data,
+            filter_options: filterRes.data.data,
+            participants: chunk,
+            expert_types,
+          },
+          meta: {
+            page: listMeta?.page ?? 1,
+            limit: listMeta?.limit ?? options.limit,
+            total: listMeta?.total ?? chunk.length,
+          },
+        },
+      } as unknown as ParticipantsBootstrapResponse;
+    } catch {
+      throw bootstrapErr;
+    }
+  }
+}
+
 type ScheduleDraft = {
   engagement_date: string;
   blood_collection_cabin: string;
@@ -96,6 +187,17 @@ const DEFAULT_COLUMN_FILTERS: ColumnFilters = {
   reportsReady: "all",
   consultationFilters: {},
 };
+
+function columnFiltersAreDefault(filters: ColumnFilters): boolean {
+  return (
+    !filters.engagementDate &&
+    !filters.bookingDate &&
+    !filters.department &&
+    filters.bookingId === "all" &&
+    filters.reportsReady === "all" &&
+    Object.keys(filters.consultationFilters).length === 0
+  );
+}
 
 const PARTICIPANTS_PAGE_SIZE = 50;
 /** Chunk size for load blood/BioAI requests — small enough for visible progress. */
@@ -863,13 +965,49 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
         setParticipants((prev) => (append ? [...prev, ...chunk] : chunk));
         setTotal(Number(res.data.meta?.total ?? chunk.length));
       } else if (source.kind === "engagement-id") {
-        const res = await participantsApi.byEngagementId(
-          source.engagementId,
-          buildListParams()
-        );
-        const chunk = res.data.data ?? [];
-        setParticipants((prev) => (append ? [...prev, ...chunk] : chunk));
-        setTotal(Number(res.data.meta?.total ?? chunk.length));
+        if (
+          page === 1 &&
+          !debouncedSearch &&
+          columnFiltersAreDefault(columnFilters)
+        ) {
+          setBookingDatesLoading(true);
+          const res = await fetchEngagementParticipantsBootstrap(source.engagementId, {
+            limit: PARTICIPANTS_PAGE_SIZE,
+            includeExpertTypes: mayViewExperts,
+          });
+          const payload = res.data.data;
+          const eng = payload.engagement as Record<string, unknown>;
+          setEngagementConsultations((eng.consultations as typeof engagementConsultations) ?? null);
+          setEngagementPublicSlotDetail(parsePublicSlotDetail(eng.public_slot_detail));
+          setEngagementBloodCollectionType((eng.blood_collection_type as string | null) ?? null);
+          const orgId = (eng.organization_id as number | null) ?? null;
+          setOrganizationId(orgId);
+          const org = payload.organization as { name?: string; departments?: typeof orgDepartments } | null;
+          setOrganizationName(org?.name?.trim() || null);
+          setOrgDepartments(org?.departments ?? []);
+          const booking = payload.booking_dates as {
+            dates?: string[];
+            user_ids_by_date?: Record<string, number[]>;
+          };
+          setBookingDateOptions(booking?.dates ?? []);
+          setBookingDateUserIdsByDate(booking?.user_ids_by_date ?? {});
+          setEngagementDateOptions(payload.filter_options?.engagement_dates ?? []);
+          if (payload.expert_types) {
+            setExpertTypes(payload.expert_types);
+          }
+          setBookingDatesLoading(false);
+          const chunk = payload.participants ?? [];
+          setParticipants(chunk);
+          setTotal(Number(res.data.meta?.total ?? chunk.length));
+        } else {
+          const res = await participantsApi.byEngagementId(
+            source.engagementId,
+            buildListParams()
+          );
+          const chunk = res.data.data ?? [];
+          setParticipants((prev) => (append ? [...prev, ...chunk] : chunk));
+          setTotal(Number(res.data.meta?.total ?? chunk.length));
+        }
       } else {
         const res =
           source.kind === "engagement-code"
@@ -883,6 +1021,7 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
         setTotal(Number(res.data.meta?.total ?? chunk.length));
       }
     } catch (err) {
+      setBookingDatesLoading(false);
       if (!append) {
         setParticipants([]);
         setTotal(0);
@@ -895,7 +1034,7 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
         setLoading(false);
       }
     }
-  }, [source, page, buildListParams]);
+  }, [source, page, buildListParams, debouncedSearch, columnFilters, mayViewExperts]);
 
   const fetchParticipantStats = useCallback(async () => {
     if (source.kind !== "engagement-id") {
@@ -953,31 +1092,7 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
       setConsultationConfigLoaded(true);
       return;
     }
-    try {
-      const engagementRes = await engagementsApi.get(source.engagementId);
-      const orgId = engagementRes.data.data.organization_id ?? null;
-      setEngagementConsultations(engagementRes.data.data.consultations ?? null);
-      setEngagementPublicSlotDetail(engagementRes.data.data.public_slot_detail ?? null);
-      setEngagementBloodCollectionType(engagementRes.data.data.blood_collection_type ?? null);
-      setConsultationConfigLoaded(true);
-      setOrganizationId(orgId);
-      if (orgId) {
-        const orgRes = await organizationsApi.get(orgId);
-        setOrganizationName(orgRes.data.data.name?.trim() || null);
-        setOrgDepartments(orgRes.data.data.departments ?? []);
-      } else {
-        setOrganizationName(null);
-        setOrgDepartments([]);
-      }
-    } catch {
-      setOrgDepartments([]);
-      setOrganizationId(null);
-      setOrganizationName(null);
-      setEngagementConsultations(null);
-      setEngagementPublicSlotDetail(null);
-      setEngagementBloodCollectionType(null);
-      setConsultationConfigLoaded(true);
-    }
+    setConsultationConfigLoaded(true);
   }, [source]);
 
   const fetchBookingDates = useCallback(async () => {
@@ -987,33 +1102,16 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
       setEngagementDateOptions([]);
       return;
     }
-
-    setBookingDatesLoading(true);
-    try {
-      const [bookingDatesRes, filterOptionsRes] = await Promise.all([
-        participantsApi.bookingDates(source.engagementId),
-        participantsApi.filterOptions(source.engagementId),
-      ]);
-      const data = bookingDatesRes.data.data;
-      setBookingDateOptions(data.dates ?? []);
-      setBookingDateUserIdsByDate(data.user_ids_by_date ?? {});
-      setEngagementDateOptions(filterOptionsRes.data.data.engagement_dates ?? []);
-    } catch {
-      setBookingDateOptions([]);
-      setBookingDateUserIdsByDate({});
-      setEngagementDateOptions([]);
-    } finally {
-      setBookingDatesLoading(false);
-    }
+    // Populated via participants bootstrap on first page load.
   }, [source]);
 
   useEffect(() => {
-    if (!mayViewExperts) {
-      setExpertTypes([]);
+    if (!mayViewExperts || source.kind === "engagement-id") {
+      if (source.kind !== "engagement-id") setExpertTypes([]);
       return;
     }
     expertTypesApi.list().then((res) => setExpertTypes(res.data.data)).catch(() => {});
-  }, [mayViewExperts]);
+  }, [mayViewExperts, source.kind]);
 
   useEffect(() => {
     const userId = collectionsDrawerParticipant?.user_id;
@@ -3154,7 +3252,10 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
                 </p>
                 <ul className="text-xs text-zinc-500 space-y-1 list-disc pl-4">
                   <li>Check MetSights blood parameters are complete</li>
-                  <li>Fetch BioAI report data from MetSights</li>
+                  <li>
+                    Fetch BioAI report data from MetSights (vitals optional for MetSights
+                    Essentials)
+                  </li>
                   <li>Register permanent PDF URL and update individual health report records</li>
                 </ul>
                 <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">

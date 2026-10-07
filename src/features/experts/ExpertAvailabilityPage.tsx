@@ -3,7 +3,6 @@ import { Loader2, Plus, X, Copy, Eraser } from "lucide-react";
 import { ExpertPortalLayout } from "../../layouts/ExpertPortalLayout";
 import {
   expertAvailabilityPortalApi,
-  expertsPortalApi,
   getApiError,
   type AvailabilityBlock,
   type AvailabilityBlockPayload,
@@ -190,18 +189,19 @@ export function ExpertAvailabilityPage() {
     setLoading(true);
     setError(null);
     try {
-      const [expertRes, blocksRes, overridesRes] = await Promise.all([
-        expertsPortalApi.me(),
-        expertAvailabilityPortalApi.listBlocks(),
-        expertAvailabilityPortalApi.listOverrides(),
-      ]);
-      setExpert(expertRes.data.data);
-      const loaded = fromServerBlocks(blocksRes.data.data);
+      const bootstrapRes = await expertAvailabilityPortalApi.bootstrap();
+      const payload = bootstrapRes.data.data;
+      setExpert({
+        expert_id: payload.expert_id,
+        session_duration_mins: payload.session_duration_mins,
+        effective_from: payload.effective_from,
+        effective_until: payload.effective_until,
+      } as ExpertDetail);
+      const loaded = fromServerBlocks(payload.availability_blocks);
       setBlocks(loaded);
-      setOverrides(overridesRes.data.data);
+      setOverrides(payload.overrides);
 
-      // If legacy fragmented rows can merge, persist cleaned windows once.
-      if (loaded.length !== blocksRes.data.data.length) {
+      if (loaded.length !== payload.availability_blocks.length) {
         const res = await expertAvailabilityPortalApi.bulkSave(toPayload(loaded));
         setBlocks(fromServerBlocks(res.data.data));
       }
