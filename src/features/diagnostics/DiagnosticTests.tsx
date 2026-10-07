@@ -48,7 +48,8 @@ type RangeKey = (typeof RANGE_KEYS_MALE)[number] | (typeof RANGE_KEYS_FEMALE)[nu
 
 const EMPTY_FORM: Record<string, string | boolean> = {
   test_name: "",
-  external_parameter_code: "",
+  healthians_parameter_key: "",
+  orangehealth_parameter_key: "",
   is_available: true,
   price: "",
   original_price: "",
@@ -265,7 +266,8 @@ export function DiagnosticTests({ onRequestCreate }: DiagnosticTestsProps) {
     const toStr = (v: string | number | null | undefined) => (v != null && v !== "" ? String(v) : "");
     setForm({
       test_name: row.test_name,
-      external_parameter_code: toStr(row.external_parameter_code),
+      healthians_parameter_key: toStr(row.healthians_parameter_key),
+      orangehealth_parameter_key: toStr(row.orangehealth_parameter_key),
       is_available: row.is_available,
       price: toStr(row.price),
       original_price: toStr(row.original_price),
@@ -349,7 +351,8 @@ export function DiagnosticTests({ onRequestCreate }: DiagnosticTestsProps) {
 
       const fields: HealthParameterUpdatePayload = {
         test_name: (form.test_name as string).trim(),
-        external_parameter_code: s("external_parameter_code"),
+        healthians_parameter_key: s("healthians_parameter_key"),
+        orangehealth_parameter_key: s("orangehealth_parameter_key"),
         is_available: form.is_available as boolean,
         parameter_key: s("parameter_key"),
         unit: s("unit"),
@@ -505,11 +508,20 @@ export function DiagnosticTests({ onRequestCreate }: DiagnosticTestsProps) {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1">External Parameter ID</label>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">Healthians parameter key</label>
               <input
-                type="number"
-                value={form.external_parameter_code as string}
-                onChange={(e) => setForm((prev) => ({ ...prev, external_parameter_code: e.target.value }))}
+                type="text"
+                value={form.healthians_parameter_key as string}
+                onChange={(e) => setForm((prev) => ({ ...prev, healthians_parameter_key: e.target.value }))}
+                className="w-full border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">Orange Health parameter key</label>
+              <input
+                type="text"
+                value={form.orangehealth_parameter_key as string}
+                onChange={(e) => setForm((prev) => ({ ...prev, orangehealth_parameter_key: e.target.value }))}
                 className="w-full border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900"
               />
             </div>

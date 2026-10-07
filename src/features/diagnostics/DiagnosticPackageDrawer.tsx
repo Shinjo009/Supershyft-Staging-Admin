@@ -39,6 +39,10 @@ import { SortableItem } from "../../components/SortableItem";
 import { Modal } from "../../shared/ui/Modal";
 import { usePermissions } from "../../contexts/PermissionContext";
 import { HealthiansMapModal, type MapModalTest } from "./HealthiansMapModal";
+import {
+  isProviderParameterMapped,
+  providerParameterKeyForPackage,
+} from "./providerParameterKeys";
 
 interface DiagnosticPackageDrawerProps {
   open: boolean;
@@ -707,7 +711,9 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
               {(() => {
                 const allTests = testGroups.flatMap((g) => g.tests ?? []);
                 const totalTests = allTests.length;
-                const mappedTests = allTests.filter((t) => t.external_parameter_code != null).length;
+                const mappedTests = allTests.filter((t) =>
+                  isProviderParameterMapped(t, detail?.diagnostic_provider)
+                ).length;
                 if (totalTests === 0) return null;
                 return (
                   <div className="flex items-center gap-2 px-1 text-sm text-zinc-600">
@@ -768,7 +774,13 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
                                   {(group.tests ?? []).length === 0 ? (
                                     <p className="text-sm text-zinc-500">No tests in this group.</p>
                                   ) : (
-                                    (group.tests ?? []).map((test) => (
+                                    (group.tests ?? []).map((test) => {
+                                      const mappedKey = providerParameterKeyForPackage(
+                                        test,
+                                        detail?.diagnostic_provider
+                                      );
+                                      const isMapped = mappedKey != null;
+                                      return (
                                       <div key={test.test_id} className="border border-zinc-200 rounded-lg px-3 py-2 bg-white">
                                         <div className="flex items-center justify-between gap-2">
                                           <p className="text-sm text-zinc-900">{test.test_name}</p>
@@ -777,30 +789,31 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
                                             onClick={() => {
                                               setMapModalTestId(test.test_id);
                                               setMapModalTestName(test.test_name);
-                                              setMapModalCurrentParamId(test.external_parameter_code ?? null);
+                                              setMapModalCurrentParamId(mappedKey);
                                               setMapModalOpen(true);
                                             }}
                                             className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium ${
-                                              test.external_parameter_code
+                                              isMapped
                                                 ? "border border-green-200 text-green-700 hover:bg-green-50"
                                                 : "border border-zinc-200 text-zinc-600 hover:bg-zinc-50"
                                             }`}
                                             title={
-                                              test.external_parameter_code
-                                                ? `Mapped (ID: ${test.external_parameter_code})`
+                                              isMapped
+                                                ? `Mapped (ID: ${mappedKey})`
                                                 : `Map to ${detail?.diagnostic_provider ?? "provider"} parameter`
                                             }
                                           >
-                                            {test.external_parameter_code ? (
+                                            {isMapped ? (
                                               <Eye className="w-3.5 h-3.5" />
                                             ) : (
                                               <Link className="w-3.5 h-3.5" />
                                             )}
-                                            {test.external_parameter_code ? "View" : "Map"}
+                                            {isMapped ? "View" : "Map"}
                                           </button>
                                         </div>
                                       </div>
-                                    ))
+                                    );
+                                    })
                                   )}
                                 </div>
                               )}
@@ -1159,17 +1172,20 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
             (g.tests ?? []).map((t) => ({
               test_id: t.test_id,
               test_name: t.test_name,
-              external_parameter_code: t.external_parameter_code,
+              healthians_parameter_key: t.healthians_parameter_key,
+              orangehealth_parameter_key: t.orangehealth_parameter_key,
             }))
           )}
-          onMapped={() => {
-            void fetchData();
+          onMapped={async () => {
+            await fetchData();
             onUpdated?.();
           }}
           onSwitchTest={(next: MapModalTest) => {
             setMapModalTestId(next.test_id);
             setMapModalTestName(next.test_name);
-            setMapModalCurrentParamId(next.external_parameter_code ?? null);
+            setMapModalCurrentParamId(
+              providerParameterKeyForPackage(next, detail?.diagnostic_provider)
+            );
           }}
         />
       </div>

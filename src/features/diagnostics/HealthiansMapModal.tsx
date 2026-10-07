@@ -7,11 +7,30 @@ import {
   type HealthiansConstituent,
 } from "../../lib/api";
 import { Modal } from "../../shared/ui/Modal";
+import { isHealthiansProvider, isOrangeHealthProvider } from "./providerParameterKeys";
 
 export interface MapModalTest {
   test_id: number;
   test_name: string;
-  external_parameter_code?: string | null;
+  healthians_parameter_key?: string | null;
+  orangehealth_parameter_key?: string | null;
+}
+
+function isHealthiansKeyMapped(test: MapModalTest): boolean {
+  const key = test.healthians_parameter_key;
+  return key != null && String(key).trim() !== "";
+}
+
+function findNextUnmappedTest(tests: MapModalTest[], currentTestId: number): MapModalTest | null {
+  const currentIdx = tests.findIndex((t) => t.test_id === currentTestId);
+  if (currentIdx === -1) return null;
+  for (let i = currentIdx + 1; i < tests.length; i++) {
+    if (!isHealthiansKeyMapped(tests[i])) return tests[i];
+  }
+  for (let i = 0; i < currentIdx; i++) {
+    if (!isHealthiansKeyMapped(tests[i])) return tests[i];
+  }
+  return null;
 }
 
 interface HealthiansMapModalProps {
@@ -23,7 +42,7 @@ interface HealthiansMapModalProps {
   diagnosticProvider: string | null | undefined;
   externalPackageCode: string | null | undefined;
   allTests: MapModalTest[];
-  onMapped: () => void;
+  onMapped: () => void | Promise<void>;
   onSwitchTest: (test: MapModalTest) => void;
 }
 
@@ -48,11 +67,23 @@ export function HealthiansMapModal({
     useState<HealthiansConstituent | null>(null);
   const [mapping, setMapping] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [localTests, setLocalTests] = useState<MapModalTest[]>(allTests);
 
-  const providerLabel = diagnosticProvider ?? "provider";
-  const providerValid =
-    diagnosticProvider?.toLowerCase() === "healthians";
+  const providerLabel =
+    isOrangeHealthProvider(diagnosticProvider)
+      ? "Orange Health"
+      : isHealthiansProvider(diagnosticProvider)
+        ? "Healthians"
+        : (diagnosticProvider ?? "provider");
+  const providerValid = isHealthiansProvider(diagnosticProvider);
+  const orangeHealthProvider = isOrangeHealthProvider(diagnosticProvider);
   const packageIdValid = Boolean((externalPackageCode ?? "").trim());
+
+  useEffect(() => {
+    if (open) {
+      setLocalTests(allTests);
+    }
+  }, [open, allTests]);
 
   useEffect(() => {
     if (!open) {
@@ -90,17 +121,10 @@ export function HealthiansMapModal({
     };
   }, [open, providerValid, packageIdValid, externalPackageCode, dataLoaded]);
 
-  const nextUnmappedTest = useMemo(() => {
-    const currentIdx = allTests.findIndex((t) => t.test_id === testId);
-    if (currentIdx === -1) return null;
-    for (let i = currentIdx + 1; i < allTests.length; i++) {
-      if (allTests[i].external_parameter_code == null) return allTests[i];
-    }
-    for (let i = 0; i < currentIdx; i++) {
-      if (allTests[i].external_parameter_code == null) return allTests[i];
-    }
-    return null;
-  }, [allTests, testId]);
+  const nextUnmappedTest = useMemo(
+    () => findNextUnmappedTest(localTests, testId),
+    [localTests, testId]
+  );
 
   const mappedConstituent = useMemo(() => {
     if (currentHealthiansParameterId == null) return null;
@@ -121,14 +145,19 @@ export function HealthiansMapModal({
       setError(null);
       try {
         await diagnosticTestsApi.update(testId, {
-          external_parameter_code: constituent.id,
+          healthians_parameter_key: constituent.id,
         });
-        onMapped();
+        const updatedTests = localTests.map((t) =>
+          t.test_id === testId ? { ...t, healthians_parameter_key: constituent.id } : t
+        );
+        setLocalTests(updatedTests);
+        await onMapped();
         setConfirmConstituent(null);
         setSearch("");
 
-        if (nextUnmappedTest) {
-          onSwitchTest(nextUnmappedTest);
+        const next = findNextUnmappedTest(updatedTests, testId);
+        if (next) {
+          onSwitchTest(next);
         } else {
           onClose();
         }
@@ -138,7 +167,7 @@ export function HealthiansMapModal({
         setMapping(false);
       }
     },
-    [testId, nextUnmappedTest, onMapped, onSwitchTest, onClose]
+    [testId, localTests, onMapped, onSwitchTest, onClose]
   );
 
   const handleMapAndClose = useCallback(
@@ -147,9 +176,13 @@ export function HealthiansMapModal({
       setError(null);
       try {
         await diagnosticTestsApi.update(testId, {
-          external_parameter_code: constituent.id,
+          healthians_parameter_key: constituent.id,
         });
-        onMapped();
+        const updatedTests = localTests.map((t) =>
+          t.test_id === testId ? { ...t, healthians_parameter_key: constituent.id } : t
+        );
+        setLocalTests(updatedTests);
+        await onMapped();
         onClose();
       } catch (err) {
         setError(getApiError(err));
@@ -158,19 +191,29 @@ export function HealthiansMapModal({
         setConfirmConstituent(null);
       }
     },
-    [testId, onMapped, onClose]
+    [testId, localTests, onMapped, onClose]
   );
 
   const renderContent = () => {
+    if (orangeHealthProvider) {
+      return (
+        <div className="py-8 text-center">
+          <p className="text-sm font-medium text-zinc-900">Coming Soon</p>
+          <p className="text-sm text-zinc-500 mt-1">
+            Orange Health parameter mapping will be available in a future release.
+          </p>
+        </div>
+      );
+    }
+
     if (!providerValid) {
       return (
         <div className="py-8 text-center">
           <p className="text-sm text-zinc-600">
-            This package&apos;s diagnostic provider is not {providerLabel}.
+            Parameter mapping is not available for this diagnostic provider.
           </p>
           <p className="text-sm text-zinc-500 mt-1">
-            Mapping is only available for packages with {providerLabel} as the
-            diagnostic provider.
+            Only Healthians packages support constituent mapping today.
           </p>
         </div>
       );
@@ -251,7 +294,8 @@ export function HealthiansMapModal({
             </div>
           ) : (
             filtered.map((c) => {
-              const isMapped = currentHealthiansParameterId === c.id;
+              const isMapped =
+                String(currentHealthiansParameterId ?? "") === String(c.id);
               return (
                 <div
                   key={c.id}

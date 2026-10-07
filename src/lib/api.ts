@@ -3763,7 +3763,8 @@ export interface DiagnosticTest {
   test_id: number;
   group_id: number;
   test_name: string;
-  external_parameter_code?: string | null;
+  healthians_parameter_key?: string | null;
+  orangehealth_parameter_key?: string | null;
   parameter_key?: string | null;
   unit?: string | null;
   meaning?: string | null;
@@ -4083,7 +4084,8 @@ export interface DiagnosticTestStandalone {
   test_id: number;
   parameter_type: HealthParameterType;
   test_name: string;
-  external_parameter_code?: string | null;
+  healthians_parameter_key?: string | null;
+  orangehealth_parameter_key?: string | null;
   parameter_key?: string | null;
   unit?: string | null;
   meaning?: string | null;
@@ -4159,7 +4161,8 @@ export interface PackageTestsResponse {
 export type HealthParameterCreatePayload = {
   parameter_type: HealthParameterType;
   test_name: string;
-  external_parameter_code?: string | null;
+  healthians_parameter_key?: string | null;
+  orangehealth_parameter_key?: string | null;
   parameter_key?: string | null;
   unit?: string | null;
   meaning?: string | null;
@@ -4191,7 +4194,8 @@ export type HealthParameterCreatePayload = {
 
 export type HealthParameterUpdatePayload = {
   test_name?: string;
-  external_parameter_code?: string | null;
+  healthians_parameter_key?: string | null;
+  orangehealth_parameter_key?: string | null;
   parameter_key?: string | null;
   unit?: string | null;
   meaning?: string | null;
