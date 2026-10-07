@@ -3252,7 +3252,10 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
                 </p>
                 <ul className="text-xs text-zinc-500 space-y-1 list-disc pl-4">
                   <li>Check MetSights blood parameters are complete</li>
-                  <li>Fetch BioAI report data from MetSights</li>
+                  <li>
+                    Fetch BioAI report data from MetSights (vitals optional for MetSights
+                    Essentials)
+                  </li>
                   <li>Register permanent PDF URL and update individual health report records</li>
                 </ul>
                 <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
