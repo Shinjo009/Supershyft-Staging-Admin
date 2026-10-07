@@ -29,6 +29,7 @@ import {
   notificationEventsApi,
 } from "../../lib/api";
 import { ConsoleUrlActions } from "./consoleUrlActions";
+import { EngagementBookingSummaryCards } from "./EngagementBookingSummary";
 import {
   formatBloodCollectionLabel,
   formatConsultationModeLabel,
@@ -104,6 +105,8 @@ export function EngagementOverviewTab({
 
   return (
     <div className="space-y-4">
+      <EngagementBookingSummaryCards engagementId={engagement.engagement_id} />
+
       <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-4">
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="inline-flex px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-700 font-medium">

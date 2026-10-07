@@ -2761,6 +2761,17 @@ export interface EngagementBookingDatesData {
   user_ids_by_date: Record<string, number[]>;
 }
 
+export interface EngagementBookingSummary {
+  today_expected_booking_count: number;
+  today_pending_booking_count: number;
+  today_booking_count: number;
+  total_booking_count: number;
+  completed_booking_count: number;
+  pending_booking_count: number;
+  cancelled_booking_count: number;
+  as_of_date: string;
+}
+
 export interface ParticipantListQueryParams {
   page?: number;
   limit?: number;
@@ -2873,6 +2884,10 @@ export const participantsApi = {
   bookingDates: (engagementId: number) =>
     api.get<{ data: EngagementBookingDatesData }>(
       `/engagements/${engagementId}/booking-dates`
+    ),
+  bookingSummary: (engagementId: number) =>
+    api.get<{ data: EngagementBookingSummary }>(
+      `/engagements/${engagementId}/booking-summary`
     ),
   removeFromEngagement: (engagementId: number, userId: number) =>
     api.delete<{ data: { engagement_id: number; user_id: number } }>(
