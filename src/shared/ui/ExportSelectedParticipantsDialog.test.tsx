@@ -54,10 +54,12 @@ describe("ExportSelectedParticipantsDialog", () => {
 describe("logThenDownloadParticipantsExport", () => {
   const payload = {
     export_type: "participants" as const,
-    export_format: "csv" as const,
-    source_kind: "engagement" as const,
-    source_id: "42",
-    row_count: 3,
+    details: {
+      export_format: "csv" as const,
+      exported_participants: [101, 102, 103],
+      source_kind: "engagement" as const,
+      source_id: "42",
+    },
   };
 
   it("does not POST or download without a reason", async () => {

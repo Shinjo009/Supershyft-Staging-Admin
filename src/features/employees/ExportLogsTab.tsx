@@ -8,6 +8,7 @@ const EXPORT_TYPE_OPTIONS = [
   { value: "", label: "All types" },
   { value: "participants", label: "Participants" },
   { value: "database_backup", label: "Database backup" },
+  { value: "contact_reveal", label: "Contact reveal" },
 ];
 
 function formatDateTime(value: string | null | undefined): string {
@@ -29,6 +30,7 @@ const SOURCE_KIND_LABELS: Record<string, string> = {
   organization: "Organization",
   camp: "Camp",
   system: "System",
+  user: "User",
 };
 
 function detailString(details: Record<string, unknown> | null | undefined, key: string): string {
@@ -36,22 +38,38 @@ function detailString(details: Record<string, unknown> | null | undefined, key: 
   return typeof value === "string" ? value.trim() : "";
 }
 
-export function formatExportLogSource(row: Pick<ExportLogItem, "source_kind" | "source_id" | "details">): {
+function detailsSourceKind(details: Record<string, unknown> | null | undefined): string {
+  return detailString(details, "source_kind");
+}
+
+function detailsSourceId(details: Record<string, unknown> | null | undefined): string {
+  const value = details?.["source_id"];
+  if (value == null) return "";
+  return String(value).trim();
+}
+
+export function formatExportLogSource(row: Pick<ExportLogItem, "details"> & {
+  source_kind?: string;
+  source_id?: string | null;
+}): {
   title: string;
   subtitle: string;
 } {
-  const kind = SOURCE_KIND_LABELS[row.source_kind] || row.source_kind || "Source";
+  const details = (row.details ?? null) as Record<string, unknown> | null;
+  const sourceKind = detailsSourceKind(details) || row.source_kind || "";
+  const sourceId = detailsSourceId(details) || (row.source_id ? String(row.source_id) : "");
+  const kind = SOURCE_KIND_LABELS[sourceKind] || sourceKind || "Source";
   const name =
-    detailString(row.details, "source_name") ||
-    detailString(row.details, "engagement_name") ||
-    detailString(row.details, "organization_name") ||
-    detailString(row.details, "camp_name");
-  const orgName = detailString(row.details, "organization_name");
-  const idLabel = row.source_id ? `#${row.source_id}` : "";
+    detailString(details, "source_name") ||
+    detailString(details, "engagement_name") ||
+    detailString(details, "organization_name") ||
+    detailString(details, "camp_name");
+  const orgName = detailString(details, "organization_name");
+  const idLabel = sourceId ? `#${sourceId}` : "";
   if (name && orgName && orgName !== name) {
     return { title: name, subtitle: `${kind} · ${orgName}` };
   }
-  if (name && idLabel && name !== idLabel && !name.includes(row.source_id || "")) {
+  if (name && idLabel && name !== idLabel && !name.includes(sourceId || "")) {
     return { title: name, subtitle: `${kind} · ${idLabel}` };
   }
   if (name) {
@@ -113,15 +131,15 @@ export function ExportLogsTab() {
       render: (row) => formatDateTime(row.created_at),
     },
     {
-      key: "actor_name",
+      key: "employee_name",
       label: "Employee",
-      render: (row) => row.actor_name || "—",
+      render: (row) => row.employee_name || "—",
     },
     {
-      key: "actor_role",
+      key: "employee_role",
       label: "Role",
       hideOnMobile: true,
-      render: (row) => formatRole(row.actor_role),
+      render: (row) => formatRole(row.employee_role),
     },
     {
       key: "export_type",
@@ -130,13 +148,7 @@ export function ExportLogsTab() {
       render: (row) => row.export_type || "—",
     },
     {
-      key: "export_format",
-      label: "Format",
-      hideOnMobile: true,
-      render: (row) => (row.export_format || "—").toUpperCase(),
-    },
-    {
-      key: "source_kind",
+      key: "source",
       label: "Source",
       hideOnTablet: true,
       render: (row) => {
@@ -154,12 +166,6 @@ export function ExportLogsTab() {
           </div>
         );
       },
-    },
-    {
-      key: "row_count",
-      label: "Rows",
-      hideOnMobile: true,
-      render: (row) => (row.row_count == null ? "—" : String(row.row_count)),
     },
     {
       key: "reason",
