@@ -16,6 +16,10 @@ import { DiagnosticFilterChips } from "./DiagnosticFilterChips";
 import { DiagnosticPackageDrawer } from "./DiagnosticPackageDrawer";
 import { DiagnosticTests } from "./DiagnosticTests";
 import { DiagnosticTestGroups } from "./DiagnosticTestGroups";
+import {
+  diagnosticProviderDisplayLabel,
+  isOrangeHealthProvider,
+} from "./providerParameterKeys";
 
 type TabKey = "packages" | "test-groups" | "tests" | "filter-chips";
 type ModalMode = "add" | "edit";
@@ -680,7 +684,9 @@ export function DiagnosticPackages() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1">External package code</label>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">
+                {diagnosticProviderDisplayLabel(form.diagnostic_provider)} package code
+              </label>
               <input
                 type="text"
                 value={form.external_package_code ?? ""}
@@ -691,16 +697,16 @@ export function DiagnosticPackages() {
                   }))
                 }
                 placeholder={
-                  (form.diagnostic_provider ?? "").toLowerCase() === "orange_health"
-                    ? "Orange Health package_id"
-                    : "Healthians numeric package id"
+                  isOrangeHealthProvider(form.diagnostic_provider)
+                    ? `${diagnosticProviderDisplayLabel(form.diagnostic_provider)} package_id`
+                    : `${diagnosticProviderDisplayLabel(form.diagnostic_provider)} numeric package id`
                 }
                 className="w-full border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900"
               />
               <p className="mt-1 text-xs text-zinc-500">
-                {(form.diagnostic_provider ?? "").toLowerCase() === "orange_health"
-                  ? "Stored as text and sent to Orange Health as package_id."
-                  : "Stored as text; API sends Healthians deal id package_{id}."}
+                {isOrangeHealthProvider(form.diagnostic_provider)
+                  ? `Stored as text and sent to ${diagnosticProviderDisplayLabel(form.diagnostic_provider)} as package_id.`
+                  : `Stored as text; API sends ${diagnosticProviderDisplayLabel(form.diagnostic_provider)} deal id package_{id}.`}
               </p>
             </div>
             <div>

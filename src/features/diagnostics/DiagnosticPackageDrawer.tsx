@@ -40,6 +40,7 @@ import { Modal } from "../../shared/ui/Modal";
 import { usePermissions } from "../../contexts/PermissionContext";
 import { HealthiansMapModal, type MapModalTest } from "./HealthiansMapModal";
 import {
+  diagnosticProviderDisplayLabel,
   isProviderParameterMapped,
   providerParameterKeyForPackage,
 } from "./providerParameterKeys";
@@ -514,7 +515,7 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
               <div className="bg-white border border-zinc-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 <div><p className="text-zinc-500">Package name</p><p className="text-zinc-900 font-medium">{detail?.package_name ?? "—"}</p></div>
                 <div><p className="text-zinc-500">Provider</p><p className="text-zinc-900">{detail?.diagnostic_provider ?? "—"}</p></div>
-                <div><p className="text-zinc-500">{detail?.diagnostic_provider ?? "Provider"} Package ID</p><p className="text-zinc-900">{detail?.external_package_code ?? "—"}</p></div>
+                <div><p className="text-zinc-500">{diagnosticProviderDisplayLabel(detail?.diagnostic_provider)} package code</p><p className="text-zinc-900">{detail?.external_package_code ?? "—"}</p></div>
                 <div><p className="text-zinc-500">Tests</p><p className="text-zinc-900">{detail?.no_of_tests ?? "—"}</p></div>
                 <div><p className="text-zinc-500">Report duration (hrs)</p><p className="text-zinc-900">{detail?.report_duration_hours ?? "—"}</p></div>
                 <div><p className="text-zinc-500">Collection type</p><p className="text-zinc-900">{detail?.collection_type ?? "—"}</p></div>
