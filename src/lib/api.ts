@@ -1150,7 +1150,7 @@ export interface ExportLogDetails {
   source_id?: string | null;
   with_address?: boolean;
   filename_prefix?: string;
-  source_name?: string;
+  source_name?: string | null;
   organization_name?: string;
   engagement_name?: string;
   engagement_code?: string;
