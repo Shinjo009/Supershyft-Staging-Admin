@@ -34,8 +34,10 @@ import {
   engagementDataCompletenessApi,
   engagementQuestionnaireStatusApi,
   engagementsApi,
+  participantsApi,
   getApiError,
   getApiErrorDetails,
+  type ReloadProviderBloodParametersResult,
   type AssessmentPackage,
   type Engagement,
   type EngagementAssessmentPackageSummary,
@@ -60,6 +62,29 @@ const METSIGHTS_CATEGORY_COLUMNS = [
   { key: "vitals", label: "Vitals" },
   { key: "fitness-parameters", label: "Fitness Params" },
 ] as const;
+
+const RELOAD_BLOOD_CHUNK_SIZE = 10;
+
+function chunkUserIds(ids: number[], size: number): number[][] {
+  const chunks: number[][] = [];
+  for (let i = 0; i < ids.length; i += size) {
+    chunks.push(ids.slice(i, i + size));
+  }
+  return chunks;
+}
+
+function mergeReloadProviderBloodResults(
+  results: ReloadProviderBloodParametersResult[]
+): ReloadProviderBloodParametersResult | null {
+  if (results.length === 0) return null;
+  return {
+    engagement_id: results[0].engagement_id,
+    reloaded: results.reduce((sum, row) => sum + row.reloaded, 0),
+    skipped: results.reduce((sum, row) => sum + row.skipped, 0),
+    failed: results.reduce((sum, row) => sum + row.failed, 0),
+    details: results.flatMap((row) => row.details),
+  };
+}
 
 function OpsCategoryIcon({ cat }: { cat?: EngagementQuestionnaireCategoryStatus }) {
   if (!cat || !cat.assigned) {
@@ -194,6 +219,15 @@ export function EngagementOperationsPanel({ engagement, active, onEngagementUpda
     messages: string[];
   } | null>(null);
   const [draftBloodError, setDraftBloodError] = useState<string | null>(null);
+  const [reloadProviderBloodOpen, setReloadProviderBloodOpen] = useState(false);
+  const [reloadingProviderBlood, setReloadingProviderBlood] = useState(false);
+  const [reloadProviderBloodProgress, setReloadProviderBloodProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
+  const [reloadProviderBloodResult, setReloadProviderBloodResult] =
+    useState<ReloadProviderBloodParametersResult | null>(null);
+  const [reloadProviderBloodError, setReloadProviderBloodError] = useState<string | null>(null);
   const [createProfilesOpen, setCreateProfilesOpen] = useState(false);
   const [creatingProfiles, setCreatingProfiles] = useState(false);
   const [createProfilesMode, setCreateProfilesMode] = useState<"enrol_force" | "enrol" | "profile">("profile");
@@ -479,6 +513,48 @@ export function EngagementOperationsPanel({ engagement, active, onEngagementUpda
       setDraftBloodProgress(null);
     }
   }, [engagement]);
+
+  const handleReloadProviderBloodParameters = useCallback(async () => {
+    if (!engagement) return;
+    setReloadingProviderBlood(true);
+    setReloadProviderBloodResult(null);
+    setReloadProviderBloodError(null);
+    setReloadProviderBloodProgress(null);
+    try {
+      const idsRes = await participantsApi.ids(engagement.engagement_id);
+      const userIds = idsRes.data.data?.user_ids ?? [];
+      if (userIds.length === 0) {
+        setReloadProviderBloodResult({
+          engagement_id: engagement.engagement_id,
+          reloaded: 0,
+          skipped: 0,
+          failed: 0,
+          details: [],
+        });
+        return;
+      }
+
+      setReloadProviderBloodProgress({ current: 0, total: userIds.length });
+      const chunks = chunkUserIds(userIds, RELOAD_BLOOD_CHUNK_SIZE);
+      const chunkResults: ReloadProviderBloodParametersResult[] = [];
+      let completed = 0;
+      for (const chunk of chunks) {
+        const res = await participantsApi.reloadProviderBloodParameters(engagement.engagement_id, {
+          user_ids: chunk,
+        });
+        chunkResults.push(res.data.data);
+        completed += chunk.length;
+        setReloadProviderBloodProgress({ current: completed, total: userIds.length });
+      }
+      setReloadProviderBloodResult(mergeReloadProviderBloodResults(chunkResults));
+      onEngagementUpdated?.();
+    } catch (err) {
+      setReloadProviderBloodError(getApiError(err));
+    } finally {
+      setReloadingProviderBlood(false);
+      setReloadProviderBloodProgress(null);
+    }
+  }, [engagement, onEngagementUpdated]);
 
   const loadAdvSettingsPackages = useCallback(async (engagementId: number) => {
     setAdvSettingsLoading(true);
@@ -855,6 +931,19 @@ export function EngagementOperationsPanel({ engagement, active, onEngagementUpda
               >
                 <CloudCog className="w-3.5 h-3.5" />
                 Draft Blood Parameters
+              </button>}
+              {mayEditAssessmentIntegrations && <button
+                type="button"
+                onClick={() => {
+                  setReloadProviderBloodOpen(true);
+                  setReloadProviderBloodResult(null);
+                  setReloadProviderBloodError(null);
+                  setReloadProviderBloodProgress(null);
+                }}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 text-zinc-700 text-xs font-medium transition-colors"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Reload provider blood data
               </button>}
             </div>
 
@@ -1575,6 +1664,130 @@ export function EngagementOperationsPanel({ engagement, active, onEngagementUpda
               className="w-full sm:w-auto px-4 py-2 rounded-lg border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50"
             >
               {draftBloodResult || draftBloodError ? "Close" : "Cancel"}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={reloadProviderBloodOpen}
+        onClose={() => {
+          if (!reloadingProviderBlood) {
+            setReloadProviderBloodOpen(false);
+            setReloadProviderBloodResult(null);
+            setReloadProviderBloodError(null);
+            setReloadProviderBloodProgress(null);
+          }
+        }}
+        title="Reload provider blood data"
+      >
+        <div className="space-y-4">
+          {!reloadProviderBloodResult && !reloadProviderBloodError && !reloadingProviderBlood && (
+            <>
+              <p className="text-sm text-zinc-700">
+                Re-fetch Healthians digital lab values and overwrite stored blood parameters for
+                every participant in{" "}
+                <span className="font-semibold">{engagement?.engagement_name ?? "this engagement"}</span>.
+              </p>
+              <ul className="text-xs text-zinc-500 space-y-1 list-disc pl-4">
+                <li>Uses the same logic as user API <span className="font-mono">reload=1</span> (skips cache).</li>
+                <li>Participants without a Metsights record or provider booking are skipped.</li>
+                <li>Does not send participant notifications.</li>
+                <li>May take several minutes for large engagements.</li>
+              </ul>
+            </>
+          )}
+
+          {reloadingProviderBlood && (
+            <div className="py-6 flex flex-col items-center gap-2 text-zinc-400">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span className="text-xs">
+                Reloading provider blood data
+                {reloadProviderBloodProgress
+                  ? `… ${reloadProviderBloodProgress.current}/${reloadProviderBloodProgress.total}`
+                  : "…"}
+              </span>
+              {reloadProviderBloodProgress && reloadProviderBloodProgress.total > 0 && (
+                <div className="w-full max-w-xs space-y-1 pt-2">
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200">
+                    <div
+                      className="h-full rounded-full bg-zinc-800 transition-[width] duration-300"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.round(
+                            (reloadProviderBloodProgress.current /
+                              reloadProviderBloodProgress.total) *
+                              100
+                          )
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                  <p className="text-center text-xs text-zinc-400">
+                    {Math.round(
+                      (reloadProviderBloodProgress.current / reloadProviderBloodProgress.total) *
+                        100
+                    )}
+                    % complete
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {reloadProviderBloodError && (
+            <p className="text-sm text-red-600">{reloadProviderBloodError}</p>
+          )}
+
+          {reloadProviderBloodResult && (
+            <div className="rounded-lg bg-zinc-50 border border-zinc-200 p-3 text-xs space-y-1">
+              <div className="text-emerald-700">Reloaded: {reloadProviderBloodResult.reloaded}</div>
+              <div className="text-zinc-500">Skipped: {reloadProviderBloodResult.skipped}</div>
+              {reloadProviderBloodResult.failed > 0 && (
+                <div className="text-red-600">Failed: {reloadProviderBloodResult.failed}</div>
+              )}
+              {reloadProviderBloodResult.details.length > 0 && (
+                <div className="text-zinc-600 pt-1 space-y-0.5 max-h-40 overflow-y-auto">
+                  {reloadProviderBloodResult.details.slice(0, 12).map((detail, index) => (
+                    <div key={`${detail.user_id ?? index}-${detail.action ?? ""}`}>
+                      User {detail.user_id}: {detail.action}
+                      {detail.reason ? ` — ${detail.reason}` : ""}
+                    </div>
+                  ))}
+                  {reloadProviderBloodResult.details.length > 12 && (
+                    <div className="text-zinc-400">
+                      …and {reloadProviderBloodResult.details.length - 12} more
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex flex-col-reverse sm:flex-row gap-2 pt-1">
+            {!reloadProviderBloodResult && !reloadProviderBloodError && (
+              <button
+                type="button"
+                onClick={() => void handleReloadProviderBloodParameters()}
+                disabled={reloadingProviderBlood}
+                className="w-full sm:w-auto px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 disabled:opacity-50"
+              >
+                {reloadingProviderBlood ? "Reloading…" : "Reload all participants"}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setReloadProviderBloodOpen(false);
+                setReloadProviderBloodResult(null);
+                setReloadProviderBloodError(null);
+                setReloadProviderBloodProgress(null);
+              }}
+              disabled={reloadingProviderBlood}
+              className="w-full sm:w-auto px-4 py-2 rounded-lg border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50"
+            >
+              {reloadProviderBloodResult || reloadProviderBloodError ? "Close" : "Cancel"}
             </button>
           </div>
         </div>

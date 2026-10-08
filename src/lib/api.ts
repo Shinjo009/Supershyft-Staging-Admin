@@ -2946,6 +2946,19 @@ export interface LoadBloodReportsResult {
 
 export type LoadBioaiReportsResult = LoadBloodReportsResult;
 
+export interface ReloadProviderBloodParametersResult {
+  engagement_id: number;
+  reloaded: number;
+  skipped: number;
+  failed: number;
+  details: Array<{
+    user_id?: number;
+    engagement_id?: number;
+    action?: string;
+    reason?: string;
+  }>;
+}
+
 export type RemoveReportsResult = {
   removed: number;
   users_processed: number;
@@ -2990,6 +3003,12 @@ export const participantsApi = {
   loadBloodReports: (engagementId: number, payload: { user_ids: number[] }) =>
     api.post<{ data: LoadBloodReportsResult }>(
       `/engagements/${engagementId}/participants/load-blood-reports`,
+      payload,
+      { timeout: 300_000 }
+    ),
+  reloadProviderBloodParameters: (engagementId: number, payload: { user_ids: number[] }) =>
+    api.post<{ data: ReloadProviderBloodParametersResult }>(
+      `/engagements/${engagementId}/participants/reload-provider-blood-parameters`,
       payload,
       { timeout: 300_000 }
     ),
