@@ -3873,6 +3873,12 @@ export interface PackageFilterChip {
 export type DiagnosticPackageListType = "public_package" | "custom_package";
 export type DiagnosticFilterChipFor = "public_package" | "custom_package";
 
+export interface DiagnosticPackagePeer {
+  diagnostic_package_id: number;
+  package_name: string;
+  diagnostic_provider?: string | null;
+}
+
 export interface DiagnosticPackageListItem {
   diagnostic_package_id: number;
   package_name: string;
@@ -3895,6 +3901,8 @@ export interface DiagnosticPackageListItem {
   display_order?: number | null;
   tags?: DiagnosticTag[];
   filter_chips?: PackageFilterChip[];
+  package_group_id?: number | null;
+  same_packages?: DiagnosticPackagePeer[];
 }
 
 export interface DiagnosticPackageDetail extends DiagnosticPackageListItem {
@@ -3925,6 +3933,8 @@ export interface DiagnosticPackageCreate {
   complementary_consultation?: Record<string, boolean> | null;
   gender_suitability?: string | null;
   package_for?: "public" | "camp" | null;
+  /** Link this row to an existing package from another lab (create) or change link (update). */
+  same_as_package_id?: number | null;
 }
 
 export interface DiagnosticFilterChip {

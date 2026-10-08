@@ -23,8 +23,14 @@ import {
 
 type TabKey = "packages" | "test-groups" | "tests" | "filter-chips";
 type ModalMode = "add" | "edit";
+type PackageLinkMode = "own" | "linked";
 
-const EMPTY_FORM: DiagnosticPackageCreate = {
+type PackageFormState = DiagnosticPackageCreate & {
+  linkMode: PackageLinkMode;
+  same_as_package_id: number | null;
+};
+
+const EMPTY_FORM: PackageFormState = {
   package_name: "",
   package_image: null,
   diagnostic_provider: "",
@@ -41,7 +47,20 @@ const EMPTY_FORM: DiagnosticPackageCreate = {
   health_areas_covered: "",
   about_text: "",
   bookings_count: null,
+  linkMode: "own",
+  same_as_package_id: null,
 };
+
+function packageLinkOptionLabel(row: DiagnosticPackageListItem): string {
+  const provider = diagnosticProviderDisplayLabel(row.diagnostic_provider);
+  return `${row.package_name} — ${provider}`;
+}
+
+function formatAlsoOfferedBy(row: DiagnosticPackageListItem): string {
+  const peers = row.same_packages ?? [];
+  if (peers.length === 0) return "—";
+  return peers.map((peer) => diagnosticProviderDisplayLabel(peer.diagnostic_provider)).join(", ");
+}
 
 function toNumberOrNull(value: string): number | null {
   if (!value.trim()) return null;
@@ -74,7 +93,7 @@ export function DiagnosticPackages() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>("add");
   const [editing, setEditing] = useState<DiagnosticPackageListItem | null>(null);
-  const [form, setForm] = useState<DiagnosticPackageCreate>(EMPTY_FORM);
+  const [form, setForm] = useState<PackageFormState>(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [imageUploading, setImageUploading] = useState(false);
@@ -131,6 +150,8 @@ export function DiagnosticPackages() {
             health_areas_covered: detail.health_areas_covered ?? "",
             about_text: detail.about_text ?? "",
             bookings_count: detail.bookings_count ?? f.bookings_count ?? null,
+            linkMode: (detail.same_packages?.length ?? 0) > 0 ? "linked" : "own",
+            same_as_package_id: detail.same_packages?.[0]?.diagnostic_package_id ?? null,
           }));
         }
       } catch {
@@ -228,10 +249,17 @@ export function DiagnosticPackages() {
       health_areas_covered: "",
       about_text: "",
       bookings_count: null,
+      linkMode: (row.same_packages?.length ?? 0) > 0 ? "linked" : "own",
+      same_as_package_id: row.same_packages?.[0]?.diagnostic_package_id ?? null,
     });
     setFormError(null);
     setModalOpen(true);
   };
+
+  const linkTargetOptions = useMemo(() => {
+    const editingId = editing?.diagnostic_package_id;
+    return rows.filter((row) => row.diagnostic_package_id !== editingId);
+  }, [rows, editing?.diagnostic_package_id]);
 
   const openDrawer = (row: DiagnosticPackageListItem) => {
     setDrawerPackageId(row.diagnostic_package_id);
@@ -316,6 +344,10 @@ export function DiagnosticPackages() {
       setFormError("Package name is required.");
       return;
     }
+    if (form.linkMode === "linked" && !form.same_as_package_id) {
+      setFormError("Select which existing package this is the same as.");
+      return;
+    }
     setSubmitting(true);
     setFormError(null);
     try {
@@ -338,9 +370,20 @@ export function DiagnosticPackages() {
         bookings_count: form.bookings_count ?? null,
       };
       if (modalMode === "add") {
+        if (form.linkMode === "linked" && form.same_as_package_id) {
+          payload.same_as_package_id = form.same_as_package_id;
+        }
         await diagnosticPackagesApi.create(payload);
       } else if (editing) {
-        await diagnosticPackagesApi.update(editing.diagnostic_package_id, payload);
+        const updatePayload: Partial<DiagnosticPackageCreate> & { same_as_package_id?: number | null } = {
+          ...payload,
+        };
+        if (form.linkMode === "linked" && form.same_as_package_id) {
+          updatePayload.same_as_package_id = form.same_as_package_id;
+        } else {
+          updatePayload.same_as_package_id = null;
+        }
+        await diagnosticPackagesApi.update(editing.diagnostic_package_id, updatePayload);
       }
       setModalOpen(false);
       await fetchPackages();
@@ -362,6 +405,12 @@ export function DiagnosticPackages() {
       label: "Provider",
       render: (row) => row.diagnostic_provider?.trim() || "—",
       hideOnMobile: true,
+    },
+    {
+      key: "same_packages",
+      label: "Also offered by",
+      render: (row) => formatAlsoOfferedBy(row),
+      hideOnTablet: true,
     },
     { key: "no_of_tests", label: "Tests", render: (row) => row.no_of_tests ?? "—", hideOnMobile: true },
     {
@@ -708,6 +757,60 @@ export function DiagnosticPackages() {
                   ? `Stored as text and sent to ${diagnosticProviderDisplayLabel(form.diagnostic_provider)} as package_id.`
                   : `Stored as text; API sends ${diagnosticProviderDisplayLabel(form.diagnostic_provider)} deal id package_{id}.`}
               </p>
+            </div>
+            <div className="sm:col-span-2 rounded-lg border border-zinc-200 bg-zinc-50 p-4 space-y-3">
+              <div>
+                <p className="text-sm font-medium text-zinc-900">Same package, different lab</p>
+                <p className="text-xs text-zinc-600 mt-1">
+                  Choose this when Healthians and Orange Health both offer this package. Price and lab code stay on
+                  this package.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <label className="flex items-center gap-2 text-sm text-zinc-800 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="package-link-mode"
+                    checked={form.linkMode === "own"}
+                    onChange={() =>
+                      setForm((prev) => ({ ...prev, linkMode: "own", same_as_package_id: null }))
+                    }
+                  />
+                  This is its own package
+                </label>
+                <label className="flex items-center gap-2 text-sm text-zinc-800 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="package-link-mode"
+                    checked={form.linkMode === "linked"}
+                    onChange={() => setForm((prev) => ({ ...prev, linkMode: "linked" }))}
+                  />
+                  Same as another package
+                </label>
+              </div>
+              {form.linkMode === "linked" ? (
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1">Match to existing package</label>
+                  <select
+                    value={form.same_as_package_id ?? ""}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        same_as_package_id: e.target.value ? Number(e.target.value) : null,
+                      }))
+                    }
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-zinc-900"
+                    required
+                  >
+                    <option value="">Select a package</option>
+                    {linkTargetOptions.map((row) => (
+                      <option key={row.diagnostic_package_id} value={row.diagnostic_package_id}>
+                        {packageLinkOptionLabel(row)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
             </div>
             <div>
               <label className="block text-sm font-medium text-zinc-700 mb-1">Collection type</label>
