@@ -171,6 +171,7 @@ export function EngagementOperationsPanel({ engagement, active, onEngagementUpda
     connected: number;
     skipped: number;
     failed: number;
+    failures: { user_id: number; reason: string }[];
   } | null>(null);
   const [assessmentConnectError, setAssessmentConnectError] = useState<string | null>(null);
   const [engagementAssignPackageCode, setSelectedAssignPackageCode] = useState("");
@@ -329,6 +330,12 @@ export function EngagementOperationsPanel({ engagement, active, onEngagementUpda
         connected: d.connected,
         skipped: d.skipped,
         failed: d.failed,
+        failures: (d.results ?? [])
+          .filter((r) => r.status === "error" && r.reason)
+          .map((r) => ({
+            user_id: r.user_id,
+            reason: r.reason as string,
+          })),
       });
       await loadAssessmentsForEngagement(engagement.engagement_id);
     } catch (err) {
@@ -957,6 +964,15 @@ export function EngagementOperationsPanel({ engagement, active, onEngagementUpda
               <div className="text-zinc-500">Skipped: {assessmentConnectResult.skipped}</div>
               {assessmentConnectResult.failed > 0 && (
                 <div className="text-red-600">Failed: {assessmentConnectResult.failed}</div>
+              )}
+              {assessmentConnectResult.failures.length > 0 && (
+                <ul className="mt-1 space-y-1 text-red-600 list-disc list-inside">
+                  {assessmentConnectResult.failures.map((f) => (
+                    <li key={f.user_id}>
+                      User {f.user_id}: {f.reason}
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
           )}
