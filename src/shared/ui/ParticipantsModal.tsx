@@ -1847,11 +1847,11 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
         createLog: (payload) => exportLogsApi.create(payload),
         payload: {
           export_type: "participants",
-          export_format: exportFormat === "excel" ? "xlsx" : "csv",
-          source_kind: sourceKind,
-          source_id: sourceId,
-          row_count: rows.length,
           details: {
+            export_format: exportFormat === "excel" ? "xlsx" : "csv",
+            exported_participants: rows.map((row) => row.user_id).filter((id): id is number => id != null),
+            source_kind: sourceKind,
+            source_id: sourceId,
             with_address: exportWithAddress,
             filename_prefix: filenamePrefix,
             source_name: sourceName,

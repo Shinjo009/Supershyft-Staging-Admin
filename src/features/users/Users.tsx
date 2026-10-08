@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Plus, Loader2, ListTree, Info, AlertTriangle, UserPlus } from "lucide-react";
+import { Search, Plus, Loader2, ListTree, Info, AlertTriangle, UserPlus, Eye } from "lucide-react";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
 import { Modal } from "../../shared/ui/Modal";
 import { Engagements } from "../engagements/Engagements";
 import { OnboardUserModal } from "./OnboardUserModal";
+import { isExportReasonValid } from "../../shared/ui/ExportSelectedParticipantsDialog";
 import {
   usersApi,
   uploadsApi,
@@ -219,6 +220,11 @@ export function Users() {
   const [onboardOpen, setOnboardOpen] = useState(false);
   const [onboardSuccessMsg, setOnboardSuccessMsg] = useState<string | null>(null);
 
+  const [revealOpen, setRevealOpen] = useState(false);
+  const [revealReason, setRevealReason] = useState("");
+  const [revealSubmitting, setRevealSubmitting] = useState(false);
+  const [revealError, setRevealError] = useState<string | null>(null);
+
   const openOnboardCreate = () => {
     setOnboardSuccessMsg(null);
     setOnboardOpen(true);
@@ -267,8 +273,50 @@ export function Users() {
     fetchList();
   }, [fetchList]);
 
+  const openReveal = () => {
+    setRevealReason("");
+    setRevealError(null);
+    setRevealOpen(true);
+  };
+
+  const closeReveal = () => {
+    if (revealSubmitting) return;
+    setRevealOpen(false);
+    setRevealReason("");
+    setRevealError(null);
+  };
+
+  const handleRevealContact = async () => {
+    if (!selected || !isExportReasonValid(revealReason)) return;
+    setRevealSubmitting(true);
+    setRevealError(null);
+    try {
+      const res = await usersApi.revealContact(selected.user_id, {
+        reason: revealReason.trim(),
+      });
+      setSelected((prev) =>
+        prev
+          ? {
+              ...prev,
+              phone: res.data.data.phone,
+              email: res.data.data.email,
+            }
+          : prev
+      );
+      setRevealOpen(false);
+      setRevealReason("");
+    } catch (err) {
+      setRevealError(getApiError(err));
+    } finally {
+      setRevealSubmitting(false);
+    }
+  };
+
   const openView = (row: UserListItem) => {
     setUserEngagements([]);
+    setRevealOpen(false);
+    setRevealReason("");
+    setRevealError(null);
     usersApi
       .get(row.user_id)
       .then((res) => {
@@ -1051,6 +1099,17 @@ export function Users() {
               >
                 Edit
               </button>}
+              {mayEditUsers &&
+                (isMaskedContact(selected.phone) || isMaskedContact(selected.email)) && (
+                <button
+                  type="button"
+                  onClick={openReveal}
+                  className="w-full sm:w-auto px-4 py-2 rounded-lg border border-zinc-300 text-zinc-800 text-sm font-medium hover:bg-zinc-50 inline-flex items-center justify-center gap-2"
+                >
+                  <Eye className="w-4 h-4 shrink-0" />
+                  Reveal Data
+                </button>
+              )}
               <button
                 onClick={() => setModalOpen(false)}
                 className="w-full sm:w-auto px-4 py-2 rounded-lg border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50"
@@ -1687,6 +1746,54 @@ export function Users() {
           onCloseModal={() => setEngagementDetailId(null)}
         />
       )}
+
+      <Modal
+        open={revealOpen}
+        onClose={closeReveal}
+        title="Reveal Data"
+        maxWidthClassName="max-w-md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-zinc-700">
+            Provide a reason to reveal this user&apos;s phone number and email. This action is logged.
+          </p>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="reveal-reason" className="text-xs font-medium text-zinc-500">
+              Reason for Reveal
+            </label>
+            <textarea
+              id="reveal-reason"
+              value={revealReason}
+              onChange={(e) => setRevealReason(e.target.value)}
+              rows={3}
+              maxLength={500}
+              placeholder="Why do you need to see this contact data?"
+              disabled={revealSubmitting}
+              className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 resize-y min-h-[5rem]"
+            />
+          </div>
+          {revealError ? <p className="text-sm text-red-600">{revealError}</p> : null}
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={closeReveal}
+              disabled={revealSubmitting}
+              className="px-4 py-2 rounded-lg border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleRevealContact()}
+              disabled={!isExportReasonValid(revealReason) || revealSubmitting}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {revealSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+              Save
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       <OnboardUserModal
         open={onboardOpen}

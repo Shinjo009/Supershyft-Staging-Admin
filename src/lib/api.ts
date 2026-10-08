@@ -764,6 +764,11 @@ export const usersApi = {
     api.get<{ data: DuplicateUserGroupApi[] }>("/users/duplicates"),
   get: (id: number) =>
     api.get<{ data: UserDetail }>(`/users/${id}`),
+  revealContact: (id: number, payload: { reason: string }) =>
+    api.post<{ data: { user_id: number; phone: string; email: string | null } }>(
+      `/users/${id}/reveal-contact`,
+      payload
+    ),
   create: (payload: UserCreate) =>
     api.post<{ data: { user_id: number } }>("/employees/users", payload),
   update: (id: number, payload: UserUpdate) =>
@@ -1134,35 +1139,39 @@ export const employeesApi = {
     ),
 };
 
-export type ExportType = "participants" | "database_backup";
+export type ExportType = "participants" | "database_backup" | "contact_reveal";
 export type ExportFormat = "csv" | "xlsx";
-export type ExportSourceKind = "engagement" | "organization" | "camp" | "system";
+export type ExportSourceKind = "engagement" | "organization" | "camp" | "system" | "user";
+
+export interface ExportLogDetails {
+  export_format?: ExportFormat | null;
+  exported_participants?: number[];
+  source_kind: ExportSourceKind;
+  source_id?: string | null;
+  with_address?: boolean;
+  filename_prefix?: string;
+  source_name?: string;
+  organization_name?: string;
+  engagement_name?: string;
+  engagement_code?: string;
+  camp_name?: string;
+  [key: string]: unknown;
+}
 
 export interface ExportLogCreatePayload {
   reason: string;
   export_type: ExportType;
-  export_format: ExportFormat;
-  source_kind: ExportSourceKind;
-  source_id?: string | null;
-  row_count?: number | null;
-  details?: Record<string, unknown> | null;
+  details: ExportLogDetails;
 }
 
 export interface ExportLogItem {
   export_log_id: number;
-  employee_id: number | null;
-  partner_id: number | null;
-  actor_name: string;
-  actor_role: string;
+  employee_id: number;
+  employee_name: string;
+  employee_role: string;
   reason: string;
   export_type: string;
-  export_format: string;
-  source_kind: string;
-  source_id: string | null;
-  row_count: number | null;
-  details: Record<string, unknown> | null;
-  ip_address: string | null;
-  user_agent: string | null;
+  details: ExportLogDetails | Record<string, unknown> | null;
   created_at: string;
 }
 
