@@ -460,7 +460,17 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
         <div className="px-4 sm:px-6 py-4 border-b border-zinc-200 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-zinc-900">{detail?.package_name ?? "Package details"}</h2>
-            {detail?.diagnostic_provider && <p className="text-sm text-zinc-500">{detail.diagnostic_provider}</p>}
+            {detail?.diagnostic_provider && (
+              <p className="text-sm text-zinc-500">{detail.diagnostic_provider}</p>
+            )}
+            {(detail?.same_packages?.length ?? 0) > 0 ? (
+              <p className="text-sm text-zinc-600 mt-1">
+                Also offered by{" "}
+                {detail!.same_packages!
+                  .map((peer) => diagnosticProviderDisplayLabel(peer.diagnostic_provider))
+                  .join(", ")}
+              </p>
+            ) : null}
           </div>
           <button
             type="button"
