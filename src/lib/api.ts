@@ -1451,6 +1451,30 @@ export const campReportsApi = {
       `/reports/camps/${campNo}/department/${slug}/dashboard`,
       { params: { section } }
     ),
+  getSectionBts: (campNo: number, section: string) =>
+    api.get<{ data: Record<string, unknown> | null }>(`/reports/camps/${campNo}/bts`, {
+      params: { section },
+    }),
+  getDepartmentSectionBts: (campNo: number, slug: string, section: string) =>
+    api.get<{ data: Record<string, unknown> | null }>(
+      `/reports/camps/${campNo}/department/${slug}/bts`,
+      { params: { section } }
+    ),
+  getCitySectionBts: (campNo: number, city: string, section: string) =>
+    api.get<{ data: Record<string, unknown> | null }>(
+      `/reports/camps/${campNo}/${encodeURIComponent(city)}/bts`,
+      { params: { section } }
+    ),
+  getCityDepartmentSectionBts: (
+    campNo: number,
+    city: string,
+    slug: string,
+    section: string
+  ) =>
+    api.get<{ data: Record<string, unknown> | null }>(
+      `/reports/camps/${campNo}/${encodeURIComponent(city)}/department/${slug}/bts`,
+      { params: { section } }
+    ),
   updateDashboard: (campNo: number, section: string, payload: Record<string, unknown>) =>
     api.put<{ data: { report_id: number; section: Record<string, unknown> } }>(
       `/reports/camps/${campNo}/dashboard`,

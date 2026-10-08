@@ -114,6 +114,25 @@ async function fetchScopedDashboard(
   return campReportsApi.getDashboard(campNo, sectionKey);
 }
 
+async function fetchScopedSectionBts(
+  campNo: number,
+  report: CampReportRow,
+  sectionKey: string
+) {
+  const city = reportCity(report);
+  const department = report.department;
+  if (city && department) {
+    return campReportsApi.getCityDepartmentSectionBts(campNo, city, department, sectionKey);
+  }
+  if (city) {
+    return campReportsApi.getCitySectionBts(campNo, city, sectionKey);
+  }
+  if (department) {
+    return campReportsApi.getDepartmentSectionBts(campNo, department, sectionKey);
+  }
+  return campReportsApi.getSectionBts(campNo, sectionKey);
+}
+
 async function updateScopedDashboard(
   campNo: number,
   report: CampReportRow,
@@ -3104,13 +3123,16 @@ export function CampReportsPage() {
       const response = await refreshScopedSection(campNo, report, section.section_key);
       const refreshResult = response.data.data;
 
-      const rows = await fetchData({ silent: true });
-      const refreshed = rows.find((row) => row.report_id === report.report_id);
-      const sectionBtsRaw = refreshed?.report_bts?.[section.section_key];
+      await fetchData({ silent: true });
+      const btsResponse = await fetchScopedSectionBts(campNo, report, section.section_key);
+      const fetchedBts = btsResponse.data.data;
+      const refreshBts = refreshResult?.report_bts;
       const sectionBts =
-        sectionBtsRaw && typeof sectionBtsRaw === "object"
-          ? (sectionBtsRaw as Record<string, unknown>)
-          : refreshResult?.report_bts ?? null;
+        fetchedBts && typeof fetchedBts === "object"
+          ? fetchedBts
+          : refreshBts && typeof refreshBts === "object"
+            ? (refreshBts as Record<string, unknown>)
+            : null;
 
       setBtsModal({
         title: `Validation: ${section.section}`,
@@ -3297,14 +3319,28 @@ export function CampReportsPage() {
   const openExistingBtsFromConfirm = () => {
     const action = confirmModal.action;
     if (!action || action.kind !== "validate") return;
-    const raw = action.report.report_bts?.[action.section.section_key];
-    const data =
-      raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
-    setBtsModal({
-      title: `Validation: ${action.section.section}`,
-      sectionKey: action.section.section_key,
-      data,
-    });
+    void (async () => {
+      try {
+        const response = await fetchScopedSectionBts(
+          campNo,
+          action.report,
+          action.section.section_key
+        );
+        const raw = response.data.data;
+        const data =
+          raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
+        setBtsModal({
+          title: `Validation: ${action.section.section}`,
+          sectionKey: action.section.section_key,
+          data,
+        });
+      } catch (err) {
+        setSectionErrors((prev) => ({
+          ...prev,
+          [`${action.report.report_id}:${action.section.section_key}`]: getApiError(err),
+        }));
+      }
+    })();
   };
 
   if (!Number.isFinite(campNo)) {
