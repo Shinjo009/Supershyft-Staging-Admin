@@ -103,8 +103,11 @@ function parseNutritionScore(log: IntegrationSyncLog): string {
 }
 
 function defaultPayloadTab(log: IntegrationSyncLog): PayloadTab {
+  if (log.status === "failed" && log.error_message) {
+    return "error";
+  }
   if (log.provider === "bio_ai_reports" && log.api_endpoint_url.includes("internal://bioai-report/")) {
-    return "response";
+    return log.status === "success" ? "response" : "error";
   }
   return "request";
 }
