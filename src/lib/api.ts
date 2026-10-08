@@ -910,6 +910,23 @@ export const participantJourneyApi = {
     api.get<{ data: ParticipantJourneyDetail }>(
       `/users/${userId}/participant-journey/${assessmentInstanceId}`
     ),
+  copyQuestionnaires: (
+    userId: number,
+    destAssessmentInstanceId: number,
+    body: { source_assessment_instance_id: number; category_keys?: string[] },
+  ) =>
+    api.post<{
+      data: {
+        copied_count: number;
+        source_assessment_instance_id: number;
+        dest_assessment_instance_id: number;
+        category_keys_used: string[];
+      };
+    }>(
+      `/users/${userId}/participant-journey/${destAssessmentInstanceId}/copy-questionnaires`,
+      body,
+      { timeout: 120_000 },
+    ),
 };
 
 export interface MetsightsImportAnswersResult {

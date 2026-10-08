@@ -1,6 +1,21 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, CheckCheck, CheckCircle2, ChevronDown, ChevronRight, Circle, CircleDot, Clock, Download, Loader2, Minus, Save } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCheck,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Circle,
+  CircleDot,
+  Clock,
+  Copy,
+  Download,
+  Loader2,
+  Minus,
+  Save,
+  Send,
+} from "lucide-react";
 import { Modal } from "../../shared/ui/Modal";
 import {
   assessmentPackagesApi,
@@ -14,6 +29,17 @@ import {
   type UserDetail,
 } from "../../lib/api";
 import { usePermissions } from "../../contexts/PermissionContext";
+import { CopyQuestionnairesModal } from "./CopyQuestionnairesModal";
+import { PushToMetsightsModal } from "./PushToMetsightsModal";
+import {
+  JOURNEY_METSIGHTS_CATEGORY_COLUMNS as METSIGHTS_CATEGORY_COLUMNS,
+  formatJourneyStatusLabel,
+  getCategoryProgress,
+  instanceHasIncompleteAssignedCategories,
+  isCategoryAssigned,
+  sourceCopyCandidates,
+} from "./participantJourneyUtils";
+import { pushCategoriesForTypeCode } from "../engagements/engagementOperationsUtils";
 
 function formatAnswer(value: unknown): string {
   if (value === null || value === undefined) return "—";
@@ -26,15 +52,6 @@ function formatAnswer(value: unknown): string {
     return String(value);
   }
 }
-
-const METSIGHTS_CATEGORY_COLUMNS = [
-  { key: "physical-measurement", label: "Anthropometry" },
-  { key: "diet-lifestyle-parameters", label: "Diet & Lifestyle" },
-  { key: "vitals", label: "Vitals" },
-  { key: "fitness-parameters", label: "Fitness Parameters" },
-  { key: "blood-parameters", label: "Blood Parameters" },
-  { key: "advanced-blood-parameters", label: "Advanced Blood" },
-] as const;
 
 function unansweredLabel(q: { question_text?: string | null; question_key?: string | null; question_id: number; is_required?: boolean }) {
   const name = (q.question_text || q.question_key || `Question #${q.question_id}`).trim();
@@ -120,35 +137,6 @@ function CategoryLegend() {
   );
 }
 
-function getCategoryProgress(
-  progressList: ParticipantJourneyCategoryProgress[],
-  categoryKey: string,
-): ParticipantJourneyCategoryProgress | undefined {
-  return progressList.find(
-    (p) => p.category_key === categoryKey && p.category_of === "metsights",
-  );
-}
-
-function isCategoryAssigned(
-  progressList: ParticipantJourneyCategoryProgress[],
-  categoryKey: string,
-  assessmentTypeCode?: string | null,
-): boolean {
-  if (progressList.some((p) => p.category_key === categoryKey && p.category_of === "metsights")) {
-    return true;
-  }
-  if (categoryKey === "fitness-parameters") {
-    return assessmentTypeCode === "7";
-  }
-  if (["physical-measurement", "diet-lifestyle-parameters", "vitals"].includes(categoryKey)) {
-    return assessmentTypeCode === "1" || assessmentTypeCode === "2" || assessmentTypeCode === "7";
-  }
-  if (["blood-parameters", "advanced-blood-parameters"].includes(categoryKey)) {
-    return assessmentTypeCode === "1" || assessmentTypeCode === "2";
-  }
-  return false;
-}
-
 function AnswerStateBadge({ state }: { state: string }) {
   if (state === "submitted") {
     return (
@@ -172,9 +160,10 @@ function AnswerStateBadge({ state }: { state: string }) {
 }
 
 export function ParticipantJourneyPage() {
-  const { canEdit } = usePermissions();
+  const { canEdit, canEditTask } = usePermissions();
   const mayEditUsers = canEdit("users");
   const mayEditAssessments = canEdit("assessments");
+  const mayEditEngagementIntegrations = canEditTask("engagements", "integrations");
   const { userId: userIdParam } = useParams<{ userId: string }>();
   const userId = userIdParam ? Number(userIdParam) : NaN;
 
@@ -199,6 +188,11 @@ export function ParticipantJourneyPage() {
     null
   );
   const [togglingStatusInstanceId, setTogglingStatusInstanceId] = useState<number | null>(null);
+  const [copyModalDest, setCopyModalDest] = useState<ParticipantJourneyInstanceSummary | null>(null);
+  const [pushModalRow, setPushModalRow] = useState<ParticipantJourneyInstanceSummary | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<{ type: "success" | "error"; message: string } | null>(
+    null,
+  );
 
   const loadSummary = useCallback(async () => {
     if (!Number.isFinite(userId)) return;
@@ -414,6 +408,55 @@ export function ParticipantJourneyPage() {
   const metsightsProfileDirty =
     (metsightsProfileInput.trim() || "") !== ((user?.metsights_profile_id ?? "").trim() || "");
 
+  const renderCopyButton = (row: ParticipantJourneyInstanceSummary, className = "") => {
+    if (!mayEditAssessments) return null;
+    const candidates = sourceCopyCandidates(row, instances);
+    const show =
+      instanceHasIncompleteAssignedCategories(row) &&
+      candidates.length > 0 &&
+      (row.status || "").toLowerCase() === "active";
+    if (!show) return null;
+
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setCopyModalDest(row);
+          setActionFeedback(null);
+        }}
+        disabled={importingInstanceId !== null || togglingStatusInstanceId !== null}
+        className={`p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors disabled:opacity-50 ${className}`}
+        title="Copy questionnaire answers from another assessment"
+      >
+        <Copy className="w-4 h-4" />
+      </button>
+    );
+  };
+
+  const renderPushButton = (row: ParticipantJourneyInstanceSummary, className = "") => {
+    if (!mayEditEngagementIntegrations) return null;
+    const hasRecord = Boolean((row.metsights_record_id ?? "").trim());
+    const canPush = hasRecord && pushCategoriesForTypeCode(row.assessment_type_code).length > 0;
+    if (!canPush) return null;
+
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setPushModalRow(row);
+          setActionFeedback(null);
+        }}
+        disabled={importingInstanceId !== null || togglingStatusInstanceId !== null}
+        className={`p-1.5 rounded-lg text-zinc-400 hover:text-indigo-700 hover:bg-indigo-50 transition-colors disabled:opacity-50 ${className}`}
+        title="Push questionnaire answers to MetSights"
+      >
+        <Send className="w-4 h-4" />
+      </button>
+    );
+  };
+
   const renderImportButton = (row: ParticipantJourneyInstanceSummary, className = "") => {
     if (!mayEditAssessments) return null;
     const hasRecord = Boolean((row.metsights_record_id ?? "").trim());
@@ -477,8 +520,7 @@ export function ParticipantJourneyPage() {
     );
   };
 
-  const formatStatusLabel = (status?: string | null) =>
-    (status || "—").replace(/_/g, " ").replace(/^completed$/i, "complete");
+  const formatStatusLabel = formatJourneyStatusLabel;
 
   const fullName = user
     ? [user.first_name, user.last_name].filter(Boolean).join(" ") || "—"
@@ -621,6 +663,17 @@ export function ParticipantJourneyPage() {
               {importFeedback.message}
             </div>
           )}
+          {actionFeedback && (
+            <div
+              className={`mb-4 p-3 rounded-lg text-sm ${
+                actionFeedback.type === "success"
+                  ? "bg-emerald-50 text-emerald-800"
+                  : "bg-red-50 text-red-700"
+              }`}
+            >
+              {actionFeedback.message}
+            </div>
+          )}
 
           {/* Mobile: cards */}
           <div className="flex flex-col gap-3 md:hidden">
@@ -666,7 +719,9 @@ export function ParticipantJourneyPage() {
                     })}
                   </div>
                   </button>
-                  <div className="mt-3 pt-3 border-t border-zinc-100 flex items-center justify-end">
+                  <div className="mt-3 pt-3 border-t border-zinc-100 flex items-center justify-end gap-1">
+                    {renderCopyButton(row)}
+                    {renderPushButton(row)}
                     {renderImportButton(row)}
                   </div>
                 </div>
@@ -730,6 +785,8 @@ export function ParticipantJourneyPage() {
                         })}
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
+                            {renderCopyButton(row)}
+                            {renderPushButton(row)}
                             {renderImportButton(row)}
                             <button
                               type="button"
@@ -749,6 +806,32 @@ export function ParticipantJourneyPage() {
           </div>
         </>
       )}
+
+      <CopyQuestionnairesModal
+        open={copyModalDest !== null}
+        onClose={() => setCopyModalDest(null)}
+        userId={userId}
+        destination={copyModalDest}
+        candidates={copyModalDest ? sourceCopyCandidates(copyModalDest, instances) : []}
+        onSuccess={(message) => {
+          setImportFeedback(null);
+          setActionFeedback({ type: "success", message });
+          void loadSummary();
+          if (copyModalDest) {
+            void refreshDetailIfOpen(copyModalDest.assessment_instance_id);
+          }
+        }}
+      />
+
+      <PushToMetsightsModal
+        open={pushModalRow !== null}
+        onClose={() => setPushModalRow(null)}
+        row={pushModalRow}
+        onSuccess={(message) => {
+          setImportFeedback(null);
+          setActionFeedback({ type: "success", message });
+        }}
+      />
 
       <Modal
         open={detailOpen}
