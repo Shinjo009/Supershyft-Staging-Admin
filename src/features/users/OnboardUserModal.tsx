@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Calendar, CheckCircle2, Loader2, UserRound } from "lucide-react";
 import { Modal } from "../../shared/ui/Modal";
+import { UserSearchPicker } from "../../shared/ui/UserSearchPicker";
 import { getTypeConfig } from "../engagements/engagementTypeConfig";
 import {
   diagnosticPackagesApi,
@@ -17,6 +18,7 @@ import {
 } from "../../lib/api";
 
 type Step = 1 | 2;
+type Step1View = "search" | "new";
 export type OnboardUserMode = "create" | "existing";
 
 const STEP_LABELS = [
@@ -93,6 +95,9 @@ interface Props {
 
 export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Props) {
   const [step, setStep] = useState<Step>(1);
+  const [step1View, setStep1View] = useState<Step1View>("search");
+  const [pickedUserId, setPickedUserId] = useState<number | null>(null);
+  const [selectingUser, setSelectingUser] = useState(false);
 
   const [user, setUser] = useState<UserDetail | null>(null);
   const [userLoading, setUserLoading] = useState(false);
@@ -120,16 +125,25 @@ export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Pro
   const [successResult, setSuccessResult] = useState<PublicUserOnboardResponse | null>(null);
 
   const isVifc = engagementType.trim().toLowerCase() === "vifc";
-  const needsDiagnostic = getTypeConfig(engagementType).needsDiagnostic;
+  const typeConfig = getTypeConfig(engagementType);
+  const needsDiagnostic = typeConfig.needsDiagnostic;
+  const needsConsultation = typeConfig.needsConsultation;
   const isCreate = mode === "create";
+  const resolvedExistingUserId = pickedUserId ?? (mode === "existing" ? userId : null);
 
   const applyEngagementType = useCallback(
     (code: string, defaults: B2cOnboardingDefaults | null = b2cDefaults) => {
+      const config = getTypeConfig(code);
       setEngagementType(code);
-      if (getTypeConfig(code).needsDiagnostic) {
+      if (config.needsDiagnostic) {
         setDiagnosticPackageId(defaultDiagnosticForType(defaults, code));
       } else {
         setDiagnosticPackageId("");
+      }
+      if (!config.needsConsultation) {
+        setWantDoctor(false);
+        setWantNutritionist(false);
+        setWantBoth(false);
       }
     },
     [b2cDefaults]
@@ -137,6 +151,9 @@ export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Pro
 
   const resetState = useCallback(() => {
     setStep(1);
+    setStep1View("search");
+    setPickedUserId(null);
+    setSelectingUser(false);
     setUser(null);
     setUserLoading(false);
     setUserError(null);
@@ -248,6 +265,41 @@ export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Pro
     return true;
   };
 
+  const showSearch = () => {
+    setCreateForm(EMPTY_CREATE_FORM);
+    setStep1Error(null);
+    setUserError(null);
+    setStep1View("search");
+  };
+
+  const showNewUserForm = () => {
+    setPickedUserId(null);
+    setUser(null);
+    setUserError(null);
+    setStep1Error(null);
+    setStep1View("new");
+  };
+
+  const selectExistingUser = async (id: number) => {
+    if (selectingUser) return;
+    setSelectingUser(true);
+    setUserError(null);
+    setStep1Error(null);
+    setCreateForm(EMPTY_CREATE_FORM);
+    try {
+      const res = await usersApi.get(id);
+      setPickedUserId(id);
+      setUser(res.data.data);
+      setStep(2);
+    } catch (err) {
+      setPickedUserId(null);
+      setUser(null);
+      setUserError(getApiError(err));
+    } finally {
+      setSelectingUser(false);
+    }
+  };
+
   const validateBookingStep = (): boolean => {
     setStep2Error(null);
     setSubmitError(null);
@@ -275,7 +327,7 @@ export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Pro
   };
 
   const handleSubmit = async () => {
-    if (mode === "existing" && userId == null) return;
+    if (resolvedExistingUserId == null && mode === "existing") return;
     if (!validateBookingStep()) return;
 
     setSubmitting(true);
@@ -291,15 +343,15 @@ export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Pro
         participants_employee_id: employeeId.trim() || null,
         participant_department: department.trim() || null,
         participant_blood_group: bloodGroup.trim() || null,
-        want_doctor_consultation: wantDoctor,
-        want_nutritionist_consultation: wantNutritionist,
-        want_doctor_and_nutritionist_consultation: wantBoth,
+        want_doctor_consultation: needsConsultation && wantDoctor,
+        want_nutritionist_consultation: needsConsultation && wantNutritionist,
+        want_doctor_and_nutritionist_consultation: needsConsultation && wantBoth,
         questionnaire: null,
       };
 
       const payload: PublicUserOnboardPayload =
-        mode === "existing"
-          ? { ...booking, user_id: userId! }
+        resolvedExistingUserId != null
+          ? { ...booking, user_id: resolvedExistingUserId }
           : {
               ...booking,
               phone: createForm.phone.trim(),
@@ -409,6 +461,52 @@ export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Pro
             {step === 1 && (
               <div className="space-y-4">
                 {isCreate ? (
+                  step1View === "search" ? (
+                    <>
+                      <p className="text-sm text-zinc-600">
+                        Search for an existing user by name, phone, or email. Selecting them continues
+                        to booking without re-entering their details.
+                      </p>
+                      <UserSearchPicker
+                        value={pickedUserId ?? 0}
+                        onChange={(id) => {
+                          if (id > 0) {
+                            void selectExistingUser(id);
+                            return;
+                          }
+                          setPickedUserId(null);
+                          setUser(null);
+                        }}
+                        disabled={selectingUser}
+                        label="Search existing user"
+                        placeholder="Search by name, phone, or email…"
+                      />
+                      {selectingUser && (
+                        <div className="py-4 flex justify-center">
+                          <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
+                        </div>
+                      )}
+                      {userError && (
+                        <div className="p-3 rounded-lg bg-red-50 text-red-700 text-sm">{userError}</div>
+                      )}
+                      <div className="flex justify-between gap-2 pt-2 border-t border-zinc-100">
+                        <button
+                          type="button"
+                          onClick={showNewUserForm}
+                          className="px-4 py-2 rounded-lg border border-zinc-300 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                        >
+                          Enter a new user
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleClose}
+                          className="px-4 py-2 rounded-lg border border-zinc-300 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </>
+                  ) : (
                   <>
                     {userLoading ? (
                       <div className="py-10 flex justify-center">
@@ -591,27 +689,37 @@ export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Pro
                     {step1Error && (
                       <div className="p-3 rounded-lg bg-red-50 text-red-700 text-sm">{step1Error}</div>
                     )}
-                    <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100">
+                    <div className="flex justify-between gap-2 pt-2 border-t border-zinc-100">
                       <button
                         type="button"
-                        onClick={handleClose}
+                        onClick={showSearch}
                         className="px-4 py-2 rounded-lg border border-zinc-300 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
                       >
-                        Cancel
+                        Search existing user
                       </button>
-                      <button
-                        type="button"
-                        disabled={userLoading || !!userError}
-                        onClick={() => {
-                          if (!validateCreateStep()) return;
-                          setStep(2);
-                        }}
-                        className="px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 disabled:opacity-50"
-                      >
-                        Next
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={handleClose}
+                          className="px-4 py-2 rounded-lg border border-zinc-300 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          disabled={userLoading || !!userError}
+                          onClick={() => {
+                            if (!validateCreateStep()) return;
+                            setStep(2);
+                          }}
+                          className="px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 disabled:opacity-50"
+                        >
+                          Next
+                        </button>
+                      </div>
                     </div>
                   </>
+                  )
                 ) : (
                   <>
                     {userLoading ? (
@@ -668,6 +776,13 @@ export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Pro
 
             {step === 2 && (
               <div className="space-y-4">
+                {resolvedExistingUserId != null && user && (
+                  <p className="text-sm text-zinc-600">
+                    Onboarding{" "}
+                    <span className="font-medium text-zinc-900">{fullName(user)}</span> (#
+                    {user.user_id}).
+                  </p>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 mb-1">
                     Engagement type
@@ -779,36 +894,38 @@ export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Pro
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-zinc-700">Consultations</p>
-                  <label className="flex items-center gap-2 text-sm text-zinc-700">
-                    <input
-                      type="checkbox"
-                      checked={wantDoctor}
-                      onChange={(e) => setWantDoctor(e.target.checked)}
-                      className="rounded border-zinc-300"
-                    />
-                    Want doctor consultation
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-zinc-700">
-                    <input
-                      type="checkbox"
-                      checked={wantNutritionist}
-                      onChange={(e) => setWantNutritionist(e.target.checked)}
-                      className="rounded border-zinc-300"
-                    />
-                    Want nutritionist consultation
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-zinc-700">
-                    <input
-                      type="checkbox"
-                      checked={wantBoth}
-                      onChange={(e) => setWantBoth(e.target.checked)}
-                      className="rounded border-zinc-300"
-                    />
-                    Want doctor and nutritionist consultation
-                  </label>
-                </div>
+                {needsConsultation && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-zinc-700">Consultations</p>
+                    <label className="flex items-center gap-2 text-sm text-zinc-700">
+                      <input
+                        type="checkbox"
+                        checked={wantDoctor}
+                        onChange={(e) => setWantDoctor(e.target.checked)}
+                        className="rounded border-zinc-300"
+                      />
+                      Want doctor consultation
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-zinc-700">
+                      <input
+                        type="checkbox"
+                        checked={wantNutritionist}
+                        onChange={(e) => setWantNutritionist(e.target.checked)}
+                        className="rounded border-zinc-300"
+                      />
+                      Want nutritionist consultation
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-zinc-700">
+                      <input
+                        type="checkbox"
+                        checked={wantBoth}
+                        onChange={(e) => setWantBoth(e.target.checked)}
+                        className="rounded border-zinc-300"
+                      />
+                      Want doctor and nutritionist consultation
+                    </label>
+                  </div>
+                )}
 
                 {step2Error && (
                   <div className="p-3 rounded-lg bg-red-50 text-red-700 text-sm">{step2Error}</div>
@@ -821,7 +938,14 @@ export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Pro
                   <button
                     type="button"
                     disabled={submitting}
-                    onClick={() => setStep(1)}
+                    onClick={() => {
+                      setStep2Error(null);
+                      setSubmitError(null);
+                      if (mode !== "existing") {
+                        setStep1View(pickedUserId != null ? "search" : "new");
+                      }
+                      setStep(1);
+                    }}
                     className="px-4 py-2 rounded-lg border border-zinc-300 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
                   >
                     Back
