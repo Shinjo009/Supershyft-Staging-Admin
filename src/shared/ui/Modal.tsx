@@ -12,6 +12,8 @@ interface ModalProps {
   headerActions?: React.ReactNode;
   /** Overlay stacking class. Nested modals should use a higher z-index, e.g. z-[60]. */
   zIndexClassName?: string;
+  /** Body does not scroll; children (for example a side-by-side split) scroll themselves. */
+  lockBodyScroll?: boolean;
 }
 
 let openModalCount = 0;
@@ -26,6 +28,7 @@ export function Modal({
   maxWidthClassName,
   headerActions,
   zIndexClassName,
+  lockBodyScroll = false,
 }: ModalProps) {
   const titleId = useId();
   const instanceIdRef = useRef<number | null>(null);
@@ -90,7 +93,15 @@ export function Modal({
             </button>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-[max(1rem,env(safe-area-inset-bottom))]">{children}</div>
+        <div
+          className={
+            lockBodyScroll
+              ? "flex-1 min-h-0 overflow-hidden"
+              : "flex-1 overflow-y-auto p-4 sm:p-6 pb-[max(1rem,env(safe-area-inset-bottom))]"
+          }
+        >
+          {children}
+        </div>
       </div>
     </div>,
     document.body

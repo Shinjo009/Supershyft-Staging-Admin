@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef } from "react";
 import { Loader2, Info } from "lucide-react";
 import { Modal } from "../../shared/ui/Modal";
 import {
@@ -147,6 +147,9 @@ export function EngagementFormModal({
     scheduleIntentFromSlotDetail(initialData.slot_detail)
   );
   const [stepError, setStepError] = useState<string | null>(null);
+  const [sidePanelOpen, setSidePanelOpen] = useState(false);
+  const panelHostRef = useRef<HTMLDivElement>(null);
+  const [panelHost, setPanelHost] = useState<HTMLElement | null>(null);
   const [expertTypes, setExpertTypes] = useState<ExpertTypeItem[]>([]);
 
   const [zoneLoading, setZoneLoading] = useState(false);
@@ -174,6 +177,7 @@ export function EngagementFormModal({
     setScheduleIntent(scheduleIntentFromSlotDetail(normalized));
     setStepIndex(0);
     setStepError(null);
+    setSidePanelOpen(false);
     setZoneMessage(null);
     setZoneMessageTone("info");
     setNotificationEvents([]);
@@ -459,6 +463,14 @@ export function EngagementFormModal({
   const currentStep = steps[stepIndex];
   const currentStepKey = currentStep?.key ?? "basics";
   const isLastStep = stepIndex >= steps.length - 1;
+
+  useLayoutEffect(() => {
+    setPanelHost(sidePanelOpen ? panelHostRef.current : null);
+  }, [sidePanelOpen]);
+
+  useEffect(() => {
+    if (currentStepKey !== "schedule") setSidePanelOpen(false);
+  }, [currentStepKey]);
 
   const applySlotDetailPrune = useCallback(
     (
@@ -961,8 +973,11 @@ export function EngagementFormModal({
       open={open}
       onClose={onClose}
       title={mode === "add" ? "Add Engagement" : "Edit Engagement"}
-      maxWidthClassName="max-w-3xl"
+      maxWidthClassName={sidePanelOpen ? "max-w-6xl" : "max-w-3xl"}
+      lockBodyScroll={sidePanelOpen}
     >
+      <div className={sidePanelOpen ? "flex min-h-0 max-h-[calc(90vh-4.5rem)] overflow-hidden" : undefined}>
+      <div className={sidePanelOpen ? "w-[65%] min-w-0 min-h-0 overflow-y-auto p-4 sm:p-6" : undefined}>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="flex items-center gap-2">
           {steps.map((item, index) => {
@@ -1784,6 +1799,8 @@ export function EngagementFormModal({
             onDatesChange={setCollectionDates}
             onSlotDetailChange={setSlotDetail}
             expertTypes={expertTypes}
+            panelHost={panelHost}
+            onSidePanelChange={setSidePanelOpen}
           />
         )}
 
@@ -1853,6 +1870,14 @@ export function EngagementFormModal({
           </button>
         </div>
       </form>
+      </div>
+      {sidePanelOpen && (
+        <aside
+          ref={panelHostRef}
+          className="w-[35%] min-w-0 min-h-0 border-l border-zinc-200 bg-white overflow-hidden"
+        />
+      )}
+      </div>
     </Modal>
   );
 }

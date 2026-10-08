@@ -142,6 +142,7 @@ export function createEmptyCabin(section: CabinSectionKey): CabinSlotConfig {
     ...(section === "consultation" ? { expert_type: "" } : {}),
     slot_duration: 30,
     capacity_per_slot: section === "blood_collection" ? 2 : 1,
+    slot_capacity_overrides: {},
     breaks: [],
     is_active: true,
   };
@@ -333,6 +334,82 @@ export function normalizeTime(value: string): string {
   const parts = value.split(":");
   if (parts.length < 2) return value;
   return `${parts[0].padStart(2, "0")}:${parts[1].padStart(2, "0")}`;
+}
+
+function minutesFromHhmm(value: string): number | null {
+  const normalized = normalizeTime(value);
+  const [hour, minute] = normalized.split(":").map(Number);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  return hour * 60 + minute;
+}
+
+function hhmmFromMinutes(total: number): string {
+  const hour = Math.floor(total / 60) % 24;
+  const minute = total % 60;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+export function effectiveSlotCapacity(cabin: CabinSlotConfig, slot: string): number {
+  const key = normalizeTime(slot);
+  const override = cabin.slot_capacity_overrides?.[key];
+  return override != null ? override : cabin.capacity_per_slot;
+}
+
+export function withSlotCapacity(
+  cabin: CabinSlotConfig,
+  slot: string,
+  capacity: number
+): CabinSlotConfig {
+  const key = normalizeTime(slot);
+  const overrides = { ...(cabin.slot_capacity_overrides ?? {}) };
+  if (capacity === cabin.capacity_per_slot) delete overrides[key];
+  else overrides[key] = capacity;
+  return { ...cabin, slot_capacity_overrides: overrides };
+}
+
+export type CabinSlotRow = {
+  slot: string;
+  slot_end: string;
+  capacity: number;
+  spot_left: number;
+};
+
+/** Same grid as the backend: step by slot_duration and skip starts that fall inside a break. */
+export function generateCabinSlotRows(
+  cabin: CabinSlotConfig,
+  bookedBySlot: Record<string, number> = {}
+): CabinSlotRow[] {
+  const start = minutesFromHhmm(cabin.start_time);
+  const end = minutesFromHhmm(cabin.end_time);
+  const duration = cabin.slot_duration;
+  if (start == null || end == null || duration <= 0 || end <= start) return [];
+
+  const breaks = cabin.breaks
+    .map((br) => ({
+      start: minutesFromHhmm(br.start_time),
+      end: minutesFromHhmm(br.end_time),
+    }))
+    .filter(
+      (br): br is { start: number; end: number } =>
+        br.start != null && br.end != null && br.end > br.start
+    );
+
+  const rows: CabinSlotRow[] = [];
+  for (let current = start; current + duration <= end; current += duration) {
+    const inBreak = breaks.some((br) => br.start <= current && current < br.end);
+    if (inBreak) continue;
+    const slot = hhmmFromMinutes(current);
+    const capacity = effectiveSlotCapacity(cabin, slot);
+    const booked = bookedBySlot[slot] ?? 0;
+    rows.push({
+      slot,
+      slot_end: hhmmFromMinutes(current + duration),
+      capacity,
+      spot_left: Math.max(0, capacity - booked),
+    });
+  }
+  return rows;
 }
 
 export function validateCabin(cabin: CabinSlotConfig, section?: CabinSectionKey): string | null {

@@ -2188,6 +2188,8 @@ export interface CabinSlotConfig {
   expert_type?: string;
   slot_duration: number;
   capacity_per_slot: number;
+  /** Per start time (HH:MM). Missing times use capacity_per_slot. */
+  slot_capacity_overrides?: Record<string, number>;
   breaks: CabinBreak[];
   is_active: boolean;
 }
@@ -2207,6 +2209,21 @@ export interface SlotDetail {
 export interface PublicAvailableSlot {
   slot: string;
   spot_left: number;
+}
+
+export interface CabinSlotCapacityRow {
+  slot: string;
+  slot_end: string;
+  capacity: number;
+  spot_left: number;
+}
+
+export interface SlotCapacityUpdate {
+  section: "blood_collection" | "consultation";
+  date: string;
+  cabin_key: string;
+  slot: string;
+  capacity: number;
 }
 
 export interface PublicCabinSlot {
@@ -2450,6 +2467,15 @@ export const engagementsApi = {
     api.post<{ data: { engagement_id: number } }>("/engagements", payload),
   update: (id: number, payload: Partial<EngagementCreate> & Pick<EngagementCreate, "engagement_type" | "start_date" | "end_date" | "slot_duration">) =>
     api.put<{ data: { engagement_id: number } }>(`/engagements/${id}`, payload),
+  updateSlotCapacity: (id: number, payload: SlotCapacityUpdate) =>
+    api.patch<{
+      data: {
+        section: SlotCapacityUpdate["section"];
+        date: string;
+        cabin: CabinSlotConfig;
+        slots: CabinSlotCapacityRow[];
+      };
+    }>(`/engagements/${id}/slot-capacity`, payload),
   updateStatus: (id: number, status: EngagementStatus) =>
     api.patch<{ data: { engagement_id: number; status: EngagementStatus } }>(
       `/engagements/${id}/status`,

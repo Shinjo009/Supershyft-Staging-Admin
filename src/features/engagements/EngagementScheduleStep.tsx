@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type MutableRefObject,
+  type ReactNode,
   type Ref,
   type RefObject,
 } from "react";
@@ -20,7 +21,7 @@ import type {
   ExpertTypeItem,
   SlotDetail,
 } from "../../lib/api";
-import { Modal } from "../../shared/ui/Modal";
+import { engagementsApi, getApiError } from "../../lib/api";
 import {
   getScheduleTitle,
   summarizeSlotDetail,
@@ -33,8 +34,12 @@ import {
   createEmptyCabin,
   getCabinsForDate,
   isSectionDateEnabled,
+  normalizeDateEntry,
   normalizeCabinKeyInput,
+  effectiveSlotCapacity,
+  generateCabinSlotRows,
   normalizeCabinTimes,
+  normalizeTime,
   removeCabin,
   removeDateFromSection,
   mergeSectionDates,
@@ -43,6 +48,7 @@ import {
   upsertCabin,
   validateBreak,
   validateCabin,
+  withSlotCapacity,
 } from "./slotDetailUtils";
 import { ImportSlotDetailModal, type ImportCopyResult } from "./ImportSlotDetailModal";
 
@@ -65,6 +71,14 @@ type Props = {
   onDatesChange: (dates: string[]) => void;
   onSlotDetailChange: (next: SlotDetail) => void;
   expertTypes?: ExpertTypeItem[];
+  panelHost?: HTMLElement | null;
+  onSidePanelChange?: (open: boolean) => void;
+};
+
+type ViewingCabin = {
+  section: CabinSectionKey;
+  date: string;
+  cabinKey: string;
 };
 
 type EditingCabin = {
@@ -135,6 +149,8 @@ export function EngagementScheduleStep({
   onDatesChange,
   onSlotDetailChange,
   expertTypes = [],
+  panelHost = null,
+  onSidePanelChange,
 }: Props) {
   const showBlood = scheduleIntent.configureBlood;
   const showConsult = scheduleIntent.configureConsult;
@@ -154,9 +170,20 @@ export function EngagementScheduleStep({
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
   const [editingCabin, setEditingCabin] = useState<EditingCabin | null>(null);
+  const [viewingCabin, setViewingCabin] = useState<ViewingCabin | null>(null);
+  const slotDetailRef = useRef(slotDetail);
+  slotDetailRef.current = slotDetail;
   const [editingBreak, setEditingBreak] = useState<EditingBreak | null>(null);
   const [dateError, setDateError] = useState<string | null>(null);
   const [cabinError, setCabinError] = useState<string | null>(null);
+  useEffect(() => {
+    onSidePanelChange?.(editingCabin != null || viewingCabin != null);
+  }, [editingCabin, viewingCabin, onSidePanelChange]);
+
+  useEffect(() => {
+    return () => onSidePanelChange?.(false);
+  }, [onSidePanelChange]);
+
   const [importOpen, setImportOpen] = useState(false);
   const [importBanner, setImportBanner] = useState<string | null>(null);
   const calendarRef = useRef<HTMLDivElement>(null);
@@ -258,6 +285,7 @@ export function EngagementScheduleStep({
       }
     }
     setEditingCabin((prev) => (prev?.date === date ? null : prev));
+    setViewingCabin((prev) => (prev?.date === date ? null : prev));
     setEditingBreak(null);
   };
 
@@ -269,6 +297,7 @@ export function EngagementScheduleStep({
   const startNewCabin = (section: CabinSectionKey, date: string) => {
     setCabinError(null);
     setEditingBreak(null);
+    setViewingCabin(null);
     setEditingCabin({
       section,
       date,
@@ -279,9 +308,17 @@ export function EngagementScheduleStep({
     });
   };
 
+  const startViewCabin = (section: CabinSectionKey, date: string, cabin: CabinSlotConfig) => {
+    setCabinError(null);
+    setEditingBreak(null);
+    setEditingCabin(null);
+    setViewingCabin({ section, date, cabinKey: cabin.cabin_key });
+  };
+
   const startEditCabin = (section: CabinSectionKey, date: string, cabin: CabinSlotConfig) => {
     setCabinError(null);
     setEditingBreak(null);
+    setViewingCabin(null);
     setEditingCabin({
       section,
       date,
@@ -335,6 +372,13 @@ export function EngagementScheduleStep({
     setEditingCabin(null);
     setEditingBreak(null);
     setCabinError(null);
+  };
+
+  const applyViewedCabin = (nextCabin: CabinSlotConfig) => {
+    if (!viewingCabin) return;
+    onSlotDetailChange(
+      upsertCabin(slotDetailRef.current, viewingCabin.section, viewingCabin.date, nextCabin)
+    );
   };
 
   const saveCabin = () => {
@@ -537,6 +581,7 @@ export function EngagementScheduleStep({
         onAddDate={(iso) => addDateForSection(currentSection, iso)}
         onStartNewCabin={startNewCabin}
         onEditCabin={startEditCabin}
+        onViewCabin={startViewCabin}
         onDeleteCabin={deleteCabin}
         onToggleDateEnabled={(date) => handleToggleDateEnabled(currentSection, date)}
         selectedDateHasNoCabins={selectedDateHasNoCabins}
@@ -556,41 +601,58 @@ export function EngagementScheduleStep({
         onEditImportedCabin={openImportedCabinEditor}
       />
 
-      <Modal
-        open={editingCabin != null}
-        onClose={closeCabinModal}
-        title={
-          editingCabin?.isNew
-            ? editingCabin.section === "blood_collection"
-              ? "Add Blood-Test Cabin"
-              : "Add Consultation Cabin"
-            : "Edit cabin"
-        }
-        maxWidthClassName="max-w-lg"
-        zIndexClassName="z-[60]"
-      >
-        {editingCabin && (
-          <CabinEditor
-            editing={editingCabin}
-            error={cabinError}
-            expertTypes={expertTypes}
-            onChange={updateEditingCabin}
-            onNameChange={updateCabinName}
-            onKeyChange={updateCabinKey}
-            onSave={saveCabin}
-            onCancel={closeCabinModal}
-            onAddBreak={startAddBreak}
-            onEditBreak={startEditBreak}
-            onRemoveBreak={removeBreakAt}
-            editingBreak={editingBreak}
-            onBreakChange={(breakValue) =>
-              setEditingBreak((prev) => (prev ? { ...prev, breakValue } : prev))
+      {panelHost &&
+        editingCabin &&
+        createPortal(
+          <SidePanelShell
+            title={
+              editingCabin.isNew
+                ? editingCabin.section === "blood_collection"
+                  ? "Add Blood-Test Cabin"
+                  : "Add Consultation Cabin"
+                : "Edit cabin"
             }
-            onSaveBreak={saveBreak}
-            onCancelBreak={() => setEditingBreak(null)}
-          />
+            onClose={closeCabinModal}
+          >
+            <CabinEditor
+              editing={editingCabin}
+              error={cabinError}
+              expertTypes={expertTypes}
+              onChange={updateEditingCabin}
+              onNameChange={updateCabinName}
+              onKeyChange={updateCabinKey}
+              onSave={saveCabin}
+              onCancel={closeCabinModal}
+              onAddBreak={startAddBreak}
+              onEditBreak={startEditBreak}
+              onRemoveBreak={removeBreakAt}
+              editingBreak={editingBreak}
+              onBreakChange={(breakValue) =>
+                setEditingBreak((prev) => (prev ? { ...prev, breakValue } : prev))
+              }
+              onSaveBreak={saveBreak}
+              onCancelBreak={() => setEditingBreak(null)}
+            />
+          </SidePanelShell>,
+          panelHost
         )}
-      </Modal>
+      {panelHost &&
+        viewingCabin &&
+        createPortal(
+          <CabinSlotView
+            engagementId={currentEngagementId ?? null}
+            section={viewingCabin.section}
+            date={viewingCabin.date}
+            cabin={
+              getCabinsForDate(slotDetail, viewingCabin.section, viewingCabin.date).find(
+                (cabin) => cabin.cabin_key === viewingCabin.cabinKey
+              ) ?? null
+            }
+            onCabinChange={applyViewedCabin}
+            onClose={() => setViewingCabin(null)}
+          />,
+          panelHost
+        )}
     </div>
   );
 }
@@ -614,6 +676,7 @@ function SectionSchedulePanel({
   onAddDate,
   onStartNewCabin,
   onEditCabin,
+  onViewCabin,
   onDeleteCabin,
   onToggleDateEnabled,
   selectedDateHasNoCabins,
@@ -637,6 +700,7 @@ function SectionSchedulePanel({
   onAddDate: (iso: string) => void;
   onStartNewCabin: (section: CabinSectionKey, date: string) => void;
   onEditCabin: (section: CabinSectionKey, date: string, cabin: CabinSlotConfig) => void;
+  onViewCabin: (section: CabinSectionKey, date: string, cabin: CabinSlotConfig) => void;
   onDeleteCabin: (section: CabinSectionKey, date: string, cabinKey: string) => void;
   onToggleDateEnabled: (date: string) => void;
   selectedDateHasNoCabins: boolean;
@@ -803,6 +867,7 @@ function SectionSchedulePanel({
                 expertTypes={expertTypes}
                 showExpertType={section === "consultation"}
                 onEdit={(cabin) => onEditCabin(section, selectedDate, cabin)}
+                onView={(cabin) => onViewCabin(section, selectedDate, cabin)}
                 onDelete={(key) => onDeleteCabin(section, selectedDate, key)}
               />
             </>
@@ -971,10 +1036,212 @@ function DateCalendarPopover({
   );
 }
 
+function SidePanelShell({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col h-full min-h-0">
+      <div className="flex items-center justify-between gap-3 px-4 py-4 border-b border-zinc-200">
+        <h3 className="text-base font-semibold text-zinc-900">{title}</h3>
+        <button
+          type="button"
+          onClick={onClose}
+          className="p-2 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
+          aria-label="Close"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4">{children}</div>
+    </div>
+  );
+}
+
+function CabinSlotView({
+  engagementId,
+  section,
+  date,
+  cabin,
+  onCabinChange,
+  onClose,
+}: {
+  engagementId: number | null;
+  section: CabinSectionKey;
+  date: string;
+  cabin: CabinSlotConfig | null;
+  onCabinChange: (cabin: CabinSlotConfig) => void;
+  onClose: () => void;
+}) {
+  const [bookedBySlot, setBookedBySlot] = useState<Record<string, number>>({});
+  const [persisted, setPersisted] = useState(false);
+  const [loading, setLoading] = useState(Boolean(engagementId));
+  const [savingSlot, setSavingSlot] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!engagementId || !cabin) {
+      setPersisted(false);
+      setBookedBySlot({});
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    engagementsApi
+      .get(engagementId)
+      .then((res) => {
+        if (cancelled) return;
+        const engagement = res.data.data;
+        const stored = normalizeDateEntry(engagement.slot_detail?.[section]?.[date]).cabins.find(
+          (item) => item.cabin_key === cabin.cabin_key
+        );
+        if (!stored) {
+          setPersisted(false);
+          setBookedBySlot({});
+          return;
+        }
+        setPersisted(true);
+        const publicCabin = engagement.public_slot_detail?.[section]?.[date]?.cabins?.find(
+          (item) => item.cabin_key === cabin.cabin_key
+        );
+        const booked: Record<string, number> = {};
+        for (const slot of publicCabin?.available_slots ?? []) {
+          const key = normalizeTime(slot.slot);
+          booked[key] = Math.max(0, effectiveSlotCapacity(stored, slot.slot) - slot.spot_left);
+        }
+        setBookedBySlot(booked);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(getApiError(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [engagementId, section, date, cabin?.cabin_key]);
+
+  const adjust = async (slot: string, delta: number) => {
+    if (!cabin || savingSlot) return;
+    const current = effectiveSlotCapacity(cabin, slot);
+    const booked = bookedBySlot[normalizeTime(slot)] ?? 0;
+    const next = current + delta;
+    if (next < 1 || next > 1000 || next < booked) return;
+    const previous = cabin;
+    const updated = withSlotCapacity(cabin, slot, next);
+    onCabinChange(updated);
+    if (!engagementId || !persisted) return;
+    setSavingSlot(slot);
+    setError(null);
+    try {
+      const res = await engagementsApi.updateSlotCapacity(engagementId, {
+        section,
+        date,
+        cabin_key: cabin.cabin_key,
+        slot,
+        capacity: next,
+      });
+      const bookedNext: Record<string, number> = {};
+      for (const row of res.data.data.slots) {
+        bookedNext[normalizeTime(row.slot)] = Math.max(0, row.capacity - row.spot_left);
+      }
+      setBookedBySlot(bookedNext);
+      onCabinChange({
+        ...updated,
+        slot_capacity_overrides: res.data.data.cabin.slot_capacity_overrides ?? {},
+      });
+    } catch (err) {
+      onCabinChange(previous);
+      setError(getApiError(err));
+    } finally {
+      setSavingSlot(null);
+    }
+  };
+
+  const rows = cabin ? generateCabinSlotRows(cabin, bookedBySlot) : [];
+
+  return (
+    <SidePanelShell title={cabin ? `${cabin.cabin_name} slots` : "Slots"} onClose={onClose}>
+      <p className="text-xs text-zinc-500 mb-3">{formatDateLabel(date)}</p>
+      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      {loading ? (
+        <p className="text-sm text-zinc-500">Loading slots…</p>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-zinc-500">No slots for this cabin.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-zinc-500 border-b border-zinc-200">
+                <th className="py-2 pr-2 font-medium">Slot</th>
+                <th className="py-2 pr-2 font-medium">Capacity</th>
+                <th className="py-2 pr-2 font-medium">Spot left</th>
+                <th className="py-2 font-medium">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const booked = bookedBySlot[row.slot] ?? 0;
+                const minusDisabled = savingSlot != null || row.capacity <= 1 || row.capacity - 1 < booked;
+                const plusDisabled = savingSlot != null || row.capacity >= 1000;
+                return (
+                  <tr key={row.slot} className="border-b border-zinc-100">
+                    <td className="py-2 pr-2 whitespace-nowrap">
+                      {row.slot} - {row.slot_end}
+                    </td>
+                    <td className="py-2 pr-2">{row.capacity}</td>
+                    <td className="py-2 pr-2">{row.spot_left}</td>
+                    <td className="py-2">
+                      <div className="inline-flex rounded-lg border border-zinc-300 overflow-hidden">
+                        <button
+                          type="button"
+                          className="px-2 py-1 text-zinc-800 hover:bg-zinc-100 disabled:opacity-40"
+                          disabled={minusDisabled}
+                          aria-label={`Decrease capacity for ${row.slot}`}
+                          onClick={() => void adjust(row.slot, -1)}
+                        >
+                          −
+                        </button>
+                        <button
+                          type="button"
+                          className="px-2 py-1 border-l border-zinc-300 text-zinc-800 hover:bg-zinc-100 disabled:opacity-40"
+                          disabled={plusDisabled}
+                          aria-label={`Increase capacity for ${row.slot}`}
+                          onClick={() => void adjust(row.slot, 1)}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {!persisted && !loading && (
+        <p className="text-xs text-zinc-500 mt-3">
+          This cabin is not saved yet. Capacity changes are kept with the engagement when you save it.
+        </p>
+      )}
+    </SidePanelShell>
+  );
+}
+
 function CabinList({
   title,
   cabins,
   onEdit,
+  onView,
   onDelete,
   expertTypes = [],
   showExpertType = false,
@@ -982,6 +1249,7 @@ function CabinList({
   title: string;
   cabins: CabinSlotConfig[];
   onEdit: (cabin: CabinSlotConfig) => void;
+  onView: (cabin: CabinSlotConfig) => void;
   onDelete: (cabinKey: string) => void;
   expertTypes?: ExpertTypeItem[];
   showExpertType?: boolean;
@@ -1018,6 +1286,13 @@ function CabinList({
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    className="text-xs text-zinc-700 hover:underline"
+                    onClick={() => onView(cabin)}
+                  >
+                    View slot detail
+                  </button>
                   <button
                     type="button"
                     className="text-xs text-zinc-700 hover:underline"
