@@ -4322,6 +4322,11 @@ export const healthiansApi = {
     ),
 };
 
+export const orangeHealthApi = {
+  getConstituents: () =>
+    api.get<{ data: HealthiansConstituentsResponse }>("/diagnostics/orange-health/constituents"),
+};
+
 // Payments / bookings (employee)
 export interface BookingListItem {
   booking_id: number;

@@ -4,10 +4,15 @@ import {
   diagnosticTestsApi,
   getApiError,
   healthiansApi,
+  orangeHealthApi,
   type HealthiansConstituent,
 } from "../../lib/api";
 import { Modal } from "../../shared/ui/Modal";
-import { isHealthiansProvider, isOrangeHealthProvider } from "./providerParameterKeys";
+import {
+  isHealthiansProvider,
+  isOrangeHealthProvider,
+  isProviderParameterMapped,
+} from "./providerParameterKeys";
 
 export interface MapModalTest {
   test_id: number;
@@ -16,19 +21,18 @@ export interface MapModalTest {
   orangehealth_parameter_key?: string | null;
 }
 
-function isHealthiansKeyMapped(test: MapModalTest): boolean {
-  const key = test.healthians_parameter_key;
-  return key != null && String(key).trim() !== "";
-}
-
-function findNextUnmappedTest(tests: MapModalTest[], currentTestId: number): MapModalTest | null {
+function findNextUnmappedTest(
+  tests: MapModalTest[],
+  currentTestId: number,
+  diagnosticProvider: string | null | undefined
+): MapModalTest | null {
   const currentIdx = tests.findIndex((t) => t.test_id === currentTestId);
   if (currentIdx === -1) return null;
   for (let i = currentIdx + 1; i < tests.length; i++) {
-    if (!isHealthiansKeyMapped(tests[i])) return tests[i];
+    if (!isProviderParameterMapped(tests[i], diagnosticProvider)) return tests[i];
   }
   for (let i = 0; i < currentIdx; i++) {
-    if (!isHealthiansKeyMapped(tests[i])) return tests[i];
+    if (!isProviderParameterMapped(tests[i], diagnosticProvider)) return tests[i];
   }
   return null;
 }
@@ -75,9 +79,12 @@ export function HealthiansMapModal({
       : isHealthiansProvider(diagnosticProvider)
         ? "Healthians"
         : (diagnosticProvider ?? "provider");
-  const providerValid = isHealthiansProvider(diagnosticProvider);
+  const healthiansProvider = isHealthiansProvider(diagnosticProvider);
   const orangeHealthProvider = isOrangeHealthProvider(diagnosticProvider);
+  const mappingSupported = healthiansProvider || orangeHealthProvider;
   const packageIdValid = Boolean((externalPackageCode ?? "").trim());
+  const canLoadConstituents =
+    orangeHealthProvider || (healthiansProvider && packageIdValid);
 
   useEffect(() => {
     if (open) {
@@ -94,7 +101,7 @@ export function HealthiansMapModal({
     setConfirmConstituent(null);
     setError(null);
 
-    if (!providerValid || !packageIdValid) return;
+    if (!canLoadConstituents) return;
     if (dataLoaded) return;
 
     setConstituents([]);
@@ -104,7 +111,9 @@ export function HealthiansMapModal({
     (async () => {
       setLoading(true);
       try {
-        const res = await healthiansApi.getConstituents(externalPackageCode!.trim());
+        const res = orangeHealthProvider
+          ? await orangeHealthApi.getConstituents()
+          : await healthiansApi.getConstituents(externalPackageCode!.trim());
         if (cancelled) return;
         const data = res.data.data;
         setConstituents(data.constituents ?? []);
@@ -119,11 +128,11 @@ export function HealthiansMapModal({
     return () => {
       cancelled = true;
     };
-  }, [open, providerValid, packageIdValid, externalPackageCode, dataLoaded]);
+  }, [open, canLoadConstituents, orangeHealthProvider, externalPackageCode, dataLoaded]);
 
   const nextUnmappedTest = useMemo(
-    () => findNextUnmappedTest(localTests, testId),
-    [localTests, testId]
+    () => findNextUnmappedTest(localTests, testId, diagnosticProvider),
+    [localTests, testId, diagnosticProvider]
   );
 
   const mappedConstituent = useMemo(() => {
@@ -139,23 +148,36 @@ export function HealthiansMapModal({
     return constituents.filter((c) => c.name.toLowerCase().includes(q));
   }, [constituents, search]);
 
+  const applyLocalMapping = useCallback(
+    (constituentId: string): MapModalTest[] =>
+      localTests.map((t) => {
+        if (t.test_id !== testId) return t;
+        if (orangeHealthProvider) {
+          return { ...t, orangehealth_parameter_key: constituentId };
+        }
+        return { ...t, healthians_parameter_key: constituentId };
+      }),
+    [localTests, testId, orangeHealthProvider]
+  );
+
   const handleMapAndNext = useCallback(
     async (constituent: HealthiansConstituent) => {
       setMapping(true);
       setError(null);
       try {
-        await diagnosticTestsApi.update(testId, {
-          healthians_parameter_key: constituent.id,
-        });
-        const updatedTests = localTests.map((t) =>
-          t.test_id === testId ? { ...t, healthians_parameter_key: constituent.id } : t
+        await diagnosticTestsApi.update(
+          testId,
+          orangeHealthProvider
+            ? { orangehealth_parameter_key: constituent.id }
+            : { healthians_parameter_key: constituent.id }
         );
+        const updatedTests = applyLocalMapping(constituent.id);
         setLocalTests(updatedTests);
         await onMapped();
         setConfirmConstituent(null);
         setSearch("");
 
-        const next = findNextUnmappedTest(updatedTests, testId);
+        const next = findNextUnmappedTest(updatedTests, testId, diagnosticProvider);
         if (next) {
           onSwitchTest(next);
         } else {
@@ -167,7 +189,15 @@ export function HealthiansMapModal({
         setMapping(false);
       }
     },
-    [testId, localTests, onMapped, onSwitchTest, onClose]
+    [
+      testId,
+      orangeHealthProvider,
+      diagnosticProvider,
+      applyLocalMapping,
+      onMapped,
+      onSwitchTest,
+      onClose,
+    ]
   );
 
   const handleMapAndClose = useCallback(
@@ -175,12 +205,13 @@ export function HealthiansMapModal({
       setMapping(true);
       setError(null);
       try {
-        await diagnosticTestsApi.update(testId, {
-          healthians_parameter_key: constituent.id,
-        });
-        const updatedTests = localTests.map((t) =>
-          t.test_id === testId ? { ...t, healthians_parameter_key: constituent.id } : t
+        await diagnosticTestsApi.update(
+          testId,
+          orangeHealthProvider
+            ? { orangehealth_parameter_key: constituent.id }
+            : { healthians_parameter_key: constituent.id }
         );
+        const updatedTests = applyLocalMapping(constituent.id);
         setLocalTests(updatedTests);
         await onMapped();
         onClose();
@@ -191,35 +222,24 @@ export function HealthiansMapModal({
         setConfirmConstituent(null);
       }
     },
-    [testId, localTests, onMapped, onClose]
+    [testId, orangeHealthProvider, applyLocalMapping, onMapped, onClose]
   );
 
   const renderContent = () => {
-    if (orangeHealthProvider) {
-      return (
-        <div className="py-8 text-center">
-          <p className="text-sm font-medium text-zinc-900">Coming Soon</p>
-          <p className="text-sm text-zinc-500 mt-1">
-            Orange Health parameter mapping will be available in a future release.
-          </p>
-        </div>
-      );
-    }
-
-    if (!providerValid) {
+    if (!mappingSupported) {
       return (
         <div className="py-8 text-center">
           <p className="text-sm text-zinc-600">
             Parameter mapping is not available for this diagnostic provider.
           </p>
           <p className="text-sm text-zinc-500 mt-1">
-            Only Healthians packages support constituent mapping today.
+            Only Healthians and Orange Health packages support parameter mapping.
           </p>
         </div>
       );
     }
 
-    if (!packageIdValid) {
+    if (healthiansProvider && !packageIdValid) {
       return (
         <div className="py-8 text-center">
           <p className="text-sm text-zinc-600">
@@ -237,7 +257,9 @@ export function HealthiansMapModal({
         <div className="py-10 flex flex-col items-center gap-2">
           <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
           <p className="text-sm text-zinc-500">
-            Fetching constituents from {providerLabel}...
+            {orangeHealthProvider
+              ? "Loading Orange Health test catalog..."
+              : `Fetching constituents from ${providerLabel}...`}
           </p>
         </div>
       );
