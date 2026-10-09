@@ -87,6 +87,20 @@ function packageOptionLabel(pkg: DiagnosticPackageListItem): string {
   return suitability ? `${pkg.package_name} (${suitability})` : pkg.package_name;
 }
 
+function hasExternalPackageCode(pkg: DiagnosticPackageListItem): boolean {
+  return Boolean((pkg.external_package_code ?? "").trim());
+}
+
+function diagnosticPackageOption(pkg: DiagnosticPackageListItem) {
+  const selectable = hasExternalPackageCode(pkg);
+  return (
+    <option key={pkg.diagnostic_package_id} value={pkg.diagnostic_package_id} disabled={!selectable}>
+      {packageOptionLabel(pkg)}
+      {selectable ? "" : " (no external package code)"}
+    </option>
+  );
+}
+
 function buildSteps(
   kind: EngagementKind | null,
   bloodMode: string | null | undefined,
@@ -1283,11 +1297,7 @@ export function EngagementFormModal({
                       className={inputClass}
                     >
                       <option value={0}>Select package</option>
-                      {diagnosticPackages.map((p) => (
-                        <option key={p.diagnostic_package_id} value={p.diagnostic_package_id}>
-                          {packageOptionLabel(p)}
-                        </option>
-                      ))}
+                      {diagnosticPackages.map(diagnosticPackageOption)}
                     </select>
                   </div>
                 ) : (
@@ -1316,11 +1326,7 @@ export function EngagementFormModal({
                         className={inputClass}
                       >
                         <option value={0}>Select male package</option>
-                        {diagnosticPackages.map((p) => (
-                          <option key={p.diagnostic_package_id} value={p.diagnostic_package_id}>
-                            {packageOptionLabel(p)}
-                          </option>
-                        ))}
+                        {diagnosticPackages.map(diagnosticPackageOption)}
                       </select>
                     </div>
                     <div>
@@ -1338,11 +1344,7 @@ export function EngagementFormModal({
                         className={inputClass}
                       >
                         <option value={0}>Select female package</option>
-                        {diagnosticPackages.map((p) => (
-                          <option key={p.diagnostic_package_id} value={p.diagnostic_package_id}>
-                            {packageOptionLabel(p)}
-                          </option>
-                        ))}
+                        {diagnosticPackages.map(diagnosticPackageOption)}
                       </select>
                     </div>
                   </div>

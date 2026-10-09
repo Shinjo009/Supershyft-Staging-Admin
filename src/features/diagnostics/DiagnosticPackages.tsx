@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, Plus, Search } from "lucide-react";
+import { AlertTriangle, Loader2, Plus, Search } from "lucide-react";
 import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
@@ -399,7 +399,25 @@ export function DiagnosticPackages() {
     {
       key: "package_name",
       label: "Package name",
-      render: (row) => <span className="font-medium text-zinc-900">{row.package_name}</span>,
+      render: (row) => {
+        const unmapped = row.unmapped_test_count ?? 0;
+        const total = row.no_of_tests ?? 0;
+        const mapped = Math.max(total - unmapped, 0);
+        return (
+          <span className="inline-flex items-center gap-1.5 font-medium text-zinc-900">
+            {row.package_name}
+            {unmapped > 0 && (
+              <span
+                title={`${mapped} of ${total} tests mapped`}
+                aria-label={`${mapped} of ${total} tests mapped`}
+                className="inline-flex text-amber-600"
+              >
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+              </span>
+            )}
+          </span>
+        );
+      },
     },
     {
       key: "diagnostic_provider",

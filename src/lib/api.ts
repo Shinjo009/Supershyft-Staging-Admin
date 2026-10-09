@@ -3958,6 +3958,7 @@ export interface DiagnosticPackageListItem {
   external_package_code?: string | null;
   created_by_user_id?: number | null;
   no_of_tests?: number | null;
+  unmapped_test_count?: number | null;
   report_duration_hours?: number | null;
   collection_type?: string | null;
   price?: number | null;
