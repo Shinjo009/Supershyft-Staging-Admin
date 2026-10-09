@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Plus, Loader2, X, ScrollText, Search, Trash2 } from "lucide-react";
+import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
 import { Modal } from "../../shared/ui/Modal";
@@ -987,13 +988,11 @@ function ServicesTab() {
             </button>
           </div>
         </div>
-        <PermissionGate category="notifications" taskKey="services" action="edit"><button
-          onClick={openAdd}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          Add Service
-        </button></PermissionGate>
+        <PageHeaderActions>
+          <PermissionGate category="notifications" taskKey="services" action="edit">
+            <HeaderActionButton label="Add Service" icon={Plus} onClick={openAdd} />
+          </PermissionGate>
+        </PageHeaderActions>
       </div>
 
       {!loading && data.length > 0 ? (
@@ -1398,15 +1397,11 @@ function EventsTab() {
         <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">{error}</div>
       )}
 
-      <div className="mb-4 flex justify-end">
-        <PermissionGate category="notifications" taskKey="events" action="edit"><button
-          onClick={openAdd}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800"
-        >
-          <Plus className="w-4 h-4" />
-          Add Event
-        </button></PermissionGate>
-      </div>
+      <PageHeaderActions>
+        <PermissionGate category="notifications" taskKey="events" action="edit">
+          <HeaderActionButton label="Add Event" icon={Plus} onClick={openAdd} />
+        </PermissionGate>
+      </PageHeaderActions>
 
       <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden">
         {loading ? (
@@ -1589,19 +1584,16 @@ export function Notifications() {
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-end gap-3 mb-5">
+      <PageHeaderActions>
         {activeTab === "notifications" && (
-          <button
-            type="button"
+          <HeaderActionButton
+            label="Sync Logs"
+            icon={ScrollText}
+            variant="secondary"
             onClick={() => setSyncLogsOpen(true)}
-            className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 transition-colors shrink-0"
-            title="View n8n notification dispatch logs"
-          >
-            <ScrollText className="w-4 h-4 shrink-0" />
-            <span className="hidden sm:inline">Sync Logs</span>
-          </button>
+          />
         )}
-      </div>
+      </PageHeaderActions>
 
       <div className="flex gap-1 mb-5 border-b border-zinc-200">
         {TAB_KEYS.map((tab) => (

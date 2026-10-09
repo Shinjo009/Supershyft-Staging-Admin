@@ -12,6 +12,7 @@ import {
   type DiagnosticFilterChipFor,
 } from "../../lib/api";
 import { usePermissions } from "../../contexts/PermissionContext";
+import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 
 interface DiagnosticFilterChipsProps {
   embedded?: boolean;
@@ -224,6 +225,11 @@ export function DiagnosticFilterChips({ embedded = false }: DiagnosticFilterChip
         </button>
       </aside>
       <div className="min-w-0 flex-1">
+      <PageHeaderActions>
+        {mayEdit && (
+          <HeaderActionButton label="Add filter chip" icon={Plus} onClick={openAdd} />
+        )}
+      </PageHeaderActions>
       {!embedded && (
         <h1 className="text-lg sm:text-xl font-semibold text-zinc-900 mb-6">Diagnostics filter chips</h1>
       )}
@@ -241,16 +247,6 @@ export function DiagnosticFilterChips({ embedded = false }: DiagnosticFilterChip
             placeholder="Search filter chips..."
           />
         </div>
-        {mayEdit && (
-          <button
-            type="button"
-            onClick={openAdd}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800"
-          >
-            <Plus className="w-4 h-4" />
-            Add filter chip
-          </button>
-        )}
       </div>
 
       <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden">

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Loader2, Pause, Play, RefreshCw, Save, ScrollText, Search, Users } from "lucide-react";
+import { Bell, ChevronDown, ChevronUp, ClipboardList, Droplet, Link2, Loader2, MapPin, Pause, Play, RefreshCw, Save, ScrollText, Search, SlidersHorizontal, Users } from "lucide-react";
 import { DuplicatedUsersModal } from "./DuplicatedUsersModal";
 import { MetsightsBloodMappingSection } from "./MetsightsBloodMappingSection";
 import { IntegrationSyncLogsModal } from "../assessments/IntegrationSyncLogsModal";
 import { usePermissions } from "../../contexts/PermissionContext";
+import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 import {
   assessmentPackagesApi,
   diagnosticPackagesApi,
@@ -44,6 +45,72 @@ const SYNC_STORAGE_KEY = "metsights-sync-v1";
 const ENG_SYNC_STORAGE_KEY = "engagements-sync-v1";
 
 type SyncPhase = "idle" | "running" | "paused" | "completed" | "error";
+
+type SettingsSection = "general" | "notifications" | "assignments" | "integrations";
+
+type GeneralPanel = "onboarding" | "geocoding" | "maintenance";
+type NotificationPanel = "support" | "engagement";
+type AssignmentPanel = "assistants";
+type IntegrationPanel = "profiles" | "engagements" | "mapping";
+
+function SettingsSidebarItem({
+  active,
+  label,
+  icon: Icon,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  icon: typeof SlidersHorizontal;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors ${
+        active ? "bg-zinc-100 text-zinc-900" : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+      }`}
+    >
+      <Icon className="h-5 w-5 shrink-0" aria-hidden />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function SettingsNavCard({
+  active,
+  label,
+  subtitle,
+  icon: Icon,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  subtitle: string;
+  icon: typeof SlidersHorizontal;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={`flex w-full flex-col items-start gap-3 rounded-xl bg-white px-4 py-4 text-left shadow-sm transition-colors ${
+        active ? "border border-zinc-900" : "border border-zinc-200 hover:border-zinc-300"
+      }`}
+    >
+      <Icon className="w-5 h-5 text-zinc-700" aria-hidden />
+      <span>
+        <span className="block text-sm font-semibold text-zinc-900">{label}</span>
+        <span className="mt-0.5 block text-xs text-zinc-500">{subtitle}</span>
+      </span>
+    </button>
+  );
+}
 
 type B2cDefaultsByType = Record<string, B2cOnboardingTypeDefaults>;
 
@@ -183,6 +250,11 @@ export function Settings() {
   const mayEditUsers = canEditTask("users", "profiles");
   const mayViewIntegrations = canViewTask("assessments", "integrations");
   const mayViewSystemMonitoring = canViewTask("system_monitoring", "audit_logs");
+  const [section, setSection] = useState<SettingsSection>("general");
+  const [generalPanel, setGeneralPanel] = useState<GeneralPanel | null>(null);
+  const [notificationPanel, setNotificationPanel] = useState<NotificationPanel | null>(null);
+  const [assignmentPanel, setAssignmentPanel] = useState<AssignmentPanel | null>(null);
+  const [integrationPanel, setIntegrationPanel] = useState<IntegrationPanel | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -911,37 +983,165 @@ export function Settings() {
     !engStatsError;
   const isEngSyncing = engSyncPhase === "running";
 
+  const sectionCards: {
+    id: SettingsSection;
+    label: string;
+    subtitle: string;
+    icon: typeof SlidersHorizontal;
+  }[] = [
+    { id: "general", label: "General", subtitle: "Platform defaults", icon: SlidersHorizontal },
+    ...(mayViewNotifications
+      ? [{ id: "notifications" as const, label: "Notifications", subtitle: "Services & rules", icon: Bell }]
+      : []),
+    { id: "assignments", label: "Assignments", subtitle: "Default assistants", icon: Users },
+    { id: "integrations", label: "Integrations", subtitle: "Sync & data mapping", icon: RefreshCw },
+  ];
+  const generalCards: {
+    id: GeneralPanel;
+    label: string;
+    subtitle: string;
+    icon: typeof SlidersHorizontal;
+  }[] = [
+    {
+      id: "onboarding",
+      label: "B2C onboarding defaults",
+      subtitle: "Packages and enrollment",
+      icon: ClipboardList,
+    },
+    { id: "geocoding", label: "Geocoding provider", subtitle: "Address search", icon: MapPin },
+    ...(mayEditUsers
+      ? [{ id: "maintenance" as const, label: "User maintenance", subtitle: "Duplicate accounts", icon: Users }]
+      : []),
+  ];
+  const notificationCards: {
+    id: NotificationPanel;
+    label: string;
+    subtitle: string;
+    icon: typeof SlidersHorizontal;
+  }[] = [
+    {
+      id: "support",
+      label: "Support notification for default onboarding assistants",
+      subtitle: "Assistant alerts",
+      icon: Bell,
+    },
+    {
+      id: "engagement",
+      label: "Engagement notification defaults",
+      subtitle: "Services per engagement type",
+      icon: ClipboardList,
+    },
+  ];
+  const assignmentCards: {
+    id: AssignmentPanel;
+    label: string;
+    subtitle: string;
+    icon: typeof SlidersHorizontal;
+  }[] = [
+    {
+      id: "assistants",
+      label: "Default onboarding assistants",
+      subtitle: "Auto-assigned phlebos",
+      icon: Users,
+    },
+  ];
+  const integrationCards: {
+    id: IntegrationPanel;
+    label: string;
+    subtitle: string;
+    icon: typeof SlidersHorizontal;
+  }[] = [
+    { id: "profiles", label: "Metsights profile sync", subtitle: "Import profiles", icon: RefreshCw },
+    { id: "engagements", label: "Engagements sync", subtitle: "Create engagements", icon: Link2 },
+    ...(mayViewIntegrations
+      ? [
+          {
+            id: "mapping" as const,
+            label: "Healthians ↔ Metsights blood mapping",
+            subtitle: "Lab key reference",
+            icon: Droplet,
+          },
+        ]
+      : []),
+  ];
+  const detailGridClass = "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3";
+
   return (
     <div
-      className={`max-w-3xl space-y-8 ${mayEditSettings ? "" : "[&_section_button]:hidden [&_section_input]:pointer-events-none [&_section_select]:pointer-events-none [&_section_textarea]:pointer-events-none"}`}
+      className={`max-w-6xl space-y-8 ${mayEditSettings ? "" : "[&_section_button]:hidden [&_section_input]:pointer-events-none [&_section_select]:pointer-events-none [&_section_textarea]:pointer-events-none"}`}
       onSubmitCapture={mayEditSettings ? undefined : (event) => event.preventDefault()}
       onChangeCapture={mayEditSettings ? undefined : (event) => event.stopPropagation()}
     >
-      <div className="flex items-start justify-between gap-4">
-        <p className="text-sm text-zinc-500">
-          Platform defaults and Metsights profile synchronization.
-        </p>
-        {mayViewSystemMonitoring && <button
-          type="button"
-          onClick={() => setIntegrationLogsOpen(true)}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border border-zinc-300 text-zinc-700 hover:bg-zinc-50 shrink-0"
-        >
-          <ScrollText className="w-4 h-4" />
-          Integration logs
-        </button>}
-      </div>
+      <PageHeaderActions>
+        {mayViewSystemMonitoring && (
+          <HeaderActionButton
+            label="Integration logs"
+            icon={ScrollText}
+            variant="secondary"
+            onClick={() => setIntegrationLogsOpen(true)}
+          />
+        )}
+      </PageHeaderActions>
       {!mayEditSettings && (
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
           Read-only access. Editing controls are hidden.
         </div>
       )}
 
-      {loading ? (
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+      <nav
+        className="flex w-full shrink-0 flex-col gap-0.5 rounded-xl border border-zinc-200 bg-white p-2 lg:w-56"
+        role="tablist"
+        aria-label="Settings sections"
+      >
+        {sectionCards.map((card) => (
+          <SettingsSidebarItem
+            key={card.id}
+            active={section === card.id}
+            label={card.label}
+            icon={card.icon}
+            onClick={() => setSection(card.id)}
+          />
+        ))}
+      </nav>
+      <div className="min-w-0 flex-1 space-y-6">
+
+      {section === "general" ? (
+        <>
+      <div className={detailGridClass} role="tablist" aria-label="General settings">
+        {generalCards.map((card) => (
+          <SettingsNavCard
+            key={card.id}
+            active={generalPanel === card.id}
+            label={card.label}
+            subtitle={card.subtitle}
+            icon={card.icon}
+            onClick={() => setGeneralPanel(card.id)}
+          />
+        ))}
+      </div>
+      {generalPanel == null ? null : generalPanel === "maintenance" && mayEditUsers ? (
+        <section className="bg-white border border-zinc-200 rounded-xl p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-zinc-900">User maintenance</h2>
+          <p className="text-xs text-zinc-500 mt-1 max-w-lg">
+            Find accounts that share the same phone number (e.g. with or without a +91 prefix) and remove
+            duplicates.
+          </p>
+          <button
+            type="button"
+            onClick={() => setDuplicatesModalOpen(true)}
+            className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-zinc-200 text-zinc-800 hover:bg-zinc-50"
+          >
+            <Users className="w-4 h-4" />
+            Duplicated users
+          </button>
+        </section>
+      ) : loading ? (
         <div className="flex items-center gap-2 text-zinc-500 text-sm">
           <Loader2 className="w-4 h-4 animate-spin" />
           Loading…
         </div>
-      ) : (
+      ) : generalPanel === "onboarding" ? (
         <form onSubmit={handleSave} className="bg-white border border-zinc-200 rounded-xl p-5 space-y-4 shadow-sm">
           <h2 className="text-sm font-semibold text-zinc-900">B2C onboarding defaults</h2>
           <p className="text-xs text-zinc-500 -mt-2">
@@ -1115,9 +1315,7 @@ export function Settings() {
             Save defaults
           </button>
         </form>
-      )}
-
-      {!loading ? (
+      ) : generalPanel === "geocoding" ? (
         <form
           onSubmit={(e) => void handleSaveGeocodingProvider(e)}
           className="bg-white border border-zinc-200 rounded-xl p-5 space-y-4 shadow-sm"
@@ -1175,8 +1373,24 @@ export function Settings() {
           </button>
         </form>
       ) : null}
+        </>
+      ) : null}
 
-      {!loading ? (
+      {section === "assignments" ? (
+        <>
+      <div className={detailGridClass} role="tablist" aria-label="Assignment settings">
+        {assignmentCards.map((card) => (
+          <SettingsNavCard
+            key={card.id}
+            active={assignmentPanel === card.id}
+            label={card.label}
+            subtitle={card.subtitle}
+            icon={card.icon}
+            onClick={() => setAssignmentPanel(card.id)}
+          />
+        ))}
+      </div>
+      {assignmentPanel === "assistants" && !loading ? (
         <form
           onSubmit={(e) => void handleSaveDefaultAssistants(e)}
           className="bg-white border border-zinc-200 rounded-xl p-5 space-y-4 shadow-sm"
@@ -1259,8 +1473,24 @@ export function Settings() {
           </button>
         </form>
       ) : null}
+        </>
+      ) : null}
 
-      {!loading ? (
+      {section === "notifications" ? (
+        <>
+      <div className={detailGridClass} role="tablist" aria-label="Notification settings">
+        {notificationCards.map((card) => (
+          <SettingsNavCard
+            key={card.id}
+            active={notificationPanel === card.id}
+            label={card.label}
+            subtitle={card.subtitle}
+            icon={card.icon}
+            onClick={() => setNotificationPanel(card.id)}
+          />
+        ))}
+      </div>
+      {notificationPanel === "support" && !loading ? (
         <form
           onSubmit={(e) => void handleSaveSupportQueryNotification(e)}
           className="bg-white border border-zinc-200 rounded-xl p-5 space-y-4 shadow-sm"
@@ -1304,7 +1534,7 @@ export function Settings() {
         </form>
       ) : null}
 
-      {!loading && mayViewNotifications ? (
+      {notificationPanel === "engagement" && !loading ? (
         <form
           onSubmit={(e) => void handleSaveNotifDefaults(e)}
           onSubmitCapture={mayEditNotifications ? undefined : (event) => event.preventDefault()}
@@ -1392,7 +1622,24 @@ export function Settings() {
           </button>
         </form>
       ) : null}
+        </>
+      ) : null}
 
+      {section === "integrations" ? (
+        <>
+      <div className={detailGridClass} role="tablist" aria-label="Integration settings">
+        {integrationCards.map((card) => (
+          <SettingsNavCard
+            key={card.id}
+            active={integrationPanel === card.id}
+            label={card.label}
+            subtitle={card.subtitle}
+            icon={card.icon}
+            onClick={() => setIntegrationPanel(card.id)}
+          />
+        ))}
+      </div>
+      {integrationPanel === "profiles" ? (
       <section className="bg-white border border-zinc-200 rounded-xl p-5 space-y-4 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -1582,7 +1829,9 @@ export function Settings() {
           </div>
         ) : null}
       </section>
+      ) : null}
 
+      {integrationPanel === "engagements" ? (
       <section className="bg-white border border-zinc-200 rounded-xl p-5 space-y-4 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -1763,24 +2012,13 @@ export function Settings() {
           </div>
         ) : null}
       </section>
+      ) : null}
 
-      {mayViewIntegrations && <MetsightsBloodMappingSection />}
-
-      {mayEditUsers && <section className="bg-white border border-zinc-200 rounded-xl p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-zinc-900">User maintenance</h2>
-        <p className="text-xs text-zinc-500 mt-1 max-w-lg">
-          Find accounts that share the same phone number (e.g. with or without a +91 prefix) and remove
-          duplicates.
-        </p>
-        <button
-          type="button"
-          onClick={() => setDuplicatesModalOpen(true)}
-          className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-zinc-200 text-zinc-800 hover:bg-zinc-50"
-        >
-          <Users className="w-4 h-4" />
-          Duplicated users
-        </button>
-      </section>}
+      {integrationPanel === "mapping" && mayViewIntegrations ? <MetsightsBloodMappingSection /> : null}
+        </>
+      ) : null}
+      </div>
+      </div>
 
       {mayEditUsers && <DuplicatedUsersModal open={duplicatesModalOpen} onClose={() => setDuplicatesModalOpen(false)} />}
       <IntegrationSyncLogsModal

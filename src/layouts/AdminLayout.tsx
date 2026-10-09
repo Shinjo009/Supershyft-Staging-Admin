@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { usePermissions } from "../contexts/PermissionContext";
+import { PageHeaderActionsProvider, usePageHeaderChrome } from "./PageHeaderActions";
 import type { PermissionCategory } from "../auth/permissions";
 import { runDashboardRefresh } from "../features/dashboard/dashboardRefreshRegistry";
 
@@ -116,6 +117,15 @@ function pageTitleForPath(pathname: string): string {
 }
 
 export function AdminLayout() {
+  return (
+    <PageHeaderActionsProvider>
+      <AdminLayoutView />
+    </PageHeaderActionsProvider>
+  );
+}
+
+function AdminLayoutView() {
+  const { headerRef, titleRef, rightRef, setSlot } = usePageHeaderChrome();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { logout, userProfile, userId, displayName, employeeRole, pendingTaskCount } = useAuth();
@@ -135,6 +145,7 @@ export function AdminLayout() {
   );
   const pageTitle = useMemo(() => pageTitleForPath(location.pathname), [location.pathname]);
   const isDashboard = location.pathname === "/";
+  const isSettings = location.pathname.startsWith("/settings");
 
   const handleLogout = async () => {
     await logout();
@@ -312,23 +323,31 @@ export function AdminLayout() {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="min-h-14 flex items-center justify-between gap-3 px-4 sm:px-6 py-2 bg-white border-b border-zinc-200 shrink-0">
+        <header
+          ref={headerRef}
+          className="relative z-30 min-h-14 min-w-0 flex items-center justify-between gap-3 px-4 sm:px-6 py-2 bg-white border-b border-zinc-200 shrink-0"
+        >
           <button
+            data-header-menu
             onClick={toggleMobileMenu}
             className="lg:hidden p-2 -ml-2 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
             aria-label="Open menu"
           >
             <Menu className="w-5 h-5" />
           </button>
-          <div className="flex-1 min-w-0">
+          <div ref={titleRef} className="flex-1 min-w-0">
             <h1 className="text-sm sm:text-base font-semibold text-zinc-900 truncate">{pageTitle}</h1>
             {isDashboard ? (
               <p className="text-[11px] text-zinc-500 truncate leading-tight">
                 Overview of your admin panel
               </p>
+            ) : isSettings ? (
+              <p className="text-[11px] text-zinc-500 truncate leading-tight">
+                Platform defaults and Metsights profile synchronization.
+              </p>
             ) : null}
           </div>
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          <div ref={rightRef} className="flex items-center gap-1 sm:gap-2 shrink-0">
             {isDashboard ? (
               <button
                 type="button"
@@ -341,6 +360,7 @@ export function AdminLayout() {
                 <span className="hidden sm:inline text-xs font-medium">Refresh</span>
               </button>
             ) : null}
+            <div ref={setSlot} className="flex items-center gap-1.5 empty:hidden" />
             {!isOrgManager && (
               <NavLink
                 to="/my-tasks"

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, Plus, Search } from "lucide-react";
+import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
 import { Modal } from "../../shared/ui/Modal";
@@ -482,40 +483,19 @@ export function DiagnosticPackages() {
 
   return (
     <div>
-      <div className="flex items-center justify-end gap-3 mb-6">
+      <PageHeaderActions>
         <PermissionGate category="diagnostics" action="edit">
-        {activeTab === "packages" && (
-          <button
-            type="button"
-            onClick={openCreate}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800"
-          >
-            <Plus className="w-4 h-4" />
-            Add Package
-          </button>
-        )}
-        {activeTab === "test-groups" && (
-          <button
-            type="button"
-            onClick={() => openCreateTestGroup?.()}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800"
-          >
-            <Plus className="w-4 h-4" />
-            Add Test Group
-          </button>
-        )}
-        {activeTab === "tests" && (
-          <button
-            type="button"
-            onClick={() => openCreateTest?.()}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800"
-          >
-            <Plus className="w-4 h-4" />
-            Add Test
-          </button>
-        )}
+          {activeTab === "packages" && (
+            <HeaderActionButton label="Add Package" icon={Plus} onClick={openCreate} />
+          )}
+          {activeTab === "test-groups" && (
+            <HeaderActionButton label="Add Test Group" icon={Plus} onClick={() => openCreateTestGroup?.()} />
+          )}
+          {activeTab === "tests" && (
+            <HeaderActionButton label="Add Test" icon={Plus} onClick={() => openCreateTest?.()} />
+          )}
         </PermissionGate>
-      </div>
+      </PageHeaderActions>
 
       <div className="flex gap-1 mb-5 border-b border-zinc-200">
         <button

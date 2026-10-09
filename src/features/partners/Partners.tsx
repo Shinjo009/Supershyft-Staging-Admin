@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Search, Plus, Loader2 } from "lucide-react";
+import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { Modal } from "../../shared/ui/Modal";
 import { EngagementMultiSearchPicker } from "../../shared/ui/EngagementMultiSearchPicker";
@@ -275,17 +276,11 @@ export function Partners() {
 
   return (
     <div>
-      <div className="flex items-center justify-end gap-3 mb-6">
+      <PageHeaderActions>
         <PermissionGate category="partners" taskKey="directory" action="edit">
-          <button
-            onClick={openAdd}
-            className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 shrink-0"
-          >
-            <Plus className="w-4 h-4 shrink-0" />
-            <span className="hidden sm:inline">Add Partner</span>
-          </button>
+          <HeaderActionButton label="Add Partner" icon={Plus} onClick={openAdd} />
         </PermissionGate>
-      </div>
+      </PageHeaderActions>
 
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">{error}</div>
