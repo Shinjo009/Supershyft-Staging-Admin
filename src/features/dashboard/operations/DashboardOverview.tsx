@@ -169,33 +169,25 @@ function HistogramLineChart({ points }: { points: MonthPoint[] }) {
   );
 }
 
-/** Four-column comparison: total vs issue buckets, heights scaled to total. */
+/** Issue buckets; bar heights are % of participants in the scanned engagement set. */
 function ComparisonColumns({
-  total,
+  participantsInScope,
   items,
 }: {
-  total: number;
+  participantsInScope: number;
   items: { key: string; label: string; count: number; barClass: string }[];
 }) {
-  const denom = Math.max(total, 1);
-  const columns = [
-    { key: "total", label: "Total", count: total, barClass: "bg-emerald-500" },
-    ...items,
-  ];
+  const denom = Math.max(participantsInScope, 1);
   return (
     <div className="flex-1 flex items-end justify-around gap-2 pt-1 min-h-[8rem]">
-      {columns.map((item) => {
+      {items.map((item) => {
         const pct = Math.round((item.count / denom) * 100);
         return (
           <div key={item.key} className="flex flex-col items-center gap-1 flex-1 min-w-0">
             <span className="text-[11px] font-semibold text-zinc-800 tabular-nums">
               {item.count.toLocaleString()}
             </span>
-            {item.key === "total" ? (
-              <span className="text-[10px] text-zinc-400">&nbsp;</span>
-            ) : (
-              <span className="text-[10px] text-zinc-400 tabular-nums">{pct}%</span>
-            )}
+            <span className="text-[10px] text-zinc-400 tabular-nums">{pct}%</span>
             <div className="w-full max-w-[2.25rem] h-[5.5rem] rounded-t-md bg-zinc-100 flex items-end overflow-hidden">
               <div
                 className={`w-full rounded-t-md transition-all ${item.barClass}`}
@@ -358,16 +350,24 @@ export function DashboardOverview({
   const partLoading = participants.status === "loading";
   const partReady = participants.status === "ready";
   const partError = participants.status === "error" ? participants.message : null;
-  const issueCounts = partReady
+  const issueSummary = partReady ? participants.data.summary : null;
+  const issueCounts = issueSummary
     ? {
-        questionnaire: participants.data.missingQuestionnaire.length,
-        bloodReport: participants.data.missingBloodReport.length,
-        bioAi: participants.data.missingBioAiReport.length,
+        questionnaire: issueSummary.missingQuestionnaire,
+        bloodReport: issueSummary.missingBloodReport,
+        bioAi: issueSummary.missingBioAiReport,
       }
-    : { questionnaire: 0, bloodReport: 0, bioAi: 0 };
+    : partReady
+      ? {
+          questionnaire: participants.data.missingQuestionnaire.length,
+          bloodReport: participants.data.missingBloodReport.length,
+          bioAi: participants.data.missingBioAiReport.length,
+        }
+      : { questionnaire: 0, bloodReport: 0, bioAi: 0 };
   const totalIssues =
     issueCounts.questionnaire + issueCounts.bloodReport + issueCounts.bioAi;
   const totalParticipants = partReady ? participants.data.totalParticipants : 0;
+  const participantsInScope = issueSummary?.participantsInScope ?? 0;
 
   const payAttentionCount = payments.status === "ready" ? payments.data.length : 0;
   const totalsLoading = paymentStatusTotals.status === "loading";
@@ -608,6 +608,14 @@ export function DashboardOverview({
                 <p className="text-[11px] text-zinc-400 tabular-nums mt-0.5">
                   {totalParticipants.toLocaleString()} participants
                   <span className="text-zinc-400"> · running and scheduled engagements</span>
+                  {issueSummary ? (
+                    <span className="text-zinc-400">
+                      {" "}
+                      · chart from {issueSummary.engagementsInScope.toLocaleString()} engagement
+                      {issueSummary.engagementsInScope === 1 ? "" : "s"}
+                      {issueSummary.limitReached ? " (first 20)" : ""}
+                    </span>
+                  ) : null}
                 </p>
               ) : null}
             </div>
@@ -622,9 +630,16 @@ export function DashboardOverview({
             <CardSkeleton />
           ) : totalParticipants === 0 ? (
             <p className="text-sm text-zinc-500">No participants in running or scheduled engagements.</p>
+          ) : issueSummary == null ? (
+            <p className="text-sm text-zinc-500">
+              Issue breakdown is unavailable (overview operations data did not load). Refresh or open
+              View all for participant details.
+            </p>
+          ) : participantsInScope === 0 ? (
+            <p className="text-sm text-zinc-500">No participants in the scanned running or scheduled engagements.</p>
           ) : (
             <ComparisonColumns
-              total={totalParticipants}
+              participantsInScope={participantsInScope}
               items={ISSUE_SERIES.map((series) => ({
                 key: series.key,
                 label: series.label,

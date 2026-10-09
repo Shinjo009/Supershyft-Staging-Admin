@@ -15,8 +15,19 @@ export interface EngagementBuckets {
   truncated: boolean;
 }
 
+export interface ParticipantIssueSummary {
+  participantsInScope: number;
+  engagementsInScope: number;
+  limitReached: boolean;
+  missingBloodSlot: number;
+  missingQuestionnaire: number;
+  missingBloodReport: number;
+  missingBioAiReport: number;
+}
+
 export interface ParticipantIssueBuckets {
   totalParticipants: number;
+  summary: ParticipantIssueSummary | null;
   missingBloodSlot: ParticipantIssueItem[];
   missingQuestionnaire: ParticipantIssueItem[];
   missingBloodReport: ParticipantIssueItem[];

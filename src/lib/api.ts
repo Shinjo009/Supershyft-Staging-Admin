@@ -5190,6 +5190,15 @@ export interface DashboardOverviewPayload {
       truncated: boolean;
     };
     participant_issues: ParticipantIssueItem[];
+    participant_issue_summary?: {
+      participants_in_scope: number;
+      engagements_in_scope: number;
+      limit_reached: boolean;
+      missing_blood_slot: number;
+      missing_questionnaire: number;
+      missing_blood_report: number;
+      missing_bio_ai_report: number;
+    } | null;
     pending_payments: (BookingListItem & { pending_minutes?: number })[];
     failed_notifications: NotificationItem[];
     tickets: { open: SupportTicket[] };

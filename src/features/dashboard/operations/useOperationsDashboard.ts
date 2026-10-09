@@ -15,12 +15,29 @@ import type {
 
 const LOADING = { status: "loading" } as const;
 
+function mapParticipantIssueSummary(
+  raw: DashboardOverviewPayload["operations"]["participant_issue_summary"]
+): ParticipantIssueBuckets["summary"] {
+  if (!raw) return null;
+  return {
+    participantsInScope: raw.participants_in_scope ?? 0,
+    engagementsInScope: raw.engagements_in_scope ?? 0,
+    limitReached: Boolean(raw.limit_reached),
+    missingBloodSlot: raw.missing_blood_slot ?? 0,
+    missingQuestionnaire: raw.missing_questionnaire ?? 0,
+    missingBloodReport: raw.missing_blood_report ?? 0,
+    missingBioAiReport: raw.missing_bio_ai_report ?? 0,
+  };
+}
+
 function bucketIssues(
   issues: DashboardOverviewPayload["operations"]["participant_issues"],
-  totalParticipants: number
+  totalParticipants: number,
+  summary: ParticipantIssueBuckets["summary"]
 ): ParticipantIssueBuckets {
   return {
     totalParticipants,
+    summary,
     missingBloodSlot: issues.filter((issue) => issue.issue_type === "missing_blood_slot"),
     missingQuestionnaire: issues.filter((issue) => issue.issue_type === "missing_questionnaire"),
     missingBloodReport: issues.filter((issue) => issue.issue_type === "missing_blood_report"),
@@ -57,7 +74,11 @@ function mapOverviewToSnapshot(
   const participants: SectionState<ParticipantIssueBuckets> = flags.showParticipants
     ? {
         status: "ready",
-        data: bucketIssues(ops.participant_issues, data.engagement_participants_total ?? 0),
+        data: bucketIssues(
+          ops.participant_issues,
+          data.engagement_participants_total ?? 0,
+          mapParticipantIssueSummary(ops.participant_issue_summary)
+        ),
       }
     : { status: "idle" };
 
