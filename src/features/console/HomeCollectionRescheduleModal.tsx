@@ -3,12 +3,18 @@ import { Loader2, CheckCircle2, MapPin, Calendar, Lock, RefreshCw } from "lucide
 import { Modal } from "../../shared/ui/Modal";
 import { consoleApi, getApiError, type Participant } from "../../lib/api";
 import { usePermissions } from "../../contexts/PermissionContext";
+import {
+  diagnosticProviderLabel,
+  formatHomeCollectionDate,
+  getNextLocalDates,
+} from "./homeCollectionUi";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   engagementId: number;
   participant: Participant;
+  diagnosticProvider?: string | null;
   onRescheduled: (result: {
     booking_id: string;
     engagement_date: string | null;
@@ -36,27 +42,12 @@ function fullName(p: Participant): string {
   return [p.first_name, p.last_name].filter(Boolean).join(" ") || "—";
 }
 
-function getNextDates(count: number): string[] {
-  const dates: string[] = [];
-  const today = new Date();
-  for (let i = 1; i <= count; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    dates.push(d.toISOString().split("T")[0]);
-  }
-  return dates;
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
-}
-
 export function HomeCollectionRescheduleModal({
   open,
   onClose,
   engagementId,
   participant,
+  diagnosticProvider,
   onRescheduled,
 }: Props) {
   const { canEditTask } = usePermissions();
@@ -70,11 +61,12 @@ export function HomeCollectionRescheduleModal({
   const [step1Loading, setStep1Loading] = useState(false);
   const [step1Error, setStep1Error] = useState<string | null>(null);
 
-  const availableDates = useMemo(() => getNextDates(10), []);
+  const availableDates = useMemo(() => getNextLocalDates(10), []);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [slots, setSlots] = useState<SlotItem[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [slotsError, setSlotsError] = useState<string | null>(null);
+  const [slotsPartnerMessage, setSlotsPartnerMessage] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<SlotItem | null>(null);
   const [lockLoading, setLockLoading] = useState(false);
   const [lockError, setLockError] = useState<string | null>(null);
@@ -123,11 +115,14 @@ export function HomeCollectionRescheduleModal({
     setSlotsLoading(true);
     setSlotsError(null);
     setSlots([]);
+    setSlotsPartnerMessage(null);
     try {
       const res = await consoleApi.getHomeCollectionAvailableSlots(engagementId, participant.user_id, {
         blood_collection_date: dateStr,
       });
-      setSlots(res.data.data.slots ?? []);
+      const data = res.data.data;
+      setSlots(data.slots ?? []);
+      setSlotsPartnerMessage(data.partner_message ?? null);
     } catch (err) {
       setSlotsError(getApiError(err));
     } finally {
@@ -207,9 +202,17 @@ export function HomeCollectionRescheduleModal({
       maxWidthClassName="max-w-xl"
     >
       <div className="space-y-5">
-        <p className="text-sm text-zinc-600">
-          Rescheduling for <span className="font-medium text-zinc-900">{fullName(participant)}</span>
-        </p>
+        <div className="space-y-1">
+          <p className="text-sm text-zinc-600">
+            Rescheduling for <span className="font-medium text-zinc-900">{fullName(participant)}</span>
+          </p>
+          <p className="text-xs text-zinc-500">
+            Home collection via{" "}
+            <span className="font-medium text-zinc-700">
+              {diagnosticProviderLabel(diagnosticProvider)}
+            </span>
+          </p>
+        </div>
 
         <div className="flex items-center gap-1">
           {STEP_LABELS.map(({ step: s, label, icon: Icon }, idx) => {
@@ -327,7 +330,7 @@ export function HomeCollectionRescheduleModal({
                         : "border-zinc-300 text-zinc-700 hover:bg-zinc-50"
                     }`}
                   >
-                    {formatDate(d)}
+                    {formatHomeCollectionDate(d)}
                   </button>
                 ))}
               </div>
@@ -364,7 +367,15 @@ export function HomeCollectionRescheduleModal({
             )}
 
             {!slotsLoading && selectedDate && slots.length === 0 && !slotsError && (
-              <p className="text-sm text-zinc-500 text-center py-4">No slots available for this date.</p>
+              <div className="text-sm text-zinc-500 text-center py-4 space-y-1">
+                <p>
+                  No slots available from {diagnosticProviderLabel(diagnosticProvider)} for this
+                  date.
+                </p>
+                {slotsPartnerMessage && (
+                  <p className="text-xs text-zinc-400">{slotsPartnerMessage}</p>
+                )}
+              </div>
             )}
 
             {lockError && <p className="text-sm text-red-600">{lockError}</p>}

@@ -30,6 +30,7 @@ import {
   type ConsoleEngagementListItem,
   type ConsoleParticipantBookResponse,
 } from "../../lib/api";
+import { diagnosticProviderLabel } from "./homeCollectionUi";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -497,7 +498,7 @@ export function EngagementConsolePage() {
           )}
           {/* Toolbar */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            <div className="flex items-center gap-2 text-sm text-zinc-500">
+            <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-500">
               <Users className="w-4 h-4" />
               <span>
                 {filtered.length}
@@ -505,6 +506,11 @@ export function EngagementConsolePage() {
                   ` / ${participants.length}`}{" "}
                 participant{participants.length !== 1 ? "s" : ""}
               </span>
+              {isHomeCollection && engagement?.diagnostic_provider && (
+                <span className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-2.5 py-0.5 text-xs font-medium text-zinc-700">
+                  Home collection · {diagnosticProviderLabel(engagement.diagnostic_provider)}
+                </span>
+              )}
             </div>
             <div className="flex-1" />
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
@@ -1009,6 +1015,7 @@ export function EngagementConsolePage() {
           onClose={closeModal}
           engagementId={engId}
           participant={selectedParticipant}
+          diagnosticProvider={engagement?.diagnostic_provider}
           onRescheduled={(result) => {
             const userId = selectedParticipant.user_id;
             setParticipants((prev) =>

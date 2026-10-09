@@ -3541,7 +3541,16 @@ export const consoleApi = {
     userId: number,
     payload: { blood_collection_date: string }
   ) =>
-    api.post<{ data: { status: string; slots: { end_time?: string; slot_date?: string; slot_time?: string; stm_id?: string }[]; engagement_id: number; user_id: number } }>(
+    api.post<{
+      data: {
+        status: string;
+        slots: { end_time?: string; slot_date?: string; slot_time?: string; stm_id?: string }[];
+        diagnostic_provider?: string | null;
+        partner_message?: string | null;
+        engagement_id: number;
+        user_id: number;
+      };
+    }>(
       `/engagements/${engagementId}/console/participants/${userId}/book-home-collection/available-slots`,
       payload
     ),
