@@ -51,6 +51,7 @@ export interface ServiceabilityIssueRow {
 
 export interface TicketBuckets {
   open: SupportTicket[];
+  openCount: number;
   resolvedCount: number;
   closedCount: number;
 }

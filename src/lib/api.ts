@@ -5176,6 +5176,7 @@ export interface DashboardOverviewPayload {
     total_users: number;
     active_users: number;
     yearly_totals: { year: number; new_users: number; total_users: number }[];
+    monthly_totals?: { year: number; month: number; new_users: number; total_users: number }[];
   };
   engagement_participants_total: number;
   payment_status_totals: { pending: number; confirmed: number; cancelled: number };

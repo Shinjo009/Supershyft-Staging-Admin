@@ -113,6 +113,7 @@ function mapOverviewToSnapshot(
         status: "ready",
         data: {
           open: ops.tickets.open,
+          openCount: ticketCounts.open ?? 0,
           resolvedCount: ticketCounts.resolved ?? 0,
           closedCount: ticketCounts.closed ?? 0,
         },
@@ -167,15 +168,28 @@ export function useOperationsDashboard() {
       const response = await dashboardApi.overview();
       const data = response.data.data;
       setOverview(data);
+      const monthlyRows = Array.isArray(data.users?.monthly_totals) ? data.users.monthly_totals : [];
       const yearlyRows = Array.isArray(data.users?.yearly_totals) ? data.users.yearly_totals : [];
-      setUsersGrowth(
-        yearlyRows.map((row) => ({
-          key: String(row.year),
-          label: String(row.year),
-          value: Number(row.total_users) || 0,
-          count: row.new_users != null ? Number(row.new_users) : undefined,
-        }))
-      );
+      const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      if (monthlyRows.length > 0) {
+        setUsersGrowth(
+          monthlyRows.map((row) => ({
+            key: `${row.year}-${row.month}`,
+            label: monthLabels[(Number(row.month) || 1) - 1] ?? String(row.month),
+            value: Number(row.total_users) || 0,
+            count: row.new_users != null ? Number(row.new_users) : undefined,
+          }))
+        );
+      } else {
+        setUsersGrowth(
+          yearlyRows.map((row) => ({
+            key: String(row.year),
+            label: String(row.year),
+            value: Number(row.total_users) || 0,
+            count: row.new_users != null ? Number(row.new_users) : undefined,
+          }))
+        );
+      }
       setSnapshot(
         mapOverviewToSnapshot(data, {
           showEngagements,

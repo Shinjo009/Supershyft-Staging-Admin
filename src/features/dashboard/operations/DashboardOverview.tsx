@@ -405,7 +405,7 @@ export function DashboardOverview({
   const ticketLoading = tickets.status === "loading";
   const ticketReady = tickets.status === "ready";
   const ticketError = tickets.status === "error" ? tickets.message : null;
-  const openTicketCount = ticketReady ? tickets.data.open.length : 0;
+  const openTicketCount = ticketReady ? tickets.data.openCount : 0;
   const resolvedTicketCount = ticketReady ? tickets.data.resolvedCount : 0;
   const closedTicketCount = ticketReady ? tickets.data.closedCount : 0;
   const ticketTotal = openTicketCount + resolvedTicketCount + closedTicketCount;
@@ -432,7 +432,11 @@ export function DashboardOverview({
                       {(users.total ?? 0).toLocaleString()} total · {(users.active ?? 0).toLocaleString()}{" "}
                       active
                     </p>
-                    <p className="text-[11px] text-zinc-400">Users by year</p>
+                    <p className="text-[11px] text-zinc-400">
+                      {users.growth.length > 0 && users.growth[0].key.includes("-")
+                        ? "Users by month"
+                        : "Users by year"}
+                    </p>
                   </>
                 ) : null}
               </div>
