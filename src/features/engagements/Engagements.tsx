@@ -25,6 +25,7 @@ import { computeCampNo } from "./campNo";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
 import { Modal } from "../../shared/ui/Modal";
+import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 import { ParticipantsModal } from "../../shared/ui/ParticipantsModal";
 import { OccupiedSlotsModal } from "../../shared/ui/OccupiedSlotsModal";
 import {
@@ -1984,40 +1985,40 @@ export function Engagements({
   return (
     <>
       <div className={asModalForEngagementId ? "hidden" : ""}>
-        <div className="flex items-center justify-end gap-3 mb-6">
-        <div className="flex items-center gap-2">
-          <PermissionGate category="engagements" taskKey="participants" action="edit"><button
-            onClick={() => setManageParticipantsOpen(true)}
-            className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 shrink-0"
-          >
-            <ArrowRightLeft className="w-4 h-4 shrink-0" />
-            <span className="hidden sm:inline">Manage Engagement Participants</span>
-          </button></PermissionGate>
-          <PermissionGate category="platform_settings" taskKey="engagement_types" action="edit"><button
-            onClick={() => setTypesModalOpen(true)}
-            className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 shrink-0"
-          >
-            <Settings className="w-4 h-4 shrink-0" />
-            <span className="hidden sm:inline">Manage Types</span>
-          </button></PermissionGate>
-          <button
-            onClick={() => setCompletenessSummaryOpen(true)}
-            className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 shrink-0"
-          >
-            <Database className="w-4 h-4 shrink-0" />
-            <span className="hidden sm:inline">Data Completeness</span>
-          </button>
-          <PermissionGate category="engagements" taskKey="records" action="edit">{listTab === "organizations" ? (
-            <button
-              onClick={() => void openAdd()}
-              className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 shrink-0"
-            >
-              <Plus className="w-4 h-4 shrink-0" />
-              <span className="hidden sm:inline">Add Engagement</span>
-            </button>
-          ) : null}</PermissionGate>
-        </div>
-      </div>
+        {!asModalForEngagementId && (
+          <PageHeaderActions>
+            <PermissionGate category="engagements" taskKey="participants" action="edit">
+              <HeaderActionButton
+                label="Manage Engagement Participants"
+                icon={ArrowRightLeft}
+                variant="secondary"
+                iconOnly
+                onClick={() => setManageParticipantsOpen(true)}
+              />
+            </PermissionGate>
+            <PermissionGate category="platform_settings" taskKey="engagement_types" action="edit">
+              <HeaderActionButton
+                label="Manage Types"
+                icon={Settings}
+                variant="secondary"
+                iconOnly
+                onClick={() => setTypesModalOpen(true)}
+              />
+            </PermissionGate>
+            <HeaderActionButton
+              label="Data Completeness"
+              icon={Database}
+              variant="secondary"
+              iconOnly
+              onClick={() => setCompletenessSummaryOpen(true)}
+            />
+            <PermissionGate category="engagements" taskKey="records" action="edit">
+              {listTab === "organizations" ? (
+                <HeaderActionButton label="Add Engagement" icon={Plus} iconOnly onClick={() => void openAdd()} />
+              ) : null}
+            </PermissionGate>
+          </PageHeaderActions>
+        )}
 
       <div className="flex gap-1 mb-5 border-b border-zinc-200">
         <button

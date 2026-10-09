@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
+import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
 import { Modal } from "../../shared/ui/Modal";
 import { SortableItem } from "../../components/SortableItem";
@@ -426,16 +427,11 @@ export function ChecklistTemplates() {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-4 mb-6">
-        <PermissionGate category="checklists_tasks" taskKey="templates" action="edit"><button
-          type="button"
-          onClick={openAddModal}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 shrink-0"
-        >
-          <Plus className="w-4 h-4 shrink-0" />
-          Add Template
-        </button></PermissionGate>
-      </div>
+      <PageHeaderActions>
+        <PermissionGate category="checklists_tasks" taskKey="templates" action="edit">
+          <HeaderActionButton label="Add Template" icon={Plus} onClick={openAddModal} />
+        </PermissionGate>
+      </PageHeaderActions>
 
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">

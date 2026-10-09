@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Plus, Loader2, ListTree, Info, AlertTriangle, UserPlus, Eye } from "lucide-react";
+import { Search, Plus, Loader2, ListTree, AlertTriangle, UserPlus, Eye } from "lucide-react";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
 import { Modal } from "../../shared/ui/Modal";
@@ -20,6 +20,7 @@ import {
   getApiError,
 } from "../../lib/api";
 import { isMaskedContact } from "../../lib/isMaskedContact";
+import { HeaderActionButton, HeaderInfoButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 function hasMetsightsProfileId(user: UserListItem): boolean {
   return Boolean((user.metsights_profile_id ?? "").trim());
 }
@@ -896,44 +897,23 @@ export function Users() {
 
   return (
     <div>
-      {/* Header actions */}
-      <div className="flex items-center justify-end gap-3 mb-6">
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="relative group/info">
-            <button
-              type="button"
-              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-zinc-300 text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
-              aria-label="Metsights profile coverage among participants"
-            >
-              <Info className="w-4 h-4" />
-            </button>
-            <span
-              role="tooltip"
-              className="pointer-events-none absolute right-0 top-full z-20 mt-1.5 w-max max-w-[min(16rem,calc(100vw-2rem))] rounded-md bg-zinc-900 px-2.5 py-1.5 text-xs text-white opacity-0 shadow-lg transition-opacity group-hover/info:opacity-100"
-            >
-              {metsightsStats.withProfile} of {metsightsStats.totalParticipants} participants
-              have a metsights_profile_id
-            </span>
-          </span>
-          <PermissionGate category="users" taskKey="profiles" action="edit">
-            <button
-              type="button"
-              onClick={openOnboardCreate}
-              className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg border border-zinc-300 text-zinc-800 text-sm font-medium hover:bg-zinc-50"
-            >
-              <UserPlus className="w-4 h-4 shrink-0" />
-              <span className="hidden sm:inline">Onboard User</span>
-            </button>
-          </PermissionGate>
-          <PermissionGate category="users" taskKey="profiles" action="edit"><button
-            onClick={openAdd}
-            className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800"
-          >
-            <Plus className="w-4 h-4 shrink-0" />
-            <span className="hidden sm:inline">Add User</span>
-          </button></PermissionGate>
-        </div>
-      </div>
+      <PageHeaderActions>
+        <HeaderInfoButton label="Metsights profile coverage among participants">
+          {metsightsStats.withProfile} of {metsightsStats.totalParticipants} participants have a
+          metsights_profile_id
+        </HeaderInfoButton>
+        <PermissionGate category="users" taskKey="profiles" action="edit">
+          <HeaderActionButton
+            label="Onboard User"
+            icon={UserPlus}
+            onClick={openOnboardCreate}
+            variant="secondary"
+          />
+        </PermissionGate>
+        <PermissionGate category="users" taskKey="profiles" action="edit">
+          <HeaderActionButton label="Add User" icon={Plus} onClick={openAdd} />
+        </PermissionGate>
+      </PageHeaderActions>
 
       {/* Error */}
       {error && (

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Search, Plus, Loader2, ShieldCheck } from "lucide-react";
+import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { Modal } from "../../shared/ui/Modal";
 import { ExportLogsTab } from "./ExportLogsTab";
@@ -473,17 +474,11 @@ export function Employees() {
 
   return (
     <div>
-      {activeTab === "employees" && isFullAdmin ? (
-        <div className="flex items-center justify-end gap-3 mb-6">
-          <button
-            onClick={openAdd}
-            className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 shrink-0"
-          >
-            <Plus className="w-4 h-4 shrink-0" />
-            <span className="hidden sm:inline">Add Employee</span>
-          </button>
-        </div>
-      ) : null}
+      <PageHeaderActions>
+        {activeTab === "employees" && isFullAdmin ? (
+          <HeaderActionButton label="Add Employee" icon={Plus} onClick={openAdd} />
+        ) : null}
+      </PageHeaderActions>
 
       {mayViewLogs && (
         <div className="flex gap-1 mb-5 border-b border-zinc-200">

@@ -9,6 +9,8 @@ import {
 } from "../../lib/api";
 import { MultiSelectDropdown } from "../../shared/ui/MultiSelectDropdown";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
+import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
+import { Plus } from "lucide-react";
 
 const emptyForm = (): DiscountCodePayload => ({
   code: "",
@@ -230,20 +232,14 @@ export function Discounts() {
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-zinc-500">
-          {total} codes · abuse events (24h): {abuseEvents}
-        </p>
+      <PageHeaderActions>
         <PermissionGate category="discounts" taskKey="codes" action="edit">
-          <button
-            type="button"
-            onClick={openCreate}
-            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
-          >
-            New code
-          </button>
+          <HeaderActionButton label="New code" icon={Plus} onClick={openCreate} />
         </PermissionGate>
-      </div>
+      </PageHeaderActions>
+      <p className="text-sm text-zinc-500">
+        {total} codes · abuse events (24h): {abuseEvents}
+      </p>
 
       {error && (
         <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

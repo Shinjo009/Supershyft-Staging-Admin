@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Loader2, Plus, Search } from "lucide-react";
+import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
 import { Modal } from "../../shared/ui/Modal";
@@ -217,20 +218,19 @@ export function SupportTickets() {
 
   return (
     <div>
-      <div className="flex items-center justify-end gap-3 mb-6">
-        <PermissionGate category="support" action="edit"><button
-          type="button"
-          onClick={() => {
-            setCreateForm({ user_id: 0, query_text: "" });
-            setError(null);
-            setCreateOpen(true);
-          }}
-          className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 shrink-0"
-        >
-          <Plus className="w-4 h-4 shrink-0" />
-          <span className="hidden sm:inline">Create Ticket</span>
-        </button></PermissionGate>
-      </div>
+      <PageHeaderActions>
+        <PermissionGate category="support" action="edit">
+          <HeaderActionButton
+            label="Create Ticket"
+            icon={Plus}
+            onClick={() => {
+              setCreateForm({ user_id: 0, query_text: "" });
+              setError(null);
+              setCreateOpen(true);
+            }}
+          />
+        </PermissionGate>
+      </PageHeaderActions>
 
       {error && <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">{error}</div>}
 

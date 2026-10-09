@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Search, Plus, Loader2, Users, X, FileBarChart, FileText, MapPin } from "lucide-react";
+import { Search, Plus, Loader2, Users, X, FileBarChart, FileText, MapPin, Factory, Layers } from "lucide-react";
+import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
 import { useAuth } from "../../contexts/AuthContext";
@@ -789,43 +790,32 @@ export function Organisations() {
 
   return (
     <div>
-      {(activeTab === "organizations" && !isOrgManager) || activeTab === "camps" ? (
-        <div className="flex items-center justify-end gap-3 mb-6">
-          {activeTab === "organizations" && !isOrgManager && (
-            <div className="flex items-center gap-3">
-              <PermissionGate category="organizations" taskKey="industries" action="edit">
-              <button
+      <PageHeaderActions>
+        {activeTab === "organizations" && !isOrgManager && (
+          <>
+            <PermissionGate category="organizations" taskKey="industries" action="edit">
+              <HeaderActionButton
+                label="Manage Industries"
+                icon={Factory}
                 onClick={() => setManageIndustriesOpen(true)}
-                className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-zinc-100 text-zinc-700 text-sm font-medium hover:bg-zinc-200 shrink-0 border border-zinc-200"
-              >
-                <span className="hidden sm:inline">Manage Industries</span>
-                <span className="sm:hidden">Industries</span>
-              </button>
-              </PermissionGate>
-              <PermissionGate category="organizations" taskKey="organizations" action="edit">
-              <button
-                onClick={openAdd}
-                className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 shrink-0"
-              >
-                <Plus className="w-4 h-4 shrink-0" />
-                <span className="hidden sm:inline">Add Organisation</span>
-              </button>
-              </PermissionGate>
-            </div>
-          )}
-          {activeTab === "camps" && (
-            <PermissionGate category="reports" taskKey="report_sections" action="edit">
-            <button
-              onClick={() => setReportSectionsOpen(true)}
-              className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 shrink-0"
-            >
-              <span className="hidden sm:inline">Manage Report Sections</span>
-              <span className="sm:hidden">Sections</span>
-            </button>
+                variant="secondary"
+              />
             </PermissionGate>
-          )}
-        </div>
-      ) : null}
+            <PermissionGate category="organizations" taskKey="organizations" action="edit">
+              <HeaderActionButton label="Add Organisation" icon={Plus} onClick={openAdd} />
+            </PermissionGate>
+          </>
+        )}
+        {activeTab === "camps" && (
+          <PermissionGate category="reports" taskKey="report_sections" action="edit">
+            <HeaderActionButton
+              label="Manage Report Sections"
+              icon={Layers}
+              onClick={() => setReportSectionsOpen(true)}
+            />
+          </PermissionGate>
+        )}
+      </PageHeaderActions>
 
       {!isOrgManager && (
       <div className="flex gap-1 mb-5 border-b border-zinc-200">

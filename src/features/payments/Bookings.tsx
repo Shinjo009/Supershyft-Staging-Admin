@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Search, Loader2 } from "lucide-react";
+import { HeaderInfoButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import {
   paymentsApi,
@@ -283,10 +284,12 @@ export function Bookings() {
 
   return (
     <div>
-      <p className="text-sm text-zinc-600 max-w-3xl mb-6">
-        Each row is one member&apos;s package. <strong className="text-zinc-800">Booked by</strong>{" "}
-        shows who paid and how many members are included in that Razorpay checkout.
-      </p>
+      <PageHeaderActions>
+        <HeaderInfoButton label="About bookings">
+          Each row is one member&apos;s package. Booked by shows who paid and how many members are
+          included in that Razorpay checkout.
+        </HeaderInfoButton>
+      </PageHeaderActions>
 
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">{error}</div>

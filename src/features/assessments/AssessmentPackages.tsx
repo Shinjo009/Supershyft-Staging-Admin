@@ -21,6 +21,7 @@ import {
   cap,
 } from "./questions/questionUi";
 import { useNavigate, useParams } from "react-router-dom";
+import { HeaderActionButton, PageHeaderActions, usePageHeaderCompact } from "../../layouts/PageHeaderActions";
 import { SortableItem } from "../../components/SortableItem";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { usePermissions } from "../../contexts/PermissionContext";
@@ -77,6 +78,7 @@ export function AssessmentPackages() {
   );
   const mayEditIntegrations = canEditTask("assessments", "integrations");
   const mayViewSystemMonitoring = canViewTask("system_monitoring", "audit_logs");
+  const headerCompact = usePageHeaderCompact();
 
   useEffect(() => {
     if (tabParam !== activeTab) {
@@ -1103,28 +1105,37 @@ export function AssessmentPackages() {
 
   return (
     <div>
-      <div className="flex items-center justify-end gap-3 mb-6">
-        <div className="flex items-center gap-2 shrink-0">
+      <PageHeaderActions>
           {activeTab === "questions" && unsyncWarningLoading && (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-zinc-500">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
             </span>
           )}
           {activeTab === "questions" && !unsyncWarningLoading && unsyncWarning.count > 0 && (
-            <div ref={unsyncDropdownRef} className="relative">
+            <div ref={unsyncDropdownRef} className="relative group/unsync shrink-0">
               <button
                 type="button"
                 onClick={() => setUnsyncWarningExpanded((v) => !v)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-xs font-medium hover:bg-amber-100 transition-colors"
-                title="Questions in Metsights categories with incomplete sync config"
+                className={`inline-flex items-center gap-1.5 h-8 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-xs font-medium hover:bg-amber-100 transition-colors ${
+                  headerCompact ? "w-8 justify-center px-0" : "px-2.5"
+                }`}
+                aria-label={`${unsyncWarning.count} unsynced`}
               >
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                <span>
+                <span className={headerCompact ? "sr-only" : "inline-flex items-center gap-1"}>
                   <span className="font-semibold">{unsyncWarning.count}</span>
-                  <span className="hidden sm:inline"> unsynced</span>
+                  <span> unsynced</span>
                 </span>
-                <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${unsyncWarningExpanded ? "rotate-180" : ""}`} />
+                <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${headerCompact ? "hidden" : ""} ${unsyncWarningExpanded ? "rotate-180" : ""}`} />
               </button>
+              <span
+                role="tooltip"
+                className={`pointer-events-none absolute right-0 top-full z-30 mt-1.5 whitespace-nowrap rounded-md bg-zinc-900 px-2.5 py-1.5 text-xs text-white shadow-lg transition-opacity ${
+                  headerCompact && !unsyncWarningExpanded ? "opacity-0 group-hover/unsync:opacity-100" : "hidden"
+                }`}
+              >
+                {unsyncWarning.count} unsynced
+              </span>
               {unsyncWarningExpanded && (
                 <div className="absolute right-0 top-full mt-1.5 w-[min(24rem,calc(100vw-2rem))] rounded-lg border border-amber-200 bg-white shadow-lg z-50 overflow-hidden">
                   <div className="px-3 py-2 border-b border-amber-100 bg-amber-50">
@@ -1201,73 +1212,47 @@ export function AssessmentPackages() {
             </div>
           )}
           {mayEditIntegrations && activeTab === "questions" && (
-            <button
-              type="button"
+            <HeaderActionButton
+              label="Reload Blood Parameters"
+              icon={Droplets}
+              variant="secondary"
               onClick={() => {
                 setReloadBloodError(null);
                 setReloadBloodResult(null);
                 setReloadBloodOpen(true);
               }}
-              className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 transition-colors"
-              title="Reload blood parameter questions from Metsights OPTIONS schema"
-            >
-              <Droplets className="w-4 h-4 shrink-0" />
-              <span className="hidden sm:inline">Reload Blood Parameters</span>
-            </button>
+            />
           )}
           {mayEditIntegrations && activeTab === "questions" && (
-            <button
-              type="button"
+            <HeaderActionButton
+              label="Reset Metsights Sync"
+              icon={RefreshCw}
+              variant="secondary"
               onClick={() => {
                 setResetSyncError(null);
                 setResetSyncResult(null);
                 setResetSyncOpen(true);
               }}
-              className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 transition-colors"
-              title="Reset Metsights sync categories, assignments, and configs from codebase registry"
-            >
-              <RefreshCw className="w-4 h-4 shrink-0" />
-              <span className="hidden sm:inline">Reset Metsights Sync</span>
-            </button>
+            />
           )}
-          {mayViewSystemMonitoring && <button
-            type="button"
-            onClick={() => setSyncLogsOpen(true)}
-            className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 transition-colors"
-            title="View Metsights push/pull sync logs"
-          >
-            <ScrollText className="w-4 h-4 shrink-0" />
-            <span className="hidden sm:inline">Sync Logs</span>
-          </button>}
+          {mayViewSystemMonitoring && (
+            <HeaderActionButton
+              label="Sync Logs"
+              icon={ScrollText}
+              variant="secondary"
+              onClick={() => setSyncLogsOpen(true)}
+            />
+          )}
         {mayEditAssessments && activeTab === "packages" && (
-          <button
-            onClick={openAddPackage}
-            className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 transition-colors shrink-0"
-          >
-            <Plus className="w-4 h-4 shrink-0" />
-            <span className="hidden sm:inline">Add Package</span>
-          </button>
+          <HeaderActionButton label="Add Package" icon={Plus} onClick={openAddPackage} />
         )}
         {mayEditAssessments && activeTab === "categories" && (
-          <button
-            onClick={openAddCategory}
-            className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 transition-colors shrink-0"
-          >
-            <Plus className="w-4 h-4 shrink-0" />
-            <span className="hidden sm:inline">Add Category</span>
-          </button>
+          <HeaderActionButton label="Add Category" icon={Plus} onClick={openAddCategory} />
         )}
         {mayEditAssessments && activeTab === "questions" && (
-          <button
-            onClick={openAddQuestion}
-            className="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 transition-colors shrink-0"
-          >
-            <Plus className="w-4 h-4 shrink-0" />
-            <span className="hidden sm:inline">Add Question</span>
-          </button>
+          <HeaderActionButton label="Add Question" icon={Plus} onClick={openAddQuestion} />
         )}
-        </div>
-      </div>
+      </PageHeaderActions>
 
       <IntegrationSyncLogsModal open={syncLogsOpen} onClose={() => setSyncLogsOpen(false)} />
 

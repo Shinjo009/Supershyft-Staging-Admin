@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, Plus, Search } from "lucide-react";
+import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate } from "../../contexts/PermissionContext";
 import { Modal } from "../../shared/ui/Modal";
@@ -260,16 +261,11 @@ export function HealthMetrics() {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 mb-6">
-        <PermissionGate category="diagnostics" action="edit"><button
-          type="button"
-          onClick={openCreate}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          Add Health Metric
-        </button></PermissionGate>
-      </div>
+      <PageHeaderActions>
+        <PermissionGate category="diagnostics" action="edit">
+          <HeaderActionButton label="Add Health Metric" icon={Plus} onClick={openCreate} />
+        </PermissionGate>
+      </PageHeaderActions>
 
       {successMessage ? (
         <div className="mb-4 p-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm">{successMessage}</div>
