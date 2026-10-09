@@ -392,7 +392,7 @@ export function HomeCollectionBookingModal({
                 <span className="text-zinc-500">Pincode</span>
                 <span className="text-zinc-900">{pincode || "—"}</span>
                 <span className="text-zinc-500">Date</span>
-                <span className="text-zinc-900">{selectedDate ? formatDate(selectedDate) : "—"}</span>
+                <span className="text-zinc-900">{selectedDate ? formatHomeCollectionDate(selectedDate) : "—"}</span>
                 <span className="text-zinc-500">Slot</span>
                 <span className="text-zinc-900">{selectedSlot?.slot_time ?? "—"}</span>
               </div>

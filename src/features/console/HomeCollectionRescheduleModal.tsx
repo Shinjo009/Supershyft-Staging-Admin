@@ -407,7 +407,7 @@ export function HomeCollectionRescheduleModal({
             <div className="p-3 rounded-lg bg-zinc-50 border border-zinc-200 text-sm text-zinc-700">
               {selectedDate && (
                 <p>
-                  <span className="font-medium">Date:</span> {formatDate(selectedDate)}
+                  <span className="font-medium">Date:</span> {formatHomeCollectionDate(selectedDate)}
                 </p>
               )}
               <p>
@@ -465,7 +465,7 @@ export function HomeCollectionRescheduleModal({
               </div>
               {selectedDate && (
                 <p className="text-sm text-emerald-800">
-                  {formatDate(selectedDate)} · {selectedSlot?.slot_time ?? "—"}
+                  {formatHomeCollectionDate(selectedDate)} · {selectedSlot?.slot_time ?? "—"}
                 </p>
               )}
             </div>
