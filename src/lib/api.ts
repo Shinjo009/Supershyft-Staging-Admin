@@ -1731,8 +1731,19 @@ export interface ExpertListItem {
   updated_at?: string | null;
 }
 
+export interface ExpertReview {
+  review_id: number;
+  expert_id: number;
+  user_id: number;
+  rating: number;
+  review_text?: string | null;
+  created_at: string;
+}
+
 export interface ExpertDetail extends ExpertListItem {
   expertise_tags: ExpertTag[];
+  reviews?: ExpertReview[];
+  reviews_total?: number;
 }
 
 export interface ExpertPayload {
@@ -1751,15 +1762,6 @@ export interface ExpertPayload {
   patient_count?: number | null;
   effective_from?: string | null;
   effective_until?: string | null;
-}
-
-export interface ExpertReview {
-  review_id: number;
-  expert_id: number;
-  user_id: number;
-  rating: number;
-  review_text?: string | null;
-  created_at: string;
 }
 
 export const expertsApi = {
@@ -1783,8 +1785,8 @@ export const expertsApi = {
     }>("/experts", {
       params,
     }),
-  get: (expertId: number) =>
-    api.get<{ data: ExpertDetail }>(`/experts/${expertId}`),
+  get: (expertId: number, params?: { reviews_limit?: number }) =>
+    api.get<{ data: ExpertDetail }>(`/experts/${expertId}`, { params }),
   create: (payload: ExpertPayload) =>
     api.post<{ data: { expert_id: number } }>("/experts", payload),
   update: (expertId: number, payload: ExpertPayload) =>
