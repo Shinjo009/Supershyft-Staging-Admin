@@ -1685,11 +1685,31 @@ export interface ExpertTag {
   display_order?: number | null;
 }
 
+export interface ExpertAvailabilityWindow {
+  days: number[];
+  day_label: string;
+  start_time: string;
+  end_time: string;
+  hours_label: string;
+}
+
+export interface ExpertAvailabilitySummary {
+  days: number[];
+  day_label: string;
+  start_time?: string | null;
+  end_time?: string | null;
+  hours_label?: string | null;
+  windows?: ExpertAvailabilityWindow[];
+}
+
 export interface ExpertListItem {
   expert_id: number;
   partner_id?: number | null;
   /** @deprecated Prefer partner_id */
   user_id?: number | null;
+  name?: string | null;
+  discount_percent?: number | null;
+  availability?: ExpertAvailabilitySummary | null;
   expert_type: ExpertType | string;
   specialization: string;
   profile_photo?: string | null;
