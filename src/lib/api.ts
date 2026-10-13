@@ -4053,6 +4053,8 @@ export const diagnosticPackagesApi = {
     api.get<{ data: DiagnosticPackageDetail }>(`/diagnostic-packages/${id}`),
   getTests: (id: number) =>
     api.get<{ data: PackageTestsResponse }>(`/diagnostic-packages/${id}/tests`),
+  getProviderTestDiff: (id: number) =>
+    api.get<{ data: ProviderTestDiffResponse }>(`/diagnostic-packages/${id}/provider-test-diff`),
   create: (payload: DiagnosticPackageCreate) =>
     api.post<{ data: { diagnostic_package_id: number } }>("/diagnostic-packages", payload),
   update: (id: number, payload: Partial<DiagnosticPackageCreate>) =>
@@ -4308,6 +4310,53 @@ export interface ReorderPackageGroupsResponse {
 export interface PackageTestsResponse {
   diagnostic_package_id: number;
   groups: DiagnosticTestGroupStandalone[];
+}
+
+export interface ProviderTestDiffCounts {
+  matched: number;
+  only_in_package: number;
+  only_at_provider: number;
+  not_linked: number;
+}
+
+export interface ProviderTestDiffMatchedItem {
+  test_id: number;
+  test_name: string;
+  group_names: string[];
+  provider_id: string;
+  provider_name: string;
+  shared_provider_id: boolean;
+}
+
+export interface ProviderTestDiffOnlyInPackageItem {
+  test_id: number;
+  test_name: string;
+  group_names: string[];
+  provider_id: string;
+}
+
+export interface ProviderTestDiffNotLinkedItem {
+  test_id: number;
+  test_name: string;
+  group_names: string[];
+}
+
+export interface ProviderTestDiffOnlyAtProviderItem {
+  provider_id: string;
+  provider_name: string;
+  catalog_test_id: number | null;
+  catalog_test_name: string | null;
+}
+
+export interface ProviderTestDiffResponse {
+  status: "in_sync" | "out_of_sync";
+  healthians_package_name: string | null;
+  external_package_code: string;
+  counts: ProviderTestDiffCounts;
+  matched: ProviderTestDiffMatchedItem[];
+  only_in_package: ProviderTestDiffOnlyInPackageItem[];
+  not_linked: ProviderTestDiffNotLinkedItem[];
+  only_at_provider: ProviderTestDiffOnlyAtProviderItem[];
 }
 
 export type HealthParameterCreatePayload = {

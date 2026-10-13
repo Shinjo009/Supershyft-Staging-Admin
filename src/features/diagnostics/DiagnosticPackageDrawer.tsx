@@ -38,9 +38,11 @@ import {
 import { SortableItem } from "../../components/SortableItem";
 import { Modal } from "../../shared/ui/Modal";
 import { usePermissions } from "../../contexts/PermissionContext";
+import { DiagnosticPackageProviderCompare } from "./DiagnosticPackageProviderCompare";
 import { HealthiansMapModal, type MapModalTest } from "./HealthiansMapModal";
 import {
   diagnosticProviderDisplayLabel,
+  isHealthiansProvider,
   isProviderParameterMapped,
   providerParameterKeyForPackage,
 } from "./providerParameterKeys";
@@ -52,7 +54,7 @@ interface DiagnosticPackageDrawerProps {
   onUpdated?: () => void;
 }
 
-type DrawerTab = "overview" | "reasons" | "tests" | "samples-prep";
+type DrawerTab = "overview" | "reasons" | "tests" | "compare" | "samples-prep";
 
 export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }: DiagnosticPackageDrawerProps) {
   const { canEdit } = usePermissions();
@@ -95,8 +97,33 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
   const [mapModalTestId, setMapModalTestId] = useState<number>(0);
   const [mapModalTestName, setMapModalTestName] = useState("");
   const [mapModalCurrentParamId, setMapModalCurrentParamId] = useState<string | null>(null);
+  const [compareRefreshToken, setCompareRefreshToken] = useState(0);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  const drawerTabs = useMemo(() => {
+    const tabs = [
+      { key: "overview" as DrawerTab, label: "Overview" },
+      { key: "reasons" as DrawerTab, label: "Reasons" },
+      { key: "tests" as DrawerTab, label: "Tests" },
+    ];
+    if (isHealthiansProvider(detail?.diagnostic_provider)) {
+      tabs.push({ key: "compare", label: "Compare" });
+    }
+    tabs.push({ key: "samples-prep", label: "Samples & Prep" });
+    return tabs;
+  }, [detail?.diagnostic_provider]);
+
+  const openMapForTest = useCallback(
+    (testId: number, testName: string) => {
+      const test = testGroups.flatMap((g) => g.tests ?? []).find((t) => t.test_id === testId);
+      setMapModalTestId(testId);
+      setMapModalTestName(testName);
+      setMapModalCurrentParamId(providerParameterKeyForPackage(test ?? {}, detail?.diagnostic_provider));
+      setMapModalOpen(true);
+    },
+    [detail?.diagnostic_provider, testGroups]
+  );
 
   const reasons = useMemo(
     () =>
@@ -487,12 +514,7 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
             className="flex gap-1 overflow-x-auto [&::-webkit-scrollbar]:hidden"
             style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
           >
-            {[
-              { key: "overview", label: "Overview" },
-              { key: "reasons", label: "Reasons" },
-              { key: "tests", label: "Tests" },
-              { key: "samples-prep", label: "Samples & Prep" },
-            ].map((tab) => (
+            {drawerTabs.map((tab) => (
               <button
                 key={tab.key}
                 type="button"
@@ -727,11 +749,22 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
                 ).length;
                 if (totalTests === 0) return null;
                 return (
-                  <div className="flex items-center gap-2 px-1 text-sm text-zinc-600">
-                    <span className="font-medium text-zinc-900">{mappedTests}</span>
-                    <span>out of</span>
-                    <span className="font-medium text-zinc-900">{totalTests}</span>
-                    <span>tests mapped</span>
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm text-zinc-600">
+                    <div>
+                      <span className="font-medium text-zinc-900">{mappedTests}</span>
+                      <span> out of </span>
+                      <span className="font-medium text-zinc-900">{totalTests}</span>
+                      <span> tests mapped</span>
+                    </div>
+                    {isHealthiansProvider(detail?.diagnostic_provider) && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("compare")}
+                        className="text-sm font-medium text-zinc-900 underline underline-offset-2 hover:text-zinc-700"
+                      >
+                        Compare with Healthians
+                      </button>
+                    )}
                   </div>
                 );
               })()}
@@ -845,6 +878,16 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
                 </button>
               </div>
             </div>
+          ) : activeTab === "compare" ? (
+            packageId != null && (
+              <DiagnosticPackageProviderCompare
+                packageId={packageId}
+                active={activeTab === "compare"}
+                externalPackageCode={detail?.external_package_code}
+                refreshToken={compareRefreshToken}
+                onMapTest={openMapForTest}
+              />
+            )
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <section className="bg-white border border-zinc-200 rounded-xl p-4 space-y-3">
@@ -1189,6 +1232,7 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
           )}
           onMapped={async () => {
             await fetchData();
+            setCompareRefreshToken((token) => token + 1);
             onUpdated?.();
           }}
           onSwitchTest={(next: MapModalTest) => {
