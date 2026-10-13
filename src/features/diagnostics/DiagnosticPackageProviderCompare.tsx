@@ -4,10 +4,16 @@ import { diagnosticPackagesApi, getApiError, type ProviderTestDiffResponse } fro
 
 interface DiagnosticPackageProviderCompareProps {
   packageId: number;
-  active: boolean;
   externalPackageCode: string | null | undefined;
-  refreshToken: number;
   onMapTest: (testId: number, testName: string) => void;
+  /** When set, diff is loaded by the parent (no duplicate fetch). */
+  diff?: ProviderTestDiffResponse | null;
+  diffLoading?: boolean;
+  diffError?: string | null;
+  onRefresh?: () => void;
+  /** Self-fetch mode when parent does not pass onRefresh. */
+  active?: boolean;
+  refreshToken?: number;
 }
 
 function matchesSearch(haystack: string, query: string): boolean {
@@ -68,35 +74,53 @@ function GroupList({ names }: { names: string[] }) {
 
 export function DiagnosticPackageProviderCompare({
   packageId,
-  active,
   externalPackageCode,
-  refreshToken,
   onMapTest,
+  diff: controlledDiff,
+  diffLoading: controlledLoading,
+  diffError: controlledError,
+  onRefresh,
+  active = true,
+  refreshToken = 0,
 }: DiagnosticPackageProviderCompareProps) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<ProviderTestDiffResponse | null>(null);
+  const controlled = onRefresh != null;
+
+  const [internalLoading, setInternalLoading] = useState(false);
+  const [internalError, setInternalError] = useState<string | null>(null);
+  const [internalData, setInternalData] = useState<ProviderTestDiffResponse | null>(null);
   const [search, setSearch] = useState("");
   const [matchedOpen, setMatchedOpen] = useState(false);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    setInternalLoading(true);
+    setInternalError(null);
     try {
       const res = await diagnosticPackagesApi.getProviderTestDiff(packageId);
-      setData(res.data.data);
+      setInternalData(res.data.data);
     } catch (err) {
-      setError(getApiError(err));
-      setData(null);
+      setInternalError(getApiError(err));
+      setInternalData(null);
     } finally {
-      setLoading(false);
+      setInternalLoading(false);
     }
   }, [packageId]);
 
   useEffect(() => {
-    if (!active || !packageId) return;
+    if (controlled || !active || !packageId) return;
     void load();
-  }, [active, packageId, refreshToken, load]);
+  }, [controlled, active, packageId, refreshToken, load]);
+
+  const data = controlled ? controlledDiff ?? null : internalData;
+  const loading = controlled ? (controlledLoading ?? false) : internalLoading;
+  const error = controlled ? controlledError ?? null : internalError;
+
+  const handleRefresh = () => {
+    if (controlled && onRefresh) {
+      onRefresh();
+      return;
+    }
+    void load();
+  };
 
   const filtered = useMemo(() => (data ? filterDiff(data, search) : null), [data, search]);
 
@@ -142,7 +166,7 @@ export function DiagnosticPackageProviderCompare({
         </div>
         <button
           type="button"
-          onClick={() => void load()}
+          onClick={handleRefresh}
           disabled={loading}
           className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-xs font-medium disabled:opacity-50"
         >
@@ -164,7 +188,7 @@ export function DiagnosticPackageProviderCompare({
           <span>{error}</span>
           <button
             type="button"
-            onClick={() => void load()}
+            onClick={handleRefresh}
             className="px-2 py-1 rounded border border-red-200 text-red-700 hover:bg-red-100 text-xs"
           >
             Retry

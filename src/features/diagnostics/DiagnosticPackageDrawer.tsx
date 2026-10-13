@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -34,6 +34,7 @@ import {
   type DiagnosticTag,
   type DiagnosticTestGroupStandalone,
   type PackageFilterChip,
+  type ProviderTestDiffResponse,
 } from "../../lib/api";
 import { SortableItem } from "../../components/SortableItem";
 import { Modal } from "../../shared/ui/Modal";
@@ -46,6 +47,7 @@ import {
   isProviderParameterMapped,
   providerParameterKeyForPackage,
 } from "./providerParameterKeys";
+import { testSyncKind } from "./providerTestDiffStatus";
 
 interface DiagnosticPackageDrawerProps {
   open: boolean;
@@ -97,7 +99,9 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
   const [mapModalTestId, setMapModalTestId] = useState<number>(0);
   const [mapModalTestName, setMapModalTestName] = useState("");
   const [mapModalCurrentParamId, setMapModalCurrentParamId] = useState<string | null>(null);
-  const [compareRefreshToken, setCompareRefreshToken] = useState(0);
+  const [providerDiff, setProviderDiff] = useState<ProviderTestDiffResponse | null>(null);
+  const [providerDiffLoading, setProviderDiffLoading] = useState(false);
+  const [providerDiffError, setProviderDiffError] = useState<string | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -162,6 +166,39 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
     return filterChipCatalog.filter((c) => !assigned.has(c.filter_chip_id));
   }, [filterChipCatalog, detail?.filter_chips]);
 
+  const fetchProviderDiff = useCallback(
+    async (
+      targetPackageId: number,
+      provider: string | null | undefined,
+      code: string | null | undefined
+    ) => {
+      const shouldFetch = isHealthiansProvider(provider) && (code ?? "").trim();
+      if (!shouldFetch) {
+        setProviderDiff(null);
+        setProviderDiffError(null);
+        setProviderDiffLoading(false);
+        return;
+      }
+      setProviderDiffLoading(true);
+      setProviderDiffError(null);
+      try {
+        const res = await diagnosticPackagesApi.getProviderTestDiff(targetPackageId);
+        setProviderDiff(res.data.data);
+      } catch (err) {
+        setProviderDiffError(getApiError(err));
+        setProviderDiff(null);
+      } finally {
+        setProviderDiffLoading(false);
+      }
+    },
+    []
+  );
+
+  const refreshProviderDiff = useCallback(() => {
+    if (!packageId || !detail) return;
+    void fetchProviderDiff(packageId, detail.diagnostic_provider, detail.external_package_code);
+  }, [detail, fetchProviderDiff, packageId]);
+
   const fetchData = useCallback(async () => {
     if (!packageId) return;
     setLoading(true);
@@ -176,18 +213,31 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
       setDetail(nextDetail);
       setTestGroups(nextGroups);
       setExpandedGroups(Object.fromEntries(nextGroups.map((group) => [group.group_id, true])));
+      await fetchProviderDiff(
+        packageId,
+        nextDetail.diagnostic_provider,
+        nextDetail.external_package_code
+      );
     } catch (err) {
       setError(getApiError(err));
     } finally {
       setLoading(false);
     }
-  }, [packageId]);
+  }, [fetchProviderDiff, packageId]);
 
   useEffect(() => {
     if (open && packageId) {
       void fetchData();
     }
   }, [fetchData, open, packageId]);
+
+  useEffect(() => {
+    if (!open) {
+      setProviderDiff(null);
+      setProviderDiffError(null);
+      setProviderDiffLoading(false);
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!open || !packageId) return;
@@ -744,19 +794,90 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
               {(() => {
                 const allTests = testGroups.flatMap((g) => g.tests ?? []);
                 const totalTests = allTests.length;
+                if (totalTests === 0) return null;
                 const mappedTests = allTests.filter((t) =>
                   isProviderParameterMapped(t, detail?.diagnostic_provider)
                 ).length;
-                if (totalTests === 0) return null;
-                return (
-                  <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm text-zinc-600">
-                    <div>
+                const isHealthians = isHealthiansProvider(detail?.diagnostic_provider);
+                const hasPackageCode = Boolean((detail?.external_package_code ?? "").trim());
+
+                let summaryMain: ReactNode;
+                if (isHealthians && hasPackageCode) {
+                  if (providerDiffLoading && !providerDiff) {
+                    summaryMain = (
+                      <span className="text-zinc-500">Checking Healthians product…</span>
+                    );
+                  } else if (providerDiffError) {
+                    summaryMain = (
+                      <div className="space-y-1">
+                        <p className="text-amber-800">
+                          <span className="font-medium text-zinc-900">{mappedTests}</span>
+                          <span> out of </span>
+                          <span className="font-medium text-zinc-900">{totalTests}</span>
+                          <span> have a Healthians ID (could not verify with Healthians)</span>
+                        </p>
+                        <button
+                          type="button"
+                          onClick={refreshProviderDiff}
+                          className="text-xs font-medium text-zinc-900 underline underline-offset-2"
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    );
+                  } else if (providerDiff) {
+                    const inProduct = providerDiff.counts.matched;
+                    const outOfSync = providerDiff.status === "out_of_sync";
+                    summaryMain = (
+                      <div className={outOfSync ? "text-amber-800" : "text-zinc-600"}>
+                        <p>
+                          <span className="font-medium text-zinc-900">{inProduct}</span>
+                          <span> out of </span>
+                          <span className="font-medium text-zinc-900">{totalTests}</span>
+                          <span> match this Healthians product</span>
+                        </p>
+                        {outOfSync && (
+                          <p className="text-xs mt-0.5">
+                            {providerDiff.counts.only_in_package > 0 && (
+                              <span>
+                                {providerDiff.counts.only_in_package} ID not in product
+                              </span>
+                            )}
+                            {providerDiff.counts.only_in_package > 0 &&
+                              providerDiff.counts.not_linked > 0 &&
+                              <span> · </span>}
+                            {providerDiff.counts.not_linked > 0 && (
+                              <span>{providerDiff.counts.not_linked} not linked</span>
+                            )}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  } else {
+                    summaryMain = (
+                      <span>
+                        <span className="font-medium text-zinc-900">{mappedTests}</span>
+                        <span> out of </span>
+                        <span className="font-medium text-zinc-900">{totalTests}</span>
+                        <span> tests mapped</span>
+                      </span>
+                    );
+                  }
+                } else {
+                  summaryMain = (
+                    <span>
                       <span className="font-medium text-zinc-900">{mappedTests}</span>
                       <span> out of </span>
                       <span className="font-medium text-zinc-900">{totalTests}</span>
                       <span> tests mapped</span>
-                    </div>
-                    {isHealthiansProvider(detail?.diagnostic_provider) && (
+                    </span>
+                  );
+                }
+
+                return (
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm text-zinc-600">
+                    <div>{summaryMain}</div>
+                    {isHealthians && (
                       <button
                         type="button"
                         onClick={() => setActiveTab("compare")}
@@ -824,6 +945,37 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
                                         detail?.diagnostic_provider
                                       );
                                       const isMapped = mappedKey != null;
+                                      const useHealthiansSync =
+                                        isHealthiansProvider(detail?.diagnostic_provider) &&
+                                        providerDiff != null;
+                                      const syncKind = useHealthiansSync
+                                        ? testSyncKind(providerDiff, test.test_id)
+                                        : null;
+
+                                      let buttonLabel: string;
+                                      let buttonClass: string;
+                                      let buttonTitle: string;
+                                      if (syncKind === "only_in_package") {
+                                        buttonLabel = "Remap";
+                                        buttonClass =
+                                          "border border-amber-200 text-amber-800 hover:bg-amber-50";
+                                        buttonTitle = `Healthians ID ${mappedKey} not in this product`;
+                                      } else if (syncKind === "not_linked") {
+                                        buttonLabel = "Map";
+                                        buttonClass =
+                                          "border border-zinc-200 text-zinc-600 hover:bg-zinc-50";
+                                        buttonTitle = `Map to ${detail?.diagnostic_provider ?? "provider"} parameter`;
+                                      } else if (syncKind === "matched" || isMapped) {
+                                        buttonLabel = "View";
+                                        buttonClass =
+                                          "border border-green-200 text-green-700 hover:bg-green-50";
+                                        buttonTitle = `Mapped (ID: ${mappedKey})`;
+                                      } else {
+                                        buttonLabel = "Map";
+                                        buttonClass =
+                                          "border border-zinc-200 text-zinc-600 hover:bg-zinc-50";
+                                        buttonTitle = `Map to ${detail?.diagnostic_provider ?? "provider"} parameter`;
+                                      }
                                       return (
                                       <div key={test.test_id} className="border border-zinc-200 rounded-lg px-3 py-2 bg-white">
                                         <div className="flex items-center justify-between gap-2">
@@ -836,23 +988,15 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
                                               setMapModalCurrentParamId(mappedKey);
                                               setMapModalOpen(true);
                                             }}
-                                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium ${
-                                              isMapped
-                                                ? "border border-green-200 text-green-700 hover:bg-green-50"
-                                                : "border border-zinc-200 text-zinc-600 hover:bg-zinc-50"
-                                            }`}
-                                            title={
-                                              isMapped
-                                                ? `Mapped (ID: ${mappedKey})`
-                                                : `Map to ${detail?.diagnostic_provider ?? "provider"} parameter`
-                                            }
+                                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium ${buttonClass}`}
+                                            title={buttonTitle}
                                           >
-                                            {isMapped ? (
-                                              <Eye className="w-3.5 h-3.5" />
-                                            ) : (
+                                            {buttonLabel === "Map" ? (
                                               <Link className="w-3.5 h-3.5" />
+                                            ) : (
+                                              <Eye className="w-3.5 h-3.5" />
                                             )}
-                                            {isMapped ? "View" : "Map"}
+                                            {buttonLabel}
                                           </button>
                                         </div>
                                       </div>
@@ -882,9 +1026,11 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
             packageId != null && (
               <DiagnosticPackageProviderCompare
                 packageId={packageId}
-                active={activeTab === "compare"}
                 externalPackageCode={detail?.external_package_code}
-                refreshToken={compareRefreshToken}
+                diff={providerDiff}
+                diffLoading={providerDiffLoading}
+                diffError={providerDiffError}
+                onRefresh={refreshProviderDiff}
                 onMapTest={openMapForTest}
               />
             )
@@ -1232,7 +1378,6 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
           )}
           onMapped={async () => {
             await fetchData();
-            setCompareRefreshToken((token) => token + 1);
             onUpdated?.();
           }}
           onSwitchTest={(next: MapModalTest) => {
