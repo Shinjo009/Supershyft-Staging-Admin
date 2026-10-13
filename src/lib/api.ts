@@ -4201,6 +4201,10 @@ export const diagnosticPackagesApi = {
     api.patch<{ data: ReorderPackageGroupsResponse }>(`/diagnostic-packages/${id}/test-groups/order`, payload),
   removeTestGroup: (id: number, groupId: number) =>
     api.delete(`/diagnostic-packages/${id}/test-groups/${groupId}`),
+  forkTestGroupForPackage: (packageId: number, groupId: number) =>
+    api.post<{ data: { group_id: number; forked: boolean } }>(
+      `/diagnostic-packages/${packageId}/test-groups/${groupId}/fork-for-package`
+    ),
 };
 
 export const diagnosticFilterChipsApi = {

@@ -25,6 +25,7 @@ import {
   diagnosticFilterChipsApi,
   diagnosticPackagesApi,
   diagnosticTestGroupsApi,
+  diagnosticTestsApi,
   getApiError,
   type DiagnosticFilterChip,
   type DiagnosticPackageDetail,
@@ -33,6 +34,7 @@ import {
   type DiagnosticSample,
   type DiagnosticTag,
   type DiagnosticTestGroupStandalone,
+  type DiagnosticTestStandalone,
   type PackageFilterChip,
   type ProviderTestDiffResponse,
 } from "../../lib/api";
@@ -47,6 +49,7 @@ import {
   isProviderParameterMapped,
   providerParameterKeyForPackage,
 } from "./providerParameterKeys";
+import { ensurePackageScopedGroupId } from "./ensurePackageScopedGroup";
 import { testSyncKind } from "./providerTestDiffStatus";
 
 interface DiagnosticPackageDrawerProps {
@@ -102,6 +105,15 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
   const [providerDiff, setProviderDiff] = useState<ProviderTestDiffResponse | null>(null);
   const [providerDiffLoading, setProviderDiffLoading] = useState(false);
   const [providerDiffError, setProviderDiffError] = useState<string | null>(null);
+  const [groupForkNote, setGroupForkNote] = useState(false);
+  const [addTestsGroupId, setAddTestsGroupId] = useState<number | null>(null);
+  const [addTestsModalOpen, setAddTestsModalOpen] = useState(false);
+  const [addTestsLoading, setAddTestsLoading] = useState(false);
+  const [addTestsSubmitting, setAddTestsSubmitting] = useState(false);
+  const [addTestsError, setAddTestsError] = useState<string | null>(null);
+  const [addTestsSearch, setAddTestsSearch] = useState("");
+  const [catalogTests, setCatalogTests] = useState<DiagnosticTestStandalone[]>([]);
+  const [addTestsSelectedIds, setAddTestsSelectedIds] = useState<number[]>([]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -236,6 +248,9 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
       setProviderDiff(null);
       setProviderDiffError(null);
       setProviderDiffLoading(false);
+      setGroupForkNote(false);
+      setAddTestsModalOpen(false);
+      setAddTestsGroupId(null);
     }
   }, [open]);
 
@@ -349,6 +364,102 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
     await withBusy(`remove-group-${groupId}`, async () => {
       await diagnosticPackagesApi.removeTestGroup(packageId, groupId);
     });
+  };
+
+  const afterGroupTestsMutated = useCallback(async () => {
+    await fetchData();
+    refreshProviderDiff();
+    onUpdated?.();
+  }, [fetchData, onUpdated, refreshProviderDiff]);
+
+  const removeTestFromGroup = async (groupId: number, testId: number, testName: string) => {
+    if (!packageId) return;
+    if (!window.confirm(`Remove "${testName}" from this group for this package?`)) return;
+    await withBusy(`remove-test-${groupId}-${testId}`, async () => {
+      const { groupId: scopedGroupId, forked } = await ensurePackageScopedGroupId(packageId, groupId);
+      if (forked) setGroupForkNote(true);
+      await diagnosticTestGroupsApi.removeTest(scopedGroupId, testId);
+      await afterGroupTestsMutated();
+    });
+  };
+
+  const openAddTestsModal = async (groupId: number) => {
+    if (!packageId) return;
+    setAddTestsGroupId(groupId);
+    setAddTestsModalOpen(true);
+    setAddTestsLoading(true);
+    setAddTestsError(null);
+    setAddTestsSearch("");
+    setAddTestsSubmitting(false);
+    try {
+      const group = testGroups.find((g) => g.group_id === groupId);
+      const assignedIds = (group?.tests ?? []).map((t) => t.test_id);
+      const allTestsRes = await diagnosticTestsApi.list({ parameter_type: "test" });
+      setCatalogTests(allTestsRes.data.data ?? []);
+      setAddTestsSelectedIds(assignedIds);
+    } catch (err) {
+      setAddTestsError(getApiError(err));
+    } finally {
+      setAddTestsLoading(false);
+    }
+  };
+
+  const addTestsFiltered = useMemo(() => {
+    const q = addTestsSearch.trim().toLowerCase();
+    return catalogTests.filter((row) => !q || row.test_name.toLowerCase().includes(q));
+  }, [addTestsSearch, catalogTests]);
+
+  const toggleAddTestSelection = (testId: number) => {
+    setAddTestsSelectedIds((prev) =>
+      prev.includes(testId) ? prev.filter((id) => id !== testId) : [...prev, testId]
+    );
+  };
+
+  const onAddTestsSelectedDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = addTestsSelectedIds.findIndex((id) => id === Number(active.id));
+    const newIndex = addTestsSelectedIds.findIndex((id) => id === Number(over.id));
+    if (oldIndex < 0 || newIndex < 0) return;
+    setAddTestsSelectedIds((prev) => arrayMove(prev, oldIndex, newIndex));
+  };
+
+  const addTestsSelected = useMemo(() => {
+    const map = new Map(catalogTests.map((test) => [test.test_id, test]));
+    return addTestsSelectedIds.map((id) => map.get(id)).filter((t): t is DiagnosticTestStandalone => Boolean(t));
+  }, [addTestsSelectedIds, catalogTests]);
+
+  const submitAddTestsToGroup = async () => {
+    if (!packageId || addTestsGroupId == null) return;
+    if (addTestsSelectedIds.length === 0) {
+      setAddTestsError("Select at least one test.");
+      return;
+    }
+    setAddTestsSubmitting(true);
+    setAddTestsError(null);
+    try {
+      const { groupId: scopedGroupId, forked } = await ensurePackageScopedGroupId(packageId, addTestsGroupId);
+      if (forked) setGroupForkNote(true);
+      const res = await diagnosticTestGroupsApi.assignTests(scopedGroupId, { test_ids: addTestsSelectedIds });
+      const latestAssignedRes = await diagnosticTestGroupsApi.getTests(scopedGroupId);
+      const latestAssignedIds = (latestAssignedRes.data.data ?? []).map((item) => item.test_id);
+      const orderedIds = [
+        ...addTestsSelectedIds,
+        ...latestAssignedIds.filter((testId) => !addTestsSelectedIds.includes(testId)),
+      ];
+      await diagnosticTestGroupsApi.reorderTests(scopedGroupId, { test_ids: orderedIds });
+      const added = res.data.data.added_test_ids.length;
+      if (added === 0 && res.data.data.skipped_test_ids.length > 0) {
+        setAddTestsError("All selected tests were already in this group.");
+      } else {
+        setAddTestsModalOpen(false);
+        await afterGroupTestsMutated();
+      }
+    } catch (err) {
+      setAddTestsError(getApiError(err));
+    } finally {
+      setAddTestsSubmitting(false);
+    }
   };
 
   const openAssignGroupsModal = async () => {
@@ -786,6 +897,11 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
             </div>
           ) : activeTab === "tests" ? (
             <div className="space-y-3">
+              {groupForkNote && (
+                <div className="p-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm">
+                  This group was copied for this package only; the library group is unchanged.
+                </div>
+              )}
               {assignGroupsNote && (
                 <div className="p-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm">
                   {assignGroupsNote}
@@ -979,30 +1095,50 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
                                       return (
                                       <div key={test.test_id} className="border border-zinc-200 rounded-lg px-3 py-2 bg-white">
                                         <div className="flex items-center justify-between gap-2">
-                                          <p className="text-sm text-zinc-900">{test.test_name}</p>
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setMapModalTestId(test.test_id);
-                                              setMapModalTestName(test.test_name);
-                                              setMapModalCurrentParamId(mappedKey);
-                                              setMapModalOpen(true);
-                                            }}
-                                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium ${buttonClass}`}
-                                            title={buttonTitle}
-                                          >
-                                            {buttonLabel === "Map" ? (
-                                              <Link className="w-3.5 h-3.5" />
-                                            ) : (
-                                              <Eye className="w-3.5 h-3.5" />
-                                            )}
-                                            {buttonLabel}
-                                          </button>
+                                          <p className="text-sm text-zinc-900 min-w-0">{test.test_name}</p>
+                                          <div className="flex items-center gap-1 shrink-0">
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                void removeTestFromGroup(group.group_id, test.test_id, test.test_name)
+                                              }
+                                              className="p-1.5 rounded text-zinc-500 hover:bg-zinc-100 hover:text-red-600"
+                                              aria-label={`Remove ${test.test_name} from group`}
+                                            >
+                                              <Trash2 className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setMapModalTestId(test.test_id);
+                                                setMapModalTestName(test.test_name);
+                                                setMapModalCurrentParamId(mappedKey);
+                                                setMapModalOpen(true);
+                                              }}
+                                              className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium ${buttonClass}`}
+                                              title={buttonTitle}
+                                            >
+                                              {buttonLabel === "Map" ? (
+                                                <Link className="w-3.5 h-3.5" />
+                                              ) : (
+                                                <Eye className="w-3.5 h-3.5" />
+                                              )}
+                                              {buttonLabel}
+                                            </button>
+                                          </div>
                                         </div>
                                       </div>
                                     );
                                     })
                                   )}
+                                  <button
+                                    type="button"
+                                    onClick={() => void openAddTestsModal(group.group_id)}
+                                    className="w-full mt-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-dashed border-zinc-300 text-zinc-700 hover:bg-zinc-50 text-sm font-medium"
+                                  >
+                                    <Plus className="w-4 h-4" />
+                                    Add tests
+                                  </button>
                                 </div>
                               )}
                             </div>
@@ -1360,6 +1496,104 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
           </div>
         </Modal>
 
+        <Modal
+          open={addTestsModalOpen}
+          onClose={() => setAddTestsModalOpen(false)}
+          title="Add tests to group"
+          maxWidthClassName="max-w-2xl"
+        >
+          <div className="space-y-4">
+            {addTestsError && (
+              <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{addTestsError}</div>
+            )}
+            <div className="relative min-w-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+              <input
+                type="search"
+                value={addTestsSearch}
+                onChange={(e) => setAddTestsSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-zinc-900"
+                placeholder="Search tests..."
+              />
+            </div>
+            {addTestsLoading ? (
+              <div className="py-10 flex justify-center">
+                <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="max-h-56 overflow-y-auto border border-zinc-200 rounded-lg bg-white">
+                  {addTestsFiltered.map((test) => (
+                    <label
+                      key={test.test_id}
+                      className="flex items-center justify-between gap-3 px-3 py-2 border-b last:border-b-0 border-zinc-200"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <input
+                          type="checkbox"
+                          checked={addTestsSelectedIds.includes(test.test_id)}
+                          onChange={() => toggleAddTestSelection(test.test_id)}
+                        />
+                        <span className="text-sm text-zinc-900 truncate">{test.test_name}</span>
+                      </div>
+                    </label>
+                  ))}
+                  {addTestsFiltered.length === 0 && (
+                    <div className="px-3 py-4 text-sm text-zinc-500">No tests found.</div>
+                  )}
+                </div>
+                <div className="border border-zinc-200 rounded-lg bg-zinc-50 p-3">
+                  <p className="text-sm font-medium text-zinc-900 mb-2">Selected order</p>
+                  {addTestsSelected.length === 0 ? (
+                    <p className="text-sm text-zinc-500">Select tests to set their order.</p>
+                  ) : (
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={onAddTestsSelectedDragEnd}
+                    >
+                      <SortableContext items={addTestsSelectedIds} strategy={verticalListSortingStrategy}>
+                        <div className="space-y-2">
+                          {addTestsSelected.map((test, index) => (
+                            <SortableItem
+                              key={test.test_id}
+                              id={test.test_id}
+                              handle={<GripVertical className="w-4 h-4" />}
+                              className="border border-zinc-200 rounded-lg px-3 py-2 bg-white"
+                            >
+                              <div className="min-w-0">
+                                <p className="text-xs text-zinc-500">#{index + 1}</p>
+                                <p className="text-sm text-zinc-900 truncate">{test.test_name}</p>
+                              </div>
+                            </SortableItem>
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                  )}
+                </div>
+              </div>
+            )}
+            <div className="flex flex-col-reverse sm:flex-row gap-2 pt-1">
+              <button
+                type="button"
+                disabled={addTestsSubmitting || addTestsLoading}
+                onClick={() => void submitAddTestsToGroup()}
+                className="px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 disabled:opacity-50"
+              >
+                {addTestsSubmitting ? "Saving..." : "Add selected"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddTestsModalOpen(false)}
+                className="px-4 py-2 rounded-lg border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </Modal>
+
         <HealthiansMapModal
           open={mapModalOpen}
           onClose={() => setMapModalOpen(false)}
@@ -1378,6 +1612,7 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
           )}
           onMapped={async () => {
             await fetchData();
+            refreshProviderDiff();
             onUpdated?.();
           }}
           onSwitchTest={(next: MapModalTest) => {
