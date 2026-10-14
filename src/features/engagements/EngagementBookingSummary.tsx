@@ -3,7 +3,7 @@ import { CalendarCheck, CalendarClock, Clock3, Hash, Timer } from "lucide-react"
 import { getApiError, participantsApi, type EngagementBookingSummary } from "../../lib/api";
 
 const CARD =
-  "rounded-lg border border-zinc-200/80 bg-white px-2.5 py-2 flex flex-col justify-between min-h-[4.25rem] shadow-[0_1px_0_rgba(24,24,27,0.04)]";
+  "rounded-lg border border-zinc-200 bg-zinc-50/50 px-3 py-3 flex flex-col gap-1 min-h-[5.5rem]";
 
 const METRICS: Array<{
   key:
@@ -63,9 +63,9 @@ const METRICS: Array<{
 function MetricSkeleton() {
   return (
     <div className={CARD}>
-      <div className="h-3 w-16 bg-zinc-100 rounded animate-pulse" />
-      <div className="h-7 w-12 bg-zinc-100 rounded animate-pulse mt-2" />
-      <div className="h-3 w-20 bg-zinc-100 rounded animate-pulse mt-1" />
+      <div className="h-3.5 w-20 bg-zinc-100 rounded animate-pulse" />
+      <div className="h-8 w-12 bg-zinc-100 rounded animate-pulse" />
+      <div className="h-3 w-24 bg-zinc-100 rounded animate-pulse" />
     </div>
   );
 }
@@ -99,37 +99,33 @@ export function EngagementBookingSummaryCards({ engagementId }: { engagementId: 
   }, [engagementId]);
 
   return (
-    <section className="rounded-lg border border-zinc-200 bg-zinc-50/80 p-2">
-      <div className="flex items-baseline justify-between gap-2 mb-1.5">
-        <h2 className="text-xs font-semibold text-zinc-800">Booking summary</h2>
+    <section className="bg-white border border-zinc-200 rounded-xl p-4 space-y-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="text-xs font-medium text-zinc-500">Booking summary</h2>
         {summary?.as_of_date ? (
-          <div className="text-[10px] text-zinc-400 tabular-nums">as of {summary.as_of_date}</div>
+          <div className="text-xs text-zinc-400 tabular-nums">as of {summary.as_of_date}</div>
         ) : null}
       </div>
       {error ? (
-        <p className="text-xs text-red-600 p-2 rounded-lg bg-red-50 border border-red-200">{error}</p>
+        <p className="text-sm text-red-600 p-3 rounded-lg bg-red-50 border border-red-200">{error}</p>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {METRICS.map((metric) => {
             const Icon = metric.icon;
             return loading ? (
               <MetricSkeleton key={metric.key} />
             ) : (
               <article key={metric.key} className={CARD}>
-                <div className="flex items-center justify-between gap-1.5">
-                  <p className="text-[10px] font-medium text-zinc-500 leading-snug break-words pr-0.5">
-                    {metric.label}
-                  </p>
-                  <div className={`p-0.5 rounded-md shrink-0 ${metric.iconWrap}`}>
-                    <Icon className="w-3 h-3" />
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-zinc-600 leading-snug">{metric.label}</p>
+                  <div className={`p-1 rounded-md shrink-0 ${metric.iconWrap}`}>
+                    <Icon className="w-3.5 h-3.5" />
                   </div>
                 </div>
-                <p
-                  className={`mt-1 text-xl font-semibold tabular-nums tracking-tight leading-none ${metric.valueClass}`}
-                >
+                <p className={`text-2xl font-semibold tabular-nums tracking-tight ${metric.valueClass}`}>
                   {(summary?.[metric.key] ?? 0).toLocaleString()}
                 </p>
-                <p className="mt-0.5 text-[10px] text-zinc-400 leading-tight">{metric.hint}</p>
+                <p className="text-xs text-zinc-500">{metric.hint}</p>
               </article>
             );
           })}

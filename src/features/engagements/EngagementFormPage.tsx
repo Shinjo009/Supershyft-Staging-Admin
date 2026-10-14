@@ -213,7 +213,7 @@ export function EngagementFormPage({ mode }: { mode: FormPageMode }) {
   }
 
   return (
-    <div className="p-4 sm:p-6">
+    <div className="min-w-0 overflow-x-hidden">
       {error ? (
         <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
           {error}

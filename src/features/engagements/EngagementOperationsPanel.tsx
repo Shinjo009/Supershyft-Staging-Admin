@@ -600,7 +600,7 @@ export function EngagementOperationsPanel({ engagement, active, onEngagementUpda
     <>
       <div className="space-y-4">
 {/* ── Data Completeness Section ── */}
-          <div className="pt-2 border-t border-zinc-100">
+          <div>
             <div className="flex items-center justify-between gap-2">
               <button
                 type="button"

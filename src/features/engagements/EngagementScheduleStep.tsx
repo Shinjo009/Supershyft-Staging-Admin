@@ -71,7 +71,6 @@ type Props = {
   onDatesChange: (dates: string[]) => void;
   onSlotDetailChange: (next: SlotDetail) => void;
   expertTypes?: ExpertTypeItem[];
-  panelHost?: HTMLElement | null;
   onSidePanelChange?: (open: boolean) => void;
 };
 
@@ -149,7 +148,6 @@ export function EngagementScheduleStep({
   onDatesChange,
   onSlotDetailChange,
   expertTypes = [],
-  panelHost = null,
   onSidePanelChange,
 }: Props) {
   const showBlood = scheduleIntent.configureBlood;
@@ -513,23 +511,23 @@ export function EngagementScheduleStep({
         </button>
       </div>
 
-      <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+      <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600 flex flex-wrap gap-x-2 gap-y-1">
         {showBlood && (
           <span>
             Blood: {summary.bloodDates} date{summary.bloodDates === 1 ? "" : "s"},{" "}
             {summary.bloodCabins} cabin{summary.bloodCabins === 1 ? "" : "s"}
           </span>
         )}
-        {showBlood && showConsult && <span className="mx-2">·</span>}
+        {showBlood && showConsult ? <span className="text-zinc-400">·</span> : null}
         {showConsult && (
           <span>
             Consultation: {summary.consultDates} date{summary.consultDates === 1 ? "" : "s"},{" "}
             {summary.consultCabins} cabin{summary.consultCabins === 1 ? "" : "s"}
           </span>
         )}
-        {summary.bloodCabins === 0 && summary.consultCabins === 0 && (
-          <span>Not configured yet</span>
-        )}
+        {summary.bloodCabins === 0 && summary.consultCabins === 0 ? (
+          <span className="text-zinc-500">Not configured yet</span>
+        ) : null}
       </div>
 
       {importBanner && (
@@ -601,44 +599,40 @@ export function EngagementScheduleStep({
         onEditImportedCabin={openImportedCabinEditor}
       />
 
-      {panelHost &&
-        editingCabin &&
-        createPortal(
-          <SidePanelShell
-            title={
-              editingCabin.isNew
-                ? editingCabin.section === "blood_collection"
-                  ? "Add Blood-Test Cabin"
-                  : "Add Consultation Cabin"
-                : "Edit cabin"
+      {editingCabin ? (
+        <ScheduleDrawer
+          title={
+            editingCabin.isNew
+              ? editingCabin.section === "blood_collection"
+                ? "Add Blood-Test Cabin"
+                : "Add Consultation Cabin"
+              : "Edit cabin"
+          }
+          onClose={closeCabinModal}
+        >
+          <CabinEditor
+            editing={editingCabin}
+            error={cabinError}
+            expertTypes={expertTypes}
+            onChange={updateEditingCabin}
+            onNameChange={updateCabinName}
+            onKeyChange={updateCabinKey}
+            onSave={saveCabin}
+            onCancel={closeCabinModal}
+            onAddBreak={startAddBreak}
+            onEditBreak={startEditBreak}
+            onRemoveBreak={removeBreakAt}
+            editingBreak={editingBreak}
+            onBreakChange={(breakValue) =>
+              setEditingBreak((prev) => (prev ? { ...prev, breakValue } : prev))
             }
-            onClose={closeCabinModal}
-          >
-            <CabinEditor
-              editing={editingCabin}
-              error={cabinError}
-              expertTypes={expertTypes}
-              onChange={updateEditingCabin}
-              onNameChange={updateCabinName}
-              onKeyChange={updateCabinKey}
-              onSave={saveCabin}
-              onCancel={closeCabinModal}
-              onAddBreak={startAddBreak}
-              onEditBreak={startEditBreak}
-              onRemoveBreak={removeBreakAt}
-              editingBreak={editingBreak}
-              onBreakChange={(breakValue) =>
-                setEditingBreak((prev) => (prev ? { ...prev, breakValue } : prev))
-              }
-              onSaveBreak={saveBreak}
-              onCancelBreak={() => setEditingBreak(null)}
-            />
-          </SidePanelShell>,
-          panelHost
-        )}
-      {panelHost &&
-        viewingCabin &&
-        createPortal(
+            onSaveBreak={saveBreak}
+            onCancelBreak={() => setEditingBreak(null)}
+          />
+        </ScheduleDrawer>
+      ) : null}
+      {viewingCabin ? (
+        <ScheduleDrawer title="View slots" onClose={() => setViewingCabin(null)}>
           <CabinSlotView
             engagementId={currentEngagementId ?? null}
             section={viewingCabin.section}
@@ -650,10 +644,38 @@ export function EngagementScheduleStep({
             }
             onCabinChange={applyViewedCabin}
             onClose={() => setViewingCabin(null)}
-          />,
-          panelHost
-        )}
+            embedded
+          />
+        </ScheduleDrawer>
+      ) : null}
     </div>
+  );
+}
+
+function ScheduleDrawer({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex justify-end" role="dialog" aria-modal="true">
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/30"
+        aria-label="Close panel"
+        onClick={onClose}
+      />
+      <div className="relative w-full max-w-md h-full bg-white shadow-xl border-l border-zinc-200 flex flex-col min-w-0">
+        <SidePanelShell title={title} onClose={onClose}>
+          {children}
+        </SidePanelShell>
+      </div>
+    </div>,
+    document.body
   );
 }
 
@@ -712,117 +734,105 @@ function SectionSchedulePanel({
     selectedDate != null ? isSectionDateEnabled(slotDetail, section, selectedDate) : true;
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-stretch gap-2">
-        {sortedDates.map((date) => {
-          const selected = date === selectedDate;
-          const cabinCount = getCabinsForDate(slotDetail, section, date).length;
-          const dateEnabled = isSectionDateEnabled(slotDetail, section, date);
-          return (
-            <div
-              key={date}
-              role="button"
-              tabIndex={0}
-              onClick={() => setSelectedDate(date)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  setSelectedDate(date);
-                }
-              }}
-              className={`relative min-w-[9.5rem] rounded-lg border px-3 py-2 pr-8 cursor-pointer ${
-                selected
-                  ? "border-zinc-900 bg-zinc-900 text-white"
-                  : !dateEnabled
-                    ? "border-zinc-300 bg-zinc-100 text-zinc-600 hover:border-zinc-400"
-                    : cabinCount === 0
-                      ? "border-amber-300 bg-amber-50 text-zinc-900 hover:border-amber-400"
-                      : "border-zinc-200 bg-white text-zinc-900 hover:border-zinc-400"
-              }`}
-            >
-              <p className="text-sm font-medium">{formatDateLabel(date)}</p>
-              <p
-                className={`text-xs mt-0.5 ${
-                  selected
-                    ? "text-white/70"
-                    : !dateEnabled
-                      ? "text-zinc-500"
-                      : cabinCount === 0
-                        ? "text-amber-700"
-                        : "text-zinc-500"
-                }`}
-              >
-                {!dateEnabled
-                  ? "Disabled"
-                  : cabinCount === 0
-                    ? "No cabins"
-                    : `${cabinCount} cabin${cabinCount === 1 ? "" : "s"}`}
-              </p>
-              <button
-                type="button"
-                aria-label={`Remove ${formatDateLabel(date)}`}
-                className={`absolute top-1.5 right-1.5 p-0.5 rounded ${
-                  selected ? "text-white/80 hover:bg-white/10" : "text-zinc-400 hover:bg-zinc-100 hover:text-red-600"
-                }`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRemoveDate(date);
-                }}
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          );
-        })}
-
-        <div className="relative">
-          <button
-            ref={addBtnRef}
-            type="button"
-            onClick={() => setCalendarOpen((open) => !open)}
-            className="h-full min-h-[2.75rem] px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 inline-flex items-center gap-1.5"
-          >
-            <Plus className="w-4 h-4" />
-            Add Date
-          </button>
-        </div>
-      </div>
-
-      {calendarOpen && (
-        <DateCalendarPopover
-          anchorRef={addBtnRef}
-          popoverRef={calendarRef}
-          month={calendarMonth}
-          addedDates={sortedDates}
-          minDate={minDate}
-          maxDate={maxDate}
-          onMonthChange={setCalendarMonth}
-          onSelectDate={onAddDate}
-        />
-      )}
-
-      {dateError && <p className="text-sm text-red-600">{dateError}</p>}
-
-      {sortedDates.length === 0 && (
-        <div className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-6 text-center">
+    <div className="space-y-3 min-w-0">
+      {sortedDates.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-6 text-center">
           <Calendar className="w-8 h-8 text-zinc-400 mx-auto mb-2" />
           <p className="text-sm font-medium text-zinc-700">No dates yet</p>
           <p className="text-xs text-zinc-500 mt-1">
             Add your first {sectionTitle(section).toLowerCase()} date to configure cabins.
           </p>
-          <button
-            type="button"
-            onClick={() => setCalendarOpen(true)}
-            className="mt-3 px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 inline-flex items-center gap-1.5"
-          >
-            <Plus className="w-4 h-4" />
-            Add Date
-          </button>
+          <div className="relative inline-block mt-3">
+            <button
+              ref={addBtnRef}
+              type="button"
+              onClick={() => setCalendarOpen((open) => !open)}
+              className="px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 inline-flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              Add Date
+            </button>
+          </div>
         </div>
-      )}
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-[minmax(12rem,16rem)_1fr] gap-4 min-w-0">
+          <div className="rounded-xl border border-zinc-200 bg-white flex flex-col min-h-[12rem] max-h-[28rem] min-w-0">
+            <div className="px-3 py-2 border-b border-zinc-100 text-xs font-medium text-zinc-500">
+              Dates
+            </div>
+            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+              {sortedDates.map((date) => {
+                const selected = date === selectedDate;
+                const cabinCount = getCabinsForDate(slotDetail, section, date).length;
+                const dateEnabled = isSectionDateEnabled(slotDetail, section, date);
+                return (
+                  <div
+                    key={date}
+                    className={`relative rounded-lg border px-3 py-2 pr-8 ${
+                      selected
+                        ? "border-zinc-900 bg-zinc-900 text-white"
+                        : !dateEnabled
+                          ? "border-zinc-200 bg-zinc-50 text-zinc-600"
+                          : cabinCount === 0
+                            ? "border-amber-200 bg-amber-50 text-zinc-900"
+                            : "border-zinc-200 bg-white text-zinc-900 hover:border-zinc-400"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      className="w-full text-left"
+                      onClick={() => setSelectedDate(date)}
+                    >
+                      <p className="text-sm font-medium leading-snug">{formatDateLabel(date)}</p>
+                      <p
+                        className={`text-xs mt-0.5 ${
+                          selected
+                            ? "text-white/70"
+                            : !dateEnabled
+                              ? "text-zinc-500"
+                              : cabinCount === 0
+                                ? "text-amber-700"
+                                : "text-zinc-500"
+                        }`}
+                      >
+                        {!dateEnabled
+                          ? "Disabled"
+                          : cabinCount === 0
+                            ? "No cabins"
+                            : `${cabinCount} cabin${cabinCount === 1 ? "" : "s"}`}
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${formatDateLabel(date)}`}
+                      className={`absolute top-1.5 right-1.5 p-0.5 rounded ${
+                        selected
+                          ? "text-white/80 hover:bg-white/10"
+                          : "text-zinc-400 hover:bg-zinc-100 hover:text-red-600"
+                      }`}
+                      onClick={() => onRemoveDate(date)}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="p-2 border-t border-zinc-100 relative">
+              <button
+                ref={addBtnRef}
+                type="button"
+                onClick={() => setCalendarOpen((open) => !open)}
+                className="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm font-medium text-zinc-800 hover:bg-zinc-50 inline-flex items-center justify-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" />
+                Add Date
+              </button>
+            </div>
+          </div>
 
-      {selectedDate && (
-        <div className="rounded-lg border border-zinc-200 p-4 space-y-3">
+          {selectedDate ? (
+            <div className="rounded-xl border border-zinc-200 p-4 space-y-3 min-w-0">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h4 className="text-sm font-semibold text-zinc-900">{formatDateLabel(selectedDate)}</h4>
@@ -872,8 +882,29 @@ function SectionSchedulePanel({
               />
             </>
           )}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-zinc-200 p-6 text-sm text-zinc-500 flex items-center justify-center">
+              Select a date to configure cabins.
+            </div>
+          )}
         </div>
       )}
+
+      {calendarOpen && (
+        <DateCalendarPopover
+          anchorRef={addBtnRef}
+          popoverRef={calendarRef}
+          month={calendarMonth}
+          addedDates={sortedDates}
+          minDate={minDate}
+          maxDate={maxDate}
+          onMonthChange={setCalendarMonth}
+          onSelectDate={onAddDate}
+        />
+      )}
+
+      {dateError && <p className="text-sm text-red-600">{dateError}</p>}
     </div>
   );
 }
@@ -1070,6 +1101,7 @@ function CabinSlotView({
   cabin,
   onCabinChange,
   onClose,
+  embedded = false,
 }: {
   engagementId: number | null;
   section: CabinSectionKey;
@@ -1077,6 +1109,7 @@ function CabinSlotView({
   cabin: CabinSlotConfig | null;
   onCabinChange: (cabin: CabinSlotConfig) => void;
   onClose: () => void;
+  embedded?: boolean;
 }) {
   const [bookedBySlot, setBookedBySlot] = useState<Record<string, number>>({});
   const [persisted, setPersisted] = useState(false);
@@ -1168,8 +1201,8 @@ function CabinSlotView({
 
   const rows = cabin ? generateCabinSlotRows(cabin, bookedBySlot) : [];
 
-  return (
-    <SidePanelShell title={cabin ? `${cabin.cabin_name} slots` : "Slots"} onClose={onClose}>
+  const body = (
+    <>
       <p className="text-xs text-zinc-500 mb-3">{formatDateLabel(date)}</p>
       {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
       {loading ? (
@@ -1233,6 +1266,14 @@ function CabinSlotView({
           This cabin is not saved yet. Capacity changes are kept with the engagement when you save it.
         </p>
       )}
+    </>
+  );
+
+  if (embedded) return body;
+
+  return (
+    <SidePanelShell title={cabin ? `${cabin.cabin_name} slots` : "Slots"} onClose={onClose}>
+      {body}
     </SidePanelShell>
   );
 }

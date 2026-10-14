@@ -270,8 +270,8 @@ export function EngagementDetailPage() {
         </PageHeaderActions>
       ) : null}
 
-      <div className="flex-1 overflow-y-auto p-4 bg-zinc-50">
-        <div className="flex gap-1 mb-3 border-b border-zinc-200 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+      <div className="flex-1 overflow-y-auto min-w-0">
+        <div className="flex gap-1 mb-5 border-b border-zinc-200 overflow-x-auto [&::-webkit-scrollbar]:hidden">
           {DETAIL_TABS.map((tab) => (
             <button
               key={tab.key}
@@ -330,27 +330,8 @@ export function EngagementDetailPage() {
                           })
                       : undefined
                   }
+                  onOpenNotifications={() => setTab("notifications")}
                 />
-                <div className="bg-white border border-zinc-200 rounded-xl p-4">
-                  <div className="text-xs font-medium text-zinc-500 mb-1">Notification health</div>
-                  <p className="text-sm text-zinc-600">
-                    Review configured events and dispatch logs for failed WhatsApp or email sends.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setTab("notifications")}
-                    className="mt-2 text-sm font-medium text-zinc-900 underline"
-                  >
-                    Open notifications tab
-                  </button>
-                  <span className="text-zinc-400 mx-2">·</span>
-                  <Link
-                    to="/notifications/notifications"
-                    className="text-sm font-medium text-zinc-900 underline"
-                  >
-                    Global notification log
-                  </Link>
-                </div>
               </div>
             ) : null}
 
@@ -359,10 +340,12 @@ export function EngagementDetailPage() {
             ) : null}
 
             {resolvedTab === "participants" ? (
-              <EngagementParticipantsPanel
-                engagementId={engagement.engagement_id}
-                engagementName={engagement.engagement_name ?? engagement.engagement_code ?? undefined}
-              />
+              <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+                <EngagementParticipantsPanel
+                  engagementId={engagement.engagement_id}
+                  engagementName={engagement.engagement_name ?? engagement.engagement_code ?? undefined}
+                />
+              </div>
             ) : null}
 
             {resolvedTab === "notifications" ? (
@@ -373,11 +356,13 @@ export function EngagementDetailPage() {
             ) : null}
 
             {resolvedTab === "operations" ? (
-              <EngagementOperationsPanel
-                engagement={engagement}
-                active={true}
-                onEngagementUpdated={() => void loadEngagement()}
-              />
+              <div className="bg-white border border-zinc-200 rounded-xl p-4 max-w-3xl">
+                <EngagementOperationsPanel
+                  engagement={engagement}
+                  active={true}
+                  onEngagementUpdated={() => void loadEngagement()}
+                />
+              </div>
             ) : null}
           </>
         ) : null}

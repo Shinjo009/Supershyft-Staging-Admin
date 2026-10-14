@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Check,
   ChevronRight,
@@ -53,6 +54,7 @@ type OverviewProps = SharedProps & {
   progressBottlenecks?: { key: string; label: string; pending: number }[];
   progressLoadError?: string | null;
   onManageChecklists?: () => void;
+  onOpenNotifications?: () => void;
 };
 
 function setupFlag(ok: boolean | undefined) {
@@ -76,6 +78,7 @@ export function EngagementOverviewTab({
   progressLoadError,
   engagementCode,
   onManageChecklists,
+  onOpenNotifications,
   notificationServiceLabel,
 }: OverviewProps) {
   const b2b = isB2BEngagement(engagement.organization_id);
@@ -216,6 +219,27 @@ export function EngagementOverviewTab({
             Onboarding assistants can also be assigned from the engagements list (Assistants action).
           </p>
         ) : null}
+        <p className="text-xs text-zinc-500">
+          Notification health:{" "}
+          {onOpenNotifications ? (
+            <button
+              type="button"
+              onClick={onOpenNotifications}
+              className="font-medium text-zinc-800 underline hover:text-zinc-900"
+            >
+              Open notifications tab
+            </button>
+          ) : (
+            <span>Notifications tab</span>
+          )}
+          <span className="text-zinc-400 mx-1">·</span>
+          <Link
+            to="/notifications/notifications"
+            className="font-medium text-zinc-800 underline hover:text-zinc-900"
+          >
+            Global notification log
+          </Link>
+        </p>
       </div>
 
       {progressBottlenecks && progressBottlenecks.length > 0 ? (

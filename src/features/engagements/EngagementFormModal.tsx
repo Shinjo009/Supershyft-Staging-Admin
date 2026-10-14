@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { Loader2, Info } from "lucide-react";
 import { Modal } from "../../shared/ui/Modal";
 import {
@@ -170,8 +170,6 @@ export function EngagementFormWizard({
   );
   const [stepError, setStepError] = useState<string | null>(null);
   const [sidePanelOpen, setSidePanelOpen] = useState(false);
-  const panelHostRef = useRef<HTMLDivElement>(null);
-  const [panelHost, setPanelHost] = useState<HTMLElement | null>(null);
   const [expertTypes, setExpertTypes] = useState<ExpertTypeItem[]>([]);
 
   const [zoneLoading, setZoneLoading] = useState(false);
@@ -491,10 +489,6 @@ export function EngagementFormWizard({
     const idx = steps.findIndex((s) => s.key === initialStepKey);
     if (idx >= 0) setStepIndex(idx);
   }, [initialStepKey, steps]);
-
-  useLayoutEffect(() => {
-    setPanelHost(sidePanelOpen ? panelHostRef.current : null);
-  }, [sidePanelOpen]);
 
   useEffect(() => {
     if (currentStepKey !== "schedule") setSidePanelOpen(false);
@@ -1000,35 +994,20 @@ export function EngagementFormWizard({
 
   const isPage = variant === "page";
   const formShell = (
-    <div
-      className={
-        sidePanelOpen
-          ? `flex min-h-0 overflow-hidden ${isPage ? "flex-1" : "max-h-[calc(90vh-4.5rem)]"}`
-          : isPage
-            ? "flex flex-col flex-1 min-h-0"
-            : undefined
-      }
-    >
-      <div
-        className={
-          sidePanelOpen
-            ? "w-[65%] min-w-0 min-h-0 overflow-y-auto p-4 sm:p-6"
-            : isPage
-              ? "flex-1 min-h-0 overflow-y-auto"
-              : undefined
-        }
-      >
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="flex items-center gap-2">
+    <div className={isPage ? "flex flex-col flex-1 min-h-0 min-w-0" : sidePanelOpen ? "max-h-[calc(90vh-4.5rem)]" : undefined}>
+      <div className={isPage ? "flex-1 min-h-0 overflow-y-auto min-w-0" : undefined}>
+      <form onSubmit={handleSubmit} className="space-y-6 min-w-0">
+        <div className="flex items-center gap-2 min-w-0 overflow-x-auto pb-1 [&::-webkit-scrollbar]:h-1">
           {steps.map((item, index) => {
             const active = stepIndex === index;
             const done = stepIndex > index;
             return (
-              <div key={item.key} className="flex items-center gap-2 flex-1 min-w-0">
+              <div key={item.key} className="flex items-center gap-2 flex-1 min-w-[5.5rem] shrink-0 sm:shrink sm:min-w-0">
                 <button
                   type="button"
                   disabled={!done && !active}
                   onClick={() => done && goToStep(index)}
+                  title={item.label}
                   className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-semibold shrink-0 transition-colors ${
                     active
                       ? "bg-zinc-900 text-white"
@@ -1040,6 +1019,7 @@ export function EngagementFormWizard({
                   {index + 1}
                 </button>
                 <span
+                  title={item.label}
                   className={`text-xs font-medium truncate ${
                     active ? "text-zinc-900" : done ? "text-zinc-700" : "text-zinc-500"
                   }`}
@@ -1827,7 +1807,6 @@ export function EngagementFormWizard({
             onDatesChange={setCollectionDates}
             onSlotDetailChange={setSlotDetail}
             expertTypes={expertTypes}
-            panelHost={panelHost}
             onSidePanelChange={setSidePanelOpen}
           />
         )}
@@ -1865,7 +1844,7 @@ export function EngagementFormWizard({
 
         <div
           className={`flex flex-col-reverse sm:flex-row gap-3 pt-2 ${
-            isPage ? "sticky bottom-0 bg-zinc-50 border-t border-zinc-200 py-3 -mx-4 px-4 sm:-mx-6 sm:px-6 mt-4" : ""
+            isPage ? "sticky bottom-0 bg-white border-t border-zinc-200 py-3 mt-4" : ""
           }`}
         >
           {!isLastStep ? (
@@ -1903,23 +1882,12 @@ export function EngagementFormWizard({
         </div>
       </form>
       </div>
-      {sidePanelOpen && (
-        <aside
-          ref={panelHostRef}
-          className="w-[35%] min-w-0 min-h-0 border-l border-zinc-200 bg-white overflow-hidden"
-        />
-      )}
-      </div>
+    </div>
   );
 
   if (isPage) {
     return (
-      <div className="flex flex-col min-h-[calc(100vh-8rem)] max-w-6xl mx-auto w-full">
-        <div className="shrink-0 pb-3 border-b border-zinc-200 mb-4">
-          <h2 className="text-lg font-semibold text-zinc-900">
-            {mode === "add" ? "New engagement" : "Edit engagement"}
-          </h2>
-        </div>
+      <div className="flex flex-col min-h-[calc(100vh-10rem)] max-w-3xl mx-auto w-full min-w-0 overflow-x-hidden">
         {formShell}
       </div>
     );
@@ -1930,7 +1898,7 @@ export function EngagementFormWizard({
       open={open}
       onClose={onClose}
       title={mode === "add" ? "Add Engagement" : "Edit Engagement"}
-      maxWidthClassName={sidePanelOpen ? "max-w-6xl" : "max-w-3xl"}
+      maxWidthClassName="max-w-3xl"
       lockBodyScroll={sidePanelOpen}
     >
       {formShell}
