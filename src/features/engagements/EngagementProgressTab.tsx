@@ -1,14 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Clock,
-  Loader2,
-  Minus,
-  X,
-} from "lucide-react";
+import { Check, Clock, Loader2, Minus, X } from "lucide-react";
 import {
   engagementParticipantProgressApi,
   formatParticipantProgressError,
@@ -16,6 +8,24 @@ import {
   type ParticipantProgressStageCell,
   type ParticipantProgressStageStatus,
 } from "../../lib/api";
+import {
+  COMMS_STEP_KEYS,
+  MANAGER_MILESTONE_KEYS,
+  commsBreakdownByStep,
+  countParticipantsNeedingComms,
+  managerLabelForStep,
+  managerNextStepLabel,
+  topParticipantBottleneck,
+} from "./progressManagerLabels";
+
+const GRID_EXCLUDE_KEYS = new Set(["engagement_setup", "booking_guide_phlebo", "enrolled"]);
+
+const CAMP_SETUP_CHECKLIST = [
+  "Packages assigned (assessment or diagnostics)",
+  "Schedule and on-site slots configured",
+  "Onboarding assistant assigned",
+  "Onboarding notifications configured",
+];
 
 function participantName(row: { first_name?: string | null; last_name?: string | null; user_id: number }) {
   const name = [row.first_name, row.last_name].filter(Boolean).join(" ").trim();
@@ -52,37 +62,6 @@ function cellTooltip(
   return `${source} — ${status}`;
 }
 
-function aggregateGroupProgress(
-  data: EngagementParticipantProgressResponse,
-  steps: string[],
-): { complete: number; applicable: number } {
-  let complete = 0;
-  let applicable = 0;
-  for (const key of steps) {
-    const agg = data.summary.by_stage[key];
-    if (!agg) continue;
-    complete += agg.complete;
-    applicable += agg.applicable;
-  }
-  return { complete, applicable };
-}
-
-function groupStatusForParticipant(
-  row: EngagementParticipantProgressResponse["participants"][number],
-  steps: string[],
-): ParticipantProgressStageStatus {
-  let hasPending = false;
-  let hasComplete = false;
-  for (const key of steps) {
-    const st = cellStatus(row.stages[key]);
-    if (st === "pending" || st === "failed") hasPending = true;
-    if (st === "complete") hasComplete = true;
-  }
-  if (!hasPending && hasComplete) return "complete";
-  if (hasPending) return "pending";
-  return "not_applicable";
-}
-
 function ProgressGridView({
   data,
   stageKeys,
@@ -96,19 +75,50 @@ function ProgressGridView({
 }) {
   const [commsOnly, setCommsOnly] = useState(false);
 
+  const gridStageKeys = useMemo(
+    () => stageKeys.filter((k) => !GRID_EXCLUDE_KEYS.has(k)),
+    [stageKeys],
+  );
+
   const visibleGroups = useMemo(() => {
-    if (!data.stage_groups) return [{ key: "all", label: "", steps: stageKeys }];
-    if (!commsOnly) return data.stage_groups;
-    return data.stage_groups.filter((g) => g.key === "comms");
-  }, [data, commsOnly, stageKeys]);
+    const filterSteps = (steps: string[]) => steps.filter((k) => !GRID_EXCLUDE_KEYS.has(k));
+    if (!data.stage_groups) {
+      return [{ key: "all", label: "", steps: gridStageKeys }];
+    }
+    const groups = data.stage_groups
+      .map((g) => ({ ...g, steps: filterSteps(g.steps) }))
+      .filter((g) => g.steps.length > 0);
+    if (!commsOnly) return groups;
+    return groups.filter((g) => g.key === "comms");
+  }, [data, commsOnly, gridStageKeys]);
 
   const columnKeys = useMemo(() => {
-    if (!commsOnly) return stageKeys;
+    if (!commsOnly) return gridStageKeys;
     return visibleGroups.flatMap((g) => g.steps);
-  }, [commsOnly, stageKeys, visibleGroups]);
+  }, [commsOnly, gridStageKeys, visibleGroups]);
+
+  const setup = data.engagement_setup;
 
   return (
     <div className="space-y-4">
+      <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-sm space-y-2">
+        <p className="font-medium text-zinc-800">Camp-level status (not per person)</p>
+        <div className="flex flex-wrap gap-2">
+          {setup?.engagement_setup ? (
+            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-white border border-zinc-200">
+              <StageIcon status={setup.engagement_setup.status} />
+              Camp configuration
+            </span>
+          ) : null}
+          {setup?.booking_guide_phlebo ? (
+            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-white border border-zinc-200">
+              <StageIcon status={setup.booking_guide_phlebo.status} />
+              Phlebo booking guide
+            </span>
+          ) : null}
+        </div>
+      </div>
+
       <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-xs font-medium text-zinc-500">Step completion (camp-wide)</div>
@@ -126,11 +136,10 @@ function ProgressGridView({
           <p className="text-sm text-zinc-500">No participants enrolled yet.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
-            {stageKeys
-              .filter((key) => key !== "enrolled" && key !== "engagement_setup" && key !== "booking_guide_phlebo")
+            {gridStageKeys
+              .filter((key) => !COMMS_STEP_KEYS.includes(key))
               .map((key) => {
                 const agg = data.summary.by_stage[key];
-                const label = data.stage_labels[key] ?? key;
                 if (!agg) return null;
                 const denom = agg.applicable || 0;
                 const complete = agg.complete;
@@ -143,8 +152,7 @@ function ProgressGridView({
                       done ? "bg-emerald-50 text-emerald-800" : "bg-zinc-100 text-zinc-700"
                     }`}
                   >
-                    {label}: {complete}/{denom || "—"}
-                    {agg.not_applicable > 0 ? ` (+${agg.not_applicable} N/A)` : ""}
+                    {managerLabelForStep(key)}: {complete}/{denom || "—"}
                   </span>
                 );
               })}
@@ -164,7 +172,7 @@ function ProgressGridView({
                   <th className="text-left font-medium px-3 py-2 sticky left-0 bg-zinc-50 z-10 min-w-[140px]">
                     Participant
                   </th>
-                  <th className="text-left font-medium px-3 py-2 min-w-[120px]">Stuck at</th>
+                  <th className="text-left font-medium px-3 py-2 min-w-[140px]">Next step</th>
                   {visibleGroups.map((group) =>
                     group.steps.length === 0 ? null : (
                       <th
@@ -186,7 +194,7 @@ function ProgressGridView({
                       title={stageMeta[key]?.source ?? data.stage_labels[key]}
                       className="text-center font-medium px-2 py-1 whitespace-nowrap min-w-[5.5rem]"
                     >
-                      {data.stage_labels[key] ?? key}
+                      {managerLabelForStep(key)}
                     </th>
                   ))}
                   <th />
@@ -200,12 +208,12 @@ function ProgressGridView({
                       <div className="text-zinc-500">{row.phone ?? "—"}</div>
                     </td>
                     <td className="px-3 py-2 text-zinc-700">
-                      {row.bottleneck_label ? (
+                      {row.bottleneck ? (
                         <span className="text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded">
-                          {row.bottleneck_label}
+                          {managerNextStepLabel(row.bottleneck)}
                         </span>
                       ) : (
-                        <span className="text-emerald-700">Complete</span>
+                        <span className="text-emerald-700">All done</span>
                       )}
                     </td>
                     {columnKeys.map((key) => {
@@ -240,12 +248,16 @@ function ProgressGridView({
   );
 }
 
-export function EngagementProgressTab({ engagementId }: { engagementId: number }) {
+export function EngagementProgressTab({
+  engagementId,
+  engagementCode,
+}: {
+  engagementId: number;
+  engagementCode?: string | null;
+}) {
   const [data, setData] = useState<EngagementParticipantProgressResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showFullGrid, setShowFullGrid] = useState(false);
-  const [expandedUserId, setExpandedUserId] = useState<number | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
@@ -271,29 +283,52 @@ export function EngagementProgressTab({ engagementId }: { engagementId: number }
   const stageKeys = data?.stage_keys ?? [];
   const total = data?.summary.total_participants ?? 0;
   const stageMeta = data?.stage_meta ?? {};
+  const setup = data?.engagement_setup;
 
-  const funnelGroups = useMemo(() => {
-    if (!data?.stage_groups) return [];
-    return data.stage_groups.filter((g) => g.key !== "comms" && g.steps.length > 0);
-  }, [data]);
+  const editHref = engagementCode
+    ? `/engagements/${encodeURIComponent(engagementCode)}/edit`
+    : null;
 
   const sortedParticipants = useMemo(() => {
     if (!data) return [];
     return [...data.participants].sort((a, b) => {
-      const aStuck = a.bottleneck_label ? 0 : 1;
-      const bStuck = b.bottleneck_label ? 0 : 1;
+      const aStuck = a.bottleneck ? 0 : 1;
+      const bStuck = b.bottleneck ? 0 : 1;
       if (aStuck !== bStuck) return aStuck - bStuck;
       return participantName(a).localeCompare(participantName(b));
     });
   }, [data]);
 
-  const finishedCount = useMemo(() => {
+  const journeyCompleteCount = useMemo(() => {
     if (!data) return 0;
-    return data.participants.filter((p) => !p.bottleneck_label).length;
+    return data.participants.filter((p) => !p.bottleneck).length;
   }, [data]);
 
-  const needsActionCount = total - finishedCount;
-  const topBottleneck = data?.summary.bottlenecks?.[0];
+  const needAttentionCount = total - journeyCompleteCount;
+  const topPeopleBottleneck = topParticipantBottleneck(data?.summary.bottlenecks);
+  const commsNeedCount = data ? countParticipantsNeedingComms(data.participants) : 0;
+  const commsBreakdown = data ? commsBreakdownByStep(data) : [];
+
+  const campSetupPending =
+    setup?.engagement_setup?.status === "pending" || setup?.engagement_setup?.status === "failed";
+  const phleboPending =
+    setup?.booking_guide_phlebo?.status === "pending" ||
+    setup?.booking_guide_phlebo?.status === "failed";
+
+  const milestoneRows = useMemo(() => {
+    if (!data) return [];
+    const rows: { key: string; label: string; pending: number }[] = [];
+    for (const key of MANAGER_MILESTONE_KEYS) {
+      if (!data.stage_keys.includes(key)) continue;
+      const agg = data.summary.by_stage[key];
+      if (!agg) continue;
+      const pending = agg.pending + agg.failed;
+      if (pending > 0 && agg.applicable > 0) {
+        rows.push({ key, label: managerLabelForStep(key), pending });
+      }
+    }
+    return rows;
+  }, [data]);
 
   if (loading) {
     return (
@@ -320,39 +355,175 @@ export function EngagementProgressTab({ engagementId }: { engagementId: number }
 
   if (!data) return null;
 
-  const setup = data.engagement_setup;
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-zinc-600">
+        Camp health and what each person still needs to do — in plain language.
+      </p>
 
-  if (showFullGrid) {
-    return (
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm text-zinc-600">Detailed step-by-step grid for every participant.</p>
-          <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
-            <input
-              type="checkbox"
-              checked={showFullGrid}
-              onChange={(e) => setShowFullGrid(e.target.checked)}
-              className="rounded border-zinc-300"
-            />
-            Show full step grid
-          </label>
+      {campSetupPending ? (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-amber-950">
+            Finish camp setup before chasing participants
+          </h3>
+          <ul className="text-sm text-amber-900 list-disc pl-5 space-y-1">
+            {CAMP_SETUP_CHECKLIST.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+          {editHref ? (
+            <Link
+              to={editHref}
+              className="inline-flex text-sm font-medium text-amber-950 underline hover:text-amber-900"
+            >
+              Edit engagement
+            </Link>
+          ) : null}
         </div>
-        <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-3">
-          <div className="flex flex-wrap gap-3 text-sm">
-            {setup?.engagement_setup ? (
-              <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-50 border border-zinc-200">
-                <StageIcon status={setup.engagement_setup.status} />
-                <span>Setup verified</span>
+      ) : null}
+
+      {phleboPending ? (
+        <div className="bg-white border border-zinc-200 rounded-xl px-4 py-3 text-sm text-zinc-700 flex flex-wrap items-center justify-between gap-2">
+          <span>
+            <span className="font-medium">Phlebo booking guide</span> — not sent or not configured for
+            this camp.
+          </span>
+          {editHref ? (
+            <Link to={`${editHref}?step=notifications`} className="text-sm font-medium underline">
+              Configure notifications
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="bg-white border border-zinc-200 rounded-xl p-4">
+          <p className="text-xs font-medium text-zinc-500">Enrolled</p>
+          <p className="text-2xl font-semibold text-zinc-900 tabular-nums mt-1">{total}</p>
+        </div>
+        <div className="bg-white border border-zinc-200 rounded-xl p-4">
+          <p className="text-xs font-medium text-zinc-500">Journey complete</p>
+          <p className="text-2xl font-semibold text-emerald-800 tabular-nums mt-1">
+            {journeyCompleteCount}
+          </p>
+        </div>
+        <div className="bg-white border border-zinc-200 rounded-xl p-4">
+          <p className="text-xs font-medium text-zinc-500">Need attention</p>
+          <p className="text-2xl font-semibold text-amber-800 tabular-nums mt-1">{needAttentionCount}</p>
+          {topPeopleBottleneck && needAttentionCount > 0 ? (
+            <p className="text-xs text-zinc-500 mt-1">
+              Most waiting on:{" "}
+              <span className="font-medium text-zinc-700">
+                {topPeopleBottleneck.label} ({topPeopleBottleneck.pending})
               </span>
-            ) : null}
-            {setup?.booking_guide_phlebo ? (
-              <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-50 border border-zinc-200">
-                <StageIcon status={setup.booking_guide_phlebo.status} />
-                <span>Phlebo booking guide</span>
-              </span>
-            ) : null}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-3">
+        <h3 className="text-sm font-medium text-zinc-900">What needs attention</h3>
+        <ul className="space-y-2 text-sm">
+          {campSetupPending ? (
+            <li className="flex flex-wrap items-baseline justify-between gap-2 py-2 border-b border-zinc-100">
+              <span className="font-medium text-zinc-800">Camp configuration</span>
+              <span className="text-zinc-600 tabular-nums">Fix in Edit engagement</span>
+            </li>
+          ) : null}
+          {commsNeedCount > 0 ? (
+            <li className="py-2 border-b border-zinc-100 space-y-1">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="font-medium text-zinc-800">Notifications</span>
+                <span className="text-zinc-600 tabular-nums">
+                  {commsNeedCount} participant{commsNeedCount === 1 ? "" : "s"}
+                </span>
+              </div>
+              <p className="text-xs text-zinc-500">
+                Welcome, reminders, report alerts, and other messages.
+              </p>
+              {commsBreakdown.length > 0 ? (
+                <p className="text-xs text-zinc-600">
+                  Top gaps:{" "}
+                  {commsBreakdown
+                    .slice(0, 2)
+                    .map((c) => `${c.label} (${c.pending})`)
+                    .join(" · ")}
+                </p>
+              ) : null}
+            </li>
+          ) : null}
+          {milestoneRows.map((row) => (
+            <li
+              key={row.key}
+              className="flex flex-wrap items-baseline justify-between gap-2 py-2 border-b border-zinc-100 last:border-0"
+            >
+              <span className="text-zinc-800">{row.label}</span>
+              <span className="font-medium text-zinc-900 tabular-nums">{row.pending} pending</span>
+            </li>
+          ))}
+          {!campSetupPending && commsNeedCount === 0 && milestoneRows.length === 0 ? (
+            <li className="text-zinc-500 py-2">Nothing blocking right now — great job.</li>
+          ) : null}
+        </ul>
+      </div>
+
+      {total > 0 ? (
+        <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-zinc-100 text-sm font-medium text-zinc-900">
+            Participants
           </div>
-          <div className="flex flex-wrap gap-3 text-xs text-zinc-500">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="bg-zinc-50 text-zinc-500 text-left">
+                  <th className="font-medium px-4 py-2">Name</th>
+                  <th className="font-medium px-4 py-2">Next step</th>
+                  <th className="font-medium px-4 py-2 w-24" />
+                </tr>
+              </thead>
+              <tbody>
+                {sortedParticipants.map((row) => (
+                  <tr key={row.user_id} className="border-t border-zinc-100">
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-zinc-900">{participantName(row)}</div>
+                      <div className="text-xs text-zinc-500">{row.phone ?? "—"}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {row.bottleneck ? (
+                        <span className="text-amber-900 bg-amber-50 border border-amber-200 px-2 py-1 rounded-md text-sm">
+                          {managerNextStepLabel(row.bottleneck)}
+                        </span>
+                      ) : (
+                        <span className="text-emerald-700 font-medium">All done</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link
+                        to={`/users/${row.user_id}/journey`}
+                        className="text-zinc-700 underline hover:text-zinc-900 whitespace-nowrap"
+                      >
+                        Open journey
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white border border-zinc-200 rounded-xl p-4 text-sm text-zinc-500">
+          No participants enrolled yet.
+        </div>
+      )}
+
+      <details className="bg-white border border-zinc-200 rounded-xl group">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-zinc-800 list-none flex items-center justify-between">
+          Technical details (ops)
+          <span className="text-xs text-zinc-500 font-normal group-open:hidden">Show full step grid</span>
+        </summary>
+        <div className="px-4 pb-4 pt-1 border-t border-zinc-100">
+          <div className="flex flex-wrap gap-3 text-xs text-zinc-500 mb-4">
             <span className="inline-flex items-center gap-1">
               <Check className="w-3.5 h-3.5 text-emerald-600" /> Complete
             </span>
@@ -366,158 +537,9 @@ export function EngagementProgressTab({ engagementId }: { engagementId: number }
               <X className="w-3.5 h-3.5 text-red-600" /> Failed notify
             </span>
           </div>
+          <ProgressGridView data={data} stageKeys={stageKeys} stageMeta={stageMeta} total={total} />
         </div>
-        <ProgressGridView data={data} stageKeys={stageKeys} stageMeta={stageMeta} total={total} />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-zinc-600">Who is done, who is stuck, and what to fix next.</p>
-        <label className="inline-flex items-center gap-2 text-sm text-zinc-700 shrink-0">
-          <input
-            type="checkbox"
-            checked={showFullGrid}
-            onChange={(e) => setShowFullGrid(e.target.checked)}
-            className="rounded border-zinc-300"
-          />
-          Show full step grid
-        </label>
-      </div>
-
-      <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-3">
-        <div className="flex flex-wrap gap-2 text-sm">
-          {setup?.engagement_setup ? (
-            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-50 border border-zinc-200">
-              <StageIcon status={setup.engagement_setup.status} />
-              <span>Camp setup</span>
-            </span>
-          ) : null}
-          {setup?.booking_guide_phlebo ? (
-            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-50 border border-zinc-200">
-              <StageIcon status={setup.booking_guide_phlebo.status} />
-              <span>Phlebo guide</span>
-            </span>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-white border border-zinc-200 rounded-xl p-4">
-          <p className="text-xs font-medium text-zinc-500">Participants</p>
-          <p className="text-2xl font-semibold text-zinc-900 tabular-nums mt-1">{total}</p>
-        </div>
-        <div className="bg-white border border-zinc-200 rounded-xl p-4">
-          <p className="text-xs font-medium text-zinc-500">All steps done</p>
-          <p className="text-2xl font-semibold text-emerald-800 tabular-nums mt-1">{finishedCount}</p>
-        </div>
-        <div className="bg-white border border-zinc-200 rounded-xl p-4">
-          <p className="text-xs font-medium text-zinc-500">Still in progress</p>
-          <p className="text-2xl font-semibold text-amber-800 tabular-nums mt-1">{needsActionCount}</p>
-          {topBottleneck && needsActionCount > 0 ? (
-            <p className="text-xs text-zinc-500 mt-1">
-              Most waiting on: <span className="font-medium text-zinc-700">{topBottleneck.label}</span> (
-              {topBottleneck.pending})
-            </p>
-          ) : null}
-        </div>
-      </div>
-
-      {total > 0 && funnelGroups.length > 0 ? (
-        <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-4">
-          <h3 className="text-sm font-medium text-zinc-900">Where is everyone?</h3>
-          {funnelGroups.map((group) => {
-            const { complete, applicable } = aggregateGroupProgress(data, group.steps);
-            const pct = applicable > 0 ? Math.round((complete / applicable) * 100) : 0;
-            return (
-              <div key={group.key}>
-                <div className="flex items-center justify-between gap-2 text-sm mb-1">
-                  <span className="font-medium text-zinc-800">{group.label}</span>
-                  <span className="text-zinc-500 tabular-nums text-xs">
-                    {applicable > 0 ? `${complete} of ${applicable} step completions` : "N/A for this camp"}
-                  </span>
-                </div>
-                <div className="h-2 rounded-full bg-zinc-100 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-emerald-500 transition-all"
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
-
-      {total > 0 ? (
-        <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-zinc-100 text-sm font-medium text-zinc-900">
-            Each participant
-          </div>
-          <div className="divide-y divide-zinc-100">
-            {sortedParticipants.map((row) => {
-              const expanded = expandedUserId === row.user_id;
-              return (
-                <div key={row.user_id}>
-                  <div className="flex flex-wrap items-center gap-3 px-4 py-3">
-                    <button
-                      type="button"
-                      onClick={() => setExpandedUserId(expanded ? null : row.user_id)}
-                      className="p-1 rounded hover:bg-zinc-100 text-zinc-500"
-                      aria-expanded={expanded}
-                      aria-label="Show stage groups"
-                    >
-                      {expanded ? (
-                        <ChevronDown className="w-4 h-4" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4" />
-                      )}
-                    </button>
-                    <div className="flex-1 min-w-[10rem]">
-                      <div className="font-medium text-sm text-zinc-900">{participantName(row)}</div>
-                      <div className="text-xs text-zinc-500">{row.phone ?? "—"}</div>
-                    </div>
-                    <div className="flex-1 min-w-[12rem]">
-                      {row.bottleneck_label ? (
-                        <span className="inline-block text-sm text-amber-900 bg-amber-50 border border-amber-200 px-2 py-1 rounded-md">
-                          Waiting on: {row.bottleneck_label}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-emerald-700 font-medium">All done</span>
-                      )}
-                    </div>
-                    <Link
-                      to={`/users/${row.user_id}/journey`}
-                      className="text-sm text-zinc-700 underline hover:text-zinc-900 shrink-0"
-                    >
-                      Journey
-                    </Link>
-                  </div>
-                  {expanded && funnelGroups.length > 0 ? (
-                    <div className="px-4 pb-3 pl-12 flex flex-wrap gap-2">
-                      {funnelGroups.map((group) => (
-                        <span
-                          key={group.key}
-                          className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-md bg-zinc-50 border border-zinc-200"
-                        >
-                          <StageIcon status={groupStatusForParticipant(row, group.steps)} />
-                          {group.label}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ) : (
-        <div className="bg-white border border-zinc-200 rounded-xl p-4 text-sm text-zinc-500">
-          No participants enrolled yet.
-        </div>
-      )}
+      </details>
     </div>
   );
 }

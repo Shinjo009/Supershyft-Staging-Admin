@@ -336,7 +336,10 @@ export function EngagementDetailPage() {
             ) : null}
 
             {resolvedTab === "progress" ? (
-              <EngagementProgressTab engagementId={engagement.engagement_id} />
+              <EngagementProgressTab
+                engagementId={engagement.engagement_id}
+                engagementCode={engagement.engagement_code ?? engagementCode}
+              />
             ) : null}
 
             {resolvedTab === "participants" ? (

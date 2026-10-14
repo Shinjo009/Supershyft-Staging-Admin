@@ -34,6 +34,7 @@ import {
   scheduleIntentFromSlotDetail,
   summarizeSlotDetail,
 } from "./engagementTypeConfig";
+import { managerLabelForStep } from "./progressManagerLabels";
 import { Field, formatEngagementStatusLabel, isB2BEngagement } from "./engagementViewShared";
 
 type SharedProps = {
@@ -51,7 +52,12 @@ type OverviewProps = SharedProps & {
   onOpenProgress?: () => void;
   setupVerified?: boolean;
   phleboGuideSent?: boolean;
-  progressBottlenecks?: { key: string; label: string; pending: number }[];
+  progressBottlenecks?: {
+    key: string;
+    label: string;
+    pending: number;
+    scope?: "engagement" | "participant";
+  }[];
   progressLoadError?: string | null;
   onManageChecklists?: () => void;
   onOpenNotifications?: () => void;
@@ -248,8 +254,13 @@ export function EngagementOverviewTab({
           <ul className="text-sm text-zinc-700 space-y-1">
             {progressBottlenecks.map((b) => (
               <li key={b.key}>
-                <span className="font-medium">{b.label}</span>
-                <span className="text-zinc-500"> — {b.pending} pending</span>
+                <span className="font-medium">
+                  {b.scope === "engagement" ? b.label : managerLabelForStep(b.key)}
+                </span>
+                <span className="text-zinc-500">
+                  {" "}
+                  — {b.scope === "engagement" ? "camp setup" : `${b.pending} pending`}
+                </span>
               </li>
             ))}
           </ul>

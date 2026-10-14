@@ -3348,6 +3348,7 @@ export interface EngagementParticipantProgressParticipant {
   legacy_stages?: Record<string, boolean>;
   bottleneck?: string | null;
   bottleneck_label?: string | null;
+  bottleneck_scope?: "participant" | null;
 }
 
 export interface EngagementParticipantProgressResponse {
@@ -3362,7 +3363,12 @@ export interface EngagementParticipantProgressResponse {
     total_participants: number;
     stage_counts: Record<string, number>;
     by_stage: Record<string, ParticipantProgressStageSummary>;
-    bottlenecks?: { key: string; label: string; pending: number }[];
+    bottlenecks?: {
+      key: string;
+      label: string;
+      pending: number;
+      scope?: "engagement" | "participant";
+    }[];
   };
   participants: EngagementParticipantProgressParticipant[];
 }
