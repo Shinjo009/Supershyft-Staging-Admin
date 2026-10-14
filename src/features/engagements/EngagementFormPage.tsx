@@ -64,6 +64,7 @@ export function EngagementFormPage({ mode }: { mode: FormPageMode }) {
     currentCampNo: number | null;
     nextCampNo: number | null;
     engagementCode: string;
+    onDeferredSuccess?: () => void;
   } | null>(null);
 
   const backTo = useMemo(() => {
@@ -131,10 +132,23 @@ export function EngagementFormPage({ mode }: { mode: FormPageMode }) {
     void load();
   }, [load]);
 
-  const performUpdate = async (engagementId: number, payload: Record<string, unknown>, code: string) => {
+  const performUpdate = async (
+    engagementId: number,
+    payload: Record<string, unknown>,
+    code: string,
+    options?: { navigateAway?: boolean },
+  ) => {
     await engagementsApi.update(engagementId, payload as never);
     setCampNoConfirm(null);
-    navigate(`/engagements/${encodeURIComponent(code)}`);
+    if (options?.navigateAway !== false) {
+      navigate(`/engagements/${encodeURIComponent(code)}`);
+      return;
+    }
+    if (mode === "edit") {
+      const engRes = await engagementsApi.getByCode(code);
+      setEngagement(engRes.data.data);
+      setFormData(engagementToFormData(engRes.data.data));
+    }
   };
 
   const handleSubmit = async (data: EngagementCreate) => {
@@ -167,9 +181,57 @@ export function EngagementFormPage({ mode }: { mode: FormPageMode }) {
         });
         return;
       }
-      await performUpdate(engagement.engagement_id, { ...payload, camp_no: nextCampNo }, code);
+      await performUpdate(engagement.engagement_id, { ...payload, camp_no: nextCampNo }, code, {
+        navigateAway: true,
+      });
     } catch (err) {
       setError(getApiError(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSaveAndContinue = async (
+    data: EngagementCreate,
+    helpers: { onDeferredSuccess: () => void },
+  ): Promise<boolean> => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      if (mode === "add") {
+        const createPayload = buildEngagementCreatePayload(data);
+        const created = await engagementsApi.create(createPayload);
+        const createdRow = created.data.data as { engagement_id: number; engagement_code?: string };
+        const code = (createdRow.engagement_code ?? "").trim();
+        if (code) {
+          navigate(`/engagements/${encodeURIComponent(code)}/edit?step=location`);
+        } else {
+          navigate("/engagements");
+        }
+        return true;
+      }
+
+      if (!engagement) return false;
+      const { payload, nextCampNo } = buildEngagementUpdatePayload(data);
+      const currentCampNo = engagement.camp_no ?? null;
+      const code = (engagement.engagement_code ?? engagementCode ?? "").trim();
+      if (payload.organization_id && nextCampNo != null && currentCampNo !== nextCampNo) {
+        setCampNoConfirm({
+          payload,
+          currentCampNo,
+          nextCampNo,
+          engagementCode: code,
+          onDeferredSuccess: helpers.onDeferredSuccess,
+        });
+        return false;
+      }
+      await performUpdate(engagement.engagement_id, { ...payload, camp_no: nextCampNo }, code, {
+        navigateAway: false,
+      });
+      return true;
+    } catch (err) {
+      setError(getApiError(err));
+      return false;
     } finally {
       setSubmitting(false);
     }
@@ -180,6 +242,8 @@ export function EngagementFormPage({ mode }: { mode: FormPageMode }) {
     setSubmitting(true);
     setError(null);
     try {
+      const deferred = campNoConfirm.onDeferredSuccess;
+      const navigateAway = !deferred;
       await performUpdate(
         engagement.engagement_id,
         {
@@ -187,7 +251,9 @@ export function EngagementFormPage({ mode }: { mode: FormPageMode }) {
           camp_no: includeCampNo ? campNoConfirm.nextCampNo : campNoConfirm.currentCampNo,
         },
         campNoConfirm.engagementCode,
+        { navigateAway },
       );
+      deferred?.();
     } catch (err) {
       setError(getApiError(err));
     } finally {
@@ -234,6 +300,7 @@ export function EngagementFormPage({ mode }: { mode: FormPageMode }) {
         submitting={submitting}
         onClose={() => navigate(backTo)}
         onSubmit={(data) => void handleSubmit(data)}
+        onSaveAndContinue={handleSaveAndContinue}
       />
 
       <Modal

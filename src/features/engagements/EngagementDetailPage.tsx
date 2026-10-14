@@ -17,8 +17,8 @@ import { PermissionGate } from "../../contexts/PermissionContext";
 import { usePermissions } from "../../contexts/PermissionContext";
 import { EngagementNotificationModal } from "./EngagementNotificationModal";
 import { EngagementOperationsPanel } from "./EngagementOperationsPanel";
-import { EngagementProgressTab } from "./EngagementProgressTab";
 import { EngagementParticipantsPanel } from "./EngagementParticipantsPanel";
+import { isCampSetupComplete, isPhleboGuideConfigured } from "./engagementCampReadiness";
 import {
   EngagementNotificationsTab,
   EngagementOverviewTab,
@@ -27,13 +27,13 @@ import { buildIntegrationLogsPath } from "../integration-logs/integrationSyncLog
 import { formatEngagementStatusLabel } from "./engagementViewShared";
 import {
   engagementChecklistsApi,
-  engagementParticipantProgressApi,
+  engagementNotificationsApi,
   engagementTypesApi,
   engagementsApi,
-  formatParticipantProgressError,
   getApiError,
-  type EngagementParticipantProgressResponse,
+  onboardingAssistantsApi,
   type AssessmentPackage,
+  type EngagementNotificationItem,
   type ChecklistReadiness,
   type DiagnosticPackageListItem,
   type Engagement,
@@ -44,7 +44,6 @@ import {
 
 const DETAIL_TABS = [
   { key: "overview", label: "Overview" },
-  { key: "progress", label: "Progress" },
   { key: "participants", label: "Participants" },
   { key: "notifications", label: "Notifications" },
   { key: "operations", label: "Operations" },
@@ -81,19 +80,28 @@ export function EngagementDetailPage() {
   const [notificationServices, setNotificationServices] = useState<NotificationServiceItem[]>([]);
 
   const [notifyOpen, setNotifyOpen] = useState(false);
-  const [progressSnapshot, setProgressSnapshot] = useState<EngagementParticipantProgressResponse | null>(
-    null,
-  );
-  const [progressLoadError, setProgressLoadError] = useState<string | null>(null);
+  const [campSetupComplete, setCampSetupComplete] = useState<boolean | undefined>(undefined);
+  const [phleboGuideConfigured, setPhleboGuideConfigured] = useState<boolean | undefined>(undefined);
 
-  const activeTab = (searchParams.get("tab") as DetailTab | null) ?? null;
+  const activeTab = (searchParams.get("tab") as DetailTab | "progress" | null) ?? null;
 
   const resolvedTab: DetailTab = useMemo(() => {
+    if (activeTab === "progress") return "overview";
     if (activeTab && DETAIL_TABS.some((t) => t.key === activeTab)) {
       return activeTab;
     }
     return "overview";
   }, [activeTab]);
+
+  useEffect(() => {
+    if (searchParams.get("tab") === "progress") {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("tab");
+        return next;
+      });
+    }
+  }, [searchParams, setSearchParams]);
 
   const setTab = (tab: DetailTab) => {
     setSearchParams((prev) => {
@@ -165,14 +173,26 @@ export function EngagementDetailPage() {
       const typeId = detail.engagement_type;
       const match = types.find((t) => t.id === typeId || t.code === typeId);
       setTypeCode(match?.code ?? (typeof typeId === "string" ? typeId : null));
+      let configuredNotifications: EngagementNotificationItem[] = [];
+      let assistantCount = 0;
       try {
-        const progRes = await engagementParticipantProgressApi.get(detail.engagement_id);
-        setProgressSnapshot(progRes.data.data);
-        setProgressLoadError(null);
-      } catch (progErr) {
-        setProgressSnapshot(null);
-        setProgressLoadError(formatParticipantProgressError(progErr));
+        const [asstRes, notifRes] = await Promise.all([
+          onboardingAssistantsApi.list(detail.engagement_id),
+          engagementNotificationsApi.getForEngagement(detail.engagement_id),
+        ]);
+        assistantCount = (asstRes.data.data ?? []).length;
+        configuredNotifications = Array.isArray(notifRes.data.data) ? notifRes.data.data : [];
+      } catch {
+        assistantCount = 0;
+        configuredNotifications = [];
       }
+      const readinessInput = {
+        engagement: detail,
+        onboardingAssistantCount: assistantCount,
+        configuredNotifications,
+      };
+      setCampSetupComplete(isCampSetupComplete(readinessInput));
+      setPhleboGuideConfigured(isPhleboGuideConfigured(readinessInput));
     } catch (err) {
       setError(getApiError(err));
       setEngagement(null);
@@ -309,15 +329,8 @@ export function EngagementDetailPage() {
                   notificationServiceLabel={notificationServiceLabel}
                   typeLabel={typeLabel}
                   typeCode={typeCode}
-                  onOpenProgress={() => setTab("progress")}
-                  setupVerified={
-                    progressSnapshot?.engagement_setup?.engagement_setup?.status === "complete"
-                  }
-                  phleboGuideSent={
-                    progressSnapshot?.engagement_setup?.booking_guide_phlebo?.status === "complete"
-                  }
-                  progressBottlenecks={progressSnapshot?.summary.bottlenecks}
-                  progressLoadError={progressLoadError}
+                  setupVerified={campSetupComplete}
+                  phleboGuideConfigured={phleboGuideConfigured}
                   engagementCode={engagement.engagement_code ?? engagementCode}
                   onManageChecklists={
                     mayEditChecklists
@@ -333,13 +346,6 @@ export function EngagementDetailPage() {
                   onOpenNotifications={() => setTab("notifications")}
                 />
               </div>
-            ) : null}
-
-            {resolvedTab === "progress" ? (
-              <EngagementProgressTab
-                engagementId={engagement.engagement_id}
-                engagementCode={engagement.engagement_code ?? engagementCode}
-              />
             ) : null}
 
             {resolvedTab === "participants" ? (

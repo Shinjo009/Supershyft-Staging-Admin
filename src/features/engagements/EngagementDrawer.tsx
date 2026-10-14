@@ -41,7 +41,7 @@ export function EngagementDrawer({
   diagnosticPackages,
   notificationServiceLabel,
   onEdit: _onEdit,
-  onViewParticipants,
+  onViewParticipants: _onViewParticipants,
   getTypeDisplayName,
   onManageChecklists,
 }: Props) {
@@ -203,7 +203,6 @@ export function EngagementDrawer({
                     diagnosticPackages={diagnosticPackages}
                     notificationServiceLabel={notificationServiceLabel}
                     typeLabel={getTypeDisplayName?.(engagement.engagement_type)}
-                    onOpenProgress={() => onViewParticipants(engagement)}
                   />
                 ) : null}
                 {activeTab === "details" ? (

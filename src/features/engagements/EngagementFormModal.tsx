@@ -138,6 +138,10 @@ export type EngagementFormWizardProps = {
   submitting: boolean;
   onClose: () => void;
   onSubmit: (data: EngagementCreate) => void;
+  onSaveAndContinue?: (
+    data: EngagementCreate,
+    helpers: { onDeferredSuccess: () => void },
+  ) => Promise<boolean>;
 };
 
 type Props = EngagementFormWizardProps;
@@ -156,6 +160,7 @@ export function EngagementFormWizard({
   submitting,
   onClose,
   onSubmit,
+  onSaveAndContinue,
 }: Props) {
   const [stepIndex, setStepIndex] = useState(0);
   const [formData, setFormData] = useState<EngagementCreate>(initialData);
@@ -780,11 +785,6 @@ export function EngagementFormWizard({
     }
   };
 
-  const goBack = () => {
-    setStepError(null);
-    setStepIndex((s) => Math.max(0, s - 1));
-  };
-
   useEffect(() => {
     if (currentStepKey !== "notifications" || !selectedTypeId) return;
 
@@ -853,46 +853,55 @@ export function EngagementFormWizard({
 
   const findStepIndex = (key: StepKey) => steps.findIndex((s) => s.key === key);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isLastStep) {
-      goNext();
-      return;
-    }
-    if (!validateBasics()) {
-      goToStep(findStepIndex("basics"));
-      return;
-    }
-    if (!validateOfferings()) {
-      goToStep(findStepIndex("offerings"));
-      return;
-    }
-
-    const notifications = Object.entries(notificationConfig)
+  const buildNotificationsPayload = () =>
+    Object.entries(notificationConfig)
       .map(([eventId, services]) => ({
         notification_event_id: Number(eventId),
         notification_services: services.filter((item) => item.service_key.trim()),
       }))
       .filter((item) => item.notification_services.length > 0);
 
+  const validateNotificationsStep = () => {
+    const notifications = buildNotificationsPayload();
     for (const item of notifications) {
       const validationError = validateNotificationServiceConfigs(
         item.notification_services,
-        notificationServices
+        notificationServices,
       );
       if (validationError) {
         setStepError(validationError);
-        goToStep(findStepIndex("notifications"));
-        return;
+        return false;
       }
     }
+    setStepError(null);
+    return true;
+  };
+
+  const validateForFinalSubmit = () => {
+    if (!validateBasics()) {
+      goToStep(findStepIndex("basics"));
+      return false;
+    }
+    if (!validateOfferings()) {
+      goToStep(findStepIndex("offerings"));
+      return false;
+    }
+    if (!validateNotificationsStep()) {
+      goToStep(findStepIndex("notifications"));
+      return false;
+    }
+    return true;
+  };
+
+  const buildWizardPayload = (): EngagementCreate => {
+    const notifications = buildNotificationsPayload();
 
     let consultations = formData.consultations ?? null;
     if (selectedTypeCode && !typeConfig.needsConsultation) {
       consultations = null;
     } else if (selectedTypeCode && expertTypes.length > 0) {
       consultations = Object.fromEntries(
-        expertTypes.map((et) => [et.type_key, !!(formData.consultations ?? {})[et.type_key]])
+        expertTypes.map((et) => [et.type_key, !!(formData.consultations ?? {})[et.type_key]]),
       );
     }
 
@@ -904,11 +913,11 @@ export function EngagementFormWizard({
         slotDetail,
         kind,
         formData.blood_collection_type,
-        formData.consultation_mode
-      )
+        formData.consultation_mode,
+      ),
     );
 
-    onSubmit({
+    return {
       ...formData,
       consultations,
       slot_detail: prunedSlotDetail,
@@ -956,7 +965,36 @@ export function EngagementFormWizard({
         typeConfig.needsAssessment && formData.load_prev_assessment_questionnaires
           ? selectedLoadPrevCategoryKeys
           : null,
-    });
+    };
+  };
+
+  const handleFinalSubmit = () => {
+    if (!validateForFinalSubmit()) return;
+    onSubmit(buildWizardPayload());
+  };
+
+  const handleSaveAndNext = async () => {
+    if (submitting) return;
+    if (!validateCurrentStep()) return;
+    if (currentStepKey === "notifications" && !validateNotificationsStep()) return;
+
+    if (isLastStep) {
+      handleFinalSubmit();
+      return;
+    }
+
+    const payload = buildWizardPayload();
+    if (onSaveAndContinue) {
+      const advanced = await onSaveAndContinue(payload, { onDeferredSuccess: goNext });
+      if (advanced) goNext();
+      return;
+    }
+    goNext();
+  };
+
+  const handleNextWithoutSave = () => {
+    if (submitting) return;
+    goNext();
   };
 
   const submitLabel = (() => {
@@ -990,13 +1028,27 @@ export function EngagementFormWizard({
     return "Next";
   })();
 
+  const saveAndNextLabel = submitting ? "Saving..." : "Save and Next";
+
   if (variant === "modal" && !open) return null;
 
   const isPage = variant === "page";
+  const shellClass = isPage
+    ? "flex flex-col flex-1 min-h-0 min-w-0"
+    : `flex flex-col min-h-0 min-w-0 ${sidePanelOpen ? "max-h-[calc(90vh-4.5rem)]" : "max-h-[calc(90vh-4.5rem)]"}`;
+  const scrollClass = "flex-1 min-h-0 overflow-y-auto min-w-0";
+  const footerClass =
+    "shrink-0 flex flex-col-reverse sm:flex-row sm:justify-end gap-3 border-t border-zinc-200 bg-white py-3";
+
   const formShell = (
-    <div className={isPage ? "flex flex-col flex-1 min-h-0 min-w-0" : sidePanelOpen ? "max-h-[calc(90vh-4.5rem)]" : undefined}>
-      <div className={isPage ? "flex-1 min-h-0 overflow-y-auto min-w-0" : undefined}>
-      <form onSubmit={handleSubmit} className="space-y-6 min-w-0">
+    <div className={shellClass}>
+      <div className={scrollClass}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+        }}
+        className="space-y-6 min-w-0 pb-2"
+      >
         <div className="flex items-center gap-2 min-w-0 overflow-x-auto pb-1 [&::-webkit-scrollbar]:h-1">
           {steps.map((item, index) => {
             const active = stepIndex === index;
@@ -1842,45 +1894,35 @@ export function EngagementFormWizard({
           </div>
         )}
 
-        <div
-          className={`flex flex-col-reverse sm:flex-row gap-3 pt-2 ${
-            isPage ? "sticky bottom-0 bg-white border-t border-zinc-200 py-3 mt-4" : ""
-          }`}
+      </form>
+      </div>
+      <div className={footerClass}>
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={submitting}
+          className="w-full sm:w-auto px-4 py-2 rounded-lg border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50"
         >
-          {!isLastStep ? (
-            <button
-              type="submit"
-              className="w-full sm:w-auto px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800"
-            >
-              {nextButtonLabel}
-            </button>
-          ) : (
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full sm:w-auto px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 disabled:opacity-50"
-            >
-              {submitLabel}
-            </button>
-          )}
-          {stepIndex > 0 && (
-            <button
-              type="button"
-              onClick={goBack}
-              className="w-full sm:w-auto px-4 py-2 rounded-lg border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50"
-            >
-              Back
-            </button>
-          )}
+          Cancel
+        </button>
+        {!isLastStep ? (
           <button
             type="button"
-            onClick={onClose}
-            className="w-full sm:w-auto px-4 py-2 rounded-lg border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50"
+            onClick={() => void handleNextWithoutSave()}
+            disabled={submitting}
+            className="w-full sm:w-auto px-4 py-2 rounded-lg border border-zinc-300 text-zinc-800 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50"
           >
-            Cancel
+            {nextButtonLabel}
           </button>
-        </div>
-      </form>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => void handleSaveAndNext()}
+          disabled={submitting}
+          className="w-full sm:w-auto px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 disabled:opacity-50"
+        >
+          {isLastStep ? (submitting ? "Saving..." : submitLabel) : saveAndNextLabel}
+        </button>
       </div>
     </div>
   );

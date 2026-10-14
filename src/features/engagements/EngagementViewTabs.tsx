@@ -34,7 +34,6 @@ import {
   scheduleIntentFromSlotDetail,
   summarizeSlotDetail,
 } from "./engagementTypeConfig";
-import { managerLabelForStep } from "./progressManagerLabels";
 import { Field, formatEngagementStatusLabel, isB2BEngagement } from "./engagementViewShared";
 
 type SharedProps = {
@@ -49,16 +48,8 @@ type OverviewProps = SharedProps & {
   typeLabel?: string;
   typeCode?: string | null;
   engagementCode?: string;
-  onOpenProgress?: () => void;
   setupVerified?: boolean;
-  phleboGuideSent?: boolean;
-  progressBottlenecks?: {
-    key: string;
-    label: string;
-    pending: number;
-    scope?: "engagement" | "participant";
-  }[];
-  progressLoadError?: string | null;
+  phleboGuideConfigured?: boolean;
   onManageChecklists?: () => void;
   onOpenNotifications?: () => void;
 };
@@ -77,11 +68,8 @@ export function EngagementOverviewTab({
   typeCode,
   assessmentPackages,
   diagnosticPackages,
-  onOpenProgress,
   setupVerified,
-  phleboGuideSent,
-  progressBottlenecks,
-  progressLoadError,
+  phleboGuideConfigured,
   engagementCode,
   onManageChecklists,
   onOpenNotifications,
@@ -128,12 +116,8 @@ export function EngagementOverviewTab({
     ].join(" · ");
   }, [completeness]);
 
-  const setup = progressLoadError
-    ? { label: "Unavailable", className: "bg-zinc-100 text-zinc-600" }
-    : setupFlag(setupVerified);
-  const phlebo = progressLoadError
-    ? { label: "Unavailable", className: "bg-zinc-100 text-zinc-600" }
-    : setupFlag(phleboGuideSent);
+  const setup = setupFlag(setupVerified);
+  const phlebo = setupFlag(phleboGuideConfigured);
 
   const scheduleStep = needsScheduleStep(
     typeCode ?? null,
@@ -172,16 +156,6 @@ export function EngagementOverviewTab({
 
       <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-3">
         <div className="text-xs font-medium text-zinc-500">Camp readiness (step 1)</div>
-        {progressLoadError ? (
-          <p className="text-sm text-zinc-600">
-            {progressLoadError}{" "}
-            {onOpenProgress ? (
-              <button type="button" onClick={onOpenProgress} className="underline font-medium">
-                Open Progress tab
-              </button>
-            ) : null}
-          </p>
-        ) : null}
         <div className="flex flex-wrap gap-2 text-xs">
           {editBase ? (
             <a
@@ -225,6 +199,18 @@ export function EngagementOverviewTab({
             Onboarding assistants can also be assigned from the engagements list (Assistants action).
           </p>
         ) : null}
+        {phleboGuideConfigured === false && onOpenNotifications ? (
+          <p className="text-xs text-zinc-600">
+            Phlebo booking guide not configured —{" "}
+            <button
+              type="button"
+              onClick={onOpenNotifications}
+              className="font-medium text-zinc-800 underline hover:text-zinc-900"
+            >
+              Configure in notifications
+            </button>
+          </p>
+        ) : null}
         <p className="text-xs text-zinc-500">
           Notification health:{" "}
           {onOpenNotifications ? (
@@ -247,35 +233,6 @@ export function EngagementOverviewTab({
           </Link>
         </p>
       </div>
-
-      {progressBottlenecks && progressBottlenecks.length > 0 ? (
-        <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-2">
-          <div className="text-xs font-medium text-zinc-500">Progress snapshot</div>
-          <ul className="text-sm text-zinc-700 space-y-1">
-            {progressBottlenecks.map((b) => (
-              <li key={b.key}>
-                <span className="font-medium">
-                  {b.scope === "engagement" ? b.label : managerLabelForStep(b.key)}
-                </span>
-                <span className="text-zinc-500">
-                  {" "}
-                  — {b.scope === "engagement" ? "camp setup" : `${b.pending} pending`}
-                </span>
-              </li>
-            ))}
-          </ul>
-          {onOpenProgress ? (
-            <button
-              type="button"
-              onClick={onOpenProgress}
-              className="inline-flex items-center gap-1 text-sm font-medium text-zinc-900 underline"
-            >
-              Open full progress
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          ) : null}
-        </div>
-      ) : null}
 
       <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-4">
         <div className="flex flex-wrap items-center gap-2 text-xs">
