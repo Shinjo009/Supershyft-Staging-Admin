@@ -3373,6 +3373,9 @@ export function formatParticipantProgressError(err: unknown): string {
   if (status === 404) {
     return "Participant progress API is not available on this server — deploy the latest API, then retry.";
   }
+  if (status === 500) {
+    return `Server error (500) loading progress: ${base.message}`;
+  }
   if (status === 502 || status === 503 || status === 504) {
     return `API gateway error (${status}). The progress request may have timed out — retry in a moment.`;
   }
