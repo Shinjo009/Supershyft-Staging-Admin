@@ -1,6 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Users } from "lucide-react";
+import {
+  Bell,
+  Loader2,
+  Monitor,
+  Pencil,
+  ScrollText,
+  Users,
+} from "lucide-react";
+import {
+  HeaderActionButton,
+  PageHeaderActions,
+  usePageHeader,
+} from "../../layouts/PageHeaderActions";
+import { PermissionGate } from "../../contexts/PermissionContext";
 import { usePermissions } from "../../contexts/PermissionContext";
 import { Modal } from "../../shared/ui/Modal";
 import { ParticipantsModal } from "../../shared/ui/ParticipantsModal";
@@ -10,8 +23,8 @@ import { engagementToFormData } from "./engagementFormData";
 import { EngagementNotificationModal } from "./EngagementNotificationModal";
 import { EngagementOperationsPanel } from "./EngagementOperationsPanel";
 import { EngagementProgressTab } from "./EngagementProgressTab";
+import { EngagementParticipantsPanel } from "./EngagementParticipantsPanel";
 import {
-  EngagementDetailsTab,
   EngagementNotificationsTab,
   EngagementOverviewTab,
 } from "./EngagementViewTabs";
@@ -19,9 +32,11 @@ import { buildIntegrationLogsPath } from "../integration-logs/integrationSyncLog
 import { formatEngagementStatusLabel } from "./engagementViewShared";
 import {
   engagementChecklistsApi,
+  engagementParticipantProgressApi,
   engagementTypesApi,
   engagementsApi,
   getApiError,
+  type EngagementParticipantProgressResponse,
   type AssessmentPackage,
   type ChecklistReadiness,
   type DiagnosticPackageListItem,
@@ -36,7 +51,6 @@ const DETAIL_TABS = [
   { key: "overview", label: "Overview" },
   { key: "progress", label: "Progress" },
   { key: "participants", label: "Participants" },
-  { key: "setup", label: "Setup" },
   { key: "notifications", label: "Notifications" },
   { key: "operations", label: "Operations" },
 ] as const;
@@ -86,6 +100,9 @@ export function EngagementDetailPage() {
   } | null>(null);
   const [notifyOpen, setNotifyOpen] = useState(false);
   const [participantsOpen, setParticipantsOpen] = useState(false);
+  const [progressSnapshot, setProgressSnapshot] = useState<EngagementParticipantProgressResponse | null>(
+    null,
+  );
 
   const activeTab = (searchParams.get("tab") as DetailTab | null) ?? null;
 
@@ -163,6 +180,12 @@ export function EngagementDetailPage() {
       const typeId = detail.engagement_type;
       const match = types.find((t) => t.id === typeId || t.code === typeId);
       setTypeCode(match?.code ?? (typeof typeId === "string" ? typeId : null));
+      try {
+        const progRes = await engagementParticipantProgressApi.get(detail.engagement_id);
+        setProgressSnapshot(progRes.data.data);
+      } catch {
+        setProgressSnapshot(null);
+      }
     } catch (err) {
       setError(getApiError(err));
       setEngagement(null);
@@ -176,6 +199,32 @@ export function EngagementDetailPage() {
   }, [loadEngagement]);
 
   const typeLabel = getTypeDisplayName(engagement?.engagement_type);
+
+  const headerConfig = useMemo(() => {
+    if (!engagement) return null;
+    const subtitle = [
+      formatEngagementStatusLabel(engagement.status),
+      engagement.engagement_code,
+      typeLabel,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    return {
+      title: engagement.engagement_name || engagement.engagement_code || engagementCode || "Engagement",
+      subtitle,
+      backTo: "/engagements",
+    };
+  }, [engagement, engagementCode, typeLabel]);
+
+  usePageHeader(headerConfig);
+
+  const syncLogsTo = engagement
+    ? buildIntegrationLogsPath({
+        provider: "healthians",
+        engagement: String(engagement.engagement_id),
+        time: "all",
+      })
+    : undefined;
 
   const emptyToNull = (value: string | null | undefined) => {
     const trimmed = (value ?? "").trim();
@@ -307,37 +356,52 @@ export function EngagementDetailPage() {
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-4rem)]">
-      <div className="border-b border-zinc-200 bg-white px-4 sm:px-6 py-4 shrink-0">
-        <div className="flex items-start gap-3">
-          <button
-            type="button"
-            onClick={() => navigate("/engagements")}
-            className="mt-0.5 p-2 rounded-lg text-zinc-500 hover:bg-zinc-100"
-            aria-label="Back to engagements"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-semibold text-zinc-900 truncate">
-              {engagement?.engagement_name || engagementCode}
-            </h1>
-            {engagement ? (
-              <p className="text-sm text-zinc-500 mt-0.5">
-                {formatEngagementStatusLabel(engagement.status)}
-                {engagement.engagement_code ? ` · ${engagement.engagement_code}` : ""}
-                {typeLabel ? ` · ${typeLabel}` : ""}
-              </p>
-            ) : null}
-          </div>
-        </div>
+      {engagement ? (
+        <PageHeaderActions>
+          <PermissionGate category="engagements" taskKey="records" action="edit">
+            <HeaderActionButton label="Edit" icon={Pencil} onClick={openEdit} variant="secondary" />
+          </PermissionGate>
+          <PermissionGate category="notifications" action="edit">
+            <HeaderActionButton
+              label="Notify"
+              icon={Bell}
+              onClick={() => setNotifyOpen(true)}
+              variant="secondary"
+            />
+          </PermissionGate>
+          <HeaderActionButton
+            label="Console"
+            icon={Monitor}
+            onClick={() => navigate(`/engagements/console?engagement=${engagement.engagement_id}`)}
+            variant="secondary"
+          />
+          <HeaderActionButton
+            label="Participants"
+            icon={Users}
+            onClick={() => setTab("participants")}
+            variant="secondary"
+          />
+          {syncLogsTo ? (
+            <PermissionGate category="system_monitoring">
+              <HeaderActionButton
+                label="Sync logs"
+                icon={ScrollText}
+                onClick={() => navigate(syncLogsTo)}
+                variant="secondary"
+              />
+            </PermissionGate>
+          ) : null}
+        </PageHeaderActions>
+      ) : null}
 
-        <div className="mt-4 flex gap-1 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-zinc-50">
+        <div className="flex gap-1 mb-5 border-b border-zinc-200 overflow-x-auto [&::-webkit-scrollbar]:hidden">
           {DETAIL_TABS.map((tab) => (
             <button
               key={tab.key}
               type="button"
               onClick={() => setTab(tab.key)}
-              className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${
                 resolvedTab === tab.key
                   ? "border-zinc-900 text-zinc-900"
                   : "border-transparent text-zinc-500 hover:text-zinc-700"
@@ -347,9 +411,6 @@ export function EngagementDetailPage() {
             </button>
           ))}
         </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-zinc-50">
         {error ? (
           <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
             {error}
@@ -371,14 +432,25 @@ export function EngagementDetailPage() {
                   diagnosticPackages={diagnosticPackages}
                   notificationServiceLabel={notificationServiceLabel}
                   typeLabel={typeLabel}
-                  onEdit={openEdit}
-                  onViewParticipants={() => setParticipantsOpen(true)}
-                  onNotify={() => setNotifyOpen(true)}
-                  syncLogsTo={buildIntegrationLogsPath({
-                    provider: "healthians",
-                    engagement: String(engagement.engagement_id),
-                    time: "all",
-                  })}
+                  onOpenProgress={() => setTab("progress")}
+                  setupVerified={
+                    progressSnapshot?.engagement_setup?.engagement_setup?.status === "complete"
+                  }
+                  phleboGuideSent={
+                    progressSnapshot?.engagement_setup?.booking_guide_phlebo?.status === "complete"
+                  }
+                  progressBottlenecks={progressSnapshot?.summary.bottlenecks}
+                  onManageChecklists={
+                    mayEditChecklists
+                      ? () =>
+                          navigate("/engagements", {
+                            state: {
+                              openChecklistEngagementId: engagement.engagement_id,
+                              returnToEngagementCode: engagement.engagement_code ?? engagementCode,
+                            },
+                          })
+                      : undefined
+                  }
                 />
                 <div className="bg-white border border-zinc-200 rounded-xl p-4">
                   <div className="text-xs font-medium text-zinc-500 mb-1">Notification health</div>
@@ -408,44 +480,9 @@ export function EngagementDetailPage() {
             ) : null}
 
             {resolvedTab === "participants" ? (
-              <div className="bg-white border border-zinc-200 rounded-xl p-6 space-y-4">
-                <p className="text-sm text-zinc-600">
-                  Search, filter, export, and manage blood bookings and consultation slots for this
-                  engagement.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setParticipantsOpen(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800"
-                >
-                  <Users className="w-4 h-4" />
-                  Open participants
-                </button>
-                <p className="text-xs text-zinc-500">
-                  Tip: use the Progress tab for a camp-wide lifecycle view, or open a user&apos;s
-                  journey from there.
-                </p>
-              </div>
-            ) : null}
-
-            {resolvedTab === "setup" ? (
-              <EngagementDetailsTab
-                engagement={engagement}
-                orgName={getOrgName(engagement.organization_id)}
-                assessmentPackages={assessmentPackages}
-                diagnosticPackages={diagnosticPackages}
-                notificationServiceLabel={notificationServiceLabel}
-                onManageChecklists={
-                  mayEditChecklists
-                    ? () =>
-                        navigate("/engagements", {
-                          state: {
-                            openChecklistEngagementId: engagement.engagement_id,
-                            returnToEngagementCode: engagement.engagement_code ?? engagementCode,
-                          },
-                        })
-                    : undefined
-                }
+              <EngagementParticipantsPanel
+                engagementId={engagement.engagement_id}
+                engagementName={engagement.engagement_name ?? engagement.engagement_code ?? undefined}
               />
             ) : null}
 

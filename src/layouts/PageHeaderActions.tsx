@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -15,6 +16,12 @@ import { Info, type LucideIcon } from "lucide-react";
 const MIN_TITLE_PX = 96;
 const EXPAND_SPARE_PX = 32;
 
+export type PageHeaderTitleConfig = {
+  title: string;
+  subtitle?: string;
+  backTo?: string;
+};
+
 type PageHeaderContextValue = {
   slot: HTMLDivElement | null;
   setSlot: (node: HTMLDivElement | null) => void;
@@ -22,6 +29,8 @@ type PageHeaderContextValue = {
   titleRef: RefObject<HTMLDivElement | null>;
   rightRef: RefObject<HTMLDivElement | null>;
   compact: boolean;
+  pageTitleOverride: PageHeaderTitleConfig | null;
+  setPageTitleOverride: (config: PageHeaderTitleConfig | null) => void;
 };
 
 const PageHeaderContext = createContext<PageHeaderContextValue | null>(null);
@@ -29,6 +38,7 @@ const PageHeaderContext = createContext<PageHeaderContextValue | null>(null);
 export function PageHeaderActionsProvider({ children }: { children: ReactNode }) {
   const [slot, setSlotEl] = useState<HTMLDivElement | null>(null);
   const [compact, setCompact] = useState(false);
+  const [pageTitleOverride, setPageTitleOverride] = useState<PageHeaderTitleConfig | null>(null);
   const slotRef = useRef<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLElement | null>(null);
   const titleRef = useRef<HTMLDivElement | null>(null);
@@ -97,8 +107,17 @@ export function PageHeaderActionsProvider({ children }: { children: ReactNode })
   }, [slot]);
 
   const value = useMemo(
-    () => ({ slot, setSlot, headerRef, titleRef, rightRef, compact }),
-    [slot, setSlot, compact]
+    () => ({
+      slot,
+      setSlot,
+      headerRef,
+      titleRef,
+      rightRef,
+      compact,
+      pageTitleOverride,
+      setPageTitleOverride,
+    }),
+    [slot, setSlot, compact, pageTitleOverride]
   );
 
   return <PageHeaderContext.Provider value={value}>{children}</PageHeaderContext.Provider>;
@@ -110,6 +129,25 @@ export function usePageHeaderChrome() {
     throw new Error("usePageHeaderChrome must be used within PageHeaderActionsProvider");
   }
   return ctx;
+}
+
+/** Override global admin header title/subtitle/back for the current page. */
+export function usePageHeader(config: PageHeaderTitleConfig | null) {
+  const ctx = useContext(PageHeaderContext);
+  const setOverride = ctx?.setPageTitleOverride;
+  const title = config?.title;
+  const subtitle = config?.subtitle;
+  const backTo = config?.backTo;
+
+  useEffect(() => {
+    if (!setOverride) return;
+    if (!config) {
+      setOverride(null);
+      return;
+    }
+    setOverride(config);
+    return () => setOverride(null);
+  }, [setOverride, title, subtitle, backTo, config]);
 }
 
 export function usePageHeaderCompact() {

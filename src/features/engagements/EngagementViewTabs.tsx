@@ -1,15 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { PermissionGate } from "../../contexts/PermissionContext";
 import {
-  Bell,
   Check,
+  ChevronRight,
   ExternalLink,
   Loader2,
   MapPin,
-  Pencil,
-  ScrollText,
-  Users,
 } from "lucide-react";
 import type {
   AssessmentPackage,
@@ -48,20 +43,32 @@ type SharedProps = {
 
 type OverviewProps = SharedProps & {
   typeLabel?: string;
-  onEdit: () => void;
-  onViewParticipants: () => void;
-  onNotify: () => void;
-  syncLogsTo?: string;
+  onOpenProgress?: () => void;
+  setupVerified?: boolean;
+  phleboGuideSent?: boolean;
+  progressBottlenecks?: { key: string; label: string; pending: number }[];
+  onManageChecklists?: () => void;
 };
+
+function setupFlag(ok: boolean | undefined) {
+  if (ok === undefined) return { label: "Unknown", className: "bg-zinc-100 text-zinc-600" };
+  return ok
+    ? { label: "Ready", className: "bg-emerald-50 text-emerald-800" }
+    : { label: "Needs attention", className: "bg-amber-50 text-amber-900" };
+}
 
 export function EngagementOverviewTab({
   engagement,
   orgName,
   typeLabel,
-  onEdit,
-  onViewParticipants,
-  onNotify,
-  syncLogsTo,
+  assessmentPackages,
+  diagnosticPackages,
+  onOpenProgress,
+  setupVerified,
+  phleboGuideSent,
+  progressBottlenecks,
+  onManageChecklists,
+  notificationServiceLabel,
 }: OverviewProps) {
   const b2b = isB2BEngagement(engagement.organization_id);
   const [completeness, setCompleteness] = useState<EngagementDataCompletenessResponse | null>(null);
@@ -104,9 +111,70 @@ export function EngagementOverviewTab({
     ].join(" · ");
   }, [completeness]);
 
+  const setup = setupFlag(setupVerified);
+  const phlebo = setupFlag(phleboGuideSent);
+
   return (
     <div className="space-y-4">
+      <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-3">
+        <div className="text-xs font-medium text-zinc-500">At a glance</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
+          <Field label="Status">{formatEngagementStatusLabel(engagement.status)}</Field>
+          <Field label="Type">{typeLabel || engagement.engagement_type || "—"}</Field>
+          <Field label="Organisation">{orgName}</Field>
+          <Field label="City">{engagement.city ?? "—"}</Field>
+          <Field label="Dates">
+            {String(engagement.start_date ?? "—")} → {String(engagement.end_date ?? "—")}
+          </Field>
+          <Field label="Participants">{engagement.participant_count ?? 0}</Field>
+          {b2b && engagement.camp_no != null ? (
+            <Field label="Camp no">{String(engagement.camp_no)}</Field>
+          ) : null}
+          <Field label="Blood collection">{formatBloodCollectionLabel(engagement.blood_collection_type)}</Field>
+          <Field label="Consultation mode">{formatConsultationModeLabel(engagement.consultation_mode)}</Field>
+        </div>
+      </div>
+
       <EngagementBookingSummaryCards engagementId={engagement.engagement_id} />
+
+      <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-3">
+        <div className="text-xs font-medium text-zinc-500">Camp readiness (step 1)</div>
+        <div className="flex flex-wrap gap-2 text-xs">
+          <span className={`inline-flex px-2 py-1 rounded-md font-medium ${setup.className}`}>
+            Packages & schedule · {setup.label}
+          </span>
+          <span className={`inline-flex px-2 py-1 rounded-md font-medium ${setup.className}`}>
+            Assistants & onboarding events · {setup.label}
+          </span>
+          <span className={`inline-flex px-2 py-1 rounded-md font-medium ${phlebo.className}`}>
+            Phlebo booking guide · {phlebo.label}
+          </span>
+        </div>
+      </div>
+
+      {progressBottlenecks && progressBottlenecks.length > 0 ? (
+        <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-2">
+          <div className="text-xs font-medium text-zinc-500">Progress snapshot</div>
+          <ul className="text-sm text-zinc-700 space-y-1">
+            {progressBottlenecks.map((b) => (
+              <li key={b.key}>
+                <span className="font-medium">{b.label}</span>
+                <span className="text-zinc-500"> — {b.pending} pending</span>
+              </li>
+            ))}
+          </ul>
+          {onOpenProgress ? (
+            <button
+              type="button"
+              onClick={onOpenProgress}
+              className="inline-flex items-center gap-1 text-sm font-medium text-zinc-900 underline"
+            >
+              Open full progress
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-4">
         <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -131,18 +199,6 @@ export function EngagementOverviewTab({
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-          <Field label="Audience">{b2b ? orgName : "Public user engagement"}</Field>
-          <Field label="Type">{typeLabel || engagement.engagement_type || "—"}</Field>
-          <Field label="City">{engagement.city ?? "—"}</Field>
-          <Field label="Start">{String(engagement.start_date ?? "—")}</Field>
-          <Field label="End">{String(engagement.end_date ?? "—")}</Field>
-          <Field label="Participants">{engagement.participant_count ?? 0}</Field>
-          {b2b && engagement.camp_no != null ? (
-            <Field label="Camp no">{String(engagement.camp_no)}</Field>
-          ) : null}
-        </div>
-
         <div>
           <div className="text-xs font-medium text-zinc-500 mb-1">Data completeness</div>
           {completenessLoading ? (
@@ -163,69 +219,24 @@ export function EngagementOverviewTab({
           <div className="text-xs font-medium text-zinc-500 mb-1">Console</div>
           <ConsoleUrlActions engagementId={engagement.engagement_id} />
         </div>
-
-        <div>
-          <div className="text-xs font-medium text-zinc-500 mb-1.5">Offered consultations</div>
-          {engagement.consultations &&
-          Object.entries(engagement.consultations).some(([, v]) => v === true) ? (
-            <div className="flex flex-wrap gap-1.5">
-              {Object.entries(engagement.consultations)
-                .filter(([, enabled]) => enabled === true)
-                .map(([key]) => (
-                  <span
-                    key={key}
-                    className="inline-flex px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-xs font-medium capitalize"
-                  >
-                    {key.replace(/_/g, " ")}
-                  </span>
-                ))}
-            </div>
-          ) : (
-            <p className="text-sm text-zinc-500">None configured for this engagement.</p>
-          )}
-          <p className="text-xs text-zinc-400 mt-1.5">
-            Participant slot requests and expert assignment are managed in Participants.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2 pt-1">
-          <PermissionGate category="engagements" taskKey="records" action="edit"><button
-            type="button"
-            onClick={onEdit}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 text-white text-xs font-medium hover:bg-zinc-800"
-          >
-            <Pencil className="w-3.5 h-3.5" />
-            Edit
-          </button></PermissionGate>
-          <button
-            type="button"
-            onClick={onViewParticipants}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-medium"
-          >
-            <Users className="w-3.5 h-3.5" />
-            Participants ({engagement.participant_count ?? 0})
-          </button>
-          <PermissionGate category="notifications" action="edit"><button
-            type="button"
-            onClick={onNotify}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-medium"
-          >
-            <Bell className="w-3.5 h-3.5" />
-            Notification
-          </button></PermissionGate>
-          {syncLogsTo ? (
-            <PermissionGate category="system_monitoring">
-            <Link
-              to={syncLogsTo}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-medium"
-            >
-              <ScrollText className="w-3.5 h-3.5" />
-              Sync Logs
-            </Link>
-            </PermissionGate>
-          ) : null}
-        </div>
       </div>
+
+      <details className="bg-white border border-zinc-200 rounded-xl group">
+        <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-zinc-900 flex items-center justify-between">
+          View full configuration
+          <ChevronRight className="w-4 h-4 text-zinc-400 group-open:rotate-90 transition-transform" />
+        </summary>
+        <div className="px-4 pb-4 border-t border-zinc-100">
+          <EngagementDetailsTab
+            engagement={engagement}
+            orgName={orgName}
+            assessmentPackages={assessmentPackages}
+            diagnosticPackages={diagnosticPackages}
+            notificationServiceLabel={notificationServiceLabel}
+            onManageChecklists={onManageChecklists}
+          />
+        </div>
+      </details>
     </div>
   );
 }

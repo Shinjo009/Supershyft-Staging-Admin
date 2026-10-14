@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
+import { Outlet, NavLink, useNavigate, useLocation, Link } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import {
   LayoutDashboard,
   Building2,
@@ -129,7 +130,7 @@ export function AdminLayout() {
 }
 
 function AdminLayoutView() {
-  const { headerRef, titleRef, rightRef, setSlot } = usePageHeaderChrome();
+  const { headerRef, titleRef, rightRef, setSlot, pageTitleOverride } = usePageHeaderChrome();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { logout, userProfile, userId, displayName, employeeRole, pendingTaskCount } = useAuth();
@@ -147,7 +148,12 @@ function AdminLayoutView() {
   const visibleLibraryItems = libraryNavItems.filter((item) =>
     canView(item.category as PermissionCategory)
   );
-  const pageTitle = useMemo(() => pageTitleForPath(location.pathname), [location.pathname]);
+  const pageTitle = useMemo(
+    () => pageTitleOverride?.title ?? pageTitleForPath(location.pathname),
+    [location.pathname, pageTitleOverride?.title],
+  );
+  const pageSubtitle = pageTitleOverride?.subtitle;
+  const pageBackTo = pageTitleOverride?.backTo;
   const isDashboard = location.pathname === "/";
   const isSettings = location.pathname.startsWith("/settings");
 
@@ -339,17 +345,30 @@ function AdminLayoutView() {
           >
             <Menu className="w-5 h-5" />
           </button>
-          <div ref={titleRef} className="flex-1 min-w-0">
-            <h1 className="text-sm sm:text-base font-semibold text-zinc-900 truncate">{pageTitle}</h1>
-            {isDashboard ? (
-              <p className="text-[11px] text-zinc-500 truncate leading-tight">
-                Overview of your admin panel
-              </p>
-            ) : isSettings ? (
-              <p className="text-[11px] text-zinc-500 truncate leading-tight">
-                Platform defaults and Metsights profile synchronization.
-              </p>
+          <div ref={titleRef} className="flex-1 min-w-0 flex items-center gap-2 min-w-0">
+            {pageBackTo ? (
+              <Link
+                to={pageBackTo}
+                className="shrink-0 p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800"
+                aria-label="Back"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </Link>
             ) : null}
+            <div className="min-w-0">
+              <h1 className="text-sm sm:text-base font-semibold text-zinc-900 truncate">{pageTitle}</h1>
+              {pageSubtitle ? (
+                <p className="text-[11px] text-zinc-500 truncate leading-tight">{pageSubtitle}</p>
+              ) : isDashboard ? (
+                <p className="text-[11px] text-zinc-500 truncate leading-tight">
+                  Overview of your admin panel
+                </p>
+              ) : isSettings ? (
+                <p className="text-[11px] text-zinc-500 truncate leading-tight">
+                  Platform defaults and Metsights profile synchronization.
+                </p>
+              ) : null}
+            </div>
           </div>
           <div ref={rightRef} className="flex items-center gap-1 sm:gap-2 shrink-0">
             {isDashboard ? (

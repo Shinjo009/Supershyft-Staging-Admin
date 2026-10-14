@@ -165,6 +165,7 @@ interface ParticipantsModalProps {
   open: boolean;
   onClose: () => void;
   source: Source;
+  variant?: "modal" | "page";
 }
 
 type BoolFilter = "all" | "yes" | "no";
@@ -810,7 +811,14 @@ const filterSelectClass =
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function ParticipantsModal({ open, onClose, source }: ParticipantsModalProps) {
+export function ParticipantsModal({
+  open,
+  onClose,
+  source,
+  variant = "modal",
+}: ParticipantsModalProps) {
+  const isPage = variant === "page";
+  const isActive = open || isPage;
   const { canEditTask, canView } = usePermissions();
   const mayEditEngagements = canEditTask("engagements", "participants");
   const mayEditNotifications = canEditTask("notifications", "messages");
@@ -1127,7 +1135,7 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
   }, [search]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!isActive) return;
     setPage(1);
     setParticipants([]);
     setTotal(0);
@@ -1190,7 +1198,7 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
   }, [open, fetchOrganizationDepartments, fetchBookingDates, source]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!isActive) return;
     void fetchParticipants();
   }, [open, fetchParticipants]);
 
@@ -2157,10 +2165,11 @@ export function ParticipantsModal({ open, onClose, source }: ParticipantsModalPr
   return (
     <>
       <Modal
-        open={open}
+        embedded={isPage}
+        open={isActive}
         onClose={onClose}
         title={modalTitle(source)}
-        maxWidthClassName="max-w-5xl"
+        maxWidthClassName={isPage ? "max-w-none" : "max-w-5xl"}
       >
         {/* Search */}
         <div className="mb-3">

@@ -3317,6 +3317,26 @@ export interface EngagementDataCompletenessSummaryParams {
   limit?: number;
 }
 
+export type ParticipantProgressStageStatus =
+  | "complete"
+  | "pending"
+  | "not_applicable"
+  | "failed";
+
+export interface ParticipantProgressStageCell {
+  status: ParticipantProgressStageStatus;
+  source?: string;
+  detail?: string;
+}
+
+export interface ParticipantProgressStageSummary {
+  complete: number;
+  applicable: number;
+  pending: number;
+  not_applicable: number;
+  failed: number;
+}
+
 export interface EngagementParticipantProgressParticipant {
   user_id: number;
   first_name?: string | null;
@@ -3324,18 +3344,25 @@ export interface EngagementParticipantProgressParticipant {
   phone?: string | null;
   email?: string | null;
   questionnaire_state: string;
-  stages: Record<string, boolean>;
+  stages: Record<string, ParticipantProgressStageCell>;
+  legacy_stages?: Record<string, boolean>;
   bottleneck?: string | null;
   bottleneck_label?: string | null;
 }
 
 export interface EngagementParticipantProgressResponse {
   engagement_type_code?: string | null;
+  e2e_version?: number;
   stage_keys: string[];
   stage_labels: Record<string, string>;
+  stage_groups?: { key: string; label: string; steps: string[] }[];
+  stage_meta?: Record<string, { source?: string; type?: string }>;
+  engagement_setup?: Record<string, ParticipantProgressStageCell>;
   summary: {
     total_participants: number;
     stage_counts: Record<string, number>;
+    by_stage: Record<string, ParticipantProgressStageSummary>;
+    bottlenecks?: { key: string; label: string; pending: number }[];
   };
   participants: EngagementParticipantProgressParticipant[];
 }

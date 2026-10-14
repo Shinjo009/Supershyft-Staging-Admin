@@ -14,8 +14,6 @@ import {
   EngagementOverviewTab,
 } from "./EngagementViewTabs";
 import { formatEngagementStatusLabel } from "./engagementViewShared";
-import { buildIntegrationLogsPath } from "../integration-logs/integrationSyncLogsUtils";
-
 type DrawerTab = "overview" | "details" | "notifications" | "operations";
 
 type Props = {
@@ -42,7 +40,7 @@ export function EngagementDrawer({
   assessmentPackages,
   diagnosticPackages,
   notificationServiceLabel,
-  onEdit,
+  onEdit: _onEdit,
   onViewParticipants,
   getTypeDisplayName,
   onManageChecklists,
@@ -205,14 +203,7 @@ export function EngagementDrawer({
                     diagnosticPackages={diagnosticPackages}
                     notificationServiceLabel={notificationServiceLabel}
                     typeLabel={getTypeDisplayName?.(engagement.engagement_type)}
-                    onEdit={() => onEdit(engagement)}
-                    onViewParticipants={() => onViewParticipants(engagement)}
-                    onNotify={() => setNotifyOpen(true)}
-                    syncLogsTo={buildIntegrationLogsPath({
-                      provider: "healthians",
-                      engagement: String(engagement.engagement_id),
-                      time: "all",
-                    })}
+                    onOpenProgress={() => onViewParticipants(engagement)}
                   />
                 ) : null}
                 {activeTab === "details" ? (

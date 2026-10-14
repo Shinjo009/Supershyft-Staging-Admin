@@ -14,6 +14,8 @@ interface ModalProps {
   zIndexClassName?: string;
   /** Body does not scroll; children (for example a side-by-side split) scroll themselves. */
   lockBodyScroll?: boolean;
+  /** Render inline on the page (no overlay portal). */
+  embedded?: boolean;
 }
 
 let openModalCount = 0;
@@ -29,6 +31,7 @@ export function Modal({
   headerActions,
   zIndexClassName,
   lockBodyScroll = false,
+  embedded = false,
 }: ModalProps) {
   const titleId = useId();
   const instanceIdRef = useRef<number | null>(null);
@@ -37,7 +40,7 @@ export function Modal({
   }
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || embedded) return;
     const id = instanceIdRef.current!;
     modalStack.push(id);
     openModalCount += 1;
@@ -59,9 +62,33 @@ export function Modal({
         document.body.style.overflow = "";
       }
     };
-  }, [open, onClose]);
+  }, [open, onClose, embedded]);
 
   if (!open) return null;
+
+  if (embedded) {
+    return (
+      <div
+        className={`w-full bg-white border border-zinc-200 rounded-xl shadow-sm flex flex-col overflow-hidden ${maxWidthClassName ?? ""}`}
+      >
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-zinc-200">
+          <h2 id={titleId} className="text-base font-semibold text-zinc-900">
+            {title}
+          </h2>
+          {headerActions}
+        </div>
+        <div
+          className={
+            lockBodyScroll
+              ? "flex-1 min-h-0 overflow-hidden"
+              : "flex-1 overflow-y-auto p-4 sm:p-5"
+          }
+        >
+          {children}
+        </div>
+      </div>
+    );
+  }
 
   return createPortal(
     <div
