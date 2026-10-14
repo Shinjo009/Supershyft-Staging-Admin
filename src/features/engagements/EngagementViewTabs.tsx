@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import {
   Check,
   ChevronRight,
@@ -30,8 +29,6 @@ import { EngagementBookingSummaryCards } from "./EngagementBookingSummary";
 import {
   formatBloodCollectionLabel,
   formatConsultationModeLabel,
-  needsScheduleStep,
-  scheduleIntentFromSlotDetail,
   summarizeSlotDetail,
 } from "./engagementTypeConfig";
 import { Field, formatEngagementStatusLabel, isB2BEngagement } from "./engagementViewShared";
@@ -46,33 +43,16 @@ type SharedProps = {
 
 type OverviewProps = SharedProps & {
   typeLabel?: string;
-  typeCode?: string | null;
-  engagementCode?: string;
-  setupVerified?: boolean;
-  phleboGuideConfigured?: boolean;
   onManageChecklists?: () => void;
-  onOpenNotifications?: () => void;
 };
-
-function setupFlag(ok: boolean | undefined) {
-  if (ok === undefined) return { label: "Unknown", className: "bg-zinc-100 text-zinc-600" };
-  return ok
-    ? { label: "Ready", className: "bg-emerald-50 text-emerald-800" }
-    : { label: "Needs attention", className: "bg-amber-50 text-amber-900" };
-}
 
 export function EngagementOverviewTab({
   engagement,
   orgName,
   typeLabel,
-  typeCode,
   assessmentPackages,
   diagnosticPackages,
-  setupVerified,
-  phleboGuideConfigured,
-  engagementCode,
   onManageChecklists,
-  onOpenNotifications,
   notificationServiceLabel,
 }: OverviewProps) {
   const b2b = isB2BEngagement(engagement.organization_id);
@@ -116,21 +96,6 @@ export function EngagementOverviewTab({
     ].join(" · ");
   }, [completeness]);
 
-  const setup = setupFlag(setupVerified);
-  const phlebo = setupFlag(phleboGuideConfigured);
-
-  const scheduleStep = needsScheduleStep(
-    typeCode ?? null,
-    engagement.blood_collection_type,
-    engagement.consultation_mode,
-    scheduleIntentFromSlotDetail(engagement.slot_detail),
-  )
-    ? "schedule"
-    : "offerings";
-  const editBase = engagementCode
-    ? `/engagements/${encodeURIComponent(engagementCode)}/edit`
-    : null;
-
   return (
     <div className="space-y-4">
       <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-3">
@@ -153,86 +118,6 @@ export function EngagementOverviewTab({
       </div>
 
       <EngagementBookingSummaryCards engagementId={engagement.engagement_id} />
-
-      <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-3">
-        <div className="text-xs font-medium text-zinc-500">Camp readiness (step 1)</div>
-        <div className="flex flex-wrap gap-2 text-xs">
-          {editBase ? (
-            <a
-              href={`${editBase}?step=${scheduleStep}`}
-              className={`inline-flex px-2 py-1 rounded-md font-medium underline-offset-2 hover:underline ${setup.className}`}
-            >
-              Packages & schedule · {setup.label}
-            </a>
-          ) : (
-            <span className={`inline-flex px-2 py-1 rounded-md font-medium ${setup.className}`}>
-              Packages & schedule · {setup.label}
-            </span>
-          )}
-          {editBase ? (
-            <a
-              href={`${editBase}?step=notifications`}
-              className={`inline-flex px-2 py-1 rounded-md font-medium underline-offset-2 hover:underline ${setup.className}`}
-            >
-              Assistants & onboarding events · {setup.label}
-            </a>
-          ) : (
-            <span className={`inline-flex px-2 py-1 rounded-md font-medium ${setup.className}`}>
-              Assistants & onboarding events · {setup.label}
-            </span>
-          )}
-          {editBase ? (
-            <a
-              href={`${editBase}?step=notifications`}
-              className={`inline-flex px-2 py-1 rounded-md font-medium underline-offset-2 hover:underline ${phlebo.className}`}
-            >
-              Phlebo booking guide · {phlebo.label}
-            </a>
-          ) : (
-            <span className={`inline-flex px-2 py-1 rounded-md font-medium ${phlebo.className}`}>
-              Phlebo booking guide · {phlebo.label}
-            </span>
-          )}
-        </div>
-        {editBase ? (
-          <p className="text-xs text-zinc-500">
-            Onboarding assistants can also be assigned from the engagements list (Assistants action).
-          </p>
-        ) : null}
-        {phleboGuideConfigured === false && onOpenNotifications ? (
-          <p className="text-xs text-zinc-600">
-            Phlebo booking guide not configured —{" "}
-            <button
-              type="button"
-              onClick={onOpenNotifications}
-              className="font-medium text-zinc-800 underline hover:text-zinc-900"
-            >
-              Configure in notifications
-            </button>
-          </p>
-        ) : null}
-        <p className="text-xs text-zinc-500">
-          Notification health:{" "}
-          {onOpenNotifications ? (
-            <button
-              type="button"
-              onClick={onOpenNotifications}
-              className="font-medium text-zinc-800 underline hover:text-zinc-900"
-            >
-              Open notifications tab
-            </button>
-          ) : (
-            <span>Notifications tab</span>
-          )}
-          <span className="text-zinc-400 mx-1">·</span>
-          <Link
-            to="/notifications/notifications"
-            className="font-medium text-zinc-800 underline hover:text-zinc-900"
-          >
-            Global notification log
-          </Link>
-        </p>
-      </div>
 
       <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-4">
         <div className="flex flex-wrap items-center gap-2 text-xs">

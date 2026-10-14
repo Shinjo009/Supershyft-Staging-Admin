@@ -18,7 +18,6 @@ import { usePermissions } from "../../contexts/PermissionContext";
 import { EngagementNotificationModal } from "./EngagementNotificationModal";
 import { EngagementOperationsPanel } from "./EngagementOperationsPanel";
 import { EngagementParticipantsPanel } from "./EngagementParticipantsPanel";
-import { isCampSetupComplete, isPhleboGuideConfigured } from "./engagementCampReadiness";
 import {
   EngagementNotificationsTab,
   EngagementOverviewTab,
@@ -27,13 +26,10 @@ import { buildIntegrationLogsPath } from "../integration-logs/integrationSyncLog
 import { formatEngagementStatusLabel } from "./engagementViewShared";
 import {
   engagementChecklistsApi,
-  engagementNotificationsApi,
   engagementTypesApi,
   engagementsApi,
   getApiError,
-  onboardingAssistantsApi,
   type AssessmentPackage,
-  type EngagementNotificationItem,
   type ChecklistReadiness,
   type DiagnosticPackageListItem,
   type Engagement,
@@ -71,8 +67,6 @@ export function EngagementDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [engagement, setEngagement] = useState<Engagement | null>(null);
-  const [typeCode, setTypeCode] = useState<string | null>(null);
-
   const [organizations, setOrganizations] = useState<OrganizationListItem[]>([]);
   const [engagementTypes, setEngagementTypes] = useState<EngagementTypeItem[]>([]);
   const [assessmentPackages, setAssessmentPackages] = useState<AssessmentPackage[]>([]);
@@ -80,8 +74,6 @@ export function EngagementDetailPage() {
   const [notificationServices, setNotificationServices] = useState<NotificationServiceItem[]>([]);
 
   const [notifyOpen, setNotifyOpen] = useState(false);
-  const [campSetupComplete, setCampSetupComplete] = useState<boolean | undefined>(undefined);
-  const [phleboGuideConfigured, setPhleboGuideConfigured] = useState<boolean | undefined>(undefined);
 
   const activeTab = (searchParams.get("tab") as DetailTab | "progress" | null) ?? null;
 
@@ -170,29 +162,6 @@ export function EngagementDetailPage() {
       setOrganizations(bootstrap.organizations ?? []);
       const types = typesRes.data.data ?? [];
       setEngagementTypes(types);
-      const typeId = detail.engagement_type;
-      const match = types.find((t) => t.id === typeId || t.code === typeId);
-      setTypeCode(match?.code ?? (typeof typeId === "string" ? typeId : null));
-      let configuredNotifications: EngagementNotificationItem[] = [];
-      let assistantCount = 0;
-      try {
-        const [asstRes, notifRes] = await Promise.all([
-          onboardingAssistantsApi.list(detail.engagement_id),
-          engagementNotificationsApi.getForEngagement(detail.engagement_id),
-        ]);
-        assistantCount = (asstRes.data.data ?? []).length;
-        configuredNotifications = Array.isArray(notifRes.data.data) ? notifRes.data.data : [];
-      } catch {
-        assistantCount = 0;
-        configuredNotifications = [];
-      }
-      const readinessInput = {
-        engagement: detail,
-        onboardingAssistantCount: assistantCount,
-        configuredNotifications,
-      };
-      setCampSetupComplete(isCampSetupComplete(readinessInput));
-      setPhleboGuideConfigured(isPhleboGuideConfigured(readinessInput));
     } catch (err) {
       setError(getApiError(err));
       setEngagement(null);
@@ -328,10 +297,6 @@ export function EngagementDetailPage() {
                   diagnosticPackages={diagnosticPackages}
                   notificationServiceLabel={notificationServiceLabel}
                   typeLabel={typeLabel}
-                  typeCode={typeCode}
-                  setupVerified={campSetupComplete}
-                  phleboGuideConfigured={phleboGuideConfigured}
-                  engagementCode={engagement.engagement_code ?? engagementCode}
                   onManageChecklists={
                     mayEditChecklists
                       ? () =>
@@ -343,7 +308,6 @@ export function EngagementDetailPage() {
                           })
                       : undefined
                   }
-                  onOpenNotifications={() => setTab("notifications")}
                 />
               </div>
             ) : null}
