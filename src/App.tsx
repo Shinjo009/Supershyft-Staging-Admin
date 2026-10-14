@@ -10,6 +10,7 @@ import { Organisations } from "./features/organisations/Organisations";
 import { CampReportsPage } from "./features/organisations/CampReportsPage";
 import { Engagements } from "./features/engagements/Engagements";
 import { EngagementDetailPage } from "./features/engagements/EngagementDetailPage";
+import { EngagementFormPage } from "./features/engagements/EngagementFormPage";
 import { Employees } from "./features/employees/Employees";
 import { Partners } from "./features/partners/Partners";
 import { AssessmentPackages } from "./features/assessments/AssessmentPackages";
@@ -198,6 +199,22 @@ function AppRoutes() {
         <Route path="organisations/camps/:campNo/reports" element={<PermissionRoute category="reports"><CampReportsPage /></PermissionRoute>} />
         <Route path="organisations/:tab" element={<PermissionRoute category="organizations"><Organisations /></PermissionRoute>} />
         <Route path="engagements" element={<PermissionRoute category="engagements"><Engagements /></PermissionRoute>} />
+        <Route
+          path="engagements/new"
+          element={
+            <PermissionRoute category="engagements">
+              <EngagementFormPage mode="add" />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="engagements/:engagementCode/edit"
+          element={
+            <PermissionRoute category="engagements">
+              <EngagementFormPage mode="edit" />
+            </PermissionRoute>
+          }
+        />
         <Route
           path="engagements/:engagementCode"
           element={

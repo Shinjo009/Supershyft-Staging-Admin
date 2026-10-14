@@ -15,12 +15,10 @@ import {
   Settings,
   Database,
 } from "lucide-react";
-import { EngagementFormModal } from "./EngagementFormModal";
 import { CreatePhleboModal } from "./CreatePhleboModal";
 import { ManageEngagementParticipantsModal } from "./ManageEngagementParticipantsModal";
 import { EngagementDataCompletenessSummaryModal } from "./EngagementDataCompletenessSummaryModal";
 import { ConsoleUrlActions } from "./consoleUrlActions";
-import { computeCampNo } from "./campNo";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
 import { Modal } from "../../shared/ui/Modal";
@@ -35,22 +33,18 @@ import {
   onboardingAssistantsApi,
   engagementTypesApi,
   type EngagementListItem,
-  type Engagement,
   type EngagementCreate,
   type EngagementStatus,
   type EngagementKind,
   type EngagementTypeItem,
-  type DiagnosticPackageListItem,
   type OrganizationListItem,
   type Organization,
-  type AssessmentPackage,
   type EmployeeListItem,
   type OnboardingAssistant,
   type PartnerListItem,
   engagementChecklistsApi,
   checklistTemplatesApi,
   checklistTasksApi,
-  type NotificationServiceItem,
   type EngagementChecklist,
   type ChecklistTemplate,
   type ChecklistTask,
@@ -999,48 +993,7 @@ export function Engagements({
   }, [asModalForEngagementId, navigate, onCloseModal]);
 
   const [organizations, setOrganizations] = useState<OrganizationListItem[]>([]);
-  const [assessmentPackages, setAssessmentPackages] = useState<AssessmentPackage[]>([]);
-  const [diagnosticPackages, setDiagnosticPackages] = useState<DiagnosticPackageListItem[]>([]);
-  const [notificationServices, setNotificationServices] = useState<NotificationServiceItem[]>([]);
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState<"add" | "edit">("add");
-  const [selected, setSelected] = useState<Engagement | null>(null);
-  const [campNoConfirm, setCampNoConfirm] = useState<{
-    payload: Record<string, unknown>;
-    currentCampNo: number | null;
-    nextCampNo: number | null;
-  } | null>(null);
-  const [formData, setFormData] = useState<EngagementCreate>({
-    engagement_name: "",
-    metsights_engagement_id: "",
-    organization_id: 0,
-    engagement_type: 0,
-    engagement_code: "",
-    assessment_package_id: 0,
-    diagnostic_package_id: undefined,
-    diagnostic_package_id_male: undefined,
-    diagnostic_package_id_female: undefined,
-    city: "",
-    address: "",
-    sub_locality: "",
-    landmark: "",
-    pincode: "",
-    state: "",
-    country: "",
-    latitude: null,
-    longitude: null,
-    slot_duration: 60,
-    start_date: "",
-    end_date: "",
-    healthians_zone_id: undefined,
-    external_camp_id: undefined,
-    create_profile_on_metsights: false,
-    enroll_for_fitprint_full: false,
-    load_prev_assessment_questionnaires: false,
-    load_prev_questionnaire_category_keys: null,
-    slot_detail: null,
-  });
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<EngagementListItem | null>(null);
   const [statusChangeTarget, setStatusChangeTarget] = useState<EngagementListItem | null>(null);
@@ -1145,17 +1098,6 @@ export function Engagements({
     }
   }, []);
 
-  const loadFormBootstrap = useCallback(async () => {
-    const res = await engagementsApi.formBootstrap();
-    const data = res.data.data;
-    setEngagementTypes(data.engagement_types ?? []);
-    setOrganizations(data.organizations ?? []);
-    setAssessmentPackages(data.assessment_packages ?? []);
-    setDiagnosticPackages(data.diagnostic_packages ?? []);
-    setNotificationServices((data.notification_services ?? []).filter((s) => s.is_active));
-    return data;
-  }, []);
-
   const fetchList = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -1218,276 +1160,33 @@ export function Engagements({
   };
 
   const openAdd = (preset?: Partial<EngagementCreate>) => {
-    void loadFormBootstrap().then((data) => {
-      setSelected(null);
-      const today = new Date().toISOString().slice(0, 10);
-      const orgs = data.organizations ?? [];
-      const packages = data.assessment_packages ?? [];
-      const nextOrganizationId =
-        preset?.organization_id ?? orgs[0]?.organization_id ?? 0;
-      const nextAssessmentPackageId =
-        preset?.assessment_package_id ?? packages[0]?.package_id ?? 0;
-
-      setFormData({
-      engagement_name: preset?.engagement_name ?? "",
-      metsights_engagement_id: preset?.metsights_engagement_id ?? "",
-      organization_id: nextOrganizationId,
-      engagement_type: preset?.engagement_type ?? 0,
-      engagement_code: preset?.engagement_code ?? "",
-      assessment_package_id: nextAssessmentPackageId,
-      diagnostic_package_id: undefined,
-      diagnostic_package_id_male: undefined,
-      diagnostic_package_id_female: undefined,
-      city: preset?.city ?? "",
-      address: preset?.address ?? "",
-      sub_locality: preset?.sub_locality ?? "",
-      landmark: preset?.landmark ?? "",
-      pincode: preset?.pincode ?? "",
-      state: preset?.state ?? "",
-      country: preset?.country ?? "",
-      latitude: preset?.latitude ?? null,
-      longitude: preset?.longitude ?? null,
-      slot_duration: preset?.slot_duration ?? 60,
-      start_date: preset?.start_date ?? today,
-      end_date: preset?.end_date ?? today,
-      healthians_zone_id: preset?.healthians_zone_id ?? undefined,
-      external_camp_id: preset?.external_camp_id ?? undefined,
-      blood_collection_type: preset?.blood_collection_type ?? undefined,
-      consultation_mode: preset?.consultation_mode ?? "offline",
-      create_profile_on_metsights: preset?.create_profile_on_metsights ?? false,
-      enroll_for_fitprint_full: preset?.enroll_for_fitprint_full ?? false,
-      load_prev_assessment_questionnaires: preset?.load_prev_assessment_questionnaires ?? false,
-      load_prev_questionnaire_category_keys: preset?.load_prev_questionnaire_category_keys ?? null,
-      slot_detail: preset?.slot_detail ?? null,
-      });
-      setModalMode("add");
-      setModalOpen(true);
-    });
+    navigate("/engagements/new", { state: { createPreset: preset ?? null } });
   };
 
   useEffect(() => {
     if (!pendingEngagementPreset) return;
-    if (modalOpen) return;
-    void loadFormBootstrap().then(() => {
-      openAdd({
-        organization_id: pendingEngagementPreset.organization_id,
-        engagement_name: pendingEngagementPreset.orgName ?? "",
-        city: pendingEngagementPreset.city ?? "",
-      });
-      setPendingEngagementPreset(null);
+    navigate("/engagements/new", {
+      state: {
+        createPreset: {
+          organization_id: pendingEngagementPreset.organization_id,
+          engagement_name: pendingEngagementPreset.orgName ?? "",
+          city: pendingEngagementPreset.city ?? "",
+        },
+      },
     });
-  }, [pendingEngagementPreset, modalOpen, loadFormBootstrap]);
+    setPendingEngagementPreset(null);
+  }, [pendingEngagementPreset, navigate]);
 
   const openEdit = (row: EngagementListItem) => {
-    void loadFormBootstrap().then(() =>
-      engagementsApi.get(row.engagement_id).then(async (res) => {
-      const e = res.data.data;
-      await ensureOrgInList(e.organization_id);
-      setSelected(e);
-      setFormData({
-        engagement_name: e.engagement_name ?? "",
-        metsights_engagement_id: e.metsights_engagement_id ?? "",
-        organization_id: e.organization_id ?? 0,
-        engagement_type: (e.engagement_type as EngagementKind | undefined) ?? "bio_ai",
-        consultations: e.consultations ?? null,
-        engagement_code: e.engagement_code ?? "",
-        assessment_package_id: e.assessment_package_id ?? 0,
-        diagnostic_package_id: e.diagnostic_package_id ?? undefined,
-        diagnostic_package_id_male: e.diagnostic_package_id_male ?? undefined,
-        diagnostic_package_id_female: e.diagnostic_package_id_female ?? undefined,
-        city: e.city ?? "",
-        address: e.address ?? "",
-        sub_locality: e.sub_locality ?? "",
-        landmark: e.landmark ?? "",
-        pincode: e.pincode ?? "",
-        state: e.state ?? "",
-        country: e.country ?? "",
-        latitude: e.latitude ?? null,
-        longitude: e.longitude ?? null,
-        slot_duration: e.slot_duration ?? 60,
-        start_date: (e.start_date ?? "").toString().slice(0, 10),
-        end_date: (e.end_date ?? "").toString().slice(0, 10),
-        healthians_zone_id: e.healthians_zone_id ?? undefined,
-        external_camp_id: e.external_camp_id ?? undefined,
-        blood_collection_type: e.blood_collection_type ?? undefined,
-        consultation_mode: e.consultation_mode ?? undefined,
-        create_profile_on_metsights: Boolean(e.create_profile_on_metsights),
-        enroll_for_fitprint_full: Boolean(e.enroll_for_fitprint_full),
-        load_prev_assessment_questionnaires: Boolean(e.load_prev_assessment_questionnaires),
-        load_prev_questionnaire_category_keys: e.load_prev_questionnaire_category_keys ?? null,
-        slot_detail: e.slot_detail ?? null,
-      });
-      setModalMode("edit");
-      setModalOpen(true);
-    }).catch((err) => setError(getApiError(err)))
-    ).catch((err) => setError(getApiError(err)));
-  };
-
-  const resolveOrganizationId = (data: EngagementCreate) =>
-    data.organization_id && data.organization_id > 0 ? data.organization_id : null;
-
-  const emptyToNull = (value: string | null | undefined) => {
-    const trimmed = (value ?? "").trim();
-    return trimmed ? trimmed : null;
-  };
-
-  const performEngagementUpdate = async (
-    engagementId: number,
-    payload: Record<string, unknown>
-  ) => {
-    await engagementsApi.update(engagementId, payload as never);
-    setModalOpen(false);
-    setCampNoConfirm(null);
-    fetchList();
-  };
-
-  const handleSubmit = async (data: EngagementCreate) => {
-    const orgId = resolveOrganizationId(data);
-    const missingOrg = modalMode === "add" && !orgId;
-    const missingDates = !data.start_date || !data.end_date;
-    if (missingOrg || missingDates) {
-      const parts: string[] = [];
-      if (missingOrg) parts.push("organisation");
-      if (missingDates) parts.push("start and end dates");
-      setError(`Please fill required fields: ${parts.join(", ")}`);
+    const code = (row.engagement_code ?? "").trim();
+    if (code) {
+      navigate(`/engagements/${encodeURIComponent(code)}/edit`);
       return;
     }
-
-    setSubmitting(true);
-    setError(null);
-    try {
-      const locationFields = {
-        city: emptyToNull(data.city),
-        address: emptyToNull(data.address),
-        sub_locality: emptyToNull(data.sub_locality),
-        landmark: emptyToNull(data.landmark),
-        pincode: emptyToNull(data.pincode),
-        state: emptyToNull(data.state),
-        country: emptyToNull(data.country),
-        latitude: data.latitude ?? null,
-        longitude: data.longitude ?? null,
-      };
-
-      if (modalMode === "add") {
-        const createPayload: EngagementCreate = {
-          ...data,
-          ...locationFields,
-          organization_id: orgId!,
-          metsights_engagement_id: data.metsights_engagement_id?.trim() || null,
-          assessment_package_id:
-            data.assessment_package_id && data.assessment_package_id > 0
-              ? data.assessment_package_id
-              : null,
-          diagnostic_package_id:
-            data.diagnostic_package_id && data.diagnostic_package_id > 0
-              ? data.diagnostic_package_id
-              : null,
-          diagnostic_package_id_male:
-            data.diagnostic_package_id_male && data.diagnostic_package_id_male > 0
-              ? data.diagnostic_package_id_male
-              : null,
-          diagnostic_package_id_female:
-            data.diagnostic_package_id_female && data.diagnostic_package_id_female > 0
-              ? data.diagnostic_package_id_female
-              : null,
-          healthians_zone_id: data.healthians_zone_id?.trim() || null,
-          external_camp_id: data.external_camp_id ?? null,
-          blood_collection_type: data.blood_collection_type || null,
-          consultation_mode: data.consultation_mode || null,
-          create_profile_on_metsights: Boolean(data.create_profile_on_metsights),
-          enroll_for_fitprint_full: Boolean(data.enroll_for_fitprint_full),
-          load_prev_assessment_questionnaires: Boolean(data.load_prev_assessment_questionnaires),
-          load_prev_questionnaire_category_keys: data.load_prev_questionnaire_category_keys ?? null,
-          notifications: data.notifications ?? [],
-          camp_no: computeCampNo(orgId, data.start_date),
-          slot_detail: data.slot_detail ?? null,
-        };
-        const created = await engagementsApi.create(createPayload);
-        const engagementId = created.data.data.engagement_id;
-        setAddChecklistPromptEngagementId(engagementId);
-        setPendingAssistantsEngagementId(engagementId);
-        setAddChecklistPromptOpen(true);
-        setModalOpen(false);
-        fetchList();
-      } else if (selected) {
-        const nextCampNo = computeCampNo(orgId, data.start_date);
-        const currentCampNo = selected.camp_no ?? null;
-        const payload = {
-          engagement_name: data.engagement_name,
-          engagement_code: (data.engagement_code ?? "").trim(),
-          metsights_engagement_id: data.metsights_engagement_id?.trim() || null,
-          organization_id: orgId,
-          engagement_type: data.engagement_type,
-          consultations: data.consultations ?? null,
-          assessment_package_id:
-            data.assessment_package_id && data.assessment_package_id > 0
-              ? data.assessment_package_id
-              : null,
-          diagnostic_package_id:
-            data.diagnostic_package_id && data.diagnostic_package_id > 0
-              ? data.diagnostic_package_id
-              : null,
-          diagnostic_package_id_male:
-            data.diagnostic_package_id_male && data.diagnostic_package_id_male > 0
-              ? data.diagnostic_package_id_male
-              : null,
-          diagnostic_package_id_female:
-            data.diagnostic_package_id_female && data.diagnostic_package_id_female > 0
-              ? data.diagnostic_package_id_female
-              : null,
-          ...locationFields,
-          slot_duration: data.slot_duration,
-          start_date: data.start_date,
-          end_date: data.end_date,
-          healthians_zone_id: data.healthians_zone_id?.trim() || null,
-          external_camp_id: data.external_camp_id ?? null,
-          blood_collection_type: data.blood_collection_type || null,
-          consultation_mode: data.consultation_mode || null,
-          create_profile_on_metsights: Boolean(data.create_profile_on_metsights),
-          enroll_for_fitprint_full: Boolean(data.enroll_for_fitprint_full),
-          load_prev_assessment_questionnaires: Boolean(data.load_prev_assessment_questionnaires),
-          load_prev_questionnaire_category_keys: data.load_prev_questionnaire_category_keys ?? null,
-          notifications: data.notifications ?? [],
-          slot_detail: data.slot_detail ?? null,
-        };
-
-        if (orgId && nextCampNo != null && currentCampNo !== nextCampNo) {
-          setCampNoConfirm({
-            payload,
-            currentCampNo,
-            nextCampNo,
-          });
-          return;
-        }
-
-        await performEngagementUpdate(selected.engagement_id, {
-          ...payload,
-          camp_no: nextCampNo,
-        });
-      }
-    } catch (err) {
-      setError(getApiError(err));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const confirmCampNoUpdate = async (includeCampNo: boolean) => {
-    if (!selected || !campNoConfirm) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      await performEngagementUpdate(selected.engagement_id, {
-        ...campNoConfirm.payload,
-        camp_no: includeCampNo
-          ? campNoConfirm.nextCampNo
-          : campNoConfirm.currentCampNo,
-      });
-    } catch (err) {
-      setError(getApiError(err));
-    } finally {
-      setSubmitting(false);
-    }
+    void engagementsApi.get(row.engagement_id).then((res) => {
+      const resolved = (res.data.data.engagement_code ?? "").trim();
+      if (resolved) navigate(`/engagements/${encodeURIComponent(resolved)}/edit`);
+    });
   };
 
   const openChecklistForEngagementId = async (engagementId: number) => {
@@ -2167,86 +1866,6 @@ export function Engagements({
         )}
       </div>
       </div>
-
-      <EngagementFormModal
-        open={modalOpen && (modalMode === "add" || modalMode === "edit")}
-        mode={modalMode === "edit" ? "edit" : "add"}
-        engagementId={selected?.engagement_id ?? null}
-        initialData={formData}
-        organizations={organizations}
-        assessmentPackages={assessmentPackages}
-        diagnosticPackages={diagnosticPackages}
-        notificationServices={notificationServices}
-        submitting={submitting}
-        onClose={() => {
-          setModalOpen(false);
-          if (onCloseModal) onCloseModal();
-        }}
-        onSubmit={(data) => void handleSubmit(data)}
-      />
-
-      <Modal
-        open={!!campNoConfirm}
-        onClose={() => {
-          if (!submitting) setCampNoConfirm(null);
-        }}
-        title="Camp number will change"
-        maxWidthClassName="max-w-md"
-      >
-        {campNoConfirm && (
-          <div className="space-y-3 text-sm">
-            <p className="text-zinc-600">
-              Updating organisation or start date would change camp_no from{" "}
-              <span className="font-medium text-zinc-900">
-                {campNoConfirm.currentCampNo ?? "—"}
-              </span>{" "}
-              to{" "}
-              <span className="font-medium text-zinc-900">
-                {campNoConfirm.nextCampNo ?? "—"}
-              </span>
-              .
-            </p>
-            <div className="space-y-2">
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={() => void confirmCampNoUpdate(false)}
-                className="w-full rounded-lg border border-zinc-200 px-3 py-3 text-left hover:bg-zinc-50 disabled:opacity-50"
-              >
-                <div className="font-medium text-zinc-900">
-                  Only update what we have updated now
-                </div>
-                <div className="text-zinc-500 mt-0.5">
-                  Keep camp_no as {campNoConfirm.currentCampNo ?? "—"}.
-                </div>
-              </button>
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={() => void confirmCampNoUpdate(true)}
-                className="w-full rounded-lg border border-zinc-200 px-3 py-3 text-left hover:bg-zinc-50 disabled:opacity-50"
-              >
-                <div className="font-medium text-zinc-900">
-                  Update what we have updated now + camp_no
-                </div>
-                <div className="text-zinc-500 mt-0.5">
-                  Also set camp_no to {campNoConfirm.nextCampNo ?? "—"}.
-                </div>
-              </button>
-            </div>
-            <div className="flex justify-end pt-1">
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={() => setCampNoConfirm(null)}
-                className="px-3 py-2 rounded-lg border border-zinc-300 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
 
       {statusChangeTarget && (
         <Modal

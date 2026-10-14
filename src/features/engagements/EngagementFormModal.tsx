@@ -71,7 +71,9 @@ const CONSULTATION_MODE_OPTIONS = [
   { value: "online", label: "Online (expert calendar)" },
 ] as const;
 
-type StepKey = "basics" | "location" | "offerings" | "schedule" | "notifications";
+export type EngagementFormStepKey = "basics" | "location" | "offerings" | "schedule" | "notifications";
+
+type StepKey = EngagementFormStepKey;
 
 const inputClass =
   "w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900";
@@ -122,7 +124,9 @@ function buildSteps(
   return steps;
 }
 
-type Props = {
+export type EngagementFormWizardProps = {
+  variant?: "modal" | "page";
+  initialStepKey?: StepKey;
   open: boolean;
   mode: "add" | "edit";
   engagementId?: number | null;
@@ -136,7 +140,11 @@ type Props = {
   onSubmit: (data: EngagementCreate) => void;
 };
 
-export function EngagementFormModal({
+type Props = EngagementFormWizardProps;
+
+export function EngagementFormWizard({
+  variant = "modal",
+  initialStepKey,
   open,
   mode,
   engagementId,
@@ -477,6 +485,12 @@ export function EngagementFormModal({
   const currentStep = steps[stepIndex];
   const currentStepKey = currentStep?.key ?? "basics";
   const isLastStep = stepIndex >= steps.length - 1;
+
+  useEffect(() => {
+    if (!initialStepKey) return;
+    const idx = steps.findIndex((s) => s.key === initialStepKey);
+    if (idx >= 0) setStepIndex(idx);
+  }, [initialStepKey, steps]);
 
   useLayoutEffect(() => {
     setPanelHost(sidePanelOpen ? panelHostRef.current : null);
@@ -982,16 +996,28 @@ export function EngagementFormModal({
     return "Next";
   })();
 
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={mode === "add" ? "Add Engagement" : "Edit Engagement"}
-      maxWidthClassName={sidePanelOpen ? "max-w-6xl" : "max-w-3xl"}
-      lockBodyScroll={sidePanelOpen}
+  if (variant === "modal" && !open) return null;
+
+  const isPage = variant === "page";
+  const formShell = (
+    <div
+      className={
+        sidePanelOpen
+          ? `flex min-h-0 overflow-hidden ${isPage ? "flex-1" : "max-h-[calc(90vh-4.5rem)]"}`
+          : isPage
+            ? "flex flex-col flex-1 min-h-0"
+            : undefined
+      }
     >
-      <div className={sidePanelOpen ? "flex min-h-0 max-h-[calc(90vh-4.5rem)] overflow-hidden" : undefined}>
-      <div className={sidePanelOpen ? "w-[65%] min-w-0 min-h-0 overflow-y-auto p-4 sm:p-6" : undefined}>
+      <div
+        className={
+          sidePanelOpen
+            ? "w-[65%] min-w-0 min-h-0 overflow-y-auto p-4 sm:p-6"
+            : isPage
+              ? "flex-1 min-h-0 overflow-y-auto"
+              : undefined
+        }
+      >
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="flex items-center gap-2">
           {steps.map((item, index) => {
@@ -1837,7 +1863,11 @@ export function EngagementFormModal({
           </div>
         )}
 
-        <div className="flex flex-col-reverse sm:flex-row gap-3 pt-2">
+        <div
+          className={`flex flex-col-reverse sm:flex-row gap-3 pt-2 ${
+            isPage ? "sticky bottom-0 bg-zinc-50 border-t border-zinc-200 py-3 -mx-4 px-4 sm:-mx-6 sm:px-6 mt-4" : ""
+          }`}
+        >
           {!isLastStep ? (
             <button
               type="submit"
@@ -1880,6 +1910,34 @@ export function EngagementFormModal({
         />
       )}
       </div>
+  );
+
+  if (isPage) {
+    return (
+      <div className="flex flex-col min-h-[calc(100vh-8rem)] max-w-6xl mx-auto w-full">
+        <div className="shrink-0 pb-3 border-b border-zinc-200 mb-4">
+          <h2 className="text-lg font-semibold text-zinc-900">
+            {mode === "add" ? "New engagement" : "Edit engagement"}
+          </h2>
+        </div>
+        {formShell}
+      </div>
+    );
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={mode === "add" ? "Add Engagement" : "Edit Engagement"}
+      maxWidthClassName={sidePanelOpen ? "max-w-6xl" : "max-w-3xl"}
+      lockBodyScroll={sidePanelOpen}
+    >
+      {formShell}
     </Modal>
   );
+}
+
+export function EngagementFormModal(props: EngagementFormWizardProps) {
+  return <EngagementFormWizard variant="modal" {...props} />;
 }

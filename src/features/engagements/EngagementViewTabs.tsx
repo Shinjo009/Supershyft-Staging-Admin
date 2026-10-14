@@ -29,6 +29,8 @@ import { EngagementBookingSummaryCards } from "./EngagementBookingSummary";
 import {
   formatBloodCollectionLabel,
   formatConsultationModeLabel,
+  needsScheduleStep,
+  scheduleIntentFromSlotDetail,
   summarizeSlotDetail,
 } from "./engagementTypeConfig";
 import { Field, formatEngagementStatusLabel, isB2BEngagement } from "./engagementViewShared";
@@ -43,10 +45,13 @@ type SharedProps = {
 
 type OverviewProps = SharedProps & {
   typeLabel?: string;
+  typeCode?: string | null;
+  engagementCode?: string;
   onOpenProgress?: () => void;
   setupVerified?: boolean;
   phleboGuideSent?: boolean;
   progressBottlenecks?: { key: string; label: string; pending: number }[];
+  progressLoadError?: string | null;
   onManageChecklists?: () => void;
 };
 
@@ -61,12 +66,15 @@ export function EngagementOverviewTab({
   engagement,
   orgName,
   typeLabel,
+  typeCode,
   assessmentPackages,
   diagnosticPackages,
   onOpenProgress,
   setupVerified,
   phleboGuideSent,
   progressBottlenecks,
+  progressLoadError,
+  engagementCode,
   onManageChecklists,
   notificationServiceLabel,
 }: OverviewProps) {
@@ -111,8 +119,24 @@ export function EngagementOverviewTab({
     ].join(" · ");
   }, [completeness]);
 
-  const setup = setupFlag(setupVerified);
-  const phlebo = setupFlag(phleboGuideSent);
+  const setup = progressLoadError
+    ? { label: "Unavailable", className: "bg-zinc-100 text-zinc-600" }
+    : setupFlag(setupVerified);
+  const phlebo = progressLoadError
+    ? { label: "Unavailable", className: "bg-zinc-100 text-zinc-600" }
+    : setupFlag(phleboGuideSent);
+
+  const scheduleStep = needsScheduleStep(
+    typeCode ?? null,
+    engagement.blood_collection_type,
+    engagement.consultation_mode,
+    scheduleIntentFromSlotDetail(engagement.slot_detail),
+  )
+    ? "schedule"
+    : "offerings";
+  const editBase = engagementCode
+    ? `/engagements/${encodeURIComponent(engagementCode)}/edit`
+    : null;
 
   return (
     <div className="space-y-4">
@@ -139,17 +163,59 @@ export function EngagementOverviewTab({
 
       <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-3">
         <div className="text-xs font-medium text-zinc-500">Camp readiness (step 1)</div>
+        {progressLoadError ? (
+          <p className="text-sm text-zinc-600">
+            {progressLoadError}{" "}
+            {onOpenProgress ? (
+              <button type="button" onClick={onOpenProgress} className="underline font-medium">
+                Open Progress tab
+              </button>
+            ) : null}
+          </p>
+        ) : null}
         <div className="flex flex-wrap gap-2 text-xs">
-          <span className={`inline-flex px-2 py-1 rounded-md font-medium ${setup.className}`}>
-            Packages & schedule · {setup.label}
-          </span>
-          <span className={`inline-flex px-2 py-1 rounded-md font-medium ${setup.className}`}>
-            Assistants & onboarding events · {setup.label}
-          </span>
-          <span className={`inline-flex px-2 py-1 rounded-md font-medium ${phlebo.className}`}>
-            Phlebo booking guide · {phlebo.label}
-          </span>
+          {editBase ? (
+            <a
+              href={`${editBase}?step=${scheduleStep}`}
+              className={`inline-flex px-2 py-1 rounded-md font-medium underline-offset-2 hover:underline ${setup.className}`}
+            >
+              Packages & schedule · {setup.label}
+            </a>
+          ) : (
+            <span className={`inline-flex px-2 py-1 rounded-md font-medium ${setup.className}`}>
+              Packages & schedule · {setup.label}
+            </span>
+          )}
+          {editBase ? (
+            <a
+              href={`${editBase}?step=notifications`}
+              className={`inline-flex px-2 py-1 rounded-md font-medium underline-offset-2 hover:underline ${setup.className}`}
+            >
+              Assistants & onboarding events · {setup.label}
+            </a>
+          ) : (
+            <span className={`inline-flex px-2 py-1 rounded-md font-medium ${setup.className}`}>
+              Assistants & onboarding events · {setup.label}
+            </span>
+          )}
+          {editBase ? (
+            <a
+              href={`${editBase}?step=notifications`}
+              className={`inline-flex px-2 py-1 rounded-md font-medium underline-offset-2 hover:underline ${phlebo.className}`}
+            >
+              Phlebo booking guide · {phlebo.label}
+            </a>
+          ) : (
+            <span className={`inline-flex px-2 py-1 rounded-md font-medium ${phlebo.className}`}>
+              Phlebo booking guide · {phlebo.label}
+            </span>
+          )}
         </div>
+        {editBase ? (
+          <p className="text-xs text-zinc-500">
+            Onboarding assistants can also be assigned from the engagements list (Assistants action).
+          </p>
+        ) : null}
       </div>
 
       {progressBottlenecks && progressBottlenecks.length > 0 ? (

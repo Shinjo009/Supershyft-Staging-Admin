@@ -15,11 +15,6 @@ import {
 } from "../../layouts/PageHeaderActions";
 import { PermissionGate } from "../../contexts/PermissionContext";
 import { usePermissions } from "../../contexts/PermissionContext";
-import { Modal } from "../../shared/ui/Modal";
-import { ParticipantsModal } from "../../shared/ui/ParticipantsModal";
-import { computeCampNo } from "./campNo";
-import { EngagementFormModal } from "./EngagementFormModal";
-import { engagementToFormData } from "./engagementFormData";
 import { EngagementNotificationModal } from "./EngagementNotificationModal";
 import { EngagementOperationsPanel } from "./EngagementOperationsPanel";
 import { EngagementProgressTab } from "./EngagementProgressTab";
@@ -35,13 +30,13 @@ import {
   engagementParticipantProgressApi,
   engagementTypesApi,
   engagementsApi,
+  formatParticipantProgressError,
   getApiError,
   type EngagementParticipantProgressResponse,
   type AssessmentPackage,
   type ChecklistReadiness,
   type DiagnosticPackageListItem,
   type Engagement,
-  type EngagementCreate,
   type EngagementTypeItem,
   type NotificationServiceItem,
   type OrganizationListItem,
@@ -56,11 +51,6 @@ const DETAIL_TABS = [
 ] as const;
 
 type DetailTab = (typeof DETAIL_TABS)[number]["key"];
-
-function isProgressDefaultType(typeCode: string | null | undefined): boolean {
-  const code = (typeCode ?? "").toLowerCase();
-  return code === "bio_ai_with_consultation" || code === "blood_test_with_consultation";
-}
 
 function readinessFromChecklists(
   checklists: { readiness: { done: number; total: number; percent: number } }[],
@@ -90,19 +80,11 @@ export function EngagementDetailPage() {
   const [diagnosticPackages, setDiagnosticPackages] = useState<DiagnosticPackageListItem[]>([]);
   const [notificationServices, setNotificationServices] = useState<NotificationServiceItem[]>([]);
 
-  const [editOpen, setEditOpen] = useState(false);
-  const [formData, setFormData] = useState<EngagementCreate | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [campNoConfirm, setCampNoConfirm] = useState<{
-    payload: Record<string, unknown>;
-    currentCampNo: number | null;
-    nextCampNo: number | null;
-  } | null>(null);
   const [notifyOpen, setNotifyOpen] = useState(false);
-  const [participantsOpen, setParticipantsOpen] = useState(false);
   const [progressSnapshot, setProgressSnapshot] = useState<EngagementParticipantProgressResponse | null>(
     null,
   );
+  const [progressLoadError, setProgressLoadError] = useState<string | null>(null);
 
   const activeTab = (searchParams.get("tab") as DetailTab | null) ?? null;
 
@@ -110,14 +92,17 @@ export function EngagementDetailPage() {
     if (activeTab && DETAIL_TABS.some((t) => t.key === activeTab)) {
       return activeTab;
     }
-    if (isProgressDefaultType(typeCode)) return "progress";
     return "overview";
-  }, [activeTab, typeCode]);
+  }, [activeTab]);
 
   const setTab = (tab: DetailTab) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
-      next.set("tab", tab);
+      if (tab === "overview") {
+        next.delete("tab");
+      } else {
+        next.set("tab", tab);
+      }
       return next;
     });
   };
@@ -183,8 +168,10 @@ export function EngagementDetailPage() {
       try {
         const progRes = await engagementParticipantProgressApi.get(detail.engagement_id);
         setProgressSnapshot(progRes.data.data);
-      } catch {
+        setProgressLoadError(null);
+      } catch (progErr) {
         setProgressSnapshot(null);
+        setProgressLoadError(formatParticipantProgressError(progErr));
       }
     } catch (err) {
       setError(getApiError(err));
@@ -226,123 +213,10 @@ export function EngagementDetailPage() {
       })
     : undefined;
 
-  const emptyToNull = (value: string | null | undefined) => {
-    const trimmed = (value ?? "").trim();
-    return trimmed ? trimmed : null;
-  };
-
   const openEdit = () => {
-    if (!engagement) return;
-    setFormData(engagementToFormData(engagement));
-    setEditOpen(true);
-  };
-
-  const performEngagementUpdate = async (
-    engagementId: number,
-    payload: Record<string, unknown>,
-  ) => {
-    await engagementsApi.update(engagementId, payload as never);
-    setEditOpen(false);
-    setCampNoConfirm(null);
-    await loadEngagement();
-  };
-
-  const handleSubmit = async (data: EngagementCreate) => {
-    if (!engagement) return;
-    const orgId = data.organization_id && data.organization_id > 0 ? data.organization_id : null;
-    if (!data.start_date || !data.end_date) {
-      setError("Please fill start and end dates");
-      return;
-    }
-    setSubmitting(true);
-    setError(null);
-    try {
-      const locationFields = {
-        city: emptyToNull(data.city),
-        address: emptyToNull(data.address),
-        sub_locality: emptyToNull(data.sub_locality),
-        landmark: emptyToNull(data.landmark),
-        pincode: emptyToNull(data.pincode),
-        state: emptyToNull(data.state),
-        country: emptyToNull(data.country),
-        latitude: data.latitude ?? null,
-        longitude: data.longitude ?? null,
-      };
-      const nextCampNo = computeCampNo(orgId, data.start_date);
-      const currentCampNo = engagement.camp_no ?? null;
-      const payload = {
-        engagement_name: data.engagement_name,
-        engagement_code: (data.engagement_code ?? "").trim(),
-        metsights_engagement_id: data.metsights_engagement_id?.trim() || null,
-        organization_id: orgId,
-        engagement_type: data.engagement_type,
-        consultations: data.consultations ?? null,
-        assessment_package_id:
-          data.assessment_package_id && data.assessment_package_id > 0
-            ? data.assessment_package_id
-            : null,
-        diagnostic_package_id:
-          data.diagnostic_package_id && data.diagnostic_package_id > 0
-            ? data.diagnostic_package_id
-            : null,
-        diagnostic_package_id_male:
-          data.diagnostic_package_id_male && data.diagnostic_package_id_male > 0
-            ? data.diagnostic_package_id_male
-            : null,
-        diagnostic_package_id_female:
-          data.diagnostic_package_id_female && data.diagnostic_package_id_female > 0
-            ? data.diagnostic_package_id_female
-            : null,
-        ...locationFields,
-        slot_duration: data.slot_duration,
-        start_date: data.start_date,
-        end_date: data.end_date,
-        healthians_zone_id: data.healthians_zone_id?.trim() || null,
-        external_camp_id: data.external_camp_id ?? null,
-        blood_collection_type: data.blood_collection_type || null,
-        consultation_mode: data.consultation_mode || null,
-        create_profile_on_metsights: Boolean(data.create_profile_on_metsights),
-        enroll_for_fitprint_full: Boolean(data.enroll_for_fitprint_full),
-        load_prev_assessment_questionnaires: Boolean(data.load_prev_assessment_questionnaires),
-        load_prev_questionnaire_category_keys: data.load_prev_questionnaire_category_keys ?? null,
-        notifications: data.notifications ?? [],
-        slot_detail: data.slot_detail ?? null,
-      };
-
-      if (orgId && nextCampNo != null && currentCampNo !== nextCampNo) {
-        setCampNoConfirm({
-          payload,
-          currentCampNo,
-          nextCampNo,
-        });
-        return;
-      }
-
-      await performEngagementUpdate(engagement.engagement_id, {
-        ...payload,
-        camp_no: nextCampNo,
-      });
-    } catch (err) {
-      setError(getApiError(err));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const confirmCampNoUpdate = async (includeCampNo: boolean) => {
-    if (!engagement || !campNoConfirm) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      await performEngagementUpdate(engagement.engagement_id, {
-        ...campNoConfirm.payload,
-        camp_no: includeCampNo ? campNoConfirm.nextCampNo : campNoConfirm.currentCampNo,
-      });
-    } catch (err) {
-      setError(getApiError(err));
-    } finally {
-      setSubmitting(false);
-    }
+    const code = (engagement?.engagement_code ?? engagementCode ?? "").trim();
+    if (!code) return;
+    navigate(`/engagements/${encodeURIComponent(code)}/edit`);
   };
 
   if (!engagementCode) {
@@ -372,6 +246,7 @@ export function EngagementDetailPage() {
           <HeaderActionButton
             label="Console"
             icon={Monitor}
+            iconOnly
             onClick={() => navigate(`/engagements/console?engagement=${engagement.engagement_id}`)}
             variant="secondary"
           />
@@ -386,6 +261,7 @@ export function EngagementDetailPage() {
               <HeaderActionButton
                 label="Sync logs"
                 icon={ScrollText}
+                iconOnly
                 onClick={() => navigate(syncLogsTo)}
                 variant="secondary"
               />
@@ -394,8 +270,8 @@ export function EngagementDetailPage() {
         </PageHeaderActions>
       ) : null}
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-zinc-50">
-        <div className="flex gap-1 mb-5 border-b border-zinc-200 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+      <div className="flex-1 overflow-y-auto p-4 bg-zinc-50">
+        <div className="flex gap-1 mb-3 border-b border-zinc-200 overflow-x-auto [&::-webkit-scrollbar]:hidden">
           {DETAIL_TABS.map((tab) => (
             <button
               key={tab.key}
@@ -432,6 +308,7 @@ export function EngagementDetailPage() {
                   diagnosticPackages={diagnosticPackages}
                   notificationServiceLabel={notificationServiceLabel}
                   typeLabel={typeLabel}
+                  typeCode={typeCode}
                   onOpenProgress={() => setTab("progress")}
                   setupVerified={
                     progressSnapshot?.engagement_setup?.engagement_setup?.status === "complete"
@@ -440,6 +317,8 @@ export function EngagementDetailPage() {
                     progressSnapshot?.engagement_setup?.booking_guide_phlebo?.status === "complete"
                   }
                   progressBottlenecks={progressSnapshot?.summary.bottlenecks}
+                  progressLoadError={progressLoadError}
+                  engagementCode={engagement.engagement_code ?? engagementCode}
                   onManageChecklists={
                     mayEditChecklists
                       ? () =>
@@ -511,72 +390,6 @@ export function EngagementDetailPage() {
             onClose={() => setNotifyOpen(false)}
             engagement={engagement}
           />
-          <ParticipantsModal
-            open={participantsOpen}
-            onClose={() => setParticipantsOpen(false)}
-            source={{
-              kind: "engagement-id",
-              engagementId: engagement.engagement_id,
-              name: engagement.engagement_name ?? engagement.engagement_code ?? undefined,
-            }}
-          />
-          {formData ? (
-            <EngagementFormModal
-              open={editOpen}
-              mode="edit"
-              engagementId={engagement.engagement_id}
-              initialData={formData}
-              organizations={organizations}
-              assessmentPackages={assessmentPackages}
-              diagnosticPackages={diagnosticPackages}
-              notificationServices={notificationServices}
-              submitting={submitting}
-              onClose={() => setEditOpen(false)}
-              onSubmit={(data) => void handleSubmit(data)}
-            />
-          ) : null}
-          <Modal
-            open={!!campNoConfirm}
-            onClose={() => {
-              if (!submitting) setCampNoConfirm(null);
-            }}
-            title="Camp number will change"
-            maxWidthClassName="max-w-md"
-          >
-            {campNoConfirm ? (
-              <div className="space-y-3 text-sm">
-                <p className="text-zinc-600">
-                  Updating organisation or start date would change camp_no from{" "}
-                  <span className="font-medium text-zinc-900">
-                    {campNoConfirm.currentCampNo ?? "—"}
-                  </span>{" "}
-                  to{" "}
-                  <span className="font-medium text-zinc-900">
-                    {campNoConfirm.nextCampNo ?? "—"}
-                  </span>
-                  .
-                </p>
-                <div className="flex flex-col sm:flex-row gap-2 justify-end pt-1">
-                  <button
-                    type="button"
-                    disabled={submitting}
-                    onClick={() => void confirmCampNoUpdate(true)}
-                    className="px-3 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium disabled:opacity-50"
-                  >
-                    Update camp no
-                  </button>
-                  <button
-                    type="button"
-                    disabled={submitting}
-                    onClick={() => void confirmCampNoUpdate(false)}
-                    className="px-3 py-2 rounded-lg border border-zinc-300 text-sm text-zinc-700 disabled:opacity-50"
-                  >
-                    Keep current camp no
-                  </button>
-                </div>
-              </div>
-            ) : null}
-          </Modal>
         </>
       ) : null}
     </div>

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Check, Clock, Loader2, Minus, X } from "lucide-react";
 import {
   engagementParticipantProgressApi,
-  getApiError,
+  formatParticipantProgressError,
   type EngagementParticipantProgressResponse,
   type ParticipantProgressStageCell,
   type ParticipantProgressStageStatus,
@@ -49,6 +49,7 @@ export function EngagementProgressTab({ engagementId }: { engagementId: number }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [commsOnly, setCommsOnly] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,7 +61,7 @@ export function EngagementProgressTab({ engagementId }: { engagementId: number }
         if (!cancelled) setData(res.data.data);
       })
       .catch((err) => {
-        if (!cancelled) setError(getApiError(err));
+        if (!cancelled) setError(formatParticipantProgressError(err));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -68,7 +69,7 @@ export function EngagementProgressTab({ engagementId }: { engagementId: number }
     return () => {
       cancelled = true;
     };
-  }, [engagementId]);
+  }, [engagementId, reloadToken]);
 
   const stageKeys = data?.stage_keys ?? [];
   const total = data?.summary.total_participants ?? 0;
@@ -95,7 +96,16 @@ export function EngagementProgressTab({ engagementId }: { engagementId: number }
 
   if (error) {
     return (
-      <div className="p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>
+      <div className="p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm space-y-3">
+        <p>{error}</p>
+        <button
+          type="button"
+          onClick={() => setReloadToken((t) => t + 1)}
+          className="px-3 py-1.5 rounded-lg bg-zinc-900 text-white text-xs font-medium hover:bg-zinc-800"
+        >
+          Retry
+        </button>
+      </div>
     );
   }
 
