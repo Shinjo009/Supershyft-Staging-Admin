@@ -7,7 +7,7 @@ import { PermissionGate, usePermissions } from "../../contexts/PermissionContext
 import { Modal } from "../../shared/ui/Modal";
 import { UserSearchPicker } from "../../shared/ui/UserSearchPicker";
 import { EngagementSearchPicker } from "../../shared/ui/EngagementSearchPicker";
-import { IntegrationSyncLogsModal } from "../assessments/IntegrationSyncLogsModal";
+import { buildIntegrationLogsPath } from "../integration-logs/integrationSyncLogsUtils";
 import {
   notificationsApi,
   notificationEventsApi,
@@ -1571,7 +1571,6 @@ function EventsTab() {
 export function Notifications() {
   const navigate = useNavigate();
   const { tab: tabParam } = useParams<{ tab?: string }>();
-  const [syncLogsOpen, setSyncLogsOpen] = useState(false);
   const activeTab: TabKey = TAB_KEYS.includes((tabParam ?? "") as TabKey)
     ? (tabParam as TabKey)
     : "notifications";
@@ -1590,7 +1589,7 @@ export function Notifications() {
             label="Sync Logs"
             icon={ScrollText}
             variant="secondary"
-            onClick={() => setSyncLogsOpen(true)}
+            onClick={() => navigate(buildIntegrationLogsPath({ provider: "n8n" }))}
           />
         )}
       </PageHeaderActions>
@@ -1615,11 +1614,6 @@ export function Notifications() {
       {activeTab === "services" && <ServicesTab />}
       {activeTab === "events" && <EventsTab />}
 
-      <IntegrationSyncLogsModal
-        open={syncLogsOpen}
-        onClose={() => setSyncLogsOpen(false)}
-        variant="n8n"
-      />
     </div>
   );
 }

@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bell, ChevronDown, ChevronUp, ClipboardList, Droplet, Link2, Loader2, MapPin, Pause, Play, RefreshCw, Save, ScrollText, Search, SlidersHorizontal, Users } from "lucide-react";
 import { DuplicatedUsersModal } from "./DuplicatedUsersModal";
 import { MetsightsBloodMappingSection } from "./MetsightsBloodMappingSection";
-import { IntegrationSyncLogsModal } from "../assessments/IntegrationSyncLogsModal";
+import { useNavigate } from "react-router-dom";
+import { buildIntegrationLogsPath } from "../integration-logs/integrationSyncLogsUtils";
 import { usePermissions } from "../../contexts/PermissionContext";
 import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 import {
@@ -316,7 +317,7 @@ export function Settings() {
   const [activityLog, setActivityLog] = useState<PageLogEntry[]>([]);
   const [logOpen, setLogOpen] = useState(false);
   const [duplicatesModalOpen, setDuplicatesModalOpen] = useState(false);
-  const [integrationLogsOpen, setIntegrationLogsOpen] = useState(false);
+  const navigate = useNavigate();
 
   const pauseRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -1078,7 +1079,7 @@ export function Settings() {
             label="Integration logs"
             icon={ScrollText}
             variant="secondary"
-            onClick={() => setIntegrationLogsOpen(true)}
+            onClick={() => navigate(buildIntegrationLogsPath())}
           />
         )}
       </PageHeaderActions>
@@ -2021,11 +2022,6 @@ export function Settings() {
       </div>
 
       {mayEditUsers && <DuplicatedUsersModal open={duplicatesModalOpen} onClose={() => setDuplicatesModalOpen(false)} />}
-      <IntegrationSyncLogsModal
-        open={integrationLogsOpen}
-        onClose={() => setIntegrationLogsOpen(false)}
-        variant="all"
-      />
     </div>
   );
 }

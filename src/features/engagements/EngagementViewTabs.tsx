@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { PermissionGate } from "../../contexts/PermissionContext";
 import {
   Bell,
@@ -50,7 +51,7 @@ type OverviewProps = SharedProps & {
   onEdit: () => void;
   onViewParticipants: () => void;
   onNotify: () => void;
-  onSyncLogs?: () => void;
+  syncLogsTo?: string;
 };
 
 export function EngagementOverviewTab({
@@ -60,7 +61,7 @@ export function EngagementOverviewTab({
   onEdit,
   onViewParticipants,
   onNotify,
-  onSyncLogs,
+  syncLogsTo,
 }: OverviewProps) {
   const b2b = isB2BEngagement(engagement.organization_id);
   const [completeness, setCompleteness] = useState<EngagementDataCompletenessResponse | null>(null);
@@ -212,16 +213,15 @@ export function EngagementOverviewTab({
             <Bell className="w-3.5 h-3.5" />
             Notification
           </button></PermissionGate>
-          {onSyncLogs ? (
+          {syncLogsTo ? (
             <PermissionGate category="system_monitoring">
-            <button
-              type="button"
-              onClick={onSyncLogs}
+            <Link
+              to={syncLogsTo}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-medium"
             >
               <ScrollText className="w-3.5 h-3.5" />
               Sync Logs
-            </button>
+            </Link>
             </PermissionGate>
           ) : null}
         </div>

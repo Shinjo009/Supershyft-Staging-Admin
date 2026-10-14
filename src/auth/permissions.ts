@@ -194,5 +194,6 @@ export function categoryForPath(pathname: string): PermissionCategory | null {
   if (pathname.startsWith("/partners")) return "partners";
   if (pathname.startsWith("/settings")) return "platform_settings";
   if (pathname.startsWith("/server")) return "system_monitoring";
+  if (pathname.startsWith("/integration-logs")) return "system_monitoring";
   return null;
 }

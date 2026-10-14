@@ -36,6 +36,7 @@ import { Notifications } from "./features/notifications/Notifications";
 import { EngagementConsolePage } from "./features/console/EngagementConsolePage";
 import { ConsoleEngagementsPage } from "./features/console/ConsoleEngagementsPage";
 import { ServerHealth } from "./features/server/ServerHealth";
+import { IntegrationLogsPage } from "./features/integration-logs/IntegrationLogsPage";
 
 import { loginPathWithRedirect } from "./lib/authStorage";
 
@@ -256,6 +257,10 @@ function AppRoutes() {
         <Route path="my-tasks" element={<MyTasks />} />
         <Route path="support" element={<PermissionRoute category="support"><SupportTickets /></PermissionRoute>} />
         <Route path="server" element={<PermissionRoute category="system_monitoring"><ServerHealth /></PermissionRoute>} />
+        <Route
+          path="integration-logs"
+          element={<PermissionRoute category="system_monitoring"><IntegrationLogsPage /></PermissionRoute>}
+        />
         <Route path="settings" element={<PermissionRoute category="platform_settings"><Settings /></PermissionRoute>} />
       </Route>
       <Route

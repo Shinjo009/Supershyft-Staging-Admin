@@ -22,6 +22,7 @@ import {
   Bell,
   Settings,
   Server,
+  ScrollText,
   Handshake,
   Tag,
   RefreshCw,
@@ -40,6 +41,7 @@ const primaryNavItems = [
   { to: "/engagements", icon: CalendarCheck, label: "Engagements", category: "engagements" },
   { to: "/support", icon: LifeBuoy, label: "Support", category: "support" },
   { to: "/server", icon: Server, label: "Server", category: "system_monitoring" },
+  { to: "/integration-logs", icon: ScrollText, label: "Integration logs", category: "system_monitoring" },
   { to: "/settings", icon: Settings, label: "Settings", category: "platform_settings" },
   { to: "/employees", icon: Users, label: "Employees", category: "employees" },
   { to: "/partners", icon: Handshake, label: "Partners", category: "partners" },
@@ -82,6 +84,7 @@ function pageTitleForPath(pathname: string): string {
     "/engagements/console": "Engagement Console",
     "/support": "Support Tickets",
     "/server": "Server",
+    "/integration-logs": "Integration logs",
     "/settings": "Settings",
     "/employees": "Employees",
     "/partners": "Partners",
@@ -107,6 +110,7 @@ function pageTitleForPath(pathname: string): string {
   if (pathname.startsWith("/checklists/")) return "Checklist templates";
   if (pathname.startsWith("/library/")) return "Health Metrics";
   if (pathname.startsWith("/server")) return "Server";
+  if (pathname.startsWith("/integration-logs")) return "Integration logs";
   if (pathname.startsWith("/settings")) return "Settings";
   if (pathname.startsWith("/support")) return "Support Tickets";
   if (pathname.startsWith("/employees")) return "Employees";

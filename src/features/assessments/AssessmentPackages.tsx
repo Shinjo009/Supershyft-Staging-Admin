@@ -9,7 +9,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { AlertTriangle, ChevronDown, Droplets, GripVertical, Loader2, ListChecks, Pencil, Plus, RefreshCw, ScrollText, Search } from "lucide-react";
-import { IntegrationSyncLogsModal } from "./IntegrationSyncLogsModal";
+import { buildIntegrationLogsPath } from "../integration-logs/integrationSyncLogsUtils";
 import { MetsightsSyncConfigModal } from "./questions/MetsightsSyncConfigModal";
 import { QuestionDetailDrawer, type QuestionDrawerTab } from "./questions/QuestionDetailDrawer";
 import { QuestionForm } from "./questions/QuestionForm";
@@ -201,7 +201,6 @@ export function AssessmentPackages() {
   });
   const [unsyncWarningExpanded, setUnsyncWarningExpanded] = useState(false);
   const [unsyncWarningLoading, setUnsyncWarningLoading] = useState(false);
-  const [syncLogsOpen, setSyncLogsOpen] = useState(false);
   const [resetSyncOpen, setResetSyncOpen] = useState(false);
   const [resetSyncLoading, setResetSyncLoading] = useState(false);
   const [resetSyncError, setResetSyncError] = useState<string | null>(null);
@@ -1240,7 +1239,7 @@ export function AssessmentPackages() {
               label="Sync Logs"
               icon={ScrollText}
               variant="secondary"
-              onClick={() => setSyncLogsOpen(true)}
+              onClick={() => navigate(buildIntegrationLogsPath({ provider: "metsights" }))}
             />
           )}
         {mayEditAssessments && activeTab === "packages" && (
@@ -1253,8 +1252,6 @@ export function AssessmentPackages() {
           <HeaderActionButton label="Add Question" icon={Plus} onClick={openAddQuestion} />
         )}
       </PageHeaderActions>
-
-      <IntegrationSyncLogsModal open={syncLogsOpen} onClose={() => setSyncLogsOpen(false)} />
 
       <Modal
         open={resetSyncOpen}

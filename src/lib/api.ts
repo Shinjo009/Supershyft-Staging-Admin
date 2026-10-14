@@ -3804,6 +3804,8 @@ export interface IntegrationSyncLog {
   sync_log_id: number;
   engagement_id?: number | null;
   user_id?: number | null;
+  user_display_name?: string | null;
+  engagement_display_name?: string | null;
   provider: string;
   api_endpoint_url: string;
   request_payload?: Record<string, unknown> | unknown[] | null;

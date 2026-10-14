@@ -14,7 +14,7 @@ import {
   EngagementOverviewTab,
 } from "./EngagementViewTabs";
 import { formatEngagementStatusLabel } from "./engagementViewShared";
-import { IntegrationSyncLogsModal } from "../assessments/IntegrationSyncLogsModal";
+import { buildIntegrationLogsPath } from "../integration-logs/integrationSyncLogsUtils";
 
 type DrawerTab = "overview" | "details" | "notifications" | "operations";
 
@@ -52,7 +52,6 @@ export function EngagementDrawer({
   const [error, setError] = useState<string | null>(null);
   const [engagement, setEngagement] = useState<Engagement | null>(null);
   const [notifyOpen, setNotifyOpen] = useState(false);
-  const [syncLogsOpen, setSyncLogsOpen] = useState(false);
 
   const refreshEngagement = useCallback(async () => {
     if (!engagementId) return;
@@ -209,7 +208,11 @@ export function EngagementDrawer({
                     onEdit={() => onEdit(engagement)}
                     onViewParticipants={() => onViewParticipants(engagement)}
                     onNotify={() => setNotifyOpen(true)}
-                    onSyncLogs={() => setSyncLogsOpen(true)}
+                    syncLogsTo={buildIntegrationLogsPath({
+                      provider: "healthians",
+                      engagement: String(engagement.engagement_id),
+                      time: "all",
+                    })}
                   />
                 ) : null}
                 {activeTab === "details" ? (
@@ -249,12 +252,6 @@ export function EngagementDrawer({
             open={notifyOpen}
             onClose={() => setNotifyOpen(false)}
             engagement={engagement}
-          />
-          <IntegrationSyncLogsModal
-            open={syncLogsOpen}
-            onClose={() => setSyncLogsOpen(false)}
-            variant="healthians"
-            initialEngagementId={engagement.engagement_id}
           />
         </>
       ) : null}
