@@ -9,6 +9,7 @@ import { Dashboard } from "./features/dashboard/Dashboard";
 import { Organisations } from "./features/organisations/Organisations";
 import { CampReportsPage } from "./features/organisations/CampReportsPage";
 import { Engagements } from "./features/engagements/Engagements";
+import { EngagementDetailPage } from "./features/engagements/EngagementDetailPage";
 import { Employees } from "./features/employees/Employees";
 import { Partners } from "./features/partners/Partners";
 import { AssessmentPackages } from "./features/assessments/AssessmentPackages";
@@ -197,6 +198,14 @@ function AppRoutes() {
         <Route path="organisations/camps/:campNo/reports" element={<PermissionRoute category="reports"><CampReportsPage /></PermissionRoute>} />
         <Route path="organisations/:tab" element={<PermissionRoute category="organizations"><Organisations /></PermissionRoute>} />
         <Route path="engagements" element={<PermissionRoute category="engagements"><Engagements /></PermissionRoute>} />
+        <Route
+          path="engagements/:engagementCode"
+          element={
+            <PermissionRoute category="engagements">
+              <EngagementDetailPage />
+            </PermissionRoute>
+          }
+        />
         <Route path="employees" element={<Navigate to="/employees/employees" replace />} />
         <Route path="employees/:tab" element={<PermissionRoute category="employees"><Employees /></PermissionRoute>} />
         <Route path="partners" element={<PermissionRoute category="partners"><Partners /></PermissionRoute>} />

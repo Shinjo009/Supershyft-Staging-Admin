@@ -4,11 +4,11 @@ import { Search, Plus, Loader2, ListTree, AlertTriangle, UserPlus, Eye } from "l
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
 import { Modal } from "../../shared/ui/Modal";
-import { Engagements } from "../engagements/Engagements";
 import { OnboardUserModal } from "./OnboardUserModal";
 import { isExportReasonValid } from "../../shared/ui/ExportSelectedParticipantsDialog";
 import {
   usersApi,
+  engagementsApi,
   uploadsApi,
   notificationsApi,
   participantJourneyApi,
@@ -178,6 +178,17 @@ export function Users() {
 
   const [userEngagements, setUserEngagements] = useState<{ id: number; name: string }[]>([]);
   const [engagementDetailId, setEngagementDetailId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!engagementDetailId) return;
+    void engagementsApi
+      .get(engagementDetailId)
+      .then((res) => {
+        const code = (res.data.data.engagement_code ?? "").trim();
+        if (code) navigate(`/engagements/${encodeURIComponent(code)}`);
+      })
+      .finally(() => setEngagementDetailId(null));
+  }, [engagementDetailId, navigate]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>("view");
@@ -1717,14 +1728,6 @@ export function Users() {
             </div>
           </div>
         </Modal>
-      )}
-
-      {/* Engagement Detail Modal */}
-      {engagementDetailId && (
-        <Engagements
-          asModalForEngagementId={engagementDetailId}
-          onCloseModal={() => setEngagementDetailId(null)}
-        />
       )}
 
       <Modal

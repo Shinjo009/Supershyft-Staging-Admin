@@ -2485,6 +2485,8 @@ export const engagementsApi = {
     ),
   get: (id: number) =>
     api.get<{ data: Engagement }>(`/engagements/${id}`),
+  getByCode: (code: string) =>
+    api.get<{ data: Engagement }>(`/engagements/by-code/${encodeURIComponent(code)}`),
   create: (payload: EngagementCreate) =>
     api.post<{ data: { engagement_id: number } }>("/engagements", payload),
   update: (id: number, payload: Partial<EngagementCreate> & Pick<EngagementCreate, "engagement_type" | "start_date" | "end_date" | "slot_duration">) =>
@@ -3314,6 +3316,36 @@ export interface EngagementDataCompletenessSummaryParams {
   include_participant_issues?: boolean;
   limit?: number;
 }
+
+export interface EngagementParticipantProgressParticipant {
+  user_id: number;
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  questionnaire_state: string;
+  stages: Record<string, boolean>;
+  bottleneck?: string | null;
+  bottleneck_label?: string | null;
+}
+
+export interface EngagementParticipantProgressResponse {
+  engagement_type_code?: string | null;
+  stage_keys: string[];
+  stage_labels: Record<string, string>;
+  summary: {
+    total_participants: number;
+    stage_counts: Record<string, number>;
+  };
+  participants: EngagementParticipantProgressParticipant[];
+}
+
+export const engagementParticipantProgressApi = {
+  get: (engagementId: number) =>
+    api.get<{ data: EngagementParticipantProgressResponse }>(
+      `/engagements/${engagementId}/participant-progress`
+    ),
+};
 
 export const engagementDataCompletenessApi = {
   get: (engagementId: number) =>

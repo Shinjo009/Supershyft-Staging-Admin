@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { EngagementFormModal } from "./EngagementFormModal";
 import { CreatePhleboModal } from "./CreatePhleboModal";
-import { EngagementDrawer } from "./EngagementDrawer";
 import { ManageEngagementParticipantsModal } from "./ManageEngagementParticipantsModal";
 import { EngagementDataCompletenessSummaryModal } from "./EngagementDataCompletenessSummaryModal";
 import { ConsoleUrlActions } from "./consoleUrlActions";
@@ -35,7 +34,6 @@ import {
   partnersApi,
   onboardingAssistantsApi,
   engagementTypesApi,
-  type ChecklistReadiness,
   type EngagementListItem,
   type Engagement,
   type EngagementCreate,
@@ -988,16 +986,17 @@ export function Engagements({
   const [listTab, setListTab] = useState<"organizations" | "users">("organizations");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerEngagementId, setDrawerEngagementId] = useState<number | null>(null);
-  const [drawerReadiness, setDrawerReadiness] = useState<ChecklistReadiness | null>(null);
 
   useEffect(() => {
-    if (asModalForEngagementId) {
-      setDrawerEngagementId(asModalForEngagementId);
-      setDrawerOpen(true);
-    }
-  }, [asModalForEngagementId]);
+    if (!asModalForEngagementId) return;
+    void engagementsApi
+      .get(asModalForEngagementId)
+      .then((res) => {
+        const code = (res.data.data.engagement_code ?? "").trim();
+        if (code) navigate(`/engagements/${encodeURIComponent(code)}`);
+      })
+      .finally(() => onCloseModal?.());
+  }, [asModalForEngagementId, navigate, onCloseModal]);
 
   const [organizations, setOrganizations] = useState<OrganizationListItem[]>([]);
   const [assessmentPackages, setAssessmentPackages] = useState<AssessmentPackage[]>([]);
@@ -1157,36 +1156,6 @@ export function Engagements({
     return data;
   }, []);
 
-  useEffect(() => {
-    const state = location.state as
-      | {
-          createEngagementFromOrg?: { organization_id: number; orgName?: string; city?: string };
-          viewEngagementId?: number;
-        }
-      | null
-      | undefined;
-    if (state?.createEngagementFromOrg) {
-      setPendingEngagementPreset(state.createEngagementFromOrg);
-    }
-    if (!state?.viewEngagementId) return;
-    setDrawerEngagementId(state.viewEngagementId);
-    setDrawerReadiness(null);
-    setDrawerOpen(true);
-    const nextState = { ...(state ?? {}) };
-    delete nextState.viewEngagementId;
-    navigate(`${location.pathname}${location.search}`, {
-      replace: true,
-      state: Object.keys(nextState).length > 0 ? nextState : null,
-    });
-  }, [location.pathname, location.search, location.state, navigate]);
-
-  const notificationServiceLabel = (serviceKey: string | null | undefined) => {
-    const key = (serviceKey ?? "").trim();
-    if (!key) return "—";
-    const match = notificationServices.find((s) => s.service_key === key);
-    return match ? `${match.display_name} (${key})` : key;
-  };
-
   const fetchList = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -1237,16 +1206,15 @@ export function Engagements({
   }, [search, statusFilters, typeFilter, cityFilter, listTab]);
 
   const openView = (row: EngagementListItem) => {
-    setDrawerEngagementId(row.engagement_id);
-    setDrawerReadiness(row.readiness ?? null);
-    setDrawerOpen(true);
-  };
-
-  const closeDrawer = () => {
-    setDrawerOpen(false);
-    setDrawerEngagementId(null);
-    setDrawerReadiness(null);
-    if (onCloseModal) onCloseModal();
+    const code = (row.engagement_code ?? "").trim();
+    if (code) {
+      navigate(`/engagements/${encodeURIComponent(code)}`);
+      return;
+    }
+    void engagementsApi.get(row.engagement_id).then((res) => {
+      const resolved = (res.data.data.engagement_code ?? "").trim();
+      if (resolved) navigate(`/engagements/${encodeURIComponent(resolved)}`);
+    });
   };
 
   const openAdd = (preset?: Partial<EngagementCreate>) => {
@@ -1549,6 +1517,41 @@ export function Engagements({
     }
   };
 
+  useEffect(() => {
+    const state = location.state as
+      | {
+          createEngagementFromOrg?: { organization_id: number; orgName?: string; city?: string };
+          viewEngagementId?: number;
+          openChecklistEngagementId?: number;
+        }
+      | null
+      | undefined;
+    if (state?.createEngagementFromOrg) {
+      setPendingEngagementPreset(state.createEngagementFromOrg);
+    }
+    if (!state?.viewEngagementId && !state?.openChecklistEngagementId) {
+      return;
+    }
+    const nextState = { ...(state ?? {}) };
+    if (state.viewEngagementId) {
+      const engagementId = state.viewEngagementId;
+      delete nextState.viewEngagementId;
+      void engagementsApi.get(engagementId).then((res) => {
+        const code = (res.data.data.engagement_code ?? "").trim();
+        if (code) navigate(`/engagements/${encodeURIComponent(code)}`);
+      });
+    }
+    if (state.openChecklistEngagementId) {
+      const engagementId = state.openChecklistEngagementId;
+      delete nextState.openChecklistEngagementId;
+      void openChecklistForEngagementId(engagementId);
+    }
+    navigate(`${location.pathname}${location.search}`, {
+      replace: true,
+      state: Object.keys(nextState).length > 0 ? nextState : null,
+    });
+  }, [location.pathname, location.search, location.state, navigate]);
+
   const handleDelete = async (row: EngagementListItem) => {
     if (!deleteConfirm || deleteConfirm.engagement_id !== row.engagement_id) return;
     setSubmitting(true);
@@ -1594,21 +1597,6 @@ export function Engagements({
   };
 
   const getOrgName = (id: number) => organizations.find((o) => o.organization_id === id)?.name ?? String(id);
-
-  const getTypeDisplayName = useCallback(
-    (type: string | number | null | undefined) => {
-      if (type == null || type === "") return "—";
-      const asNumber = typeof type === "number" ? type : /^\d+$/.test(String(type)) ? Number(type) : null;
-      if (asNumber != null) {
-        const byId = engagementTypes.find((t) => t.id === asNumber);
-        if (byId) return byId.display_name;
-      }
-      const code = String(type);
-      const byCode = engagementTypes.find((t) => t.code === code);
-      return byCode?.display_name ?? code;
-    },
-    [engagementTypes]
-  );
 
   const openOrgView = useCallback((organizationId: number) => {
     if (!organizationId) return;
@@ -2260,43 +2248,6 @@ export function Engagements({
         )}
       </Modal>
 
-      <EngagementDrawer
-        open={drawerOpen}
-        engagementId={drawerEngagementId}
-        readiness={drawerReadiness}
-        onClose={closeDrawer}
-        getOrgName={(organizationId) => getOrgName(organizationId ?? 0)}
-        assessmentPackages={assessmentPackages}
-        diagnosticPackages={diagnosticPackages}
-        notificationServiceLabel={notificationServiceLabel}
-        getTypeDisplayName={getTypeDisplayName}
-        onManageChecklists={
-          mayEditChecklists
-            ? (engagement) =>
-                openChecklistModal({
-                  engagement_id: engagement.engagement_id,
-                  engagement_name: engagement.engagement_name,
-                  engagement_code: engagement.engagement_code,
-                  organization_id: engagement.organization_id,
-                  readiness:
-                    (engagement as Engagement & { readiness?: ChecklistReadiness | null }).readiness,
-                })
-            : undefined
-        }
-        onEdit={(engagement) => {
-          closeDrawer();
-          void openEdit(engagement);
-        }}
-        onViewParticipants={(engagement) => {
-          setParticipantsSource({
-            kind: "engagement-id",
-            engagementId: engagement.engagement_id,
-            name: engagement.engagement_name ?? engagement.engagement_code ?? undefined,
-          });
-        }}
-      />
-
-
       {statusChangeTarget && (
         <Modal
           open={!!statusChangeTarget}
@@ -2489,7 +2440,10 @@ export function Engagements({
         }}
         onViewEngagement={(engagementId) => {
           setCompletenessSummaryOpen(false);
-          setDrawerEngagementId(engagementId);
+          void engagementsApi.get(engagementId).then((res) => {
+            const code = (res.data.data.engagement_code ?? "").trim();
+            if (code) navigate(`/engagements/${encodeURIComponent(code)}`);
+          });
         }}
       />
 

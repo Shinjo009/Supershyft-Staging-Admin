@@ -1,0 +1,38 @@
+import type { Engagement, EngagementCreate, EngagementKind } from "../../lib/api";
+
+export function engagementToFormData(engagement: Engagement): EngagementCreate {
+  return {
+    engagement_name: engagement.engagement_name ?? "",
+    metsights_engagement_id: engagement.metsights_engagement_id ?? "",
+    organization_id: engagement.organization_id ?? 0,
+    engagement_type: (engagement.engagement_type as EngagementKind | undefined) ?? "bio_ai",
+    consultations: engagement.consultations ?? null,
+    engagement_code: engagement.engagement_code ?? "",
+    assessment_package_id: engagement.assessment_package_id ?? 0,
+    diagnostic_package_id: engagement.diagnostic_package_id ?? undefined,
+    diagnostic_package_id_male: engagement.diagnostic_package_id_male ?? undefined,
+    diagnostic_package_id_female: engagement.diagnostic_package_id_female ?? undefined,
+    city: engagement.city ?? "",
+    address: engagement.address ?? "",
+    sub_locality: engagement.sub_locality ?? "",
+    landmark: engagement.landmark ?? "",
+    pincode: engagement.pincode ?? "",
+    state: engagement.state ?? "",
+    country: engagement.country ?? "",
+    latitude: engagement.latitude ?? null,
+    longitude: engagement.longitude ?? null,
+    slot_duration: engagement.slot_duration ?? 60,
+    start_date: (engagement.start_date ?? "").toString().slice(0, 10),
+    end_date: (engagement.end_date ?? "").toString().slice(0, 10),
+    healthians_zone_id: engagement.healthians_zone_id ?? undefined,
+    external_camp_id: engagement.external_camp_id ?? undefined,
+    blood_collection_type: engagement.blood_collection_type ?? undefined,
+    consultation_mode: engagement.consultation_mode ?? undefined,
+    create_profile_on_metsights: Boolean(engagement.create_profile_on_metsights),
+    enroll_for_fitprint_full: Boolean(engagement.enroll_for_fitprint_full),
+    load_prev_assessment_questionnaires: Boolean(engagement.load_prev_assessment_questionnaires),
+    load_prev_questionnaire_category_keys: engagement.load_prev_questionnaire_category_keys ?? null,
+    slot_detail: engagement.slot_detail ?? null,
+    notifications: engagement.notifications ?? [],
+  };
+}

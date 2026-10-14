@@ -256,7 +256,12 @@ export function OperationsDashboard({
         rowKey={(row) => row.engagement_id}
         onRowClick={(row) => {
           setViewAllKind(null);
-          navigate("/engagements", { state: { viewEngagementId: row.engagement_id } });
+          const code = (row.engagement_code ?? "").trim();
+          if (code) {
+            navigate(`/engagements/${encodeURIComponent(code)}`);
+          } else {
+            navigate("/engagements", { state: { viewEngagementId: row.engagement_id } });
+          }
         }}
         matchesSearch={(row, q) =>
           `${row.engagement_name ?? ""} ${row.engagement_code ?? ""} ${row.organization_id ?? ""}`
