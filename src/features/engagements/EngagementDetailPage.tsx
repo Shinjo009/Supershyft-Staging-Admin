@@ -16,6 +16,7 @@ import {
 import { PermissionGate } from "../../contexts/PermissionContext";
 import { usePermissions } from "../../contexts/PermissionContext";
 import { EngagementNotificationModal } from "./EngagementNotificationModal";
+import { EngagementOnboardingAssistantsPanel } from "./EngagementOnboardingAssistantsPanel";
 import { EngagementOperationsPanel } from "./EngagementOperationsPanel";
 import { EngagementParticipantsPanel } from "./EngagementParticipantsPanel";
 import {
@@ -43,6 +44,7 @@ const DETAIL_TABS = [
   { key: "participants", label: "Participants" },
   { key: "notifications", label: "Notifications" },
   { key: "operations", label: "Operations" },
+  { key: "assistants", label: "Onboarding Assistants" },
 ] as const;
 
 type DetailTab = (typeof DETAIL_TABS)[number]["key"];
@@ -63,6 +65,7 @@ export function EngagementDetailPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { canEditTask } = usePermissions();
   const mayEditChecklists = canEditTask("checklists_tasks", "assignments");
+  const mayEditAssistants = canEditTask("engagements", "participants");
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -334,6 +337,17 @@ export function EngagementDetailPage() {
                   engagement={engagement}
                   active={true}
                   onEngagementUpdated={() => void loadEngagement()}
+                />
+              </div>
+            ) : null}
+
+            {resolvedTab === "assistants" ? (
+              <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden max-w-3xl">
+                <EngagementOnboardingAssistantsPanel
+                  engagementId={engagement.engagement_id}
+                  engagementStatus={engagement.status}
+                  engagementName={engagement.engagement_name ?? engagement.engagement_code ?? undefined}
+                  canEdit={mayEditAssistants}
                 />
               </div>
             ) : null}

@@ -3,7 +3,6 @@ import {
   Search,
   Plus,
   Loader2,
-  UserCog,
   Trash2,
   X,
   Check,
@@ -15,10 +14,8 @@ import {
   Settings,
   Database,
 } from "lucide-react";
-import { CreatePhleboModal } from "./CreatePhleboModal";
 import { ManageEngagementParticipantsModal } from "./ManageEngagementParticipantsModal";
 import { EngagementDataCompletenessSummaryModal } from "./EngagementDataCompletenessSummaryModal";
-import { ConsoleUrlActions } from "./consoleUrlActions";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
 import { Modal } from "../../shared/ui/Modal";
@@ -29,8 +26,6 @@ import {
   engagementsApi,
   organizationsApi,
   employeesApi,
-  partnersApi,
-  onboardingAssistantsApi,
   engagementTypesApi,
   type EngagementListItem,
   type EngagementCreate,
@@ -40,8 +35,6 @@ import {
   type OrganizationListItem,
   type Organization,
   type EmployeeListItem,
-  type OnboardingAssistant,
-  type PartnerListItem,
   engagementChecklistsApi,
   checklistTemplatesApi,
   checklistTasksApi,
@@ -104,36 +97,6 @@ function getEmployeeDisplayName(emp: EmployeeListItem): string {
   if (emp.name?.trim()) return emp.name.trim();
   return `Employee ${emp.employee_id}`;
 }
-
-function getPartnerDisplayName(partner: PartnerListItem | OnboardingAssistant): string {
-  if (partner.name?.trim()) return partner.name.trim();
-  const id = "partner_id" in partner ? partner.partner_id : undefined;
-  return id ? `Partner ${id}` : "Partner";
-}
-
-function getAssistantDisplayName(a: OnboardingAssistant): string {
-  if (a.name?.trim()) return a.name.trim();
-  if (a.kind === "employee" || (a.employee_id != null && a.partner_id == null)) {
-    return `Employee ${a.employee_id}`;
-  }
-  if (a.partner_id != null) return `Partner ${a.partner_id}`;
-  return "Assignee";
-}
-
-function assistantRowKey(a: OnboardingAssistant): string {
-  if (a.kind === "employee" || (a.employee_id != null && !a.partner_id)) {
-    return `employee-${a.employee_id}`;
-  }
-  return `partner-${a.partner_id}`;
-}
-
-function isEmployeeAssignee(a: OnboardingAssistant): boolean {
-  return a.kind === "employee" || (a.employee_id != null && a.partner_id == null);
-}
-
-const ASSIGNABLE_EMPLOYEE_ROLES = new Set(["admin", "inferior_admin"]);
-
-type AddAssigneeMode = "phlebo" | "expert" | "employee";
 
 function formatStaffRoleLabel(role: string | null | undefined): string {
   if (!role) return "";
@@ -1014,26 +977,6 @@ export function Engagements({
     | null
   >(null);
 
-  // ── Onboarding Assistants states ──────────────────────────────
-  const [assistantsEngagement, setAssistantsEngagement] = useState<EngagementListItem | null>(null);
-  const [assistantsModalOpen, setAssistantsModalOpen] = useState(false);
-  const [assistants, setAssistants] = useState<OnboardingAssistant[]>([]);
-  const [assistantsLoading, setAssistantsLoading] = useState(false);
-  const [assistantsError, setAssistantsError] = useState<string | null>(null);
-  const [removingAssistantKey, setRemovingAssistantKey] = useState<string | null>(null);
-
-  // Add-assistants sub-panel state
-  const [addAssistantsOpen, setAddAssistantsOpen] = useState(false);
-  const [addAssigneeMode, setAddAssigneeMode] = useState<AddAssigneeMode>("phlebo");
-  const [addCandidatePartners, setAddCandidatePartners] = useState<PartnerListItem[]>([]);
-  const [addCandidateEmployees, setAddCandidateEmployees] = useState<EmployeeListItem[]>([]);
-  const [addCandidatesLoading, setAddCandidatesLoading] = useState(false);
-  const [selectedPartnerIds, setSelectedPartnerIds] = useState<Set<number>>(new Set());
-  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<number>>(new Set());
-  const [assigningAssistants, setAssigningAssistants] = useState(false);
-  const [employeeSearch, setEmployeeSearch] = useState("");
-  const [createPhleboModalOpen, setCreatePhleboModalOpen] = useState(false);
-
   const [typesModalOpen, setTypesModalOpen] = useState(false);
   const [manageParticipantsOpen, setManageParticipantsOpen] = useState(false);
   const [completenessSummaryOpen, setCompletenessSummaryOpen] = useState(false);
@@ -1050,8 +993,6 @@ export function Engagements({
   const [addChecklistPromptOpen, setAddChecklistPromptOpen] = useState(false);
   const [addChecklistPromptEngagementId, setAddChecklistPromptEngagementId] = useState<number | null>(null);
   const [addChecklistPromptBusy, setAddChecklistPromptBusy] = useState(false);
-  // Tracks the newly-created engagement whose Onboarding Assistants panel should
-  // auto-open once the post-creation checklist prompt flow finishes.
   const [pendingAssistantsEngagementId, setPendingAssistantsEngagementId] = useState<number | null>(null);
 
   const openChecklistModal = (row: EngagementListItem) => {
@@ -1062,12 +1003,10 @@ export function Engagements({
   const closeChecklistModal = () => {
     setChecklistModalOpen(false);
     setChecklistEngagement(null);
-    // If we arrived here from a fresh engagement creation, auto-open the
-    // Onboarding Assistants panel so the user can assign assistants next.
     const pendingId = pendingAssistantsEngagementId;
     if (pendingId != null) {
       setPendingAssistantsEngagementId(null);
-      void openAssistantsModalById(pendingId);
+      void navigateToAssistantsTab(pendingId);
     }
   };
 
@@ -1158,6 +1097,21 @@ export function Engagements({
       if (resolved) navigate(`/engagements/${encodeURIComponent(resolved)}`);
     });
   };
+
+  const navigateToAssistantsTab = useCallback(
+    async (engagementId: number) => {
+      try {
+        const res = await engagementsApi.get(engagementId);
+        const code = (res.data.data.engagement_code ?? "").trim();
+        if (code) {
+          navigate(`/engagements/${encodeURIComponent(code)}?tab=assistants`);
+        }
+      } catch (err) {
+        setError(getApiError(err));
+      }
+    },
+    [navigate],
+  );
 
   const openAdd = (preset?: Partial<EngagementCreate>) => {
     navigate("/engagements/new", { state: { createPreset: preset ?? null } });
@@ -1312,204 +1266,6 @@ export function Engagements({
       .catch((err) => setOrgViewError(getApiError(err)))
       .finally(() => setOrgViewLoading(false));
   }, [ensureOrgInList]);
-
-  // ── Onboarding Assistants handlers ───────────────────────────
-  const fetchAssistants = useCallback(async (engagementId: number) => {
-    setAssistantsLoading(true);
-    setAssistantsError(null);
-    try {
-      const res = await onboardingAssistantsApi.list(engagementId);
-      setAssistants(res.data.data);
-    } catch (err) {
-      setAssistantsError(getApiError(err));
-    } finally {
-      setAssistantsLoading(false);
-    }
-  }, []);
-
-  const openAssistantsModal = (row: EngagementListItem) => {
-    setAssistantsEngagement(row);
-    setAssistants([]);
-    setAssistantsError(null);
-    setAddAssistantsOpen(false);
-    setSelectedPartnerIds(new Set());
-    setEmployeeSearch("");
-    setAssistantsModalOpen(true);
-    void fetchAssistants(row.engagement_id);
-  };
-
-  // Fetches the engagement by ID then opens the Onboarding Assistants panel.
-  // Used after new-engagement creation to auto-navigate the user into assistants.
-  const openAssistantsModalById = async (engagementId: number) => {
-    try {
-      const res = await engagementsApi.get(engagementId);
-      const e = res.data.data;
-      openAssistantsModal({
-        engagement_id: e.engagement_id,
-        engagement_name: e.engagement_name ?? "",
-        engagement_code: e.engagement_code ?? "",
-        engagement_type: (e.engagement_type as EngagementKind | undefined) ?? "bio_ai",
-        organization_id: e.organization_id ?? 0,
-        city: e.city ?? "",
-        slot_duration: e.slot_duration ?? null,
-        start_date: e.start_date ?? null,
-        end_date: e.end_date ?? null,
-        status: e.status ?? null,
-        participant_count: e.participant_count ?? null,
-        readiness: null,
-      } as EngagementListItem);
-    } catch (err) {
-      setError(getApiError(err));
-    }
-  };
-
-  const closeAssistantsModal = () => {
-    setAssistantsModalOpen(false);
-    setAssistantsEngagement(null);
-    setAddAssistantsOpen(false);
-    setSelectedPartnerIds(new Set());
-    setSelectedEmployeeIds(new Set());
-    setEmployeeSearch("");
-  };
-
-  const handleRemoveAssistant = async (a: OnboardingAssistant) => {
-    if (!assistantsEngagement) return;
-    const key = assistantRowKey(a);
-    setRemovingAssistantKey(key);
-    setAssistantsError(null);
-    try {
-      if (isEmployeeAssignee(a) && a.employee_id != null) {
-        await onboardingAssistantsApi.removeEmployee(
-          assistantsEngagement.engagement_id,
-          a.employee_id
-        );
-      } else if (a.partner_id != null) {
-        await onboardingAssistantsApi.removePartner(
-          assistantsEngagement.engagement_id,
-          a.partner_id
-        );
-      }
-      await fetchAssistants(assistantsEngagement.engagement_id);
-    } catch (err) {
-      setAssistantsError(getApiError(err));
-    } finally {
-      setRemovingAssistantKey(null);
-    }
-  };
-
-  const openAddAssistants = async (mode: AddAssigneeMode) => {
-    setAddAssigneeMode(mode);
-    setAddAssistantsOpen(true);
-    setSelectedPartnerIds(new Set());
-    setSelectedEmployeeIds(new Set());
-    setEmployeeSearch("");
-    setAddCandidatePartners([]);
-    setAddCandidateEmployees([]);
-    setAddCandidatesLoading(true);
-    try {
-      if (mode === "employee") {
-        const res = await employeesApi.list({ status: "active", limit: 100 });
-        setAddCandidateEmployees(
-          res.data.data.filter((e) => ASSIGNABLE_EMPLOYEE_ROLES.has((e.role || "").toLowerCase()))
-        );
-      } else {
-        const res = await partnersApi.list({ status: "active", role: mode, limit: 100 });
-        setAddCandidatePartners(res.data.data);
-      }
-    } catch (err) {
-      setAssistantsError(getApiError(err));
-    } finally {
-      setAddCandidatesLoading(false);
-    }
-  };
-
-  const togglePartnerSelection = (id: number) => {
-    setSelectedPartnerIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const toggleEmployeeSelection = (id: number) => {
-    setSelectedEmployeeIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const handleAssignAssistants = async () => {
-    if (!assistantsEngagement) return;
-    const selectingEmployees = addAssigneeMode === "employee";
-    if (selectingEmployees && selectedEmployeeIds.size === 0) return;
-    if (!selectingEmployees && selectedPartnerIds.size === 0) return;
-    setAssigningAssistants(true);
-    setAssistantsError(null);
-    try {
-      await onboardingAssistantsApi.assign(
-        assistantsEngagement.engagement_id,
-        selectingEmployees
-          ? { employee_ids: Array.from(selectedEmployeeIds) }
-          : { partner_ids: Array.from(selectedPartnerIds) }
-      );
-      setAddAssistantsOpen(false);
-      setSelectedPartnerIds(new Set());
-      setSelectedEmployeeIds(new Set());
-      await fetchAssistants(assistantsEngagement.engagement_id);
-    } catch (err) {
-      setAssistantsError(getApiError(err));
-    } finally {
-      setAssigningAssistants(false);
-    }
-  };
-
-  const assignedPartnerIds = new Set(
-    assistants.filter((a) => a.partner_id != null).map((a) => a.partner_id as number)
-  );
-  const assignedEmployeeIds = new Set(
-    assistants.filter((a) => a.employee_id != null && !a.partner_id).map((a) => a.employee_id as number)
-  );
-
-  const availablePartners = addCandidatePartners.filter((p) => !assignedPartnerIds.has(p.partner_id));
-  const availableEmployees = addCandidateEmployees.filter(
-    (e) => !assignedEmployeeIds.has(e.employee_id)
-  );
-
-  const q = employeeSearch.trim().toLowerCase();
-  const filteredPartners = q
-    ? availablePartners.filter((p) => {
-        const name = getPartnerDisplayName(p).toLowerCase();
-        return (
-          String(p.partner_id).includes(q) ||
-          (p.role ?? "").toLowerCase().includes(q) ||
-          (p.phone ?? "").toLowerCase().includes(q) ||
-          name.includes(q)
-        );
-      })
-    : availablePartners;
-  const filteredEmployees = q
-    ? availableEmployees.filter((e) => {
-        const name = getEmployeeDisplayName(e).toLowerCase();
-        return (
-          String(e.employee_id).includes(q) ||
-          (e.role ?? "").toLowerCase().includes(q) ||
-          (e.phone ?? "").toLowerCase().includes(q) ||
-          name.includes(q)
-        );
-      })
-    : availableEmployees;
-
-  const addModeLabel =
-    addAssigneeMode === "phlebo"
-      ? "phlebos"
-      : addAssigneeMode === "expert"
-        ? "experts"
-        : "employees";
-  const selectedCount =
-    addAssigneeMode === "employee" ? selectedEmployeeIds.size : selectedPartnerIds.size;
 
   const openParticipants = (row: EngagementListItem) => {
     setParticipantsSource({
@@ -1841,7 +1597,6 @@ export function Engagements({
             onView={openView}
             onParticipants={mayEditParticipants ? openParticipants : undefined}
             onOccupiedSlots={openOccupiedSlots}
-            onAssistants={mayEditParticipants ? openAssistantsModal : undefined}
             onManageChecklists={mayEditChecklists ? (r) => openChecklistModal(r) : undefined}
             onDelete={mayEditEngagements ? (r) => setDeleteConfirm(r) : undefined}
             renderExtraMenuItems={mayEditEngagements ? (row, closeMenu) => (
@@ -1974,7 +1729,7 @@ export function Engagements({
             setAddChecklistPromptOpen(false);
             setAddChecklistPromptEngagementId(null);
             setPendingAssistantsEngagementId(null);
-            if (id != null) void openAssistantsModalById(id);
+            if (id != null) void navigateToAssistantsTab(id);
           }}
           title="Add a checklist?"
           maxWidthClassName="max-w-md"
@@ -2007,7 +1762,7 @@ export function Engagements({
                 setAddChecklistPromptOpen(false);
                 setAddChecklistPromptEngagementId(null);
                 setPendingAssistantsEngagementId(null);
-                if (id != null) void openAssistantsModalById(id);
+                if (id != null) void navigateToAssistantsTab(id);
               }}
               disabled={addChecklistPromptBusy}
               className="w-full sm:w-auto px-4 py-2 rounded-lg border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50"
@@ -2159,293 +1914,6 @@ export function Engagements({
           <p className="text-sm text-zinc-500">No organisation details available.</p>
         )}
       </Modal>
-
-      {/* ── Onboarding Assistants Modal ─────────────────────── */}
-      <Modal
-        open={assistantsModalOpen}
-        onClose={closeAssistantsModal}
-        title={
-          assistantsEngagement
-            ? `Onboarding Assistants — ${assistantsEngagement.engagement_name || assistantsEngagement.engagement_code || "Engagement"}`
-            : "Onboarding Assistants"
-        }
-        maxWidthClassName="max-w-xl"
-      >
-        <div className="space-y-4">
-          {assistantsError && (
-            <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
-              {assistantsError}
-            </div>
-          )}
-
-          {assistantsEngagement &&
-            (assistantsEngagement.status ?? "").toLowerCase() === "running" && (
-              <div className="p-3 rounded-lg bg-zinc-50 border border-zinc-200">
-                <p className="text-xs font-medium text-zinc-600 mb-2">
-                  Console URL for assigned assistants
-                </p>
-                <ConsoleUrlActions engagementId={assistantsEngagement.engagement_id} />
-              </div>
-            )}
-
-          {/* Assigned assistants list */}
-          {!addAssistantsOpen && (
-            <>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm font-medium text-zinc-700">
-                  Assigned ({assistants.length})
-                </p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setCreatePhleboModalOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-300 bg-white text-zinc-700 text-xs font-medium hover:bg-zinc-50"
-                  >
-                    Create and Add phlebo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void openAddAssistants("phlebo")}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 text-white text-xs font-medium hover:bg-zinc-800"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Add phlebo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void openAddAssistants("expert")}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 text-white text-xs font-medium hover:bg-zinc-800"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Add expert
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void openAddAssistants("employee")}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 text-white text-xs font-medium hover:bg-zinc-800"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Add employee
-                  </button>
-                </div>
-              </div>
-
-              {assistantsLoading ? (
-                <div className="py-8 flex justify-center">
-                  <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
-                </div>
-              ) : assistants.length === 0 ? (
-                <div className="py-8 text-center text-sm text-zinc-500">
-                  No onboarding assistants assigned yet.
-                </div>
-              ) : (
-                <ul className="divide-y divide-zinc-100 border border-zinc-200 rounded-lg overflow-hidden">
-                  {assistants.map((a) => {
-                    const key = assistantRowKey(a);
-                    return (
-                      <li
-                        key={key}
-                        className="flex items-center justify-between gap-3 px-4 py-3 bg-white hover:bg-zinc-50"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center shrink-0">
-                            <UserCog className="w-4 h-4 text-zinc-500" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-zinc-900 truncate">
-                              {getAssistantDisplayName(a)}
-                            </p>
-                            <p className="text-xs text-zinc-500 truncate">
-                              {a.role ? `Role: ${formatStaffRoleLabel(a.role)}` : "No role"}{" "}
-                              <span
-                                className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ml-1 ${
-                                  a.status === "active"
-                                    ? "bg-green-100 text-green-700"
-                                    : "bg-zinc-100 text-zinc-500"
-                                }`}
-                              >
-                                {a.status ?? "—"}
-                              </span>
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => void handleRemoveAssistant(a)}
-                          disabled={removingAssistantKey === key}
-                          className="p-1.5 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 shrink-0"
-                          title="Remove assignee"
-                          aria-label="Remove assignee"
-                        >
-                          {removingAssistantKey === key ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="w-4 h-4" />
-                          )}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </>
-          )}
-
-          {/* Add assistants sub-panel */}
-          {addAssistantsOpen && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-zinc-700">
-                  Select {addModeLabel} to assign
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAddAssistantsOpen(false);
-                    setSelectedPartnerIds(new Set());
-                    setSelectedEmployeeIds(new Set());
-                    setEmployeeSearch("");
-                  }}
-                  className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100"
-                  aria-label="Close"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-                <input
-                  type="search"
-                  placeholder="Search by name, role, or ID…"
-                  value={employeeSearch}
-                  onChange={(e) => setEmployeeSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent"
-                />
-              </div>
-
-              {addCandidatesLoading ? (
-                <div className="py-8 flex justify-center">
-                  <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
-                </div>
-              ) : addAssigneeMode === "employee" ? (
-                filteredEmployees.length === 0 ? (
-                  <div className="py-6 text-center text-sm text-zinc-500">
-                    {availableEmployees.length === 0
-                      ? "All eligible employees are already assigned."
-                      : "No employees match your search."}
-                  </div>
-                ) : (
-                  <ul className="divide-y divide-zinc-100 border border-zinc-200 rounded-lg overflow-hidden max-h-64 overflow-y-auto">
-                    {filteredEmployees.map((e) => {
-                      const checked = selectedEmployeeIds.has(e.employee_id);
-                      return (
-                        <li
-                          key={e.employee_id}
-                          className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-zinc-50 ${
-                            checked ? "bg-zinc-50" : "bg-white"
-                          }`}
-                          onClick={() => toggleEmployeeSelection(e.employee_id)}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleEmployeeSelection(e.employee_id)}
-                            onClick={(ev) => ev.stopPropagation()}
-                            className="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 shrink-0"
-                          />
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-zinc-900 truncate">
-                              {getEmployeeDisplayName(e)}
-                            </p>
-                            <p className="text-xs text-zinc-500 truncate">
-                              {e.phone || e.email || (e.role ? `Role: ${e.role}` : "Employee")}
-                            </p>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )
-              ) : filteredPartners.length === 0 ? (
-                <div className="py-6 text-center text-sm text-zinc-500">
-                  {availablePartners.length === 0
-                    ? `All active ${addModeLabel} are already assigned.`
-                    : `No ${addModeLabel} match your search.`}
-                </div>
-              ) : (
-                <ul className="divide-y divide-zinc-100 border border-zinc-200 rounded-lg overflow-hidden max-h-64 overflow-y-auto">
-                  {filteredPartners.map((p) => {
-                    const checked = selectedPartnerIds.has(p.partner_id);
-                    return (
-                      <li
-                        key={p.partner_id}
-                        className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-zinc-50 ${
-                          checked ? "bg-zinc-50" : "bg-white"
-                        }`}
-                        onClick={() => togglePartnerSelection(p.partner_id)}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => togglePartnerSelection(p.partner_id)}
-                          onClick={(ev) => ev.stopPropagation()}
-                          className="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 shrink-0"
-                        />
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-zinc-900 truncate">
-                            {getPartnerDisplayName(p)}
-                          </p>
-                          <p className="text-xs text-zinc-500 truncate">
-                            {p.phone || p.email || (p.role ? `Role: ${p.role}` : addAssigneeMode)}
-                          </p>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-
-              <div className="flex flex-col-reverse sm:flex-row gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => void handleAssignAssistants()}
-                  disabled={selectedCount === 0 || assigningAssistants}
-                  className="w-full sm:w-auto px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 disabled:opacity-50"
-                >
-                  {assigningAssistants
-                    ? "Assigning…"
-                    : `Assign${selectedCount > 0 ? ` (${selectedCount})` : ""}`}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAddAssistantsOpen(false);
-                    setSelectedPartnerIds(new Set());
-                    setSelectedEmployeeIds(new Set());
-                    setEmployeeSearch("");
-                  }}
-                  className="w-full sm:w-auto px-4 py-2 rounded-lg border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </Modal>
-
-      {assistantsEngagement && (
-        <CreatePhleboModal
-          open={createPhleboModalOpen}
-          onClose={() => setCreatePhleboModalOpen(false)}
-          engagementId={assistantsEngagement.engagement_id}
-          onSuccess={async () => {
-            setAssistantsError(null);
-            await fetchAssistants(assistantsEngagement.engagement_id);
-          }}
-        />
-      )}
 
     </>
   );

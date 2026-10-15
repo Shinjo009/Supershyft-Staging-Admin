@@ -161,7 +161,7 @@ export function EngagementFormPage({ mode }: { mode: FormPageMode }) {
         const createdRow = created.data.data as { engagement_id: number; engagement_code?: string };
         const code = (createdRow.engagement_code ?? "").trim();
         if (code) {
-          navigate(`/engagements/${encodeURIComponent(code)}`);
+          navigate(`/engagements/${encodeURIComponent(code)}?tab=assistants`);
         } else {
           navigate("/engagements");
         }

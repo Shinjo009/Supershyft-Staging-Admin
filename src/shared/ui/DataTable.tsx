@@ -10,7 +10,6 @@ import {
   ListChecks,
   ClipboardCheck,
   Users,
-  UserCog,
   CalendarClock,
   CalendarDays,
   Building2,
@@ -69,7 +68,6 @@ interface DataTableProps<T> {
   onQuestions?: (row: T) => void;
   onQuestionsLabel?: string;
   onParticipants?: (row: T) => void;
-  onAssistants?: (row: T) => void;
   onOccupiedSlots?: (row: T) => void;
   /** Engagement checklist manager (shown with ClipboardCheck icon). */
   onManageChecklists?: (row: T) => void;
@@ -108,7 +106,6 @@ interface SortableRowProps<T> {
   onQuestions?: (row: T) => void;
   onQuestionsLabel: string;
   onParticipants?: (row: T) => void;
-  onAssistants?: (row: T) => void;
   onOccupiedSlots?: (row: T) => void;
   onManageChecklists?: (row: T) => void;
   onManageChecklistsLabel: string;
@@ -219,11 +216,6 @@ function SortableRow<T extends object>(props: SortableRowProps<T>) {
                   <Users className="w-4 h-4" /> View Participants
                 </button>
               )}
-              {props.onAssistants && (
-                <button onClick={() => { props.onAssistants!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2">
-                  <UserCog className="w-4 h-4" /> Manage Onboarding Assistants
-                </button>
-              )}
               {props.onOccupiedSlots && (
                 <button onClick={() => { props.onOccupiedSlots!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2">
                   <CalendarClock className="w-4 h-4" /> View Occupied Slots
@@ -296,7 +288,6 @@ export function DataTable<T extends object>(
     onQuestions: requestedOnQuestions,
     onQuestionsLabel = "Manage Questions",
     onParticipants: requestedOnParticipants,
-    onAssistants: requestedOnAssistants,
     onOccupiedSlots: requestedOnOccupiedSlots,
     onManageChecklists: requestedOnManageChecklists,
     onManageChecklistsLabel = "Manage Checklists",
@@ -313,7 +304,6 @@ export function DataTable<T extends object>(
   const onDelete = mutationsAllowed ? requestedOnDelete : undefined;
   const onQuestions = mutationsAllowed ? requestedOnQuestions : undefined;
   const onParticipants = mutationsAllowed ? requestedOnParticipants : undefined;
-  const onAssistants = mutationsAllowed ? requestedOnAssistants : undefined;
   const onOccupiedSlots = mutationsAllowed ? requestedOnOccupiedSlots : undefined;
   const onManageChecklists = mutationsAllowed ? requestedOnManageChecklists : undefined;
   const onSendMessage = mutationsAllowed ? requestedOnSendMessage : undefined;
@@ -357,7 +347,6 @@ export function DataTable<T extends object>(
     onDelete ||
     onQuestions ||
     onParticipants ||
-    onAssistants ||
     onOccupiedSlots ||
     onManageChecklists ||
     onViewEngagements ||
@@ -445,7 +434,6 @@ export function DataTable<T extends object>(
                   onQuestions={onQuestions}
                   onQuestionsLabel={onQuestionsLabel}
                   onParticipants={onParticipants}
-                  onAssistants={onAssistants}
                   onOccupiedSlots={onOccupiedSlots}
                   onManageChecklists={onManageChecklists}
                   onManageChecklistsLabel={onManageChecklistsLabel}
