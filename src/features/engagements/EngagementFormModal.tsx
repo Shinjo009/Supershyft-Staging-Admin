@@ -75,6 +75,14 @@ export type EngagementFormStepKey = "basics" | "location" | "offerings" | "sched
 
 type StepKey = EngagementFormStepKey;
 
+function shouldIncludeNotificationsInSave(step: StepKey): boolean {
+  return step === "notifications";
+}
+
+function shouldIncludeSlotDetailInSave(step: StepKey): boolean {
+  return step === "schedule" || step === "notifications";
+}
+
 const inputClass =
   "w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900";
 
@@ -896,8 +904,8 @@ export function EngagementFormWizard({
     return true;
   };
 
-  const buildWizardPayload = (): EngagementCreate => {
-    const notifications = buildNotificationsPayload();
+  const buildWizardPayload = (options?: { forStep?: StepKey }): EngagementCreate => {
+    const saveStep = options?.forStep ?? currentStepKey;
 
     let consultations = formData.consultations ?? null;
     if (selectedTypeCode && !typeConfig.needsConsultation) {
@@ -920,11 +928,16 @@ export function EngagementFormWizard({
       ),
     );
 
+    const { notifications: _formNotifications, slot_detail: _formSlotDetail, ...formRest } =
+      formData;
+
     return {
-      ...formData,
+      ...formRest,
       consultations,
-      slot_detail: prunedSlotDetail,
-      notifications,
+      ...(shouldIncludeSlotDetailInSave(saveStep) ? { slot_detail: prunedSlotDetail } : {}),
+      ...(shouldIncludeNotificationsInSave(saveStep)
+        ? { notifications: buildNotificationsPayload() }
+        : {}),
       assessment_package_id:
         kind && typeConfig.needsAssessment ? formData.assessment_package_id ?? null : null,
       diagnostic_package_id:
@@ -973,7 +986,7 @@ export function EngagementFormWizard({
 
   const handleFinalSubmit = () => {
     if (!validateForFinalSubmit()) return;
-    onSubmit(buildWizardPayload());
+    onSubmit(buildWizardPayload({ forStep: "notifications" }));
   };
 
   const handleSaveAndNext = async () => {
@@ -986,7 +999,7 @@ export function EngagementFormWizard({
       return;
     }
 
-    const payload = buildWizardPayload();
+    const payload = buildWizardPayload({ forStep: currentStepKey });
     if (onSaveAndContinue) {
       const advanced = await onSaveAndContinue(payload, { onDeferredSuccess: goNext });
       if (advanced) goNext();

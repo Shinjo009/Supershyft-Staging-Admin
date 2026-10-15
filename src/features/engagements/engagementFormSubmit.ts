@@ -67,41 +67,46 @@ export function buildEngagementUpdatePayload(data: EngagementCreate) {
   }
   const locationFields = buildEngagementLocationFields(data);
   const nextCampNo = computeCampNo(orgId, data.start_date);
+  const payload: Record<string, unknown> = {
+    engagement_name: data.engagement_name,
+    engagement_code: (data.engagement_code ?? "").trim(),
+    metsights_engagement_id: data.metsights_engagement_id?.trim() || null,
+    organization_id: orgId,
+    engagement_type: data.engagement_type,
+    consultations: data.consultations ?? null,
+    assessment_package_id:
+      data.assessment_package_id && data.assessment_package_id > 0 ? data.assessment_package_id : null,
+    diagnostic_package_id:
+      data.diagnostic_package_id && data.diagnostic_package_id > 0 ? data.diagnostic_package_id : null,
+    diagnostic_package_id_male:
+      data.diagnostic_package_id_male && data.diagnostic_package_id_male > 0
+        ? data.diagnostic_package_id_male
+        : null,
+    diagnostic_package_id_female:
+      data.diagnostic_package_id_female && data.diagnostic_package_id_female > 0
+        ? data.diagnostic_package_id_female
+        : null,
+    ...locationFields,
+    slot_duration: data.slot_duration,
+    start_date: data.start_date,
+    end_date: data.end_date,
+    healthians_zone_id: data.healthians_zone_id?.trim() || null,
+    external_camp_id: data.external_camp_id ?? null,
+    blood_collection_type: data.blood_collection_type || null,
+    consultation_mode: data.consultation_mode || null,
+    create_profile_on_metsights: Boolean(data.create_profile_on_metsights),
+    enroll_for_fitprint_full: Boolean(data.enroll_for_fitprint_full),
+    load_prev_assessment_questionnaires: Boolean(data.load_prev_assessment_questionnaires),
+    load_prev_questionnaire_category_keys: data.load_prev_questionnaire_category_keys ?? null,
+  };
+  if (data.notifications !== undefined) {
+    payload.notifications = data.notifications;
+  }
+  if (data.slot_detail !== undefined) {
+    payload.slot_detail = data.slot_detail;
+  }
   return {
-    payload: {
-      engagement_name: data.engagement_name,
-      engagement_code: (data.engagement_code ?? "").trim(),
-      metsights_engagement_id: data.metsights_engagement_id?.trim() || null,
-      organization_id: orgId,
-      engagement_type: data.engagement_type,
-      consultations: data.consultations ?? null,
-      assessment_package_id:
-        data.assessment_package_id && data.assessment_package_id > 0 ? data.assessment_package_id : null,
-      diagnostic_package_id:
-        data.diagnostic_package_id && data.diagnostic_package_id > 0 ? data.diagnostic_package_id : null,
-      diagnostic_package_id_male:
-        data.diagnostic_package_id_male && data.diagnostic_package_id_male > 0
-          ? data.diagnostic_package_id_male
-          : null,
-      diagnostic_package_id_female:
-        data.diagnostic_package_id_female && data.diagnostic_package_id_female > 0
-          ? data.diagnostic_package_id_female
-          : null,
-      ...locationFields,
-      slot_duration: data.slot_duration,
-      start_date: data.start_date,
-      end_date: data.end_date,
-      healthians_zone_id: data.healthians_zone_id?.trim() || null,
-      external_camp_id: data.external_camp_id ?? null,
-      blood_collection_type: data.blood_collection_type || null,
-      consultation_mode: data.consultation_mode || null,
-      create_profile_on_metsights: Boolean(data.create_profile_on_metsights),
-      enroll_for_fitprint_full: Boolean(data.enroll_for_fitprint_full),
-      load_prev_assessment_questionnaires: Boolean(data.load_prev_assessment_questionnaires),
-      load_prev_questionnaire_category_keys: data.load_prev_questionnaire_category_keys ?? null,
-      notifications: data.notifications ?? [],
-      slot_detail: data.slot_detail ?? null,
-    },
+    payload,
     nextCampNo,
   };
 }
