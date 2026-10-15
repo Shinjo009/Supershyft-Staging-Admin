@@ -518,9 +518,12 @@ export function EngagementFormWizard({
     (section: "blood_collection" | "consultation") => {
       const data = slotDetail[section];
       if (!data) return false;
-      return Object.values(data).some(
-        (entry) => entry.cabins.length > 0 || entry.is_enable === false
-      );
+      return Object.entries(data).some(([key, entry]) => {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return false;
+        if (!entry || typeof entry !== "object" || !("cabins" in entry)) return false;
+        const dateEntry = entry as { cabins: { length: number }; is_enable?: boolean };
+        return dateEntry.cabins.length > 0 || dateEntry.is_enable === false;
+      });
     },
     [slotDetail]
   );

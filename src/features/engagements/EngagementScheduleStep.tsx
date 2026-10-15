@@ -34,7 +34,9 @@ import {
   createEmptyCabin,
   getCabinsForDate,
   isSectionDateEnabled,
+  isSectionEnabled,
   normalizeDateEntry,
+  setSectionEnabled,
   normalizeCabinKeyInput,
   effectiveSlotCapacity,
   generateCabinSlotRows,
@@ -292,6 +294,11 @@ export function EngagementScheduleStep({
     onSlotDetailChange(setDateEnabled(slotDetail, date, !enabled, [section]));
   };
 
+  const handleToggleSectionEnabled = (section: CabinSectionKey) => {
+    const enabled = isSectionEnabled(slotDetail, section);
+    onSlotDetailChange(setSectionEnabled(slotDetail, section, !enabled));
+  };
+
   const startNewCabin = (section: CabinSectionKey, date: string) => {
     setCabinError(null);
     setEditingBreak(null);
@@ -516,6 +523,9 @@ export function EngagementScheduleStep({
           <span>
             Blood: {summary.bloodDates} date{summary.bloodDates === 1 ? "" : "s"},{" "}
             {summary.bloodCabins} cabin{summary.bloodCabins === 1 ? "" : "s"}
+            {!isSectionEnabled(slotDetail, "blood_collection") ? (
+              <span className="text-zinc-500"> · Disabled</span>
+            ) : null}
           </span>
         )}
         {showBlood && showConsult ? <span className="text-zinc-400">·</span> : null}
@@ -523,6 +533,9 @@ export function EngagementScheduleStep({
           <span>
             Consultation: {summary.consultDates} date{summary.consultDates === 1 ? "" : "s"},{" "}
             {summary.consultCabins} cabin{summary.consultCabins === 1 ? "" : "s"}
+            {!isSectionEnabled(slotDetail, "consultation") ? (
+              <span className="text-zinc-500"> · Disabled</span>
+            ) : null}
           </span>
         )}
         {summary.bloodCabins === 0 && summary.consultCabins === 0 ? (
@@ -542,26 +555,58 @@ export function EngagementScheduleStep({
       </p>
 
       {showTabs && (
-        <div className="flex gap-1 border-b border-zinc-200">
-          {(["blood_collection", "consultation"] as const).map((section) => (
+        <div className="space-y-2">
+          <div className="flex gap-1 border-b border-zinc-200">
+            {(["blood_collection", "consultation"] as const).map((section) => (
+              <button
+                key={section}
+                type="button"
+                onClick={() => setActiveTab(section)}
+                className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                  activeTab === section
+                    ? "border-zinc-900 text-zinc-900"
+                    : "border-transparent text-zinc-500 hover:text-zinc-700"
+                }`}
+              >
+                {sectionTitle(section)}
+              </button>
+            ))}
+          </div>
+          <div className="flex justify-end">
             <button
-              key={section}
               type="button"
-              onClick={() => setActiveTab(section)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                activeTab === section
-                  ? "border-zinc-900 text-zinc-900"
-                  : "border-transparent text-zinc-500 hover:text-zinc-700"
+              onClick={() => handleToggleSectionEnabled(currentSection)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${
+                isSectionEnabled(slotDetail, currentSection)
+                  ? "border-zinc-300 text-zinc-700 hover:bg-zinc-50"
+                  : "border-emerald-200 text-emerald-800 bg-emerald-50 hover:bg-emerald-100"
               }`}
             >
-              {sectionTitle(section)}
+              {isSectionEnabled(slotDetail, currentSection) ? "Disable section" : "Enable section"}
             </button>
-          ))}
+          </div>
+        </div>
+      )}
+
+      {!showTabs && (showBlood || showConsult) && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => handleToggleSectionEnabled(currentSection)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${
+              isSectionEnabled(slotDetail, currentSection)
+                ? "border-zinc-300 text-zinc-700 hover:bg-zinc-50"
+                : "border-emerald-200 text-emerald-800 bg-emerald-50 hover:bg-emerald-100"
+            }`}
+          >
+            {isSectionEnabled(slotDetail, currentSection) ? "Disable section" : "Enable section"}
+          </button>
         </div>
       )}
 
       <SectionSchedulePanel
         section={currentSection}
+        sectionEnabled={isSectionEnabled(slotDetail, currentSection)}
         sortedDates={currentDates}
         selectedDate={currentSelectedDate}
         setSelectedDate={setCurrentSelectedDate}
@@ -681,6 +726,7 @@ function ScheduleDrawer({
 
 function SectionSchedulePanel({
   section,
+  sectionEnabled,
   sortedDates,
   selectedDate,
   setSelectedDate,
@@ -705,6 +751,7 @@ function SectionSchedulePanel({
   expertTypes = [],
 }: {
   section: CabinSectionKey;
+  sectionEnabled: boolean;
   sortedDates: string[];
   selectedDate: string | null;
   setSelectedDate: (d: string) => void;
@@ -732,9 +779,16 @@ function SectionSchedulePanel({
     section === "blood_collection" ? "Add Blood-Test Cabin" : "Add Consultation Cabin";
   const selectedDateEnabled =
     selectedDate != null ? isSectionDateEnabled(slotDetail, section, selectedDate) : true;
+  const canEditSchedule = sectionEnabled && selectedDateEnabled;
 
   return (
-    <div className="space-y-3 min-w-0">
+    <div className={`space-y-3 min-w-0 ${!sectionEnabled ? "opacity-60" : ""}`}>
+      {!sectionEnabled && (
+        <p className="text-sm text-zinc-600 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2">
+          This section is disabled. Dates and cabins are kept but participants cannot book until you
+          enable the section.
+        </p>
+      )}
       {sortedDates.length === 0 ? (
         <div className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-6 text-center">
           <Calendar className="w-8 h-8 text-zinc-400 mx-auto mb-2" />
@@ -746,8 +800,9 @@ function SectionSchedulePanel({
             <button
               ref={addBtnRef}
               type="button"
-              onClick={() => setCalendarOpen((open) => !open)}
-              className="px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 inline-flex items-center gap-1.5"
+              disabled={!sectionEnabled}
+              onClick={() => sectionEnabled && setCalendarOpen((open) => !open)}
+              className="px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="w-4 h-4" />
               Add Date
@@ -810,7 +865,8 @@ function SectionSchedulePanel({
                           ? "text-white/80 hover:bg-white/10"
                           : "text-zinc-400 hover:bg-zinc-100 hover:text-red-600"
                       }`}
-                      onClick={() => onRemoveDate(date)}
+                      disabled={!sectionEnabled}
+                      onClick={() => sectionEnabled && onRemoveDate(date)}
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -822,8 +878,9 @@ function SectionSchedulePanel({
               <button
                 ref={addBtnRef}
                 type="button"
-                onClick={() => setCalendarOpen((open) => !open)}
-                className="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm font-medium text-zinc-800 hover:bg-zinc-50 inline-flex items-center justify-center gap-1.5"
+                disabled={!sectionEnabled}
+                onClick={() => sectionEnabled && setCalendarOpen((open) => !open)}
+                className="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm font-medium text-zinc-800 hover:bg-zinc-50 inline-flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Plus className="w-4 h-4" />
                 Add Date
@@ -850,8 +907,9 @@ function SectionSchedulePanel({
             </div>
             <button
               type="button"
-              onClick={() => onToggleDateEnabled(selectedDate)}
-              className={`px-3 py-1.5 rounded-lg border text-sm font-medium ${
+              disabled={!sectionEnabled}
+              onClick={() => sectionEnabled && onToggleDateEnabled(selectedDate)}
+              className={`px-3 py-1.5 rounded-lg border text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${
                 selectedDateEnabled
                   ? "border-zinc-300 text-zinc-800 hover:bg-zinc-50"
                   : "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
@@ -861,7 +919,7 @@ function SectionSchedulePanel({
             </button>
           </div>
 
-          {selectedDateEnabled && (
+          {canEditSchedule && (
             <>
               <button
                 type="button"
@@ -1141,7 +1199,12 @@ function CabinSlotView({
           return;
         }
         setPersisted(true);
-        const publicCabin = engagement.public_slot_detail?.[section]?.[date]?.cabins?.find(
+        const publicDateRaw = engagement.public_slot_detail?.[section]?.[date];
+        const publicDateEntry =
+          publicDateRaw && typeof publicDateRaw === "object" && "cabins" in publicDateRaw
+            ? publicDateRaw
+            : undefined;
+        const publicCabin = publicDateEntry?.cabins?.find(
           (item) => item.cabin_key === cabin.cabin_key
         );
         const booked: Record<string, number> = {};

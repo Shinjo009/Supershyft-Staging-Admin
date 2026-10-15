@@ -2221,7 +2221,11 @@ export interface DateSlotConfig {
   cabins: CabinSlotConfig[];
 }
 
-export type SlotDetailSection = Record<string, DateSlotConfig>;
+/** Flat section: optional section-level `is_enable` plus `YYYY-MM-DD` date entries. */
+export type SlotDetailSection = {
+  is_enable?: boolean;
+  [date: string]: DateSlotConfig | boolean | undefined;
+};
 
 export interface SlotDetail {
   blood_collection?: SlotDetailSection | null;
@@ -2260,7 +2264,10 @@ export interface PublicDateSlotConfig {
   cabins: PublicCabinSlot[];
 }
 
-export type PublicSlotDetailSection = Record<string, PublicDateSlotConfig>;
+export type PublicSlotDetailSection = {
+  is_enable?: boolean;
+  [date: string]: PublicDateSlotConfig | boolean | undefined;
+};
 
 export interface PublicSlotDetail {
   blood_collection?: PublicSlotDetailSection | null;

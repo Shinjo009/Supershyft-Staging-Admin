@@ -8,6 +8,33 @@ import type {
 
 export type CabinSectionKey = "blood_collection" | "consultation";
 
+const SLOT_DETAIL_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function isSlotDetailDateKey(key: string): boolean {
+  return SLOT_DETAIL_DATE_RE.test(key);
+}
+
+export function isSectionEnabled(slotDetail: SlotDetail, section: CabinSectionKey): boolean {
+  const sectionData = slotDetail[section];
+  if (!sectionData) return true;
+  return sectionData.is_enable !== false;
+}
+
+export function setSectionEnabled(
+  slotDetail: SlotDetail,
+  section: CabinSectionKey,
+  enabled: boolean
+): SlotDetail {
+  const sectionData: SlotDetailSection = { ...(slotDetail[section] ?? {}) };
+  sectionData.is_enable = enabled;
+  return { ...slotDetail, [section]: sectionData };
+}
+
+function asDateSlotConfig(value: unknown): DateSlotConfig | null {
+  if (!isDateSlotConfig(value)) return null;
+  return value;
+}
+
 export function emptySlotDetail(): SlotDetail {
   return {};
 }
@@ -42,7 +69,13 @@ export function normalizeDateEntry(raw: unknown): DateSlotConfig {
 function normalizeSection(section: SlotDetailSection | null | undefined): SlotDetailSection | undefined {
   if (!section) return undefined;
   const next: SlotDetailSection = {};
+  if (section.is_enable === false) {
+    next.is_enable = false;
+  } else if (section.is_enable === true) {
+    next.is_enable = true;
+  }
   for (const [date, raw] of Object.entries(section)) {
+    if (!isSlotDetailDateKey(date)) continue;
     next[date] = normalizeDateEntry(raw);
   }
   return next;
@@ -63,7 +96,9 @@ export function collectDates(slotDetail: SlotDetail): string[] {
   const dates = new Set<string>();
   for (const section of [slotDetail.blood_collection, slotDetail.consultation]) {
     if (!section) continue;
-    for (const d of Object.keys(section)) dates.add(d);
+    for (const d of Object.keys(section)) {
+      if (isSlotDetailDateKey(d)) dates.add(d);
+    }
   }
   return Array.from(dates).sort();
 }
@@ -74,15 +109,18 @@ export function collectDatesForSection(
 ): string[] {
   const sectionData = slotDetail[section];
   if (!sectionData) return [];
-  return Object.keys(sectionData).sort();
+  return Object.keys(sectionData).filter(isSlotDetailDateKey).sort();
 }
 
 function allCabinKeys(slotDetail: SlotDetail): Set<string> {
   const keys = new Set<string>();
   for (const section of [slotDetail.blood_collection, slotDetail.consultation]) {
     if (!section) continue;
-    for (const entry of Object.values(section)) {
-      for (const cabin of entry.cabins) keys.add(cabin.cabin_key);
+    for (const [dateKey, entry] of Object.entries(section)) {
+      if (!isSlotDetailDateKey(dateKey)) continue;
+      const dateEntry = asDateSlotConfig(entry);
+      if (!dateEntry) continue;
+      for (const cabin of dateEntry.cabins) keys.add(cabin.cabin_key);
     }
   }
   return keys;
@@ -153,7 +191,8 @@ export function getDateEntry(
   section: CabinSectionKey,
   date: string
 ): DateSlotConfig | undefined {
-  return slotDetail[section]?.[date];
+  const raw = slotDetail[section]?.[date];
+  return asDateSlotConfig(raw) ?? undefined;
 }
 
 export function getCabinsForDate(
@@ -161,7 +200,7 @@ export function getCabinsForDate(
   section: CabinSectionKey,
   date: string
 ): CabinSlotConfig[] {
-  return slotDetail[section]?.[date]?.cabins ?? [];
+  return getDateEntry(slotDetail, section, date)?.cabins ?? [];
 }
 
 /**
@@ -171,7 +210,7 @@ export function getCabinsForDate(
 export function isDateEnabled(slotDetail: SlotDetail, date: string): boolean {
   const sections: CabinSectionKey[] = ["blood_collection", "consultation"];
   for (const section of sections) {
-    const entry = slotDetail[section]?.[date];
+    const entry = asDateSlotConfig(slotDetail[section]?.[date]);
     if (!entry) continue;
     if (entry.is_enable === false) return false;
   }
@@ -183,7 +222,7 @@ export function isSectionDateEnabled(
   section: CabinSectionKey,
   date: string
 ): boolean {
-  const entry = slotDetail[section]?.[date];
+  const entry = asDateSlotConfig(slotDetail[section]?.[date]);
   if (!entry) return true;
   return entry.is_enable !== false;
 }
@@ -201,7 +240,7 @@ export function setDateEnabled(
   let next: SlotDetail = { ...slotDetail };
   for (const section of sections) {
     const sectionData: SlotDetailSection = { ...(next[section] ?? {}) };
-    const existing = sectionData[date];
+    const existing = asDateSlotConfig(sectionData[date]);
     sectionData[date] = {
       is_enable: enabled,
       cabins: existing ? [...existing.cabins] : [],
@@ -219,7 +258,7 @@ export function upsertCabin(
   originalKey?: string
 ): SlotDetail {
   const sectionData: SlotDetailSection = { ...(slotDetail[section] ?? {}) };
-  const existing = sectionData[date] ?? { is_enable: true, cabins: [] };
+  const existing = asDateSlotConfig(sectionData[date]) ?? { is_enable: true, cabins: [] };
   const list = [...existing.cabins];
   const matchKey = originalKey || cabin.cabin_key;
   const idx = matchKey ? list.findIndex((c) => c.cabin_key === matchKey) : -1;
@@ -236,7 +275,7 @@ export function removeCabin(
   cabinKey: string
 ): SlotDetail {
   const sectionData: SlotDetailSection = { ...(slotDetail[section] ?? {}) };
-  const existing = sectionData[date];
+  const existing = asDateSlotConfig(sectionData[date]);
   if (!existing) return slotDetail;
   const list = existing.cabins.filter((c) => c.cabin_key !== cabinKey);
   if (list.length === 0) {
@@ -245,7 +284,8 @@ export function removeCabin(
     sectionData[date] = { is_enable: existing.is_enable !== false, cabins: list };
   }
   const next: SlotDetail = { ...slotDetail, [section]: sectionData };
-  if (Object.keys(sectionData).length === 0) {
+  const dateKeyCount = Object.keys(sectionData).filter(isSlotDetailDateKey).length;
+  if (dateKeyCount === 0 && sectionData.is_enable === undefined) {
     delete next[section];
   }
   return pruneEmptyDates(next);
@@ -268,11 +308,17 @@ export function removeDate(slotDetail: SlotDetail, date: string): SlotDetail {
   };
   if (next.blood_collection) {
     delete next.blood_collection[date];
-    if (Object.keys(next.blood_collection).length === 0) delete next.blood_collection;
+    const bloodDates = Object.keys(next.blood_collection).filter(isSlotDetailDateKey);
+    if (bloodDates.length === 0 && next.blood_collection.is_enable === undefined) {
+      delete next.blood_collection;
+    }
   }
   if (next.consultation) {
     delete next.consultation[date];
-    if (Object.keys(next.consultation).length === 0) delete next.consultation;
+    const consultDates = Object.keys(next.consultation).filter(isSlotDetailDateKey);
+    if (consultDates.length === 0 && next.consultation.is_enable === undefined) {
+      delete next.consultation;
+    }
   }
   return next;
 }
@@ -287,7 +333,8 @@ export function removeDateFromSection(
   const nextSection = { ...sectionData };
   delete nextSection[date];
   const next: SlotDetail = { ...slotDetail };
-  if (Object.keys(nextSection).length === 0) {
+  const dateKeyCount = Object.keys(nextSection).filter(isSlotDetailDateKey).length;
+  if (dateKeyCount === 0 && nextSection.is_enable === undefined) {
     delete next[section];
   } else {
     next[section] = nextSection;
@@ -310,15 +357,27 @@ function pruneEmptyDates(slotDetail: SlotDetail): SlotDetail {
     const section = next[key];
     if (!section) continue;
     const cleaned: SlotDetailSection = {};
+    if (section.is_enable === false) {
+      cleaned.is_enable = false;
+    } else if (section.is_enable === true) {
+      cleaned.is_enable = true;
+    }
     for (const [d, entry] of Object.entries(section)) {
+      if (!isSlotDetailDateKey(d)) continue;
+      const dateEntry = asDateSlotConfig(entry);
+      if (!dateEntry) continue;
       // Keep date wrappers that still have cabins, or that are explicitly disabled
       // (so disable state survives submit even with empty cabin lists after edits).
-      if (entry.cabins.length > 0 || entry.is_enable === false) {
-        cleaned[d] = entry;
+      if (dateEntry.cabins.length > 0 || dateEntry.is_enable === false) {
+        cleaned[d] = dateEntry;
       }
     }
-    if (Object.keys(cleaned).length === 0) delete next[key];
-    else next[key] = cleaned;
+    const hasDates = Object.keys(cleaned).some(isSlotDetailDateKey);
+    if (!hasDates && cleaned.is_enable === undefined) {
+      delete next[key];
+    } else {
+      next[key] = cleaned;
+    }
   }
   return next;
 }
@@ -326,6 +385,11 @@ function pruneEmptyDates(slotDetail: SlotDetail): SlotDetail {
 export function slotDetailForSubmit(slotDetail: SlotDetail): SlotDetail | null {
   const pruned = pruneEmptyDates(slotDetail);
   if (!pruned.blood_collection && !pruned.consultation) return null;
+  for (const key of ["blood_collection", "consultation"] as const) {
+    const section = pruned[key];
+    if (!section) continue;
+    section.is_enable = section.is_enable !== false;
+  }
   return pruned;
 }
 
@@ -481,7 +545,10 @@ export function importableCabinsFromSlotDetail(
     const sectionData = normalized[section];
     if (!sectionData) continue;
     for (const [date, entry] of Object.entries(sectionData)) {
-      for (const cabin of entry.cabins) {
+      if (!isSlotDetailDateKey(date)) continue;
+      const dateEntry = asDateSlotConfig(entry);
+      if (!dateEntry) continue;
+      for (const cabin of dateEntry.cabins) {
         items.push({ section, date, cabin: normalizeCabinTimes({ ...cabin }) });
       }
     }

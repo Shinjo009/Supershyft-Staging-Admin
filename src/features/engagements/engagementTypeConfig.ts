@@ -260,14 +260,25 @@ export function summarizeSlotDetail(slotDetail: SlotDetail | null | undefined): 
   const bloodSection = normalized.blood_collection ?? {};
   const consultSection = normalized.consultation ?? {};
 
+  const countSection = (section: Record<string, unknown>) => {
+    let dates = 0;
+    let cabins = 0;
+    for (const [key, entry] of Object.entries(section)) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) continue;
+      if (!entry || typeof entry !== "object" || !("cabins" in entry)) continue;
+      dates += 1;
+      const list = (entry as { cabins?: unknown }).cabins;
+      cabins += Array.isArray(list) ? list.length : 0;
+    }
+    return { dates, cabins };
+  };
+  const blood = countSection(bloodSection);
+  const consult = countSection(consultSection);
   return {
-    bloodDates: Object.keys(bloodSection).length,
-    consultDates: Object.keys(consultSection).length,
-    bloodCabins: Object.values(bloodSection).reduce((n, entry) => n + (entry.cabins?.length ?? 0), 0),
-    consultCabins: Object.values(consultSection).reduce(
-      (n, entry) => n + (entry.cabins?.length ?? 0),
-      0
-    ),
+    bloodDates: blood.dates,
+    consultDates: consult.dates,
+    bloodCabins: blood.cabins,
+    consultCabins: consult.cabins,
   };
 }
 

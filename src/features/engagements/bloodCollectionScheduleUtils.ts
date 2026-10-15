@@ -1,4 +1,10 @@
-import type { PublicCabinSlot, PublicSlotDetail } from "../../lib/api";
+import type { PublicCabinSlot, PublicDateSlotConfig, PublicSlotDetail } from "../../lib/api";
+
+const SLOT_DETAIL_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function isPublicDateEntry(value: unknown): value is PublicDateSlotConfig {
+  return typeof value === "object" && value !== null && ("cabins" in value || "is_enable" in value);
+}
 
 export function normalizeSlotToHhmm(value: string | null | undefined): string {
   const text = (value ?? "").trim();
@@ -11,13 +17,16 @@ export function normalizeSlotToHhmm(value: string | null | undefined): string {
 }
 
 function getBloodSection(slotDetail: PublicSlotDetail | null | undefined) {
-  return slotDetail?.blood_collection ?? null;
+  const section = slotDetail?.blood_collection ?? null;
+  if (!section || section.is_enable === false) return null;
+  return section;
 }
 
 function getDateEntry(slotDetail: PublicSlotDetail | null | undefined, date: string) {
   const section = getBloodSection(slotDetail);
   if (!section || !date) return undefined;
-  return section[date];
+  const raw = section[date];
+  return isPublicDateEntry(raw) ? raw : undefined;
 }
 
 export function getAvailableDates(
@@ -29,6 +38,7 @@ export function getAvailableDates(
 
   const dates = new Set<string>();
   for (const [dateKey, entry] of Object.entries(section)) {
+    if (!SLOT_DETAIL_DATE_RE.test(dateKey) || !isPublicDateEntry(entry)) continue;
     if (entry.is_enable === false) continue;
     const hasSlot = (entry.cabins ?? []).some((cabin) =>
       (cabin.available_slots ?? []).some((slot) => (slot.spot_left ?? 0) > 0)
@@ -111,7 +121,8 @@ export function hasConfiguredBloodCollectionSchedule(
   slotDetail: PublicSlotDetail | null | undefined
 ): boolean {
   const section = getBloodSection(slotDetail);
-  return Boolean(section && Object.keys(section).length > 0);
+  if (!section) return false;
+  return Object.keys(section).some((key) => SLOT_DETAIL_DATE_RE.test(key));
 }
 
 export function isCabinAvailableOnDate(
