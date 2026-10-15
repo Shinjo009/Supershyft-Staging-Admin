@@ -342,7 +342,7 @@ export function EngagementDetailPage() {
             ) : null}
 
             {resolvedTab === "assistants" ? (
-              <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden max-w-3xl">
+              <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
                 <EngagementOnboardingAssistantsPanel
                   engagementId={engagement.engagement_id}
                   engagementStatus={engagement.status}

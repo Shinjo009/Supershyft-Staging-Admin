@@ -1,5 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, Plus, Search, Trash2, UserCog, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  Loader2,
+  Plus,
+  Search,
+  Shield,
+  Stethoscope,
+  Trash2,
+  UserCog,
+  UserRound,
+  X,
+} from "lucide-react";
 import {
   employeesApi,
   getApiError,
@@ -42,6 +52,15 @@ function isEmployeeAssignee(a: OnboardingAssistant): boolean {
   return a.kind === "employee" || (a.employee_id != null && a.partner_id == null);
 }
 
+type AssistantCategory = "phlebo" | "expert" | "staff";
+
+function getAssistantCategory(a: OnboardingAssistant): AssistantCategory {
+  if (isEmployeeAssignee(a)) return "staff";
+  const role = (a.role ?? "").toLowerCase();
+  if (role === "expert") return "expert";
+  return "phlebo";
+}
+
 const ASSIGNABLE_EMPLOYEE_ROLES = new Set(["admin", "inferior_admin"]);
 
 type AddAssigneeMode = "phlebo" | "expert" | "employee";
@@ -55,6 +74,142 @@ function formatStaffRoleLabel(role: string | null | undefined): string {
   if (role === "organization_manager") return "Organization Manager";
   return role;
 }
+
+function StatusBadge({ status }: { status?: string | null }) {
+  return (
+    <span
+      className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
+        status === "active" ? "bg-green-100 text-green-700" : "bg-zinc-100 text-zinc-500"
+      }`}
+    >
+      {status ?? "—"}
+    </span>
+  );
+}
+
+function SummaryCountCard({
+  label,
+  hint,
+  count,
+  icon: Icon,
+  iconWrap,
+  valueClass,
+}: {
+  label: string;
+  hint: string;
+  count: number;
+  icon: typeof UserRound;
+  iconWrap: string;
+  valueClass: string;
+}) {
+  return (
+    <div className="rounded-lg border border-zinc-200 bg-zinc-50/50 px-3 py-3 flex flex-col gap-1 min-h-[5.5rem]">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-zinc-500">{label}</p>
+          <p className={`text-2xl font-semibold tabular-nums ${valueClass}`}>{count}</p>
+        </div>
+        <div className={`shrink-0 rounded-lg p-2 ${iconWrap}`}>
+          <Icon className="w-4 h-4" aria-hidden />
+        </div>
+      </div>
+      <p className="text-xs text-zinc-500">{hint}</p>
+    </div>
+  );
+}
+
+function AssistantRoleSection({
+  title,
+  description,
+  items,
+  emptyMessage,
+  canEdit,
+  removingAssistantKey,
+  onRemove,
+  showRoleInRow,
+  headerActions,
+}: {
+  title: string;
+  description?: string;
+  items: OnboardingAssistant[];
+  emptyMessage: string;
+  canEdit: boolean;
+  removingAssistantKey: string | null;
+  onRemove: (a: OnboardingAssistant) => void;
+  showRoleInRow: boolean;
+  headerActions?: ReactNode;
+}) {
+  return (
+    <section className="border border-zinc-200 rounded-xl overflow-hidden bg-white">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between px-4 py-3 border-b border-zinc-100 bg-zinc-50/40">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-zinc-900">
+            {title} <span className="font-medium text-zinc-500">({items.length})</span>
+          </h3>
+          {description ? <p className="text-xs text-zinc-500 mt-0.5">{description}</p> : null}
+        </div>
+        {canEdit && headerActions ? (
+          <div className="flex flex-wrap items-center gap-2 shrink-0">{headerActions}</div>
+        ) : null}
+      </div>
+      {items.length === 0 ? (
+        <div className="py-8 px-4 text-center text-sm text-zinc-500">{emptyMessage}</div>
+      ) : (
+        <ul className="divide-y divide-zinc-100">
+          {items.map((a) => {
+            const key = assistantRowKey(a);
+            const secondary =
+              showRoleInRow && a.role
+                ? formatStaffRoleLabel(a.role)
+                : a.phone || a.email || null;
+            return (
+              <li
+                key={key}
+                className="flex items-center justify-between gap-3 px-4 py-3 bg-white hover:bg-zinc-50"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center shrink-0">
+                    <UserCog className="w-4 h-4 text-zinc-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-zinc-900 truncate">
+                      {getAssistantDisplayName(a)}
+                    </p>
+                    <p className="text-xs text-zinc-500 truncate flex flex-wrap items-center gap-1">
+                      {secondary ? <span>{secondary}</span> : null}
+                      <StatusBadge status={a.status} />
+                    </p>
+                  </div>
+                </div>
+                {canEdit ? (
+                  <button
+                    type="button"
+                    onClick={() => void onRemove(a)}
+                    disabled={removingAssistantKey === key}
+                    className="p-1.5 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 shrink-0"
+                    title="Remove assignee"
+                    aria-label="Remove assignee"
+                  >
+                    {removingAssistantKey === key ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                  </button>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+const primaryActionClass =
+  "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 text-white text-xs font-medium hover:bg-zinc-800";
+const outlineActionClass =
+  "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-300 bg-white text-zinc-700 text-xs font-medium hover:bg-zinc-50";
 
 export function EngagementOnboardingAssistantsPanel({
   engagementId,
@@ -98,6 +253,19 @@ export function EngagementOnboardingAssistantsPanel({
   useEffect(() => {
     void fetchAssistants();
   }, [fetchAssistants]);
+
+  const { phlebos, experts, staff } = useMemo(() => {
+    const phleboList: OnboardingAssistant[] = [];
+    const expertList: OnboardingAssistant[] = [];
+    const staffList: OnboardingAssistant[] = [];
+    for (const a of assistants) {
+      const cat = getAssistantCategory(a);
+      if (cat === "expert") expertList.push(a);
+      else if (cat === "staff") staffList.push(a);
+      else phleboList.push(a);
+    }
+    return { phlebos: phleboList, experts: expertList, staff: staffList };
+  }, [assistants]);
 
   const handleRemoveAssistant = async (a: OnboardingAssistant) => {
     const key = assistantRowKey(a);
@@ -224,12 +392,23 @@ export function EngagementOnboardingAssistantsPanel({
       })
     : availableEmployees;
 
-  const addModeLabel =
-    addAssigneeMode === "phlebo" ? "phlebos" : addAssigneeMode === "expert" ? "experts" : "employees";
+  const addModeLabelPlural =
+    addAssigneeMode === "phlebo"
+      ? "phlebos"
+      : addAssigneeMode === "expert"
+        ? "experts"
+        : "staff";
+  const addPanelTitle =
+    addAssigneeMode === "phlebo"
+      ? "Add phlebos to this engagement"
+      : addAssigneeMode === "expert"
+        ? "Add experts to this engagement"
+        : "Add staff to this engagement";
   const selectedCount =
     addAssigneeMode === "employee" ? selectedEmployeeIds.size : selectedPartnerIds.size;
 
   const isRunning = (engagementStatus ?? "").toLowerCase() === "running";
+  const allEmpty = !assistantsLoading && assistants.length === 0;
 
   const closeAddPanel = () => {
     setAddAssistantsOpen(false);
@@ -237,6 +416,18 @@ export function EngagementOnboardingAssistantsPanel({
     setSelectedEmployeeIds(new Set());
     setEmployeeSearch("");
   };
+
+  const phleboHeaderActions = (
+    <>
+      <button type="button" onClick={() => setCreatePhleboModalOpen(true)} className={outlineActionClass}>
+        Create and Add phlebo
+      </button>
+      <button type="button" onClick={() => void openAddAssistants("phlebo")} className={primaryActionClass}>
+        <Plus className="w-3.5 h-3.5" />
+        Add phlebo
+      </button>
+    </>
+  );
 
   return (
     <div className="p-4 space-y-4">
@@ -246,126 +437,29 @@ export function EngagementOnboardingAssistantsPanel({
         </div>
       )}
 
-      {isRunning && (
+      {isRunning && !addAssistantsOpen && (
         <div className="p-3 rounded-lg bg-zinc-50 border border-zinc-200">
           <p className="text-xs font-medium text-zinc-600 mb-2">Console URL for assigned assistants</p>
           <ConsoleUrlActions engagementId={engagementId} />
         </div>
       )}
 
-      {!addAssistantsOpen && (
-        <>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm font-medium text-zinc-700">Assigned ({assistants.length})</p>
-            {canEdit ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCreatePhleboModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-300 bg-white text-zinc-700 text-xs font-medium hover:bg-zinc-50"
-                >
-                  Create and Add phlebo
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void openAddAssistants("phlebo")}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 text-white text-xs font-medium hover:bg-zinc-800"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add phlebo
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void openAddAssistants("expert")}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 text-white text-xs font-medium hover:bg-zinc-800"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add expert
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void openAddAssistants("employee")}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 text-white text-xs font-medium hover:bg-zinc-800"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add employee
-                </button>
-              </div>
-            ) : null}
-          </div>
-
-          {assistantsLoading ? (
-            <div className="py-8 flex justify-center">
-              <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
+      {assistantsLoading ? (
+        <div className="py-12 flex justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
+        </div>
+      ) : addAssistantsOpen && canEdit ? (
+        <div className="space-y-3 border border-zinc-200 rounded-xl p-4 bg-white">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-zinc-900">{addPanelTitle}</p>
+              <p className="text-xs text-zinc-500 mt-0.5">Select {addModeLabelPlural} to assign</p>
             </div>
-          ) : assistants.length === 0 ? (
-            <div className="py-8 text-center text-sm text-zinc-500">
-              No onboarding assistants assigned yet.
-            </div>
-          ) : (
-            <ul className="divide-y divide-zinc-100 border border-zinc-200 rounded-lg overflow-hidden">
-              {assistants.map((a) => {
-                const key = assistantRowKey(a);
-                return (
-                  <li
-                    key={key}
-                    className="flex items-center justify-between gap-3 px-4 py-3 bg-white hover:bg-zinc-50"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center shrink-0">
-                        <UserCog className="w-4 h-4 text-zinc-500" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-zinc-900 truncate">
-                          {getAssistantDisplayName(a)}
-                        </p>
-                        <p className="text-xs text-zinc-500 truncate">
-                          {a.role ? `Role: ${formatStaffRoleLabel(a.role)}` : "No role"}{" "}
-                          <span
-                            className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ml-1 ${
-                              a.status === "active"
-                                ? "bg-green-100 text-green-700"
-                                : "bg-zinc-100 text-zinc-500"
-                            }`}
-                          >
-                            {a.status ?? "—"}
-                          </span>
-                        </p>
-                      </div>
-                    </div>
-                    {canEdit ? (
-                      <button
-                        type="button"
-                        onClick={() => void handleRemoveAssistant(a)}
-                        disabled={removingAssistantKey === key}
-                        className="p-1.5 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-40 shrink-0"
-                        title="Remove assignee"
-                        aria-label="Remove assignee"
-                      >
-                        {removingAssistantKey === key ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="w-4 h-4" />
-                        )}
-                      </button>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </>
-      )}
-
-      {addAssistantsOpen && canEdit && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-zinc-700">Select {addModeLabel} to assign</p>
             <button
               type="button"
               onClick={closeAddPanel}
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100"
-              aria-label="Close"
+              className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 shrink-0"
+              aria-label="Back to assigned lists"
             >
               <X className="w-4 h-4" />
             </button>
@@ -390,8 +484,8 @@ export function EngagementOnboardingAssistantsPanel({
             filteredEmployees.length === 0 ? (
               <div className="py-6 text-center text-sm text-zinc-500">
                 {availableEmployees.length === 0
-                  ? "All eligible employees are already assigned."
-                  : "No employees match your search."}
+                  ? "All eligible staff are already assigned."
+                  : "No staff match your search."}
               </div>
             ) : (
               <ul className="divide-y divide-zinc-100 border border-zinc-200 rounded-lg overflow-hidden max-h-64 overflow-y-auto">
@@ -417,7 +511,7 @@ export function EngagementOnboardingAssistantsPanel({
                           {getEmployeeDisplayName(e)}
                         </p>
                         <p className="text-xs text-zinc-500 truncate">
-                          {e.phone || e.email || (e.role ? `Role: ${e.role}` : "Employee")}
+                          {e.phone || e.email || (e.role ? `Role: ${e.role}` : "Staff")}
                         </p>
                       </div>
                     </li>
@@ -428,8 +522,8 @@ export function EngagementOnboardingAssistantsPanel({
           ) : filteredPartners.length === 0 ? (
             <div className="py-6 text-center text-sm text-zinc-500">
               {availablePartners.length === 0
-                ? `All active ${addModeLabel} are already assigned.`
-                : `No ${addModeLabel} match your search.`}
+                ? `All active ${addModeLabelPlural} are already assigned.`
+                : `No ${addModeLabelPlural} match your search.`}
             </div>
           ) : (
             <ul className="divide-y divide-zinc-100 border border-zinc-200 rounded-lg overflow-hidden max-h-64 overflow-y-auto">
@@ -484,6 +578,93 @@ export function EngagementOnboardingAssistantsPanel({
             </button>
           </div>
         </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <SummaryCountCard
+              label="Phlebos"
+              hint="Collection / camp field staff"
+              count={phlebos.length}
+              icon={UserRound}
+              iconWrap="bg-sky-50 text-sky-700"
+              valueClass="text-sky-900"
+            />
+            <SummaryCountCard
+              label="Experts"
+              hint="Consultation assignees"
+              count={experts.length}
+              icon={Stethoscope}
+              iconWrap="bg-violet-50 text-violet-700"
+              valueClass="text-violet-900"
+            />
+            <SummaryCountCard
+              label="Staff"
+              hint="Admin & internal staff"
+              count={staff.length}
+              icon={Shield}
+              iconWrap="bg-amber-50 text-amber-800"
+              valueClass="text-amber-900"
+            />
+          </div>
+
+          {allEmpty ? (
+            <p className="text-sm text-zinc-500 text-center py-2">No assistants assigned yet.</p>
+          ) : null}
+
+          <div className="space-y-4">
+            <AssistantRoleSection
+              title="Phlebos"
+              description="Phlebotomists assigned to this engagement"
+              items={phlebos}
+              emptyMessage="No phlebos assigned."
+              canEdit={canEdit}
+              removingAssistantKey={removingAssistantKey}
+              onRemove={handleRemoveAssistant}
+              showRoleInRow={false}
+              headerActions={phleboHeaderActions}
+            />
+            <AssistantRoleSection
+              title="Experts"
+              description="Experts available for consultations on this engagement"
+              items={experts}
+              emptyMessage="No experts assigned."
+              canEdit={canEdit}
+              removingAssistantKey={removingAssistantKey}
+              onRemove={handleRemoveAssistant}
+              showRoleInRow={false}
+              headerActions={
+                <button
+                  type="button"
+                  onClick={() => void openAddAssistants("expert")}
+                  className={primaryActionClass}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add expert
+                </button>
+              }
+            />
+            <AssistantRoleSection
+              title="Staff"
+              description="Admin and internal staff with console access"
+              items={staff}
+              emptyMessage="No staff assigned."
+              canEdit={canEdit}
+              removingAssistantKey={removingAssistantKey}
+              onRemove={handleRemoveAssistant}
+              showRoleInRow={true}
+              headerActions={
+                <button
+                  type="button"
+                  onClick={() => void openAddAssistants("employee")}
+                  className={primaryActionClass}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add staff
+                </button>
+              }
+            />
+          </div>
+        </>
       )}
 
       <CreatePhleboModal
