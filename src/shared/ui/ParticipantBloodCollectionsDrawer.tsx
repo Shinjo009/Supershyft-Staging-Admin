@@ -5,6 +5,8 @@ import { getApiError, participantsApi } from "../../lib/api";
 import {
   collectionsStoryLine,
   formatCollectionWhen,
+  formatCollectedAtForDatetimeLocal,
+  parseDatetimeLocalToIso,
   relationHelpText,
   relationPlainLabel,
 } from "../../lib/bloodCollectionsSummary";
@@ -18,6 +20,7 @@ type FormState = {
   collection_time: string;
   collection_cabin: string;
   parent_booking_id: string;
+  collected_at_local: string;
 };
 
 function emptyForm(): FormState {
@@ -30,6 +33,7 @@ function emptyForm(): FormState {
     collection_time: "",
     collection_cabin: "",
     parent_booking_id: "",
+    collected_at_local: "",
   };
 }
 
@@ -43,6 +47,7 @@ function bookingToForm(b: ParticipantBloodBooking): FormState {
     collection_time: b.collection_time?.slice(0, 5) ?? "",
     collection_cabin: b.collection_cabin ?? "",
     parent_booking_id: b.parent_booking_id ?? "",
+    collected_at_local: formatCollectedAtForDatetimeLocal(b.collected_at),
   };
 }
 
@@ -56,6 +61,7 @@ function payloadFromForm(form: FormState) {
     collection_time: form.collection_time ? `${form.collection_time}:00` : null,
     collection_cabin: form.collection_cabin.trim() || null,
     parent_booking_id: form.parent_booking_id.trim() || null,
+    collected_at: parseDatetimeLocalToIso(form.collected_at_local),
   };
 }
 
@@ -247,6 +253,15 @@ export function ParticipantBloodCollectionsDrawer({
                   className="mt-0.5 w-full rounded-lg border border-zinc-300 px-2 py-1.5 text-sm"
                   value={form.collection_time}
                   onChange={(e) => setForm((f) => ({ ...f, collection_time: e.target.value }))}
+                />
+              </label>
+              <label className="block text-xs text-zinc-600 col-span-2">
+                Collected at (IST, when sample was taken)
+                <input
+                  type="datetime-local"
+                  className="mt-0.5 w-full rounded-lg border border-zinc-300 px-2 py-1.5 text-sm"
+                  value={form.collected_at_local}
+                  onChange={(e) => setForm((f) => ({ ...f, collected_at_local: e.target.value }))}
                 />
               </label>
               <label className="block text-xs text-zinc-600 col-span-2">

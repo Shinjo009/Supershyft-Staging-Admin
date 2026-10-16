@@ -143,7 +143,7 @@ export function EngagementConsolePage() {
     useState<Participant | null>(null);
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [barcode, setBarcode] = useState("");
-  const [syncCollectionToNow, setSyncCollectionToNow] = useState(false);
+  const [syncCollectionToNow, setSyncCollectionToNow] = useState(true);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [cancelRemarks, setCancelRemarks] = useState("");

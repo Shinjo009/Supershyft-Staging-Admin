@@ -5,6 +5,11 @@ import { Modal } from "./Modal";
 import { ParticipantBloodCollectionsDrawer } from "./ParticipantBloodCollectionsDrawer";
 import {
   applyParticipantBookingId,
+  applyParticipantCollectedAt,
+  formatCollectedAtDisplay,
+  formatCollectedAtForDatetimeLocal,
+  parseDatetimeLocalToIso,
+  pickCurrentBloodBooking,
   summarizeBloodCollections,
 } from "../../lib/bloodCollectionsSummary";
 import {
@@ -918,6 +923,9 @@ export function ParticipantsModal({
   const [bookingIdEditMode, setBookingIdEditMode] = useState(false);
   const [bookingIdUpdateLoading, setBookingIdUpdateLoading] = useState<number | null>(null);
   const [bookingIdUpdateError, setBookingIdUpdateError] = useState<string | null>(null);
+  const [collectedAtEditMode, setCollectedAtEditMode] = useState(false);
+  const [collectedAtUpdateLoading, setCollectedAtUpdateLoading] = useState<number | null>(null);
+  const [collectedAtUpdateError, setCollectedAtUpdateError] = useState<string | null>(null);
   const [engagementDateEditMode, setEngagementDateEditMode] = useState(false);
   const [slotStartTimeEditMode, setSlotStartTimeEditMode] = useState(false);
   const [bloodCollectionCabinEditMode, setBloodCollectionCabinEditMode] = useState(false);
@@ -1268,6 +1276,7 @@ export function ParticipantsModal({
 
   const canEditConsultation = mayEditEngagements && source.kind === "engagement-id";
   const canEditBookingId = mayEditEngagements && source.kind === "engagement-id";
+  const canEditCollectedAt = canEditBookingId;
   const canEditSchedule =
     mayEditEngagements &&
     source.kind === "engagement-id" &&
@@ -1445,6 +1454,54 @@ export function ParticipantsModal({
       setBookingIdUpdateError(getApiError(err));
     } finally {
       setBookingIdUpdateLoading(null);
+    }
+  };
+
+  const handleCollectedAtUpdate = async (participant: Participant, nextValue: string) => {
+    if (!engagementIdForDepartment || !participant.user_id) return;
+
+    const current = pickCurrentBloodBooking(participant.blood_bookings ?? []);
+    if (current?.id == null) {
+      setCollectedAtUpdateError(
+        "No collection row for this participant. Use Collections to add one first."
+      );
+      return;
+    }
+
+    const parsed = parseDatetimeLocalToIso(nextValue);
+    const currentIso = current.collected_at ?? null;
+    const nextTrimmed = nextValue.trim();
+    if (!nextTrimmed && !currentIso) return;
+    if (nextTrimmed && currentIso && formatCollectedAtForDatetimeLocal(currentIso) === nextTrimmed) {
+      return;
+    }
+
+    try {
+      setCollectedAtUpdateLoading(participant.user_id);
+      setCollectedAtUpdateError(null);
+      const res = await participantsApi.updateBloodBooking(
+        engagementIdForDepartment,
+        participant.user_id,
+        current.id,
+        { collected_at: parsed }
+      );
+      const saved = res.data.data.collected_at ?? parsed;
+      setParticipants((prevRows) =>
+        prevRows.map((row) =>
+          row.user_id === participant.user_id
+            ? applyParticipantCollectedAt(row, saved)
+            : row
+        )
+      );
+      setCollectionsDrawerParticipant((drawerRow) =>
+        drawerRow?.user_id === participant.user_id
+          ? applyParticipantCollectedAt(drawerRow, saved)
+          : drawerRow
+      );
+    } catch (err) {
+      setCollectedAtUpdateError(getApiError(err));
+    } finally {
+      setCollectedAtUpdateLoading(null);
     }
   };
 
@@ -2552,10 +2609,19 @@ export function ParticipantsModal({
             {bookingIdUpdateError && (
               <p className="text-sm text-red-600 mb-3">{bookingIdUpdateError}</p>
             )}
+            {collectedAtUpdateError && (
+              <p className="text-sm text-red-600 mb-3">{collectedAtUpdateError}</p>
+            )}
             {bookingIdEditMode && canEditBookingId && (
               <p className="text-xs text-zinc-500 mb-3">
                 Updates the current active collection&apos;s Healthians booking ID (same as in Blood
                 collection history).
+              </p>
+            )}
+            {collectedAtEditMode && canEditCollectedAt && (
+              <p className="text-xs text-zinc-500 mb-3">
+                Sets when the sample was collected (IST) on the current active collection. Clear the
+                field to remove collected time.
               </p>
             )}
             {scheduleUpdateError && (
@@ -2673,6 +2739,15 @@ export function ParticipantsModal({
                         isEditing={bookingIdEditMode}
                         onToggleEdit={() => setBookingIdEditMode((v) => !v)}
                         editTitle="booking id"
+                      />
+                    </th>
+                    <th className="px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap">
+                      <EditableColumnHeader
+                        label="Collected at"
+                        editable={canEditCollectedAt}
+                        isEditing={collectedAtEditMode}
+                        onToggleEdit={() => setCollectedAtEditMode((v) => !v)}
+                        editTitle="collected at"
                       />
                     </th>
                     <th className="px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap">
@@ -2837,6 +2912,38 @@ export function ParticipantsModal({
                             />
                           ) : (
                             p.booking_id || "—"
+                          )}
+                        </td>
+                        <td
+                          className="px-3 sm:px-4 py-2.5 sm:py-3 text-zinc-600 whitespace-nowrap"
+                          onClick={(ev) => {
+                            if (collectedAtEditMode && canEditCollectedAt) ev.stopPropagation();
+                          }}
+                        >
+                          {collectedAtEditMode && canEditCollectedAt ? (
+                            <input
+                              key={`${p.user_id}-${pickCurrentBloodBooking(p.blood_bookings ?? [])?.collected_at ?? ""}`}
+                              type="datetime-local"
+                              defaultValue={formatCollectedAtForDatetimeLocal(
+                                pickCurrentBloodBooking(p.blood_bookings ?? [])?.collected_at
+                              )}
+                              disabled={collectedAtUpdateLoading === p.user_id}
+                              onBlur={(e) => {
+                                void handleCollectedAtUpdate(p, e.target.value);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  (e.target as HTMLInputElement).blur();
+                                }
+                              }}
+                              className="max-w-[200px] px-2 py-1 rounded-lg border border-zinc-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-zinc-900 disabled:opacity-50"
+                              aria-label={`Collected at for ${fullName(p)}`}
+                            />
+                          ) : (
+                            formatCollectedAtDisplay(
+                              pickCurrentBloodBooking(p.blood_bookings ?? [])?.collected_at
+                            )
                           )}
                         </td>
                         <td

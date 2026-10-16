@@ -42,6 +42,61 @@ export function applyParticipantBookingId(
   return { ...participant, booking_id: bookingId, blood_bookings: nextBookings };
 }
 
+export function applyParticipantCollectedAt(
+  participant: Participant,
+  collectedAt: string | null
+): Participant {
+  const bookings = participant.blood_bookings ?? [];
+  const current = pickCurrentBloodBooking(bookings);
+  const nextBookings =
+    current?.id != null
+      ? bookings.map((b) => (b.id === current.id ? { ...b, collected_at: collectedAt } : b))
+      : bookings;
+  return { ...participant, blood_bookings: nextBookings };
+}
+
+/** `datetime-local` value in Asia/Kolkata wall time. */
+export function formatCollectedAtForDatetimeLocal(iso: string | null | undefined): string {
+  if (!iso?.trim()) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
+}
+
+/** Parse `datetime-local` as IST and return ISO8601 for the API. */
+export function parseDatetimeLocalToIso(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(trimmed)) {
+    return `${trimmed}:00+05:30`;
+  }
+  return null;
+}
+
+export function formatCollectedAtDisplay(iso: string | null | undefined): string {
+  if (!iso?.trim()) return "—";
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      timeZone: "Asia/Kolkata",
+      dateStyle: "short",
+      timeStyle: "short",
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
+
 const RELATION_HELP: Record<string, string> = {
   primary: "First scheduled blood draw for this participant.",
   redraw: "A new blood draw was needed (separate test & report). The earlier draw stays on record.",
