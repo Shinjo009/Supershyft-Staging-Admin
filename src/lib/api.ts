@@ -2864,6 +2864,43 @@ export interface QuestionnaireCategoryUpdate {
   category_of?: string;
 }
 
+export type RosterColumnPreset = "scheduling" | "questionnaires" | "reports" | "all";
+
+export interface RosterQuestionnaireColumn {
+  key: string;
+  label: string;
+  category_of: "metsights" | "supershyft";
+}
+
+export interface ParticipantQuestionnaireCategories {
+  metsights?: Record<string, EngagementQuestionnaireCategoryStatus>;
+  supershyft?: Record<string, EngagementQuestionnaireCategoryStatus>;
+}
+
+export interface ParticipantClinicalSnapshot {
+  engagement_id: number;
+  user_id: number;
+  blood: {
+    has_blood_report: boolean;
+    has_blood_values: boolean;
+    blood_report_url?: string | null;
+    blood_bookings: ParticipantBloodBooking[];
+  };
+  bio_ai: {
+    has_bio_ai_report: boolean;
+    has_bio_ai_json: boolean;
+    bio_ai_report_url?: string | null;
+  };
+  questionnaires: {
+    questionnaire_state: "filled" | "partially_filled" | "not_started";
+    categories: ParticipantQuestionnaireCategories;
+  };
+  questionnaire_columns?: {
+    metsights: RosterQuestionnaireColumn[];
+    supershyft: RosterQuestionnaireColumn[];
+  };
+}
+
 // Participants
 export interface Participant {
   engagement_participant_id?: number;
@@ -2901,7 +2938,9 @@ export interface Participant {
   blood_report_url?: string | null;
   bio_ai_report_url?: string | null;
   questionnaire_state?: "filled" | "partially_filled" | "not_started";
-  questionnaire_categories?: Record<string, EngagementQuestionnaireCategoryStatus>;
+  questionnaire_categories?:
+    | ParticipantQuestionnaireCategories
+    | Record<string, EngagementQuestionnaireCategoryStatus>;
   barcode?: string | null;
   booking_id?: string | null;
   booked_by_user_id?: number | null;
@@ -3049,10 +3088,18 @@ export const participantsApi = {
         filter_options: EngagementParticipantFilterOptions;
         participants: Participant[];
         roster_summary?: EngagementDataCompletenessResponse["summary"];
+        questionnaire_columns?: {
+          metsights: RosterQuestionnaireColumn[];
+          supershyft: RosterQuestionnaireColumn[];
+        };
         expert_types?: ExpertTypeItem[];
       };
       meta: { page: number; limit: number; total: number };
     }>(`/engagements/${engagementId}/participants/bootstrap`, { params }),
+  clinicalSnapshot: (engagementId: number, userId: number) =>
+    api.get<{ data: ParticipantClinicalSnapshot }>(
+      `/engagements/${engagementId}/participants/${userId}/clinical-snapshot`
+    ),
   byEngagementId: (engagementId: number, params?: ParticipantListQueryParams) =>
     api.get<{ data: Participant[]; meta?: { page?: number; limit?: number; total: number } }>(
       `/engagements/${engagementId}/participants`,

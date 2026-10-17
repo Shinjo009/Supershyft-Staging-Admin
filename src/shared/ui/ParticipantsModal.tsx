@@ -33,6 +33,8 @@ import {
   type PublicSlotDetail,
   type EngagementParticipantStats,
   type EngagementDataCompletenessResponse,
+  type RosterColumnPreset,
+  type RosterQuestionnaireColumn,
   type ParticipantListQueryParams,
   type LoadBloodReportsResult,
   type LoadBioaiReportsResult,
@@ -61,10 +63,13 @@ import {
   normalizeSlotToHhmm,
 } from "../../features/engagements/bloodCollectionScheduleUtils";
 import { CompletenessSummaryCard } from "../../features/engagements/engagementCompletenessUi";
+import { ParticipantClinicalDrawer } from "../../features/engagements/ParticipantClinicalDrawer";
 import {
   ParticipantRosterExpandRow,
+  QuestionnaireCategoryCell,
+  RosterBioAiCells,
+  RosterBloodCells,
   RosterExpandToggle,
-  RosterProgressChips,
 } from "../../features/engagements/participantRosterUi";
 
 function parsePublicSlotDetail(raw: unknown): PublicSlotDetail | null {
@@ -89,18 +94,39 @@ type ParticipantsBootstrapResponse = Awaited<
 /** When the combined bootstrap route fails (timeout, missing deploy), load the same data via legacy endpoints. */
 async function fetchEngagementParticipantsBootstrap(
   engagementId: number,
-  options: { limit: number; includeExpertTypes: boolean }
+  options: { limit: number; includeExpertTypes: boolean; page?: number }
 ): Promise<ParticipantsBootstrapResponse> {
+  const page = options.page ?? 1;
   try {
     return await participantsApi.bootstrap(engagementId, {
-      page: 1,
+      page,
       limit: options.limit,
       include_expert_types: options.includeExpertTypes,
+      include_roster_progress: page === 1,
     });
   } catch (bootstrapErr) {
+    const listRes = await participantsApi.byEngagementId(engagementId, {
+      page,
+      limit: options.limit,
+    });
+    const chunk = listRes.data.data ?? [];
+    const listMeta = listRes.data.meta;
+    if (page > 1) {
+      return {
+        data: {
+          data: {
+            participants: chunk,
+          },
+          meta: {
+            page: listMeta?.page ?? page,
+            limit: listMeta?.limit ?? options.limit,
+            total: listMeta?.total ?? chunk.length,
+          },
+        },
+      } as unknown as ParticipantsBootstrapResponse;
+    }
     try {
-      const [listRes, filterRes, bookingRes, engRes] = await Promise.all([
-        participantsApi.byEngagementId(engagementId, { page: 1, limit: options.limit }),
+      const [filterRes, bookingRes, engRes] = await Promise.all([
         participantsApi.filterOptions(engagementId),
         participantsApi.bookingDates(engagementId),
         engagementsApi.get(engagementId),
@@ -125,8 +151,6 @@ async function fetchEngagementParticipantsBootstrap(
           /* expert types optional */
         }
       }
-      const chunk = listRes.data.data ?? [];
-      const listMeta = listRes.data.meta;
       return {
         data: {
           data: {
@@ -840,11 +864,25 @@ export function ParticipantsModal({
   const useServerPagination = source.kind === "engagement-id";
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [showAllColumns, setShowAllColumns] = useState(false);
+  const [rosterColumnPreset, setRosterColumnPreset] = useState<RosterColumnPreset>("scheduling");
+  const [questionnaireColumns, setQuestionnaireColumns] = useState<{
+    metsights: RosterQuestionnaireColumn[];
+    supershyft: RosterQuestionnaireColumn[];
+  }>({ metsights: [], supershyft: [] });
   const [expandedRosterUserIds, setExpandedRosterUserIds] = useState<Set<number>>(new Set());
+  const [clinicalDrawerParticipant, setClinicalDrawerParticipant] = useState<Participant | null>(null);
   const [rosterSummary, setRosterSummary] = useState<
     EngagementDataCompletenessResponse["summary"] | null
   >(null);
   const compactRoster = isPage && !showAllColumns;
+  const showReportsInCompact =
+    compactRoster &&
+    (rosterColumnPreset === "scheduling" ||
+      rosterColumnPreset === "reports" ||
+      rosterColumnPreset === "all");
+  const showQuestionnairesInCompact =
+    compactRoster &&
+    (rosterColumnPreset === "questionnaires" || rosterColumnPreset === "all");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [participantStats, setParticipantStats] = useState<EngagementParticipantStats | null>(null);
@@ -962,6 +1000,7 @@ export function ParticipantsModal({
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  const loadingMoreRef = useRef(false);
 
   const buildListParams = useCallback(
     () => buildParticipantQueryParams(page, debouncedSearch, columnFilters),
@@ -994,43 +1033,52 @@ export function ParticipantsModal({
         setParticipants((prev) => (append ? [...prev, ...chunk] : chunk));
         setTotal(Number(res.data.meta?.total ?? chunk.length));
       } else if (source.kind === "engagement-id") {
-        if (
-          page === 1 &&
-          !debouncedSearch &&
-          columnFiltersAreDefault(columnFilters)
-        ) {
-          setBookingDatesLoading(true);
+        const useBootstrap =
+          !debouncedSearch && columnFiltersAreDefault(columnFilters);
+
+        if (useBootstrap) {
+          if (page === 1) {
+            setBookingDatesLoading(true);
+          }
           const res = await fetchEngagementParticipantsBootstrap(source.engagementId, {
+            page,
             limit: PARTICIPANTS_PAGE_SIZE,
-            includeExpertTypes: mayViewExperts,
+            includeExpertTypes: page === 1 && mayViewExperts,
           });
           const payload = res.data.data;
-          const eng = payload.engagement as Record<string, unknown>;
-          setEngagementConsultations((eng.consultations as typeof engagementConsultations) ?? null);
-          setEngagementPublicSlotDetail(parsePublicSlotDetail(eng.public_slot_detail));
-          setEngagementBloodCollectionType((eng.blood_collection_type as string | null) ?? null);
-          const orgId = (eng.organization_id as number | null) ?? null;
-          setOrganizationId(orgId);
-          const org = payload.organization as { name?: string; departments?: typeof orgDepartments } | null;
-          setOrganizationName(org?.name?.trim() || null);
-          setOrgDepartments(org?.departments ?? []);
-          const booking = payload.booking_dates as {
-            dates?: string[];
-            user_ids_by_date?: Record<string, number[]>;
-          };
-          setBookingDateOptions(booking?.dates ?? []);
-          setBookingDateUserIdsByDate(booking?.user_ids_by_date ?? {});
-          setEngagementDateOptions(payload.filter_options?.engagement_dates ?? []);
-          if (payload.expert_types) {
-            setExpertTypes(payload.expert_types);
+          if (page === 1) {
+            const eng = payload.engagement as Record<string, unknown> | undefined;
+            if (eng) {
+              setEngagementConsultations((eng.consultations as typeof engagementConsultations) ?? null);
+              setEngagementPublicSlotDetail(parsePublicSlotDetail(eng.public_slot_detail));
+              setEngagementBloodCollectionType((eng.blood_collection_type as string | null) ?? null);
+              const orgId = (eng.organization_id as number | null) ?? null;
+              setOrganizationId(orgId);
+            }
+            const org = payload.organization as { name?: string; departments?: typeof orgDepartments } | null;
+            setOrganizationName(org?.name?.trim() || null);
+            setOrgDepartments(org?.departments ?? []);
+            const booking = payload.booking_dates as {
+              dates?: string[];
+              user_ids_by_date?: Record<string, number[]>;
+            };
+            setBookingDateOptions(booking?.dates ?? []);
+            setBookingDateUserIdsByDate(booking?.user_ids_by_date ?? {});
+            setEngagementDateOptions(payload.filter_options?.engagement_dates ?? []);
+            if (payload.expert_types) {
+              setExpertTypes(payload.expert_types);
+            }
+            setBookingDatesLoading(false);
+            setRosterSummary(
+              (payload.roster_summary as EngagementDataCompletenessResponse["summary"] | undefined) ??
+                null
+            );
+            if (payload.questionnaire_columns) {
+              setQuestionnaireColumns(payload.questionnaire_columns);
+            }
           }
-          setBookingDatesLoading(false);
           const chunk = payload.participants ?? [];
-          setParticipants(chunk);
-          setRosterSummary(
-            (payload.roster_summary as EngagementDataCompletenessResponse["summary"] | undefined) ??
-              null
-          );
+          setParticipants((prev) => (append ? [...prev, ...chunk] : chunk));
           setTotal(Number(res.data.meta?.total ?? chunk.length));
         } else {
           const res = await participantsApi.byEngagementId(
@@ -1225,28 +1273,37 @@ export function ParticipantsModal({
   useEffect(() => {
     if (!isActive) return;
     void fetchParticipants();
-  }, [open, fetchParticipants]);
+  }, [isActive, fetchParticipants]);
+
+  useEffect(() => {
+    loadingMoreRef.current = loadingMore;
+  }, [loadingMore]);
 
   const hasMore = participants.length < total;
 
   useEffect(() => {
-    if (!open || loading || loadingMore || !hasMore || error) return;
+    if (!isActive || loading || loadingMore || !hasMore || error) return;
     const sentinel = loadMoreRef.current;
-    const root = scrollContainerRef.current;
     if (!sentinel) return;
+    // Page variant scrolls the document; modal variant scrolls the table container.
+    const root = isPage ? null : scrollContainerRef.current;
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting && !loadingMore) {
+        if (
+          entries[0]?.isIntersecting &&
+          !loadingMoreRef.current &&
+          participants.length < total
+        ) {
           setPage((current) => current + 1);
         }
       },
-      { root, rootMargin: "120px", threshold: 0 }
+      { root, rootMargin: "240px", threshold: 0 }
     );
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [open, loading, loadingMore, hasMore, error, participants.length, total]);
+  }, [isActive, isPage, loading, loadingMore, hasMore, error, participants.length, total]);
 
   useEffect(() => {
     setSelectedUserIds(new Set());
@@ -2717,18 +2774,34 @@ export function ParticipantsModal({
             {isPage && (
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs text-zinc-500">
-                  Per-participant questionnaire, reports, and Metsights sync — expand a row or open
-                  Operations for bulk actions.
+                  Column preset controls questionnaires and reports; use Clinical details on a row for
+                  full blood, Bio AI, and category breakdown.
                 </p>
-                <label className="inline-flex items-center gap-2 text-xs text-zinc-600 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={showAllColumns}
-                    onChange={(e) => setShowAllColumns(e.target.checked)}
-                    className="rounded border-zinc-300"
-                  />
-                  Show all columns
-                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="inline-flex items-center gap-1.5 text-xs text-zinc-600">
+                    View
+                    <select
+                      value={rosterColumnPreset}
+                      disabled={showAllColumns}
+                      onChange={(e) => setRosterColumnPreset(e.target.value as RosterColumnPreset)}
+                      className="rounded border border-zinc-300 px-2 py-1 text-xs bg-white"
+                    >
+                      <option value="scheduling">Scheduling + reports</option>
+                      <option value="questionnaires">Questionnaires</option>
+                      <option value="reports">Reports</option>
+                      <option value="all">Reports + questionnaires</option>
+                    </select>
+                  </label>
+                  <label className="inline-flex items-center gap-2 text-xs text-zinc-600 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showAllColumns}
+                      onChange={(e) => setShowAllColumns(e.target.checked)}
+                      className="rounded border-zinc-300"
+                    />
+                    Show all columns
+                  </label>
+                </div>
               </div>
             )}
 
@@ -2900,11 +2973,48 @@ export function ParticipantsModal({
                       Blood Group
                     </th>
                     )}
-                    {compactRoster && (
-                      <th className="px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap">
-                        Progress
-                      </th>
+                    {showReportsInCompact && (
+                      <>
+                        <th className="px-2 py-3 text-center text-xs font-medium text-zinc-600 whitespace-nowrap">
+                          Blood Rpt
+                        </th>
+                        <th className="px-2 py-3 text-center text-xs font-medium text-zinc-600 whitespace-nowrap">
+                          Blood URL
+                        </th>
+                        <th className="px-2 py-3 text-center text-xs font-medium text-zinc-600 whitespace-nowrap">
+                          Values
+                        </th>
+                        <th className="px-2 py-3 text-center text-xs font-medium text-zinc-600 whitespace-nowrap">
+                          Bio Rpt
+                        </th>
+                        <th className="px-2 py-3 text-center text-xs font-medium text-zinc-600 whitespace-nowrap">
+                          Bio URL
+                        </th>
+                        <th className="px-2 py-3 text-center text-xs font-medium text-zinc-600 whitespace-nowrap">
+                          Bio JSON
+                        </th>
+                      </>
                     )}
+                    {showQuestionnairesInCompact &&
+                      questionnaireColumns.metsights.map((col) => (
+                        <th
+                          key={`m-h-${col.key}`}
+                          className="px-1 py-3 text-center text-xs font-medium text-zinc-600 whitespace-nowrap max-w-[80px] truncate"
+                          title={col.label}
+                        >
+                          {col.label}
+                        </th>
+                      ))}
+                    {showQuestionnairesInCompact &&
+                      questionnaireColumns.supershyft.map((col) => (
+                        <th
+                          key={`s-h-${col.key}`}
+                          className="px-1 py-3 text-center text-xs font-medium text-violet-700 whitespace-nowrap max-w-[80px] truncate"
+                          title={col.label}
+                        >
+                          {col.label}
+                        </th>
+                      ))}
                     {visibleExpertTypes.map((et) => (
                     <th key={et.type_key} className="px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap">
                       <EditableColumnHeader
@@ -3001,6 +3111,18 @@ export function ParticipantsModal({
                               {p.phone ? <div>{p.phone}</div> : null}
                               {p.email ? <div className="truncate max-w-[200px]">{p.email}</div> : null}
                             </div>
+                          )}
+                          {isPage && source.kind === "engagement-id" && (
+                            <button
+                              type="button"
+                              className="mt-1 text-xs font-medium text-sky-700 hover:underline"
+                              onClick={(ev) => {
+                                ev.stopPropagation();
+                                setClinicalDrawerParticipant(p);
+                              }}
+                            >
+                              Clinical details
+                            </button>
                           )}
                         </td>
                         {!compactRoster && (
@@ -3249,11 +3371,20 @@ export function ParticipantsModal({
                           {p.participant_blood_group || "—"}
                         </td>
                         )}
-                        {compactRoster && (
-                          <td className="px-3 sm:px-4 py-2.5 sm:py-3">
-                            <RosterProgressChips participant={p} />
-                          </td>
-                        )}
+                        {showReportsInCompact && <RosterBloodCells participant={p} />}
+                        {showReportsInCompact && <RosterBioAiCells participant={p} />}
+                        {showQuestionnairesInCompact &&
+                          questionnaireColumns.metsights.map((col) => (
+                            <td key={`m-${p.user_id}-${col.key}`} className="px-1 py-2.5">
+                              <QuestionnaireCategoryCell participant={p} column={col} />
+                            </td>
+                          ))}
+                        {showQuestionnairesInCompact &&
+                          questionnaireColumns.supershyft.map((col) => (
+                            <td key={`s-${p.user_id}-${col.key}`} className="px-1 py-2.5">
+                              <QuestionnaireCategoryCell participant={p} column={col} />
+                            </td>
+                          ))}
                         {visibleExpertTypes.map((et) => (
                         <td
                           key={et.type_key}
@@ -4122,6 +4253,16 @@ export function ParticipantsModal({
           onChanged={async () => {
             await fetchParticipants();
           }}
+        />
+      )}
+
+      {source.kind === "engagement-id" && (
+        <ParticipantClinicalDrawer
+          open={clinicalDrawerParticipant != null}
+          onClose={() => setClinicalDrawerParticipant(null)}
+          engagementId={source.engagementId}
+          participant={clinicalDrawerParticipant}
+          questionnaireColumns={questionnaireColumns}
         />
       )}
 
