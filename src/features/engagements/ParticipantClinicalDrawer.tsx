@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Loader2, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, Loader2, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
   getApiError,
@@ -10,7 +10,11 @@ import {
 } from "../../lib/api";
 import { CompletenessFlagIcon } from "./engagementCompletenessUi";
 import { METSIGHTS_CATEGORY_COLUMNS, OpsCategoryIcon, OpsLegend } from "./engagementOpsQuestionnaireUi";
-import { participantCategoryMaps, ReportUrlCell } from "./participantRosterUi";
+import {
+  participantCategoryMaps,
+  ReportUrlCell,
+  resolveParticipantBloodReportUrl,
+} from "./participantRosterUi";
 
 type Tab = "blood" | "bio_ai" | "questionnaires";
 
@@ -49,6 +53,23 @@ export function ParticipantClinicalDrawer({
       .catch((err) => setError(getApiError(err)))
       .finally(() => setLoading(false));
   }, [open, participant, engagementId]);
+
+  const activeParticipant = participant;
+  const bloodReportUrl = (() => {
+    if (!activeParticipant) return null;
+    if (snapshot?.blood.blood_report_url?.trim()) {
+      return snapshot.blood.blood_report_url.trim();
+    }
+    for (const bb of snapshot?.blood.blood_bookings ?? []) {
+      const u = bb.diagnostic_report_url?.trim();
+      if (u) return u;
+    }
+    return resolveParticipantBloodReportUrl(activeParticipant);
+  })();
+  const bioAiReportUrl =
+    snapshot?.bio_ai.bio_ai_report_url?.trim() || activeParticipant?.bio_ai_report_url?.trim() || null;
+  const bioAiReports = snapshot?.bio_ai.reports ?? null;
+  const hasBioJson = Boolean(snapshot?.bio_ai.has_bio_ai_json ?? activeParticipant?.has_bio_ai_json);
 
   if (!open || !participant) {
     return null;
@@ -101,31 +122,40 @@ export function ParticipantClinicalDrawer({
             </div>
           )}
           {!loading && error && <p className="text-red-600">{error}</p>}
-          {!loading && !error && snapshot && tab === "blood" && (
+          {!loading && !error && tab === "blood" && (
             <div className="space-y-4">
               <div className="flex flex-wrap gap-4">
                 <span className="inline-flex items-center gap-1">
-                  Report <CompletenessFlagIcon present={snapshot.blood.has_blood_report} label="Blood report" />
+                  Report{" "}
+                  <CompletenessFlagIcon
+                    present={Boolean(snapshot?.blood.has_blood_report)}
+                    label="Archived blood report"
+                  />
                 </span>
                 <span className="inline-flex items-center gap-1">
-                  Values <CompletenessFlagIcon present={snapshot.blood.has_blood_values} label="Blood values" />
+                  Values{" "}
+                  <CompletenessFlagIcon
+                    present={Boolean(snapshot?.blood.has_blood_values ?? participant.has_blood_values)}
+                    label="Blood values"
+                  />
                 </span>
               </div>
               <div>
                 <div className="text-xs font-medium text-zinc-500 mb-1">Report URL</div>
-                <ReportUrlCell url={snapshot.blood.blood_report_url} label="Blood report" />
+                <ReportUrlCell url={bloodReportUrl} label="Blood report" />
               </div>
-              {snapshot.blood.blood_bookings.length > 0 && (
+              {(snapshot?.blood.blood_bookings.length ?? 0) > 0 && (
                 <div>
                   <div className="text-xs font-medium text-zinc-500 mb-2">Collections</div>
                   <ul className="space-y-2 text-xs text-zinc-700">
-                    {snapshot.blood.blood_bookings.map((bb) => (
-                      <li key={bb.id ?? bb.booking_id} className="rounded border border-zinc-200 p-2">
+                    {(snapshot?.blood.blood_bookings ?? []).map((bb) => (
+                      <li key={bb.id ?? bb.booking_id} className="rounded border border-zinc-200 p-2 space-y-1">
                         <div>Booking: {bb.booking_id || "—"}</div>
                         <div>Collected: {bb.collected_at || "—"}</div>
-                        {bb.diagnostic_report_url ? (
+                        <div className="flex flex-wrap items-center gap-1">
+                          <span className="text-zinc-500">Diagnostic URL:</span>
                           <ReportUrlCell url={bb.diagnostic_report_url} label="Diagnostic report" />
-                        ) : null}
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -133,20 +163,32 @@ export function ParticipantClinicalDrawer({
               )}
             </div>
           )}
-          {!loading && !error && snapshot && tab === "bio_ai" && (
+          {!loading && !error && tab === "bio_ai" && (
             <div className="space-y-4">
               <div className="flex flex-wrap gap-4">
                 <span className="inline-flex items-center gap-1">
-                  Report <CompletenessFlagIcon present={snapshot.bio_ai.has_bio_ai_report} label="Bio AI report" />
+                  Report{" "}
+                  <CompletenessFlagIcon
+                    present={Boolean(snapshot?.bio_ai.has_bio_ai_report ?? participant.has_bio_ai_report)}
+                    label="Bio AI report"
+                  />
                 </span>
                 <span className="inline-flex items-center gap-1">
-                  JSON <CompletenessFlagIcon present={snapshot.bio_ai.has_bio_ai_json} label="Bio AI JSON" />
+                  JSON <CompletenessFlagIcon present={hasBioJson} label="Bio AI JSON" />
                 </span>
               </div>
               <div>
                 <div className="text-xs font-medium text-zinc-500 mb-1">Report URL</div>
-                <ReportUrlCell url={snapshot.bio_ai.bio_ai_report_url} label="Bio AI report" />
+                <ReportUrlCell url={bioAiReportUrl} label="Bio AI report" />
               </div>
+              {hasBioJson && bioAiReports && (
+                <ClinicalJsonPanel title="Stored report JSON" value={bioAiReports} />
+              )}
+              {hasBioJson && !bioAiReports && !loading && (
+                <p className="text-xs text-zinc-500">
+                  JSON is on file; open Participant Journey for full answer-level detail.
+                </p>
+              )}
             </div>
           )}
           {!loading && !error && snapshot && tab === "questionnaires" && (
@@ -175,6 +217,38 @@ export function ParticipantClinicalDrawer({
           </Link>
         </div>
       </aside>
+    </div>
+  );
+}
+
+function ClinicalJsonPanel({ title, value }: { title: string; value: Record<string, unknown> }) {
+  const [open, setOpen] = useState(false);
+  const text = useMemo(() => JSON.stringify(value, null, 2), [value]);
+  return (
+    <div className="rounded border border-zinc-200">
+      <button
+        type="button"
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+        onClick={() => setOpen((v) => !v)}
+      >
+        {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+        {title}
+        <span className="text-zinc-400 font-normal">({Object.keys(value).length} keys)</span>
+      </button>
+      {open && (
+        <div className="border-t border-zinc-100 p-2">
+          <button
+            type="button"
+            className="mb-2 text-xs text-sky-700 hover:underline"
+            onClick={() => void navigator.clipboard?.writeText(text)}
+          >
+            Copy JSON
+          </button>
+          <pre className="max-h-64 overflow-auto rounded bg-zinc-50 p-2 text-[10px] leading-snug text-zinc-800">
+            {text}
+          </pre>
+        </div>
+      )}
     </div>
   );
 }

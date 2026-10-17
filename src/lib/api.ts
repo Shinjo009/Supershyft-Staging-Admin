@@ -2890,6 +2890,8 @@ export interface ParticipantClinicalSnapshot {
     has_bio_ai_report: boolean;
     has_bio_ai_json: boolean;
     bio_ai_report_url?: string | null;
+    /** Present in clinical snapshot when stored report JSON exists. */
+    reports?: Record<string, unknown> | null;
   };
   questionnaires: {
     questionnaire_state: "filled" | "partially_filled" | "not_started";

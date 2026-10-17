@@ -25,6 +25,17 @@ function copyText(value: string) {
   void navigator.clipboard?.writeText(value);
 }
 
+/** Archived blood URL from roster fields, else diagnostic URL on a collection booking. */
+export function resolveParticipantBloodReportUrl(participant: Participant): string | null {
+  const direct = participant.blood_report_url?.trim();
+  if (direct) return direct;
+  for (const bb of participant.blood_bookings ?? []) {
+    const fromBooking = bb.diagnostic_report_url?.trim();
+    if (fromBooking) return fromBooking;
+  }
+  return null;
+}
+
 export function ReportUrlCell({ url, label }: { url?: string | null; label: string }) {
   if (!url?.trim()) {
     return <span className="text-zinc-400">—</span>;
@@ -120,7 +131,7 @@ export function RosterBloodCells({ participant }: { participant: Participant }) 
         <CompletenessFlagIcon present={Boolean(participant.has_blood_report)} label="Blood report" />
       </td>
       <td className="px-2 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
-        <ReportUrlCell url={participant.blood_report_url} label="Blood report" />
+        <ReportUrlCell url={resolveParticipantBloodReportUrl(participant)} label="Blood report" />
       </td>
       <td className="px-2 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
         <CompletenessFlagIcon present={Boolean(participant.has_blood_values)} label="Blood values" />
