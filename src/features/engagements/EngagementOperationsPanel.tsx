@@ -1,16 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  CheckCheck,
   ChevronDown,
   ChevronRight,
-  CircleDot,
   ClipboardList,
   Clock,
   CloudCog,
   Database,
   Link2,
   Loader2,
-  Minus,
   Plus,
   RefreshCw,
   Send,
@@ -22,11 +19,7 @@ import {
 import { Modal } from "../../shared/ui/Modal";
 import { AssignParticipantsFromCsv } from "../../shared/ui/AssignParticipantsFromCsv";
 import { usePermissions } from "../../contexts/PermissionContext";
-import {
-  CompletenessFlagIcon,
-  CompletenessQuestionnaireIcon,
-  CompletenessSummaryCard,
-} from "./engagementCompletenessUi";
+import { CompletenessSummaryCard } from "./engagementCompletenessUi";
 import {
   assessmentPackagesApi,
   assessmentsApi,
@@ -42,7 +35,6 @@ import {
   type Engagement,
   type EngagementAssessmentPackageSummary,
   type EngagementDataCompletenessResponse,
-  type EngagementQuestionnaireCategoryStatus,
   type EngagementQuestionnaireStatusResponse,
 } from "../../lib/api";
 import {
@@ -56,12 +48,7 @@ import {
   runPushQuestionnairesBatch,
 } from "./pushQuestionnairesBatch";
 
-const METSIGHTS_CATEGORY_COLUMNS = [
-  { key: "physical-measurement", label: "Anthropometry" },
-  { key: "diet-lifestyle-parameters", label: "Diet & Lifestyle" },
-  { key: "vitals", label: "Vitals" },
-  { key: "fitness-parameters", label: "Fitness Params" },
-] as const;
+import { OpsLegend } from "./engagementOpsQuestionnaireUi";
 
 const RELOAD_BLOOD_CHUNK_SIZE = 10;
 
@@ -84,70 +71,6 @@ function mergeReloadProviderBloodResults(
     failed: results.reduce((sum, row) => sum + row.failed, 0),
     details: results.flatMap((row) => row.details),
   };
-}
-
-function OpsCategoryIcon({ cat }: { cat?: EngagementQuestionnaireCategoryStatus }) {
-  if (!cat || !cat.assigned) {
-    return (
-      <span title="Not assigned">
-        <Clock className="w-3.5 h-3.5 text-zinc-400" />
-      </span>
-    );
-  }
-  if (cat.status !== "complete" && !cat.has_responses) {
-    return (
-      <span title="Not started">
-        <Minus className="w-3.5 h-3.5 text-zinc-400" />
-      </span>
-    );
-  }
-  if (cat.status !== "complete" && cat.has_responses) {
-    const unanswered = cat.unanswered_required ?? [];
-    const tip =
-      unanswered.length > 0
-        ? `Unanswered required (${unanswered.length}):\n` +
-          unanswered
-            .slice(0, 20)
-            .map((q) => `• ${q.question_text || `Question #${q.question_id}`}`)
-            .join("\n") +
-          (unanswered.length > 20 ? `\n…and ${unanswered.length - 20} more` : "")
-        : "Partially filled";
-    return (
-      <span className="relative group/partial inline-flex">
-        <CircleDot className="w-3.5 h-3.5 text-amber-500" />
-        <span
-          role="tooltip"
-          className="pointer-events-none absolute left-1/2 bottom-full z-40 mb-1.5 w-64 -translate-x-1/2 rounded-md bg-zinc-900 px-2.5 py-1.5 text-left text-[11px] leading-snug text-white opacity-0 shadow-lg transition-opacity group-hover/partial:opacity-100 whitespace-pre-line"
-        >
-          {tip}
-        </span>
-      </span>
-    );
-  }
-  if (cat.status === "complete" && cat.is_submitted) {
-    return (
-      <span title="Submitted to MetSights">
-        <CheckCheck className="w-3.5 h-3.5 text-emerald-600" />
-      </span>
-    );
-  }
-  return (
-    <span title="Filled">
-      <CheckCheck className="w-3.5 h-3.5 text-zinc-900" />
-    </span>
-  );
-}
-
-function OpsLegend() {
-  return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-zinc-500 mt-2">
-      <span className="inline-flex items-center gap-0.5"><CheckCheck className="w-3 h-3 text-zinc-900" /> Filled</span>
-      <span className="inline-flex items-center gap-0.5"><CheckCheck className="w-3 h-3 text-emerald-600" /> Submitted</span>
-      <span className="inline-flex items-center gap-0.5"><CircleDot className="w-3 h-3 text-amber-500" /> Partial</span>
-      <span className="inline-flex items-center gap-0.5"><Minus className="w-3 h-3 text-zinc-400" /> Not started</span>
-      <span className="inline-flex items-center gap-0.5"><Clock className="w-3 h-3 text-zinc-400" /> Not assigned</span>
-    </div>
-  );
 }
 
 type Props = {
@@ -701,68 +624,10 @@ export function EngagementOperationsPanel({ engagement, active, onEngagementUpda
                             tone="amber"
                           />
                         </div>
-
-                        <div className="overflow-x-auto rounded-lg border border-zinc-200">
-                          <table className="w-full text-xs">
-                            <thead>
-                              <tr className="border-b border-zinc-200 bg-zinc-50">
-                                <th className="px-3 py-2 text-left font-medium text-zinc-600">Participant</th>
-                                <th className="px-2 py-2 text-center font-medium text-zinc-600">Booking</th>
-                                <th className="px-2 py-2 text-center font-medium text-zinc-600">Blood</th>
-                                <th className="px-2 py-2 text-center font-medium text-zinc-600">Values</th>
-                                <th className="px-2 py-2 text-center font-medium text-zinc-600">BioAI</th>
-                                <th className="px-2 py-2 text-center font-medium text-zinc-600">JSON</th>
-                                <th className="px-2 py-2 text-center font-medium text-zinc-600">Q</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {completenessData.participants.map((row) => {
-                                const name = [row.first_name, row.last_name].filter(Boolean).join(" ") || "—";
-                                return (
-                                  <tr
-                                    key={row.user_id}
-                                    className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50"
-                                  >
-                                    <td className="px-3 py-2">
-                                      <div className="font-medium text-zinc-800">{name}</div>
-                                      <div className="text-zinc-400">{row.phone || row.email || ""}</div>
-                                    </td>
-                                    <td className="px-2 py-2 text-center">
-                                      <div className="flex justify-center">
-                                        <CompletenessFlagIcon present={row.has_booking_id} label="Booking ID" />
-                                      </div>
-                                    </td>
-                                    <td className="px-2 py-2 text-center">
-                                      <div className="flex justify-center">
-                                        <CompletenessFlagIcon present={row.has_blood_report} label="Blood report" />
-                                      </div>
-                                    </td>
-                                    <td className="px-2 py-2 text-center">
-                                      <div className="flex justify-center">
-                                        <CompletenessFlagIcon present={row.has_blood_values} label="Blood values" />
-                                      </div>
-                                    </td>
-                                    <td className="px-2 py-2 text-center">
-                                      <div className="flex justify-center">
-                                        <CompletenessFlagIcon present={row.has_bio_ai_report} label="Bio AI report" />
-                                      </div>
-                                    </td>
-                                    <td className="px-2 py-2 text-center">
-                                      <div className="flex justify-center">
-                                        <CompletenessFlagIcon present={row.has_bio_ai_json} label="Bio AI JSON" />
-                                      </div>
-                                    </td>
-                                    <td className="px-2 py-2 text-center">
-                                      <div className="flex justify-center">
-                                        <CompletenessQuestionnaireIcon state={row.questionnaire_state} />
-                                      </div>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
+                        <p className="text-xs text-zinc-500">
+                          Per-participant status and category breakdown are on the Participants tab — expand
+                          any row for details.
+                        </p>
                       </>
                     )}
                   </div>
@@ -843,48 +708,9 @@ export function EngagementOperationsPanel({ engagement, active, onEngagementUpda
                     </div>
 
                     <OpsLegend />
-
-                    {/* Participants table */}
-                    <div className="overflow-x-auto rounded-lg border border-zinc-200">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="border-b border-zinc-200 bg-zinc-50">
-                            <th className="px-3 py-2 text-left font-medium text-zinc-600">Participant</th>
-                            {METSIGHTS_CATEGORY_COLUMNS.map((col) => (
-                              <th key={col.key} className="px-2 py-2 text-center font-medium text-zinc-600 whitespace-nowrap">
-                                {col.label}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {qStatusData.participants.map((row) => {
-                            const name = [row.first_name, row.last_name].filter(Boolean).join(" ") || "—";
-                            return (
-                              <tr
-                                key={row.user_id}
-                                className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50"
-                              >
-                                <td className="px-3 py-2">
-                                  <div className="font-medium text-zinc-800">{name}</div>
-                                  <div className="text-zinc-400">{row.phone || row.email || ""}</div>
-                                </td>
-                                {METSIGHTS_CATEGORY_COLUMNS.map((col) => {
-                                  const catStatus = row.categories?.[col.key];
-                                  return (
-                                    <td key={col.key} className="px-2 py-2 text-center">
-                                      <div className="flex justify-center">
-                                        <OpsCategoryIcon cat={catStatus} />
-                                      </div>
-                                    </td>
-                                  );
-                                })}
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
+                    <p className="text-xs text-zinc-500">
+                      Category matrix per participant is on the Participants tab (expand a roster row).
+                    </p>
                   </div>
                 )}
               </div>

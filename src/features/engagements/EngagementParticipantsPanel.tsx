@@ -1,4 +1,4 @@
-import { ParticipantsModal } from "../../shared/ui/ParticipantsModal";
+import { EngagementParticipantsRoster } from "./EngagementParticipantsRoster";
 
 export function EngagementParticipantsPanel({
   engagementId,
@@ -8,15 +8,6 @@ export function EngagementParticipantsPanel({
   engagementName?: string;
 }) {
   return (
-    <ParticipantsModal
-      variant="page"
-      open
-      onClose={() => {}}
-      source={{
-        kind: "engagement-id",
-        engagementId,
-        name: engagementName,
-      }}
-    />
+    <EngagementParticipantsRoster engagementId={engagementId} engagementName={engagementName} />
   );
 }

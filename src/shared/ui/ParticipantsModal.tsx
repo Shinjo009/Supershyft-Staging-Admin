@@ -32,6 +32,7 @@ import {
   type ConsultationPreference,
   type PublicSlotDetail,
   type EngagementParticipantStats,
+  type EngagementDataCompletenessResponse,
   type ParticipantListQueryParams,
   type LoadBloodReportsResult,
   type LoadBioaiReportsResult,
@@ -59,6 +60,12 @@ import {
   isScheduleCombinationAvailable,
   normalizeSlotToHhmm,
 } from "../../features/engagements/bloodCollectionScheduleUtils";
+import { CompletenessSummaryCard } from "../../features/engagements/engagementCompletenessUi";
+import {
+  ParticipantRosterExpandRow,
+  RosterExpandToggle,
+  RosterProgressChips,
+} from "../../features/engagements/participantRosterUi";
 
 function parsePublicSlotDetail(raw: unknown): PublicSlotDetail | null {
   if (raw == null) return null;
@@ -832,6 +839,12 @@ export function ParticipantsModal({
   const mayViewExperts = canView("experts");
   const useServerPagination = source.kind === "engagement-id";
   const [participants, setParticipants] = useState<Participant[]>([]);
+  const [showAllColumns, setShowAllColumns] = useState(false);
+  const [expandedRosterUserIds, setExpandedRosterUserIds] = useState<Set<number>>(new Set());
+  const [rosterSummary, setRosterSummary] = useState<
+    EngagementDataCompletenessResponse["summary"] | null
+  >(null);
+  const compactRoster = isPage && !showAllColumns;
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [participantStats, setParticipantStats] = useState<EngagementParticipantStats | null>(null);
@@ -1014,6 +1027,10 @@ export function ParticipantsModal({
           setBookingDatesLoading(false);
           const chunk = payload.participants ?? [];
           setParticipants(chunk);
+          setRosterSummary(
+            (payload.roster_summary as EngagementDataCompletenessResponse["summary"] | undefined) ??
+              null
+          );
           setTotal(Number(res.data.meta?.total ?? chunk.length));
         } else {
           const res = await participantsApi.byEngagementId(
@@ -1834,6 +1851,15 @@ export function ParticipantsModal({
       return;
     }
     setDetailsUserId(userId);
+  };
+
+  const toggleRosterExpand = (userId: number) => {
+    setExpandedRosterUserIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
   };
 
   const resolveSelectionForBulkAction = async (): Promise<Participant[]> => {
@@ -2688,12 +2714,65 @@ export function ParticipantsModal({
               </p>
             )}
 
+            {isPage && (
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-zinc-500">
+                  Per-participant questionnaire, reports, and Metsights sync — expand a row or open
+                  Operations for bulk actions.
+                </p>
+                <label className="inline-flex items-center gap-2 text-xs text-zinc-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showAllColumns}
+                    onChange={(e) => setShowAllColumns(e.target.checked)}
+                    className="rounded border-zinc-300"
+                  />
+                  Show all columns
+                </label>
+              </div>
+            )}
+
+            {isPage && rosterSummary && rosterSummary.total_participants > 0 && (
+              <div className="mb-4 grid grid-cols-2 lg:grid-cols-3 gap-2">
+                <CompletenessSummaryCard
+                  label="Booking ID"
+                  count={rosterSummary.with_booking_id}
+                  total={rosterSummary.total_participants}
+                  tone="emerald"
+                />
+                <CompletenessSummaryCard
+                  label="Blood report"
+                  count={rosterSummary.blood_report}
+                  total={rosterSummary.total_participants}
+                  tone="sky"
+                />
+                <CompletenessSummaryCard
+                  label="Bio AI report"
+                  count={rosterSummary.bio_ai_report}
+                  total={rosterSummary.total_participants}
+                  tone="violet"
+                />
+                <CompletenessSummaryCard
+                  label="Questionnaire filled"
+                  count={rosterSummary.questionnaire_filled}
+                  total={rosterSummary.total_participants}
+                  tone="emerald"
+                />
+              </div>
+            )}
+
             <div
               ref={scrollContainerRef}
-              className="overflow-x-auto overflow-y-auto max-h-[min(60vh,640px)] rounded-lg border border-zinc-200"
+              className={
+                isPage
+                  ? "overflow-x-auto rounded-lg border border-zinc-200"
+                  : "overflow-x-auto overflow-y-auto max-h-[min(60vh,640px)] rounded-lg border border-zinc-200"
+              }
             >
-              <table className="w-full text-sm min-w-[1500px]">
-                <thead>
+              <table
+                className={`w-full text-sm ${compactRoster ? "min-w-[960px]" : "min-w-[1500px]"}`}
+              >
+                <thead className={isPage ? "sticky top-0 z-10" : undefined}>
                   <tr className="border-b border-zinc-200 bg-zinc-50">
                     {selectionMode && (
                     <th className="w-10 px-2 py-3 text-left">
@@ -2720,18 +2799,31 @@ export function ParticipantsModal({
                       )}
                     </th>
                     )}
-                    <th className="px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap">
-                      Name
+                    {compactRoster && (
+                      <th className="w-9 px-1 py-3" aria-label="Expand row" />
+                    )}
+                    <th
+                      className={`px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap ${
+                        isPage ? "sticky left-0 z-[11] bg-zinc-50 shadow-[1px_0_0_0_rgb(228_228_231)]" : ""
+                      }`}
+                    >
+                      {compactRoster ? "Participant" : "Name"}
                     </th>
+                    {!compactRoster && (
                     <th className="px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap">
                       Phone
                     </th>
+                    )}
+                    {!compactRoster && (
                     <th className="px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap">
                       Gender
                     </th>
+                    )}
+                    {!compactRoster && (
                     <th className="px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap">
                       Email
                     </th>
+                    )}
                     <th className="px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap">
                       <EditableColumnHeader
                         label="Booking Id"
@@ -2771,6 +2863,7 @@ export function ParticipantsModal({
                         editTitle="slot start time"
                       />
                     </th>
+                    {!compactRoster && (
                     <th className="px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap">
                       <EditableColumnHeader
                         label="Blood Collection Cabin"
@@ -2780,6 +2873,7 @@ export function ParticipantsModal({
                         editTitle="blood collection cabin"
                       />
                     </th>
+                    )}
                     <th className="px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap">
                       <span className="inline-flex items-center gap-1.5">
                         Department
@@ -2801,9 +2895,16 @@ export function ParticipantsModal({
                         )}
                       </span>
                     </th>
+                    {!compactRoster && (
                     <th className="px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap">
                       Blood Group
                     </th>
+                    )}
+                    {compactRoster && (
+                      <th className="px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap">
+                        Progress
+                      </th>
+                    )}
                     {visibleExpertTypes.map((et) => (
                     <th key={et.type_key} className="px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap">
                       <EditableColumnHeader
@@ -2815,6 +2916,8 @@ export function ParticipantsModal({
                       />
                     </th>
                     ))}
+                    {!compactRoster && (
+                    <>
                     <th className="px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap">
                       Profile Created On Metsights
                     </th>
@@ -2824,6 +2927,8 @@ export function ParticipantsModal({
                     <th className="px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap">
                       FitPrint Record Synced
                     </th>
+                    </>
+                    )}
                     {canDeleteRows && (
                       <th className="px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap">
                         Actions
@@ -2849,7 +2954,9 @@ export function ParticipantsModal({
                     const showSlotEditor =
                       (slotStartTimeEditMode && canEditSchedule) ||
                       Boolean(scheduleDraft?.blood_collection_cabin);
+                    const rosterExpanded = expandedRosterUserIds.has(p.user_id);
                     return (
+                      <>
                       <tr
                         key={`${p.engagement_participant_id ?? p.user_id}-${idx}`}
                         className={`border-b border-zinc-100 last:border-0 cursor-pointer hover:bg-zinc-50 ${
@@ -2871,20 +2978,46 @@ export function ParticipantsModal({
                           />
                         </td>
                         )}
-                        <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-zinc-800">
+                        {compactRoster && (
+                          <td className="w-9 px-1 py-2.5 sm:py-3" onClick={(ev) => ev.stopPropagation()}>
+                            <RosterExpandToggle
+                              expanded={rosterExpanded}
+                              onToggle={() => toggleRosterExpand(p.user_id)}
+                            />
+                          </td>
+                        )}
+                        <td
+                          className={`px-3 sm:px-4 py-2.5 sm:py-3 text-zinc-800 ${
+                            isPage
+                              ? "sticky left-0 z-[1] bg-white shadow-[1px_0_0_0_rgb(244_244_245)]"
+                              : ""
+                          }`}
+                        >
                           <div className="font-medium leading-tight whitespace-nowrap">
                             {fullName(p)}
                           </div>
+                          {compactRoster && (
+                            <div className="text-xs text-zinc-500 mt-0.5 space-y-0.5">
+                              {p.phone ? <div>{p.phone}</div> : null}
+                              {p.email ? <div className="truncate max-w-[200px]">{p.email}</div> : null}
+                            </div>
+                          )}
                         </td>
+                        {!compactRoster && (
                         <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-zinc-600 whitespace-nowrap">
                           {p.phone || "—"}
                         </td>
+                        )}
+                        {!compactRoster && (
                         <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-zinc-600 whitespace-nowrap">
                           {p.gender || "—"}
                         </td>
+                        )}
+                        {!compactRoster && (
                         <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-zinc-600 whitespace-nowrap">
                           {p.email || "—"}
                         </td>
+                        )}
                         <td
                           className="px-3 sm:px-4 py-2.5 sm:py-3 text-zinc-600 whitespace-nowrap"
                           onClick={(ev) => {
@@ -3034,6 +3167,7 @@ export function ParticipantsModal({
                             p.slot_start_time || "—"
                           )}
                         </td>
+                        {!compactRoster && (
                         <td
                           className="px-3 sm:px-4 py-2.5 sm:py-3 text-zinc-600 whitespace-nowrap"
                           onClick={(ev) => {
@@ -3069,6 +3203,7 @@ export function ParticipantsModal({
                             p.blood_collection_cabin || "—"
                           )}
                         </td>
+                        )}
                         <td
                           className="px-3 sm:px-4 py-2.5 sm:py-3 text-zinc-600 whitespace-nowrap"
                           onClick={(ev) => {
@@ -3109,9 +3244,16 @@ export function ParticipantsModal({
                             resolveDepartmentDisplay(p.participant_department, orgDepartments)
                           )}
                         </td>
+                        {!compactRoster && (
                         <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-zinc-600 whitespace-nowrap">
                           {p.participant_blood_group || "—"}
                         </td>
+                        )}
+                        {compactRoster && (
+                          <td className="px-3 sm:px-4 py-2.5 sm:py-3">
+                            <RosterProgressChips participant={p} />
+                          </td>
+                        )}
                         {visibleExpertTypes.map((et) => (
                         <td
                           key={et.type_key}
@@ -3128,6 +3270,8 @@ export function ParticipantsModal({
                           {renderConsultationCell(p, et.type_key)}
                         </td>
                         ))}
+                        {!compactRoster && (
+                        <>
                         <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-zinc-600 whitespace-nowrap">
                           {formatBool(p.is_profile_created_on_metsights)}
                         </td>
@@ -3137,6 +3281,8 @@ export function ParticipantsModal({
                         <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-zinc-600 whitespace-nowrap">
                           {formatBool(p.is_fitprint_record_id_synced)}
                         </td>
+                        </>
+                        )}
                         {canDeleteRows && (
                           <td
                             className="px-3 sm:px-4 py-2.5 sm:py-3 text-zinc-600 whitespace-nowrap"
@@ -3158,6 +3304,10 @@ export function ParticipantsModal({
                           </td>
                         )}
                       </tr>
+                      {compactRoster && rosterExpanded && (
+                        <ParticipantRosterExpandRow participant={p} colSpan={24} />
+                      )}
+                      </>
                     );
                   })}
                 </tbody>

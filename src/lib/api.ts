@@ -2893,6 +2893,15 @@ export interface Participant {
   is_profile_created_on_metsights?: boolean | null;
   is_primary_record_id_synced?: boolean | null;
   is_fitprint_record_id_synced?: boolean | null;
+  has_booking_id?: boolean;
+  has_blood_report?: boolean;
+  has_blood_values?: boolean;
+  has_bio_ai_report?: boolean;
+  has_bio_ai_json?: boolean;
+  blood_report_url?: string | null;
+  bio_ai_report_url?: string | null;
+  questionnaire_state?: "filled" | "partially_filled" | "not_started";
+  questionnaire_categories?: Record<string, EngagementQuestionnaireCategoryStatus>;
   barcode?: string | null;
   booking_id?: string | null;
   booked_by_user_id?: number | null;
@@ -3025,7 +3034,12 @@ export type RemoveReportsResult = {
 export const participantsApi = {
   bootstrap: (
     engagementId: number,
-    params?: { page?: number; limit?: number; include_expert_types?: boolean }
+    params?: {
+      page?: number;
+      limit?: number;
+      include_expert_types?: boolean;
+      include_roster_progress?: boolean;
+    }
   ) =>
     api.get<{
       data: {
@@ -3034,6 +3048,7 @@ export const participantsApi = {
         booking_dates: Record<string, unknown>;
         filter_options: EngagementParticipantFilterOptions;
         participants: Participant[];
+        roster_summary?: EngagementDataCompletenessResponse["summary"];
         expert_types?: ExpertTypeItem[];
       };
       meta: { page: number; limit: number; total: number };
@@ -3247,6 +3262,8 @@ export interface EngagementDataCompletenessParticipant {
   has_bio_ai_report: boolean;
   has_bio_ai_json: boolean;
   questionnaire_state: "filled" | "partially_filled" | "not_started";
+  blood_report_url?: string | null;
+  bio_ai_report_url?: string | null;
 }
 
 export interface EngagementDataCompletenessResponse {
