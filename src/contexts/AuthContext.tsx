@@ -108,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return {
         isAuthenticated: true,
         ...profileToState(stored),
-        isLoading: true,
+        isLoading: false,
       };
     }
     return {

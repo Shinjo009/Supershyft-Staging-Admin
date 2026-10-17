@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { PermissionProvider, usePermissions } from "./contexts/PermissionContext";
@@ -6,41 +7,119 @@ import { AccessDenied } from "./pages/AccessDenied";
 import { AdminLayout } from "./layouts/AdminLayout";
 import { Login } from "./pages/Login";
 import { Dashboard } from "./features/dashboard/Dashboard";
-import { Organisations } from "./features/organisations/Organisations";
-import { CampReportsPage } from "./features/organisations/CampReportsPage";
-import { Engagements } from "./features/engagements/Engagements";
-import { EngagementDetailPage } from "./features/engagements/EngagementDetailPage";
-import { EngagementFormPage } from "./features/engagements/EngagementFormPage";
-import { Employees } from "./features/employees/Employees";
-import { Partners } from "./features/partners/Partners";
-import { AssessmentPackages } from "./features/assessments/AssessmentPackages";
-import { Users } from "./features/users/Users";
-import { ParticipantJourneyPage } from "./features/users/ParticipantJourneyPage";
-import { DiagnosticPackages } from "./features/diagnostics/DiagnosticPackages";
-import { Bookings } from "./features/payments/Bookings";
-import { Discounts } from "./features/discounts/Discounts";
-import { DiagnosticFilterChips } from "./features/diagnostics/DiagnosticFilterChips";
-import { SupportTickets } from "./features/support/SupportTickets";
-import { ChecklistTemplates } from "./features/checklists/ChecklistTemplates";
-import { HealthMetrics } from "./features/health-metrics/HealthMetrics";
-import { MyTasks } from "./features/checklists/MyTasks";
-import { Settings } from "./features/settings/Settings";
-import { Experts } from "./features/experts/Experts";
-import { ExpertPortalPage } from "./features/experts/ExpertPortalPage";
-import { ExpertMePage } from "./features/experts/ExpertMePage";
-import { ExpertAvailabilityPage } from "./features/experts/ExpertAvailabilityPage";
-import { ExpertRequestsPage } from "./features/experts/ExpertRequestsPage";
-import { ExpertUpcomingPage } from "./features/experts/ExpertUpcomingPage";
-import { ExpertConsultationManagePage } from "./features/experts/ExpertConsultationManagePage";
-import { ExpertCampConsultationsPage } from "./features/experts/ExpertCampConsultationsPage";
-import { ExpertCampConsultationParticipantsPage } from "./features/experts/ExpertCampConsultationParticipantsPage";
-import { Notifications } from "./features/notifications/Notifications";
-import { EngagementConsolePage } from "./features/console/EngagementConsolePage";
-import { ConsoleEngagementsPage } from "./features/console/ConsoleEngagementsPage";
-import { ServerHealth } from "./features/server/ServerHealth";
-import { IntegrationLogsPage } from "./features/integration-logs/IntegrationLogsPage";
 
 import { loginPathWithRedirect } from "./lib/authStorage";
+
+const Organisations = lazy(() =>
+  import("./features/organisations/Organisations").then((m) => ({ default: m.Organisations }))
+);
+const CampReportsPage = lazy(() =>
+  import("./features/organisations/CampReportsPage").then((m) => ({ default: m.CampReportsPage }))
+);
+const Engagements = lazy(() =>
+  import("./features/engagements/Engagements").then((m) => ({ default: m.Engagements }))
+);
+const EngagementDetailPage = lazy(() =>
+  import("./features/engagements/EngagementDetailPage").then((m) => ({ default: m.EngagementDetailPage }))
+);
+const EngagementFormPage = lazy(() =>
+  import("./features/engagements/EngagementFormPage").then((m) => ({ default: m.EngagementFormPage }))
+);
+const Employees = lazy(() =>
+  import("./features/employees/Employees").then((m) => ({ default: m.Employees }))
+);
+const Partners = lazy(() =>
+  import("./features/partners/Partners").then((m) => ({ default: m.Partners }))
+);
+const AssessmentPackages = lazy(() =>
+  import("./features/assessments/AssessmentPackages").then((m) => ({ default: m.AssessmentPackages }))
+);
+const Users = lazy(() => import("./features/users/Users").then((m) => ({ default: m.Users })));
+const ParticipantJourneyPage = lazy(() =>
+  import("./features/users/ParticipantJourneyPage").then((m) => ({ default: m.ParticipantJourneyPage }))
+);
+const DiagnosticPackages = lazy(() =>
+  import("./features/diagnostics/DiagnosticPackages").then((m) => ({ default: m.DiagnosticPackages }))
+);
+const Bookings = lazy(() =>
+  import("./features/payments/Bookings").then((m) => ({ default: m.Bookings }))
+);
+const Discounts = lazy(() =>
+  import("./features/discounts/Discounts").then((m) => ({ default: m.Discounts }))
+);
+const DiagnosticFilterChips = lazy(() =>
+  import("./features/diagnostics/DiagnosticFilterChips").then((m) => ({ default: m.DiagnosticFilterChips }))
+);
+const SupportTickets = lazy(() =>
+  import("./features/support/SupportTickets").then((m) => ({ default: m.SupportTickets }))
+);
+const ChecklistTemplates = lazy(() =>
+  import("./features/checklists/ChecklistTemplates").then((m) => ({ default: m.ChecklistTemplates }))
+);
+const HealthMetrics = lazy(() =>
+  import("./features/health-metrics/HealthMetrics").then((m) => ({ default: m.HealthMetrics }))
+);
+const MyTasks = lazy(() =>
+  import("./features/checklists/MyTasks").then((m) => ({ default: m.MyTasks }))
+);
+const Settings = lazy(() =>
+  import("./features/settings/Settings").then((m) => ({ default: m.Settings }))
+);
+const Experts = lazy(() => import("./features/experts/Experts").then((m) => ({ default: m.Experts })));
+const ExpertPortalPage = lazy(() =>
+  import("./features/experts/ExpertPortalPage").then((m) => ({ default: m.ExpertPortalPage }))
+);
+const ExpertMePage = lazy(() =>
+  import("./features/experts/ExpertMePage").then((m) => ({ default: m.ExpertMePage }))
+);
+const ExpertAvailabilityPage = lazy(() =>
+  import("./features/experts/ExpertAvailabilityPage").then((m) => ({ default: m.ExpertAvailabilityPage }))
+);
+const ExpertRequestsPage = lazy(() =>
+  import("./features/experts/ExpertRequestsPage").then((m) => ({ default: m.ExpertRequestsPage }))
+);
+const ExpertUpcomingPage = lazy(() =>
+  import("./features/experts/ExpertUpcomingPage").then((m) => ({ default: m.ExpertUpcomingPage }))
+);
+const ExpertConsultationManagePage = lazy(() =>
+  import("./features/experts/ExpertConsultationManagePage").then((m) => ({
+    default: m.ExpertConsultationManagePage,
+  }))
+);
+const ExpertCampConsultationsPage = lazy(() =>
+  import("./features/experts/ExpertCampConsultationsPage").then((m) => ({
+    default: m.ExpertCampConsultationsPage,
+  }))
+);
+const ExpertCampConsultationParticipantsPage = lazy(() =>
+  import("./features/experts/ExpertCampConsultationParticipantsPage").then((m) => ({
+    default: m.ExpertCampConsultationParticipantsPage,
+  }))
+);
+const Notifications = lazy(() =>
+  import("./features/notifications/Notifications").then((m) => ({ default: m.Notifications }))
+);
+const EngagementConsolePage = lazy(() =>
+  import("./features/console/EngagementConsolePage").then((m) => ({ default: m.EngagementConsolePage }))
+);
+const ConsoleEngagementsPage = lazy(() =>
+  import("./features/console/ConsoleEngagementsPage").then((m) => ({ default: m.ConsoleEngagementsPage }))
+);
+const ServerHealth = lazy(() =>
+  import("./features/server/ServerHealth").then((m) => ({ default: m.ServerHealth }))
+);
+const IntegrationLogsPage = lazy(() =>
+  import("./features/integration-logs/IntegrationLogsPage").then((m) => ({ default: m.IntegrationLogsPage }))
+);
+
+function RouteFallback() {
+  return (
+    <div className="min-h-[40vh] flex items-center justify-center">
+      <div className="animate-pulse text-zinc-500 text-sm">Loading page…</div>
+    </div>
+  );
+}
+
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -180,6 +259,7 @@ function PermissionRoute({
 
 function AppRoutes() {
   return (
+    <Suspense fallback={<RouteFallback />}>
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route
@@ -395,6 +475,7 @@ function AppRoutes() {
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   );
 }
 

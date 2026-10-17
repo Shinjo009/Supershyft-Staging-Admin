@@ -269,6 +269,11 @@ export function YearStatsCards({
       setBloodError(null);
       return;
     }
+    if (!initialYearStats && bloodYear === currentYear) {
+      setBloodLoading(true);
+      setBloodError(null);
+      return;
+    }
     if (initialYearStats && bloodYear === initialYearStats.year) {
       setBloodStats(initialYearStats);
       if (showConsultations && bloodYear === consultationYear) {
@@ -297,7 +302,7 @@ export function YearStatsCards({
     } finally {
       setBloodLoading(false);
     }
-  }, [showBlood, bloodYear, showConsultations, consultationYear, initialYearStats]);
+  }, [showBlood, bloodYear, showConsultations, consultationYear, initialYearStats, currentYear]);
 
   const fetchConsultationStats = useCallback(async () => {
     if (!showConsultations) {

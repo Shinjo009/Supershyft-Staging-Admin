@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { usePermissions } from "../../../contexts/PermissionContext";
-import { dashboardApi, getApiError, usersApi, type DashboardOverviewPayload } from "../../../lib/api";
+import {
+  dashboardApi,
+  getApiError,
+  usersApi,
+  type DashboardOperationsBlock,
+  type DashboardOverviewKpisPayload,
+  type DashboardOverviewPayload,
+} from "../../../lib/api";
 import type { MonthPoint } from "./overviewChartUtils";
 import type {
   EngagementBuckets,
@@ -15,8 +22,23 @@ import type {
 
 const LOADING = { status: "loading" } as const;
 
+const EMPTY_OPERATIONS: DashboardOperationsBlock = {
+  engagements: {
+    running_today: [],
+    running_this_week: [],
+    org_names: {},
+    truncated: false,
+  },
+  participant_issues: [],
+  participant_issue_summary: null,
+  pending_payments: [],
+  failed_notifications: [],
+  tickets: { open: [] },
+  serviceability_issues: [],
+};
+
 function mapParticipantIssueSummary(
-  raw: DashboardOverviewPayload["operations"]["participant_issue_summary"]
+  raw: DashboardOperationsBlock["participant_issue_summary"]
 ): ParticipantIssueBuckets["summary"] {
   if (!raw) return null;
   return {
@@ -31,7 +53,7 @@ function mapParticipantIssueSummary(
 }
 
 function bucketIssues(
-  issues: DashboardOverviewPayload["operations"]["participant_issues"],
+  issues: DashboardOperationsBlock["participant_issues"],
   totalParticipants: number,
   summary: ParticipantIssueBuckets["summary"]
 ): ParticipantIssueBuckets {
@@ -45,8 +67,71 @@ function bucketIssues(
   };
 }
 
-function mapOverviewToSnapshot(
-  data: DashboardOverviewPayload,
+function usersGrowthFromKpis(data: DashboardOverviewKpisPayload): MonthPoint[] {
+  const monthlyRows = Array.isArray(data.users?.monthly_totals) ? data.users.monthly_totals : [];
+  const yearlyRows = Array.isArray(data.users?.yearly_totals) ? data.users.yearly_totals : [];
+  const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  if (monthlyRows.length > 0) {
+    return monthlyRows.map((row) => ({
+      key: `${row.year}-${row.month}`,
+      label: monthLabels[(Number(row.month) || 1) - 1] ?? String(row.month),
+      value: Number(row.total_users) || 0,
+      count: row.new_users != null ? Number(row.new_users) : undefined,
+    }));
+  }
+  return yearlyRows.map((row) => ({
+    key: String(row.year),
+    label: String(row.year),
+    value: Number(row.total_users) || 0,
+    count: row.new_users != null ? Number(row.new_users) : undefined,
+  }));
+}
+
+function mergeOverview(
+  kpis: DashboardOverviewKpisPayload,
+  operations: DashboardOperationsBlock
+): DashboardOverviewPayload {
+  return { ...kpis, operations };
+}
+
+function mapKpisToSnapshot(
+  data: DashboardOverviewKpisPayload,
+  flags: {
+    showPayments: boolean;
+    showTickets: boolean;
+  }
+): Pick<OperationsSnapshot, "paymentStatusTotals" | "tickets"> {
+  const ticketCounts = data.ticket_counts ?? { open: 0, resolved: 0, closed: 0 };
+
+  const paymentStatusTotals: SectionState<PaymentStatusTotals> = flags.showPayments
+    ? {
+        status: "ready",
+        data: {
+          pending: data.payment_status_totals.pending ?? 0,
+          confirmed: data.payment_status_totals.confirmed ?? 0,
+          cancelled: data.payment_status_totals.cancelled ?? 0,
+        },
+      }
+    : { status: "idle" };
+
+  const tickets: SectionState<TicketBuckets> = flags.showTickets
+    ? {
+        status: "ready",
+        data: {
+          open: [],
+          openCount: ticketCounts.open ?? 0,
+          resolvedCount: ticketCounts.resolved ?? 0,
+          closedCount: ticketCounts.closed ?? 0,
+        },
+      }
+    : { status: "idle" };
+
+  return { paymentStatusTotals, tickets };
+}
+
+function mapOperationsToSnapshot(
+  kpis: DashboardOverviewKpisPayload,
+  ops: DashboardOperationsBlock,
   flags: {
     showEngagements: boolean;
     showParticipants: boolean;
@@ -55,9 +140,11 @@ function mapOverviewToSnapshot(
     showTickets: boolean;
     showBookingIssues: boolean;
   }
-): OperationsSnapshot {
-  const ops = data.operations;
-  const ticketCounts = data.ticket_counts ?? { open: 0, resolved: 0, closed: 0 };
+): Pick<
+  OperationsSnapshot,
+  "engagements" | "participants" | "payments" | "notifications" | "tickets" | "bookingIssues"
+> {
+  const ticketCounts = kpis.ticket_counts ?? { open: 0, resolved: 0, closed: 0 };
 
   const engagements: SectionState<EngagementBuckets> = flags.showEngagements
     ? {
@@ -76,7 +163,7 @@ function mapOverviewToSnapshot(
         status: "ready",
         data: bucketIssues(
           ops.participant_issues,
-          data.engagement_participants_total ?? 0,
+          kpis.engagement_participants_total ?? 0,
           mapParticipantIssueSummary(ops.participant_issue_summary)
         ),
       }
@@ -92,21 +179,8 @@ function mapOverviewToSnapshot(
       }
     : { status: "idle" };
 
-  const paymentStatusTotals: SectionState<PaymentStatusTotals> = flags.showPayments
-    ? {
-        status: "ready",
-        data: {
-          pending: data.payment_status_totals.pending ?? 0,
-          confirmed: data.payment_status_totals.confirmed ?? 0,
-          cancelled: data.payment_status_totals.cancelled ?? 0,
-        },
-      }
-    : { status: "idle" };
-
-  const notifications: SectionState<DashboardOverviewPayload["operations"]["failed_notifications"]> =
-    flags.showNotifications
-      ? { status: "ready", data: ops.failed_notifications }
-      : { status: "idle" };
+  const notifications: SectionState<DashboardOperationsBlock["failed_notifications"]> =
+    flags.showNotifications ? { status: "ready", data: ops.failed_notifications } : { status: "idle" };
 
   const tickets: SectionState<TicketBuckets> = flags.showTickets
     ? {
@@ -128,7 +202,6 @@ function mapOverviewToSnapshot(
     engagements,
     participants,
     payments,
-    paymentStatusTotals,
     notifications,
     tickets,
     bookingIssues,
@@ -156,50 +229,94 @@ export function useOperationsDashboard() {
   }));
   const [overview, setOverview] = useState<DashboardOverviewPayload | null>(null);
   const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [operationsError, setOperationsError] = useState<string | null>(null);
   const [usersGrowth, setUsersGrowth] = useState<MonthPoint[]>([]);
   const [usersLoading, setUsersLoading] = useState(showUsers);
   const [usersFallback, setUsersFallback] = useState<{ total: number; active: number } | null>(null);
+  const [kpis, setKpis] = useState<DashboardOverviewKpisPayload | null>(null);
 
   const load = useCallback(async () => {
     setOverviewError(null);
+    setOperationsError(null);
     setUsersFallback(null);
     if (showUsers) setUsersLoading(true);
-    try {
-      const response = await dashboardApi.overview();
-      const data = response.data.data;
-      setOverview(data);
-      const monthlyRows = Array.isArray(data.users?.monthly_totals) ? data.users.monthly_totals : [];
-      const yearlyRows = Array.isArray(data.users?.yearly_totals) ? data.users.yearly_totals : [];
-      const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      if (monthlyRows.length > 0) {
-        setUsersGrowth(
-          monthlyRows.map((row) => ({
-            key: `${row.year}-${row.month}`,
-            label: monthLabels[(Number(row.month) || 1) - 1] ?? String(row.month),
-            value: Number(row.total_users) || 0,
-            count: row.new_users != null ? Number(row.new_users) : undefined,
-          }))
-        );
-      } else {
-        setUsersGrowth(
-          yearlyRows.map((row) => ({
-            key: String(row.year),
-            label: String(row.year),
-            value: Number(row.total_users) || 0,
-            count: row.new_users != null ? Number(row.new_users) : undefined,
-          }))
-        );
+
+    let latestKpis: DashboardOverviewKpisPayload | null = null;
+    let pendingOperations: DashboardOperationsBlock | null = null;
+
+    const applyOperations = (operations: DashboardOperationsBlock) => {
+      if (!latestKpis) {
+        pendingOperations = operations;
+        return;
       }
-      setSnapshot(
-        mapOverviewToSnapshot(data, {
+      setOverview(mergeOverview(latestKpis, operations));
+      setSnapshot((prev) => ({
+        ...prev,
+        ...mapOperationsToSnapshot(latestKpis!, operations, {
           showEngagements,
           showParticipants,
           showPayments,
           showNotifications,
           showTickets,
           showBookingIssues,
-        })
-      );
+        }),
+      }));
+    };
+
+    void dashboardApi
+      .operations()
+      .then((response) => {
+        applyOperations(response.data.data.operations);
+      })
+      .catch((reason) => {
+        let message = getApiError(reason);
+        if (
+          message.includes("Network error") ||
+          message.includes("timed out") ||
+          message.includes("Timeout")
+        ) {
+          message = `${message} Check API logs for GET /admin/dashboard/operations.`;
+        }
+        setOperationsError(message);
+        const errorSection = { status: "error" as const, message };
+        setSnapshot((prev) => ({
+          ...prev,
+          engagements: showEngagements ? errorSection : prev.engagements,
+          participants: showParticipants ? errorSection : prev.participants,
+          payments: showPayments ? errorSection : prev.payments,
+          notifications: showNotifications ? errorSection : prev.notifications,
+          bookingIssues: showBookingIssues ? errorSection : prev.bookingIssues,
+          tickets:
+            showTickets && prev.tickets.status === "loading" ? errorSection : prev.tickets,
+        }));
+      });
+
+    try {
+      const response = await dashboardApi.overview();
+      const data = response.data.data;
+      latestKpis = data;
+      setKpis(data);
+      setUsersGrowth(usersGrowthFromKpis(data));
+      setSnapshot((prev) => ({
+        ...prev,
+        ...mapKpisToSnapshot(data, { showPayments, showTickets }),
+      }));
+      if (pendingOperations) {
+        setOverview(mergeOverview(data, pendingOperations));
+        setSnapshot((prev) => ({
+          ...prev,
+          ...mapOperationsToSnapshot(data, pendingOperations!, {
+            showEngagements,
+            showParticipants,
+            showPayments,
+            showNotifications,
+            showTickets,
+            showBookingIssues,
+          }),
+        }));
+      } else {
+        setOverview(mergeOverview(data, EMPTY_OPERATIONS));
+      }
     } catch (reason) {
       let message = getApiError(reason);
       if (
@@ -207,17 +324,18 @@ export function useOperationsDashboard() {
         message.includes("timed out") ||
         message.includes("Timeout")
       ) {
-        message = `${message} The overview endpoint is heavier than year stats; check API logs for GET /admin/dashboard/overview (502/504 or worker timeout).`;
+        message = `${message} Check API logs for GET /admin/dashboard/overview.`;
       }
       setOverviewError(message);
       setOverview(null);
+      setKpis(null);
       setUsersGrowth([]);
       const errorSection = { status: "error" as const, message };
       setSnapshot({
+        paymentStatusTotals: showPayments ? errorSection : { status: "idle" },
         engagements: showEngagements ? errorSection : { status: "idle" },
         participants: showParticipants ? errorSection : { status: "idle" },
         payments: showPayments ? errorSection : { status: "idle" },
-        paymentStatusTotals: showPayments ? errorSection : { status: "idle" },
         notifications: showNotifications ? errorSection : { status: "idle" },
         tickets: showTickets ? errorSection : { status: "idle" },
         bookingIssues: showBookingIssues ? errorSection : { status: "idle" },
@@ -292,10 +410,11 @@ export function useOperationsDashboard() {
     loadingAny,
     overview,
     overviewError,
+    operationsError,
     usersStats: {
       show: showUsers,
-      total: overview?.users?.total_users ?? usersFallback?.total ?? null,
-      active: overview?.users?.active_users ?? usersFallback?.active ?? null,
+      total: kpis?.users?.total_users ?? usersFallback?.total ?? null,
+      active: kpis?.users?.active_users ?? usersFallback?.active ?? null,
       growth: usersGrowth,
       loading: usersLoading,
       error: overviewError && usersFallback == null ? overviewError : null,

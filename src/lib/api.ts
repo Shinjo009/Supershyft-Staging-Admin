@@ -5257,20 +5257,7 @@ export interface DashboardYearStats {
   available_years: number[];
 }
 
-export interface DashboardOverviewPayload {
-  year_stats: DashboardYearStats;
-  users: {
-    total_users: number;
-    active_users: number;
-    yearly_totals: { year: number; new_users: number; total_users: number }[];
-    monthly_totals?: { year: number; month: number; new_users: number; total_users: number }[];
-  };
-  engagement_participants_total: number;
-  payment_status_totals: { pending: number; confirmed: number; cancelled: number };
-  ticket_counts: { open: number; resolved: number; closed: number };
-  failed_notifications_count: number;
-  generated_at: string;
-  operations: {
+export interface DashboardOperationsBlock {
     engagements: {
       running_today: EngagementListItem[];
       running_this_week: EngagementListItem[];
@@ -5300,12 +5287,38 @@ export interface DashboardOverviewPayload {
       engagement_label: string;
       failed_at: string;
     }[];
+}
+
+export interface DashboardOverviewKpisPayload {
+  year_stats: DashboardYearStats;
+  users: {
+    total_users: number;
+    active_users: number;
+    yearly_totals: { year: number; new_users: number; total_users: number }[];
+    monthly_totals?: { year: number; month: number; new_users: number; total_users: number }[];
   };
+  engagement_participants_total: number;
+  payment_status_totals: { pending: number; confirmed: number; cancelled: number };
+  ticket_counts: { open: number; resolved: number; closed: number };
+  failed_notifications_count: number;
+  generated_at: string;
+}
+
+/** KPI overview merged with operations (client-side). */
+export interface DashboardOverviewPayload extends DashboardOverviewKpisPayload {
+  operations: DashboardOperationsBlock;
+}
+
+export interface DashboardOperationsPayload {
+  operations: DashboardOperationsBlock;
+  generated_at: string;
 }
 
 export const dashboardApi = {
   overview: () =>
-    api.get<{ data: DashboardOverviewPayload }>("/admin/dashboard/overview"),
+    api.get<{ data: DashboardOverviewKpisPayload }>("/admin/dashboard/overview"),
+  operations: () =>
+    api.get<{ data: DashboardOperationsPayload }>("/admin/dashboard/operations"),
   yearStats: (year: number) =>
     api.get<{ data: DashboardYearStats }>("/admin/dashboard/year-stats", {
       params: { year },

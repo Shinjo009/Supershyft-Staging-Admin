@@ -9,6 +9,16 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), tailwindcss()],
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            xlsx: ['xlsx'],
+            'html5-qrcode': ['html5-qrcode'],
+          },
+        },
+      },
+    },
     server: {
       proxy: {
         '/api': {
