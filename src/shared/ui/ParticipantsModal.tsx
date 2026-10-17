@@ -69,6 +69,7 @@ import {
   QuestionnaireCategoryCell,
   RosterBioAiCells,
   RosterBloodCells,
+  RosterFitprintCells,
   RosterExpandToggle,
 } from "../../features/engagements/participantRosterUi";
 
@@ -2775,7 +2776,7 @@ export function ParticipantsModal({
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs text-zinc-500">
                   Column preset controls questionnaires and reports; use Clinical details on a row for
-                  full blood, Bio AI, and category breakdown.
+                  blood, Bio AI, Fitprint, and category breakdown.
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
                   <label className="inline-flex items-center gap-1.5 text-xs text-zinc-600">
@@ -2976,22 +2977,22 @@ export function ParticipantsModal({
                     {showReportsInCompact && (
                       <>
                         <th className="px-2 py-3 text-center text-xs font-medium text-zinc-600 whitespace-nowrap">
-                          Blood Rpt
+                          Blood report
                         </th>
                         <th className="px-2 py-3 text-center text-xs font-medium text-zinc-600 whitespace-nowrap">
-                          Blood URL
+                          Blood values
                         </th>
                         <th className="px-2 py-3 text-center text-xs font-medium text-zinc-600 whitespace-nowrap">
-                          Values
+                          Bio AI report
                         </th>
                         <th className="px-2 py-3 text-center text-xs font-medium text-zinc-600 whitespace-nowrap">
-                          Bio Rpt
+                          Bio AI values
                         </th>
                         <th className="px-2 py-3 text-center text-xs font-medium text-zinc-600 whitespace-nowrap">
-                          Bio URL
+                          Fitprint report
                         </th>
                         <th className="px-2 py-3 text-center text-xs font-medium text-zinc-600 whitespace-nowrap">
-                          Bio JSON
+                          Fitprint values
                         </th>
                       </>
                     )}
@@ -3373,6 +3374,7 @@ export function ParticipantsModal({
                         )}
                         {showReportsInCompact && <RosterBloodCells participant={p} />}
                         {showReportsInCompact && <RosterBioAiCells participant={p} />}
+                        {showReportsInCompact && <RosterFitprintCells participant={p} />}
                         {showQuestionnairesInCompact &&
                           questionnaireColumns.metsights.map((col) => (
                             <td key={`m-${p.user_id}-${col.key}`} className="px-1 py-2.5">

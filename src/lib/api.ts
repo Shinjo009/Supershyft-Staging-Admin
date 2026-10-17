@@ -2888,9 +2888,16 @@ export interface ParticipantClinicalSnapshot {
   };
   bio_ai: {
     has_bio_ai_report: boolean;
-    has_bio_ai_json: boolean;
+    has_bio_ai_values: boolean;
+    /** @deprecated use has_bio_ai_values */
+    has_bio_ai_json?: boolean;
     bio_ai_report_url?: string | null;
-    /** Present in clinical snapshot when stored report JSON exists. */
+    reports?: Record<string, unknown> | null;
+  };
+  fitprint: {
+    has_fitprint_report: boolean;
+    has_fitprint_values: boolean;
+    fitprint_report_url?: string | null;
     reports?: Record<string, unknown> | null;
   };
   questionnaires: {
@@ -2936,9 +2943,14 @@ export interface Participant {
   has_blood_report?: boolean;
   has_blood_values?: boolean;
   has_bio_ai_report?: boolean;
+  has_bio_ai_values?: boolean;
+  /** @deprecated use has_bio_ai_values */
   has_bio_ai_json?: boolean;
+  has_fitprint_report?: boolean;
+  has_fitprint_values?: boolean;
   blood_report_url?: string | null;
   bio_ai_report_url?: string | null;
+  fitprint_report_url?: string | null;
   questionnaire_state?: "filled" | "partially_filled" | "not_started";
   questionnaire_categories?:
     | ParticipantQuestionnaireCategories
@@ -3309,10 +3321,14 @@ export interface EngagementDataCompletenessParticipant {
   has_blood_report: boolean;
   has_blood_values: boolean;
   has_bio_ai_report: boolean;
+  has_bio_ai_values: boolean;
   has_bio_ai_json: boolean;
+  has_fitprint_report: boolean;
+  has_fitprint_values: boolean;
   questionnaire_state: "filled" | "partially_filled" | "not_started";
   blood_report_url?: string | null;
   bio_ai_report_url?: string | null;
+  fitprint_report_url?: string | null;
 }
 
 export interface EngagementDataCompletenessResponse {
@@ -3323,6 +3339,9 @@ export interface EngagementDataCompletenessResponse {
     blood_values: number;
     bio_ai_report: number;
     bio_ai_json: number;
+    bio_ai_values: number;
+    fitprint_report: number;
+    fitprint_values: number;
     questionnaire_filled: number;
     questionnaire_partially_filled: number;
     questionnaire_not_started: number;
@@ -3338,6 +3357,9 @@ export interface EngagementDataCompletenessSummaryRollup {
   blood_values: number;
   bio_ai_report: number;
   bio_ai_json: number;
+  bio_ai_values: number;
+  fitprint_report: number;
+  fitprint_values: number;
   questionnaire_filled: number;
   questionnaire_partially_filled: number;
   questionnaire_not_started: number;

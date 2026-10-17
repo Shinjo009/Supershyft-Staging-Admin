@@ -603,10 +603,25 @@ export function EngagementOperationsPanel({ engagement, active, onEngagementUpda
                             tone="violet"
                           />
                           <CompletenessSummaryCard
-                            label="Bio AI JSON"
-                            count={completenessData.summary.bio_ai_json}
+                            label="Bio AI values"
+                            count={
+                              completenessData.summary.bio_ai_values ??
+                              completenessData.summary.bio_ai_json
+                            }
                             total={completenessData.summary.total_participants}
                             tone="violet"
+                          />
+                          <CompletenessSummaryCard
+                            label="Fitprint report"
+                            count={completenessData.summary.fitprint_report ?? 0}
+                            total={completenessData.summary.total_participants}
+                            tone="amber"
+                          />
+                          <CompletenessSummaryCard
+                            label="Fitprint values"
+                            count={completenessData.summary.fitprint_values ?? 0}
+                            total={completenessData.summary.total_participants}
+                            tone="amber"
                           />
                           <CompletenessSummaryCard
                             label="Questionnaire filled"

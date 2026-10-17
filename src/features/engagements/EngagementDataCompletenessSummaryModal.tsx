@@ -153,10 +153,22 @@ export function EngagementDataCompletenessSummaryModal({
                     tone="violet"
                   />
                   <CompletenessSummaryCard
-                    label="Bio AI JSON"
-                    count={rollup.bio_ai_json}
+                    label="Bio AI values"
+                    count={rollup.bio_ai_values ?? rollup.bio_ai_json}
                     total={totalParticipants}
                     tone="violet"
+                  />
+                  <CompletenessSummaryCard
+                    label="Fitprint report"
+                    count={rollup.fitprint_report ?? 0}
+                    total={totalParticipants}
+                    tone="amber"
+                  />
+                  <CompletenessSummaryCard
+                    label="Fitprint values"
+                    count={rollup.fitprint_values ?? 0}
+                    total={totalParticipants}
+                    tone="amber"
                   />
                   <CompletenessSummaryCard
                     label="Questionnaire filled"
@@ -181,10 +193,12 @@ export function EngagementDataCompletenessSummaryModal({
                         <th className="px-2 py-2 text-left font-medium text-zinc-600">Status</th>
                         <th className="px-2 py-2 text-center font-medium text-zinc-600">P</th>
                         <th className="px-2 py-2 text-center font-medium text-zinc-600">Book</th>
-                        <th className="px-2 py-2 text-center font-medium text-zinc-600">Blood</th>
-                        <th className="px-2 py-2 text-center font-medium text-zinc-600">Values</th>
-                        <th className="px-2 py-2 text-center font-medium text-zinc-600">BioAI</th>
-                        <th className="px-2 py-2 text-center font-medium text-zinc-600">JSON</th>
+                        <th className="px-2 py-2 text-center font-medium text-zinc-600">Blood rpt</th>
+                        <th className="px-2 py-2 text-center font-medium text-zinc-600">Blood val</th>
+                        <th className="px-2 py-2 text-center font-medium text-zinc-600">Bio rpt</th>
+                        <th className="px-2 py-2 text-center font-medium text-zinc-600">Bio val</th>
+                        <th className="px-2 py-2 text-center font-medium text-zinc-600">Fp rpt</th>
+                        <th className="px-2 py-2 text-center font-medium text-zinc-600">Fp val</th>
                         <th className="px-2 py-2 text-center font-medium text-zinc-600">Q</th>
                         {onViewEngagement ? (
                           <th className="px-2 py-2 text-right font-medium text-zinc-600"> </th>
@@ -224,7 +238,16 @@ export function EngagementDataCompletenessSummaryModal({
                               {formatCompletenessRatio(row.summary.bio_ai_report, total)}
                             </td>
                             <td className="px-2 py-2 text-center tabular-nums text-zinc-700">
-                              {formatCompletenessRatio(row.summary.bio_ai_json, total)}
+                              {formatCompletenessRatio(
+                                row.summary.bio_ai_values ?? row.summary.bio_ai_json,
+                                total
+                              )}
+                            </td>
+                            <td className="px-2 py-2 text-center tabular-nums text-zinc-700">
+                              {formatCompletenessRatio(row.summary.fitprint_report ?? 0, total)}
+                            </td>
+                            <td className="px-2 py-2 text-center tabular-nums text-zinc-700">
+                              {formatCompletenessRatio(row.summary.fitprint_values ?? 0, total)}
                             </td>
                             <td className="px-2 py-2 text-center tabular-nums text-zinc-700">
                               {formatCompletenessRatio(row.summary.questionnaire_filled, total)}

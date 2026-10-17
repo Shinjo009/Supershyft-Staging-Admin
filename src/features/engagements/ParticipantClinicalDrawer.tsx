@@ -16,7 +16,19 @@ import {
   resolveParticipantBloodReportUrl,
 } from "./participantRosterUi";
 
-type Tab = "blood" | "bio_ai" | "questionnaires";
+type Tab = "blood" | "bio_ai" | "fitprint" | "questionnaires";
+
+function bioAiValuesPresent(
+  snapshot: ParticipantClinicalSnapshot | null,
+  participant: Participant
+): boolean {
+  return Boolean(
+    snapshot?.bio_ai.has_bio_ai_values ??
+      snapshot?.bio_ai.has_bio_ai_json ??
+      participant.has_bio_ai_values ??
+      participant.has_bio_ai_json
+  );
+}
 
 export function ParticipantClinicalDrawer({
   open,
@@ -68,8 +80,16 @@ export function ParticipantClinicalDrawer({
   })();
   const bioAiReportUrl =
     snapshot?.bio_ai.bio_ai_report_url?.trim() || activeParticipant?.bio_ai_report_url?.trim() || null;
+  const fitprintReportUrl =
+    snapshot?.fitprint?.fitprint_report_url?.trim() ||
+    activeParticipant?.fitprint_report_url?.trim() ||
+    null;
   const bioAiReports = snapshot?.bio_ai.reports ?? null;
-  const hasBioJson = Boolean(snapshot?.bio_ai.has_bio_ai_json ?? activeParticipant?.has_bio_ai_json);
+  const fitprintReports = snapshot?.fitprint?.reports ?? null;
+  const hasBioValues = activeParticipant ? bioAiValuesPresent(snapshot, activeParticipant) : false;
+  const hasFitprintValues = Boolean(
+    snapshot?.fitprint?.has_fitprint_values ?? activeParticipant?.has_fitprint_values
+  );
 
   if (!open || !participant) {
     return null;
@@ -85,6 +105,13 @@ export function ParticipantClinicalDrawer({
     ? snapshot.questionnaires.categories
     : participantCategoryMaps(participant);
 
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "blood", label: "Blood" },
+    { id: "bio_ai", label: "Bio AI" },
+    { id: "fitprint", label: "Fitprint" },
+    { id: "questionnaires", label: "Questionnaires" },
+  ];
+
   return (
     <div className="fixed inset-0 z-[60] flex justify-end">
       <button type="button" className="absolute inset-0 bg-black/30" aria-label="Close" onClick={onClose} />
@@ -99,17 +126,17 @@ export function ParticipantClinicalDrawer({
           </button>
         </div>
 
-        <div className="flex gap-1 px-4 pt-3 border-b border-zinc-100">
-          {(["blood", "bio_ai", "questionnaires"] as Tab[]).map((t) => (
+        <div className="flex gap-1 px-4 pt-3 border-b border-zinc-100 overflow-x-auto">
+          {tabs.map((t) => (
             <button
-              key={t}
+              key={t.id}
               type="button"
-              onClick={() => setTab(t)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-t-lg ${
-                tab === t ? "bg-zinc-100 text-zinc-900" : "text-zinc-500 hover:text-zinc-800"
+              onClick={() => setTab(t.id)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-t-lg whitespace-nowrap ${
+                tab === t.id ? "bg-zinc-100 text-zinc-900" : "text-zinc-500 hover:text-zinc-800"
               }`}
             >
-              {t === "blood" ? "Blood" : t === "bio_ai" ? "Bio AI" : "Questionnaires"}
+              {t.label}
             </button>
           ))}
         </div>
@@ -128,8 +155,8 @@ export function ParticipantClinicalDrawer({
                 <span className="inline-flex items-center gap-1">
                   Report{" "}
                   <CompletenessFlagIcon
-                    present={Boolean(snapshot?.blood.has_blood_report)}
-                    label="Archived blood report"
+                    present={Boolean(snapshot?.blood.has_blood_report ?? participant.has_blood_report)}
+                    label="Blood report"
                   />
                 </span>
                 <span className="inline-flex items-center gap-1">
@@ -174,19 +201,47 @@ export function ParticipantClinicalDrawer({
                   />
                 </span>
                 <span className="inline-flex items-center gap-1">
-                  JSON <CompletenessFlagIcon present={hasBioJson} label="Bio AI JSON" />
+                  Values <CompletenessFlagIcon present={hasBioValues} label="Bio AI values" />
                 </span>
               </div>
               <div>
                 <div className="text-xs font-medium text-zinc-500 mb-1">Report URL</div>
                 <ReportUrlCell url={bioAiReportUrl} label="Bio AI report" />
               </div>
-              {hasBioJson && bioAiReports && (
-                <ClinicalJsonPanel title="Stored report JSON" value={bioAiReports} />
+              {hasBioValues && bioAiReports && (
+                <ClinicalJsonPanel title="Bio AI values (JSON)" value={bioAiReports} />
               )}
-              {hasBioJson && !bioAiReports && !loading && (
+              {hasBioValues && !bioAiReports && !loading && (
                 <p className="text-xs text-zinc-500">
-                  JSON is on file; open Participant Journey for full answer-level detail.
+                  Values are on file; open Participant Journey for answer-level detail.
+                </p>
+              )}
+            </div>
+          )}
+          {!loading && !error && tab === "fitprint" && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-4">
+                <span className="inline-flex items-center gap-1">
+                  Report{" "}
+                  <CompletenessFlagIcon
+                    present={Boolean(snapshot?.fitprint?.has_fitprint_report ?? participant.has_fitprint_report)}
+                    label="Fitprint report"
+                  />
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  Values <CompletenessFlagIcon present={hasFitprintValues} label="Fitprint values" />
+                </span>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-zinc-500 mb-1">Report URL</div>
+                <ReportUrlCell url={fitprintReportUrl} label="Fitprint report" />
+              </div>
+              {hasFitprintValues && fitprintReports && (
+                <ClinicalJsonPanel title="Fitprint values (JSON)" value={fitprintReports} />
+              )}
+              {hasFitprintValues && !fitprintReports && !loading && (
+                <p className="text-xs text-zinc-500">
+                  Values are on file; open Participant Journey for answer-level detail.
                 </p>
               )}
             </div>

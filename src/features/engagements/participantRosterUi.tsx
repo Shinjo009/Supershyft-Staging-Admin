@@ -131,13 +131,14 @@ export function RosterBloodCells({ participant }: { participant: Participant }) 
         <CompletenessFlagIcon present={Boolean(participant.has_blood_report)} label="Blood report" />
       </td>
       <td className="px-2 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
-        <ReportUrlCell url={resolveParticipantBloodReportUrl(participant)} label="Blood report" />
-      </td>
-      <td className="px-2 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
         <CompletenessFlagIcon present={Boolean(participant.has_blood_values)} label="Blood values" />
       </td>
     </>
   );
+}
+
+function participantHasBioAiValues(participant: Participant): boolean {
+  return Boolean(participant.has_bio_ai_values ?? participant.has_bio_ai_json);
 }
 
 export function RosterBioAiCells({ participant }: { participant: Participant }) {
@@ -147,10 +148,26 @@ export function RosterBioAiCells({ participant }: { participant: Participant }) 
         <CompletenessFlagIcon present={Boolean(participant.has_bio_ai_report)} label="Bio AI report" />
       </td>
       <td className="px-2 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
-        <ReportUrlCell url={participant.bio_ai_report_url} label="Bio AI report" />
+        <CompletenessFlagIcon present={participantHasBioAiValues(participant)} label="Bio AI values" />
+      </td>
+    </>
+  );
+}
+
+export function RosterFitprintCells({ participant }: { participant: Participant }) {
+  return (
+    <>
+      <td className="px-2 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
+        <CompletenessFlagIcon
+          present={Boolean(participant.has_fitprint_report)}
+          label="Fitprint report"
+        />
       </td>
       <td className="px-2 py-2.5 text-center" onClick={(e) => e.stopPropagation()}>
-        <CompletenessFlagIcon present={Boolean(participant.has_bio_ai_json)} label="Bio AI JSON" />
+        <CompletenessFlagIcon
+          present={Boolean(participant.has_fitprint_values)}
+          label="Fitprint values"
+        />
       </td>
     </>
   );

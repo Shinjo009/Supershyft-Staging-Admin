@@ -86,12 +86,15 @@ export function EngagementOverviewTab({
   const coverageLine = useMemo(() => {
     if (!completeness || completeness.summary.total_participants === 0) return null;
     const s = completeness.summary;
+    const bioValues = s.bio_ai_values ?? s.bio_ai_json;
     return [
       `Bookings ${s.with_booking_id}/${s.total_participants}`,
-      `Blood ${s.blood_report}/${s.total_participants}`,
-      `Values ${s.blood_values}/${s.total_participants}`,
-      `BioAI ${s.bio_ai_report}/${s.total_participants}`,
-      `JSON ${s.bio_ai_json}/${s.total_participants}`,
+      `Blood report ${s.blood_report}/${s.total_participants}`,
+      `Blood values ${s.blood_values}/${s.total_participants}`,
+      `Bio AI report ${s.bio_ai_report}/${s.total_participants}`,
+      `Bio AI values ${bioValues}/${s.total_participants}`,
+      `Fitprint report ${s.fitprint_report ?? 0}/${s.total_participants}`,
+      `Fitprint values ${s.fitprint_values ?? 0}/${s.total_participants}`,
       `Q ${s.questionnaire_filled}/${s.total_participants}`,
     ].join(" · ");
   }, [completeness]);
