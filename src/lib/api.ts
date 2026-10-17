@@ -3092,6 +3092,7 @@ export const participantsApi = {
       limit?: number;
       include_expert_types?: boolean;
       include_roster_progress?: boolean;
+      include_questionnaire_maps?: boolean;
     }
   ) =>
     api.get<{
@@ -3113,6 +3114,15 @@ export const participantsApi = {
   clinicalSnapshot: (engagementId: number, userId: number) =>
     api.get<{ data: ParticipantClinicalSnapshot }>(
       `/engagements/${engagementId}/participants/${userId}/clinical-snapshot`
+    ),
+  clearClinicalData: (
+    engagementId: number,
+    userId: number,
+    body: { product: "blood" | "bio_ai" | "fitprint"; field: "report_url" | "values" }
+  ) =>
+    api.patch<{ data: ParticipantClinicalSnapshot & { cleared_rows?: number } }>(
+      `/engagements/${engagementId}/participants/${userId}/clinical-data`,
+      body
     ),
   byEngagementId: (engagementId: number, params?: ParticipantListQueryParams) =>
     api.get<{ data: Participant[]; meta?: { page?: number; limit?: number; total: number } }>(

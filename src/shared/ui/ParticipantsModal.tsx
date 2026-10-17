@@ -17,6 +17,7 @@ import {
   logThenDownloadParticipantsExport,
 } from "./ExportSelectedParticipantsDialog";
 import { usePermissions } from "../../contexts/PermissionContext";
+import { useAuth } from "../../contexts/AuthContext";
 import { UserDetailsModal } from "./UserDetailsModal";
 import {
   participantsApi,
@@ -103,7 +104,8 @@ async function fetchEngagementParticipantsBootstrap(
       page,
       limit: options.limit,
       include_expert_types: options.includeExpertTypes,
-      include_roster_progress: page === 1,
+      include_roster_progress: true,
+      include_questionnaire_maps: page === 1,
     });
   } catch (bootstrapErr) {
     const listRes = await participantsApi.byEngagementId(engagementId, {
@@ -857,6 +859,8 @@ export function ParticipantsModal({
   const isPage = variant === "page";
   const isActive = open || isPage;
   const { canEditTask, canView } = usePermissions();
+  const { employeeRole } = useAuth();
+  const canClearClinicalData = employeeRole === "admin";
   const mayEditEngagements = canEditTask("engagements", "participants");
   const mayEditNotifications = canEditTask("notifications", "messages");
   const mayEditReports = canEditTask("reports", "participant_reports");
@@ -4265,6 +4269,10 @@ export function ParticipantsModal({
           engagementId={source.engagementId}
           participant={clinicalDrawerParticipant}
           questionnaireColumns={questionnaireColumns}
+          canClearClinicalData={canClearClinicalData}
+          onParticipantUpdated={() => {
+            void fetchParticipants();
+          }}
         />
       )}
 

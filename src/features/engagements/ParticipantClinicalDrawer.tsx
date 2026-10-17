@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Loader2, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
@@ -36,6 +36,8 @@ export function ParticipantClinicalDrawer({
   engagementId,
   participant,
   questionnaireColumns,
+  canClearClinicalData = false,
+  onParticipantUpdated,
 }: {
   open: boolean;
   onClose: () => void;
@@ -45,18 +47,17 @@ export function ParticipantClinicalDrawer({
     metsights: RosterQuestionnaireColumn[];
     supershyft: RosterQuestionnaireColumn[];
   };
+  canClearClinicalData?: boolean;
+  onParticipantUpdated?: () => void;
 }) {
   const [tab, setTab] = useState<Tab>("blood");
   const [loading, setLoading] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<ParticipantClinicalSnapshot | null>(null);
 
-  useEffect(() => {
-    if (!open || !participant) {
-      setSnapshot(null);
-      setError(null);
-      return;
-    }
+  const loadSnapshot = useCallback(() => {
+    if (!participant) return;
     setLoading(true);
     setError(null);
     void participantsApi
@@ -64,7 +65,42 @@ export function ParticipantClinicalDrawer({
       .then((res) => setSnapshot(res.data.data))
       .catch((err) => setError(getApiError(err)))
       .finally(() => setLoading(false));
-  }, [open, participant, engagementId]);
+  }, [engagementId, participant]);
+
+  useEffect(() => {
+    if (!open || !participant) {
+      setSnapshot(null);
+      setError(null);
+      return;
+    }
+    loadSnapshot();
+  }, [open, participant, loadSnapshot]);
+
+  const handleClear = async (
+    product: "blood" | "bio_ai" | "fitprint",
+    field: "report_url" | "values",
+    label: string
+  ) => {
+    if (!participant || !canClearClinicalData) return;
+    const ok = window.confirm(
+      `Delete ${label} for this participant? This cannot be undone from the admin UI.`
+    );
+    if (!ok) return;
+    setClearing(true);
+    setError(null);
+    try {
+      const res = await participantsApi.clearClinicalData(engagementId, participant.user_id, {
+        product,
+        field,
+      });
+      setSnapshot(res.data.data);
+      onParticipantUpdated?.();
+    } catch (err) {
+      setError(getApiError(err));
+    } finally {
+      setClearing(false);
+    }
+  };
 
   const activeParticipant = participant;
   const bloodReportUrl = (() => {
@@ -171,6 +207,15 @@ export function ParticipantClinicalDrawer({
                 <div className="text-xs font-medium text-zinc-500 mb-1">Report URL</div>
                 <ReportUrlCell url={bloodReportUrl} label="Blood report" />
               </div>
+              {canClearClinicalData && (
+                <ClinicalAdminActions
+                  clearing={clearing}
+                  hasReportUrl={Boolean(bloodReportUrl)}
+                  hasValues={Boolean(snapshot?.blood.has_blood_values ?? participant.has_blood_values)}
+                  onClearReportUrl={() => void handleClear("blood", "report_url", "blood report URL")}
+                  onClearValues={() => void handleClear("blood", "values", "blood values")}
+                />
+              )}
               {(snapshot?.blood.blood_bookings.length ?? 0) > 0 && (
                 <div>
                   <div className="text-xs font-medium text-zinc-500 mb-2">Collections</div>
@@ -208,6 +253,15 @@ export function ParticipantClinicalDrawer({
                 <div className="text-xs font-medium text-zinc-500 mb-1">Report URL</div>
                 <ReportUrlCell url={bioAiReportUrl} label="Bio AI report" />
               </div>
+              {canClearClinicalData && (
+                <ClinicalAdminActions
+                  clearing={clearing}
+                  hasReportUrl={Boolean(bioAiReportUrl)}
+                  hasValues={hasBioValues}
+                  onClearReportUrl={() => void handleClear("bio_ai", "report_url", "Bio AI report URL")}
+                  onClearValues={() => void handleClear("bio_ai", "values", "Bio AI values")}
+                />
+              )}
               {hasBioValues && bioAiReports && (
                 <ClinicalJsonPanel title="Bio AI values (JSON)" value={bioAiReports} />
               )}
@@ -236,6 +290,15 @@ export function ParticipantClinicalDrawer({
                 <div className="text-xs font-medium text-zinc-500 mb-1">Report URL</div>
                 <ReportUrlCell url={fitprintReportUrl} label="Fitprint report" />
               </div>
+              {canClearClinicalData && (
+                <ClinicalAdminActions
+                  clearing={clearing}
+                  hasReportUrl={Boolean(fitprintReportUrl)}
+                  hasValues={hasFitprintValues}
+                  onClearReportUrl={() => void handleClear("fitprint", "report_url", "Fitprint report URL")}
+                  onClearValues={() => void handleClear("fitprint", "values", "Fitprint values")}
+                />
+              )}
               {hasFitprintValues && fitprintReports && (
                 <ClinicalJsonPanel title="Fitprint values (JSON)" value={fitprintReports} />
               )}
@@ -272,6 +335,41 @@ export function ParticipantClinicalDrawer({
           </Link>
         </div>
       </aside>
+    </div>
+  );
+}
+
+function ClinicalAdminActions({
+  clearing,
+  hasReportUrl,
+  hasValues,
+  onClearReportUrl,
+  onClearValues,
+}: {
+  clearing: boolean;
+  hasReportUrl: boolean;
+  hasValues: boolean;
+  onClearReportUrl: () => void;
+  onClearValues: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2 pt-1">
+      <button
+        type="button"
+        disabled={clearing || !hasReportUrl}
+        onClick={onClearReportUrl}
+        className="text-xs text-red-700 border border-red-200 rounded px-2 py-1 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        Delete report URL
+      </button>
+      <button
+        type="button"
+        disabled={clearing || !hasValues}
+        onClick={onClearValues}
+        className="text-xs text-red-700 border border-red-200 rounded px-2 py-1 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        Delete values
+      </button>
     </div>
   );
 }
