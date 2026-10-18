@@ -27,6 +27,22 @@ function formatPartnerLabel(p: PartnerListItem): string {
   return bits.join(" · ");
 }
 
+function formatAmountPaise(paise: number | null | undefined): string {
+  if (paise == null) return "—";
+  const rupees = paise / 100;
+  return `₹${rupees.toLocaleString("en-IN", { maximumFractionDigits: rupees % 1 === 0 ? 0 : 2 })}`;
+}
+
+function formatAvailabilitySummary(
+  availability: ExpertListItem["availability"] | undefined | null,
+): string {
+  if (!availability) return "—";
+  const parts: string[] = [];
+  if (availability.day_label) parts.push(availability.day_label);
+  if (availability.hours_label) parts.push(availability.hours_label);
+  return parts.length ? parts.join(" · ") : "—";
+}
+
 const emptyPayload = (): ExpertPayload => ({
   partner_id: 0,
   expert_type: "",
@@ -489,7 +505,20 @@ function ExpertsListTab({
   };
 
   const columns: Column<ExpertListItem>[] = [
+    {
+      key: "name",
+      label: "Name",
+      sortable: true,
+      render: (row) => row.name?.trim() || "—",
+    },
     { key: "specialization", label: "Specialization", sortable: true },
+    {
+      key: "qualifications",
+      label: "Qualifications",
+      sortable: false,
+      hideOnMobile: true,
+      render: (row) => row.qualifications?.trim() || "—",
+    },
     { key: "expert_type", label: "Type", sortable: true, hideOnMobile: true },
     {
       key: "rating",
@@ -529,7 +558,7 @@ function ExpertsListTab({
               isActive ? "bg-emerald-500" : "bg-zinc-300"
             }`}
             aria-pressed={isActive}
-            aria-label={`Set ${row.specialization} ${isActive ? "inactive" : "active"}`}
+            aria-label={`Set ${row.name?.trim() || row.specialization} ${isActive ? "inactive" : "active"}`}
           >
             <span
               className={`h-5 w-5 bg-white rounded-full shadow transform transition translate-x-0.5 ${
@@ -565,7 +594,7 @@ function ExpertsListTab({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
           <input
             type="search"
-            placeholder="Search by specialization or qualifications..."
+            placeholder="Search by name, specialization, or qualifications..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent"
@@ -631,17 +660,67 @@ function ExpertsListTab({
       >
         {modalMode === "view" && selected ? (
           <div className="space-y-3 text-sm">
-            <div className="font-medium text-zinc-900">{selected.specialization}</div>
+            <div>
+              <div className="font-medium text-zinc-900">
+                {selected.name?.trim() || "—"}
+              </div>
+              <div className="text-zinc-600">{selected.specialization}</div>
+            </div>
             <div className="text-zinc-600">
-              <span className="text-zinc-500">Partner:</span>{" "}
-              {viewPartner
-                ? formatPartnerLabel(viewPartner)
-                : selected.partner_id
-                  ? `#${selected.partner_id}`
-                  : "—"}
+              <span className="text-zinc-500">Contact:</span>{" "}
+              {viewPartner ? (
+                <>
+                  {viewPartner.phone ? (
+                    <span>{viewPartner.phone}</span>
+                  ) : null}
+                  {viewPartner.phone && viewPartner.email ? " · " : null}
+                  {viewPartner.email ? <span>{viewPartner.email}</span> : null}
+                  {!viewPartner.phone && !viewPartner.email ? "—" : null}
+                </>
+              ) : selected.partner_id ? (
+                <span className="text-zinc-400">Loading…</span>
+              ) : (
+                "—"
+              )}
             </div>
             <div className="text-zinc-600">
               <span className="text-zinc-500">Type:</span> {selected.expert_type}
+            </div>
+            {selected.qualifications ? (
+              <div className="text-zinc-600">
+                <span className="text-zinc-500">Qualifications:</span> {selected.qualifications}
+              </div>
+            ) : null}
+            {selected.experience_years != null ? (
+              <div className="text-zinc-600">
+                <span className="text-zinc-500">Experience:</span> {selected.experience_years} years
+              </div>
+            ) : null}
+            {selected.languages?.length ? (
+              <div className="text-zinc-600">
+                <span className="text-zinc-500">Languages:</span> {selected.languages.join(", ")}
+              </div>
+            ) : null}
+            {selected.consultation_modes?.length ? (
+              <div className="text-zinc-600">
+                <span className="text-zinc-500">Consultation modes:</span>{" "}
+                {selected.consultation_modes.join(", ")}
+              </div>
+            ) : null}
+            <div className="text-zinc-600">
+              <span className="text-zinc-500">Appointment fee:</span>{" "}
+              {formatAmountPaise(selected.appointment_fee_paise)}
+              {selected.original_fee_paise != null &&
+              selected.appointment_fee_paise != null &&
+              selected.original_fee_paise > selected.appointment_fee_paise ? (
+                <span className="text-zinc-400 line-through ml-2">
+                  {formatAmountPaise(selected.original_fee_paise)}
+                </span>
+              ) : null}
+            </div>
+            <div className="text-zinc-600">
+              <span className="text-zinc-500">Availability:</span>{" "}
+              {formatAvailabilitySummary(selected.availability)}
             </div>
             <div className="text-zinc-600">
               <span className="text-zinc-500">Status:</span> {selected.status}
