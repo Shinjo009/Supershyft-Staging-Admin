@@ -4,11 +4,28 @@ import type {
   ConsultationManageDetail,
 } from "../../lib/api";
 
-export function isHealthConsentIncomplete(
-  consent: CampConsultationRequestConsent | null | undefined
-): boolean {
+type ConsentLike = {
+  bio_ai?: boolean;
+  blood_report?: boolean;
+  questionnaire?: boolean;
+} | null | undefined;
+
+export function normalizeCampConsultationConsent(
+  consent: ConsentLike
+): CampConsultationRequestConsent {
+  return {
+    bio_ai: Boolean(consent?.bio_ai),
+    blood_report: Boolean(consent?.blood_report),
+    questionnaire: Boolean(consent?.questionnaire),
+  };
+}
+
+export function isHealthConsentIncomplete(consent: ConsentLike): boolean {
   if (!consent) return true;
-  return !consent.bio_ai || !consent.blood_report || !consent.questionnaire;
+  const normalized = normalizeCampConsultationConsent(consent);
+  return (
+    !normalized.bio_ai || !normalized.blood_report || !normalized.questionnaire
+  );
 }
 
 export function needsAskConsentFromParticipant(
@@ -41,6 +58,6 @@ export function manageDetailToConsentParticipantItem(
     expert_type: detail.expert_type,
     requested: true,
     want: true,
-    consent: detail.consent,
+    consent: normalizeCampConsultationConsent(detail.consent),
   };
 }
