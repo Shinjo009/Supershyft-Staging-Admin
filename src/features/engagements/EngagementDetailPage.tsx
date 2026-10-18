@@ -17,6 +17,7 @@ import { PermissionGate } from "../../contexts/PermissionContext";
 import { usePermissions } from "../../contexts/PermissionContext";
 import { EngagementNotificationModal } from "./EngagementNotificationModal";
 import { EngagementOnboardingAssistantsPanel } from "./EngagementOnboardingAssistantsPanel";
+import { EngagementFeedbackPanel } from "./EngagementFeedbackPanel";
 import { EngagementOperationsPanel } from "./EngagementOperationsPanel";
 import { EngagementParticipantsPanel } from "./EngagementParticipantsPanel";
 import {
@@ -42,6 +43,7 @@ import {
 const DETAIL_TABS = [
   { key: "overview", label: "Overview" },
   { key: "participants", label: "Participants" },
+  { key: "feedback", label: "Feedback" },
   { key: "notifications", label: "Notifications" },
   { key: "operations", label: "Operations" },
   { key: "assistants", label: "Onboarding Assistants" },
@@ -322,6 +324,10 @@ export function EngagementDetailPage() {
                   engagementName={engagement.engagement_name ?? engagement.engagement_code ?? undefined}
                 />
               </div>
+            ) : null}
+
+            {resolvedTab === "feedback" ? (
+              <EngagementFeedbackPanel engagementId={engagement.engagement_id} />
             ) : null}
 
             {resolvedTab === "notifications" ? (

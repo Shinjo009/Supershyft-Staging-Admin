@@ -2465,6 +2465,26 @@ export interface EngagementListItem {
   readiness?: ChecklistReadiness | null;
 }
 
+export type EngagementFeedbackOverallRating =
+  | "excellent"
+  | "very_good"
+  | "good"
+  | "could_be_better"
+  | "bad";
+
+export interface EngagementFeedbackListItem {
+  feedback_id: number;
+  engagement_participant_id: number;
+  user_id: number;
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  overall_rating: EngagementFeedbackOverallRating;
+  category_ratings: Record<string, number>;
+  comment?: string | null;
+  created_at: string;
+}
+
 export interface EngagementCreate {
   engagement_name?: string | null;
   metsights_engagement_id?: string | null;
@@ -2579,6 +2599,14 @@ export const engagementsApi = {
     api.get<{ data: Engagement }>(`/engagements/${id}`),
   getByCode: (code: string) =>
     api.get<{ data: Engagement }>(`/engagements/by-code/${encodeURIComponent(code)}`),
+  listFeedback: (
+    engagementId: number,
+    params?: { page?: number; limit?: number }
+  ) =>
+    api.get<{
+      data: EngagementFeedbackListItem[];
+      meta: { page: number; limit: number; total: number };
+    }>(`/engagements/${engagementId}/feedback`, { params }),
   create: (payload: EngagementCreate) =>
     api.post<{ data: { engagement_id: number } }>("/engagements", payload),
   update: (id: number, payload: Partial<EngagementCreate> & Pick<EngagementCreate, "engagement_type" | "start_date" | "end_date" | "slot_duration">) =>
