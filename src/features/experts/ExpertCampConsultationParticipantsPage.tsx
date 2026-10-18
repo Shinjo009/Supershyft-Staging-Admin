@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Loader2, MoreVertical, Search, Stethoscope, Users } from "lucide-react";
+import { CampConsultationAskRequestModal } from "./CampConsultationAskRequestModal";
 import { ExpertPortalLayout } from "../../layouts/ExpertPortalLayout";
 import { PortalMenu } from "../../shared/ui/PortalMenu";
 import {
@@ -61,6 +62,8 @@ export function ExpertCampConsultationParticipantsPage() {
   const [dateFilter, setDateFilter] = useState("");
   const [scopeFilter, setScopeFilter] = useState<ParticipantScopeFilter>("requested");
   const [actionMenuRow, setActionMenuRow] = useState<number | null>(null);
+  const [askRequestParticipant, setAskRequestParticipant] =
+    useState<CampConsultationParticipantItem | null>(null);
   const actionMenuAnchorRef = useRef<HTMLButtonElement | null>(null);
 
   const engagementTitle =
@@ -121,6 +124,14 @@ export function ExpertCampConsultationParticipantsPage() {
   const closeActionMenu = () => {
     setActionMenuRow(null);
     actionMenuAnchorRef.current = null;
+  };
+
+  const handleAskRequestSuccess = (updated: CampConsultationParticipantItem) => {
+    setItems((prev) =>
+      prev.map((row) =>
+        row.engagement_participant_id === updated.engagement_participant_id ? updated : row
+      )
+    );
   };
 
   const handleConsult = (item: CampConsultationParticipantItem) => {
@@ -289,7 +300,7 @@ export function ExpertCampConsultationParticipantsPage() {
                           )}
                         </td>
                         <td className="px-2 sm:px-4 py-3 text-center">
-                          {consultable ? (
+                          {consultable || !item.requested ? (
                           <button
                             ref={
                               actionMenuRow === item.engagement_participant_id
@@ -329,6 +340,19 @@ export function ExpertCampConsultationParticipantsPage() {
             onClose={closeActionMenu}
             width={180}
           >
+            {actionMenuParticipant && !actionMenuParticipant.requested ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setAskRequestParticipant(actionMenuParticipant);
+                  closeActionMenu();
+                }}
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
+              >
+                Ask request
+              </button>
+            ) : null}
             <button
               type="button"
               disabled={!actionMenuParticipant || !canConsultParticipant(actionMenuParticipant)}
@@ -343,6 +367,14 @@ export function ExpertCampConsultationParticipantsPage() {
               Consult
             </button>
           </PortalMenu>
+
+          <CampConsultationAskRequestModal
+            open={askRequestParticipant !== null}
+            onClose={() => setAskRequestParticipant(null)}
+            engagementId={engagementId}
+            participant={askRequestParticipant}
+            onSuccess={handleAskRequestSuccess}
+          />
         </div>
       )}
     </ExpertPortalLayout>

@@ -1892,6 +1892,12 @@ export interface CampConsultationEngagementItem {
   consultation_pending_count: number;
 }
 
+export interface CampConsultationRequestConsent {
+  bio_ai: boolean;
+  blood_report: boolean;
+  questionnaire: boolean;
+}
+
 export interface CampConsultationParticipantItem {
   engagement_participant_id: number;
   consultation_id: number | null;
@@ -1907,6 +1913,7 @@ export interface CampConsultationParticipantItem {
   expert_type: string;
   requested: boolean;
   want: boolean;
+  consent?: CampConsultationRequestConsent | null;
 }
 
 export interface ConsultationQuestionnaireQuestion {
@@ -2039,6 +2046,36 @@ export const expertsPortalApi = {
   listCampConsultationParticipants: (engagementId: number) =>
     api.get<{ data: CampConsultationParticipantItem[] }>(
       `/experts/portal/camp-consultations/engagements/${engagementId}/participants`
+    ),
+  sendCampConsultationRequestOtp: (
+    engagementId: number,
+    payload: {
+      engagementParticipantId: number;
+      consent: CampConsultationRequestConsent;
+      expertType?: string;
+    }
+  ) =>
+    api.post<{ data: { session_id: number; masked_phone?: string | null } }>(
+      `/experts/portal/camp-consultations/engagements/${engagementId}/participants/${payload.engagementParticipantId}/request-consultation/send-otp`,
+      {
+        consent: payload.consent,
+        expert_type: payload.expertType,
+      }
+    ),
+  verifyCampConsultationRequestOtp: (
+    engagementId: number,
+    payload: {
+      engagementParticipantId: number;
+      sessionId: number;
+      otp: string;
+    }
+  ) =>
+    api.post<{ data: CampConsultationParticipantItem }>(
+      `/experts/portal/camp-consultations/engagements/${engagementId}/participants/${payload.engagementParticipantId}/request-consultation/verify-otp`,
+      {
+        session_id: payload.sessionId,
+        otp: payload.otp,
+      }
     ),
   markConsultationDone: (payload: {
     user_id: number;
