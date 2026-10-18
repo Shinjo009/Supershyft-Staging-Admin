@@ -190,8 +190,7 @@ export function ExpertConsultationManagePage() {
     }
   };
 
-  const handleSave = async () => {
-    setSaving(true);
+  const saveConsultationNotes = useCallback(async (): Promise<boolean> => {
     setError(null);
     try {
       const res = await expertsPortalApi.updateConsultation(consultationId, {
@@ -204,8 +203,17 @@ export function ExpertConsultationManagePage() {
       setSummary(data.consultation_summary ?? "");
       setAttachments(data.attachments ?? []);
       setMeetLink(data.meet_link ?? "");
+      return true;
     } catch (err) {
       setError(getApiError(err));
+      return false;
+    }
+  }, [attachments, consultationId, meetLink, summary]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await saveConsultationNotes();
     } finally {
       setSaving(false);
     }
@@ -230,8 +238,9 @@ export function ExpertConsultationManagePage() {
     if (!canMarkDone) return;
     if (!window.confirm("Mark this consultation as done?")) return;
     setDoing(true);
-    setError(null);
     try {
+      const saved = await saveConsultationNotes();
+      if (!saved) return;
       await expertsPortalApi.markConsultationDoneById(consultationId);
       navigate(backPath);
     } catch (err) {
@@ -279,7 +288,7 @@ export function ExpertConsultationManagePage() {
           </div>
           <button
             type="button"
-            disabled={!canMarkDone || doing || loading}
+            disabled={!canMarkDone || doing || saving || loading}
             onClick={() => void handleDone()}
             className="px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 disabled:opacity-40 shrink-0"
             title={
@@ -448,7 +457,7 @@ export function ExpertConsultationManagePage() {
               <div className="pt-1">
                 <button
                   type="button"
-                  disabled={saving}
+                  disabled={saving || doing}
                   onClick={() => void handleSave()}
                   className="px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 disabled:opacity-40"
                 >
