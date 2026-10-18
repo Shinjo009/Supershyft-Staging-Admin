@@ -6,6 +6,7 @@ import { Modal } from "../../shared/ui/Modal";
 import {
   partnersApi,
   expertTypesApi,
+  expertsApi,
   type PartnerListItem,
   type PartnerCreate,
   type PartnerUpdate,
@@ -68,6 +69,7 @@ export function Partners() {
   const [formData, setFormData] = useState<PartnerCreate>(emptyForm());
   const [expertProfile, setExpertProfile] = useState(emptyExpertProfile());
   const [hasExpertProfile, setHasExpertProfile] = useState(false);
+  const [linkedExpertId, setLinkedExpertId] = useState<number | null>(null);
   const [expertTypes, setExpertTypes] = useState<ExpertTypeItem[]>([]);
   const [expertTypesLoading, setExpertTypesLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -141,6 +143,7 @@ export function Partners() {
     setFormData(emptyForm());
     setExpertProfile(emptyExpertProfile());
     setHasExpertProfile(false);
+    setLinkedExpertId(null);
     setModalMode("add");
     setModalOpen(true);
     setError(null);
@@ -157,6 +160,7 @@ export function Partners() {
     });
     setExpertProfile(emptyExpertProfile());
     setHasExpertProfile(false);
+    setLinkedExpertId(null);
     setModalMode("edit");
     setModalOpen(true);
     setError(null);
@@ -165,8 +169,34 @@ export function Partners() {
       const res = await partnersApi.get(row.partner_id);
       const detail = res.data.data;
       setHasExpertProfile(Boolean(detail.has_expert_profile));
+      setLinkedExpertId(
+        detail.expert_id != null && detail.expert_id > 0 ? detail.expert_id : null
+      );
     } catch {
       setHasExpertProfile(false);
+      setLinkedExpertId(null);
+    }
+  };
+
+  const handleDeleteLinkedExpert = async () => {
+    if (linkedExpertId == null) return;
+    if (
+      !window.confirm(
+        "Delete this partner's expert profile? This cannot be undone. You can change partner role after deletion."
+      )
+    ) {
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await expertsApi.delete(linkedExpertId);
+      setHasExpertProfile(false);
+      setLinkedExpertId(null);
+    } catch (err) {
+      setError(getApiError(err));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -483,9 +513,27 @@ export function Partners() {
               </div>
             </div>
           ) : null}
+          {modalMode === "edit" && hasExpertProfile ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+              <p className="text-xs text-amber-900">
+                This partner has an expert profile on the Experts page. To change role away from
+                Expert, delete that profile first.
+              </p>
+              {linkedExpertId != null && mayEditDirectory ? (
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => void handleDeleteLinkedExpert()}
+                  className="text-xs font-medium text-red-700 hover:text-red-800 disabled:opacity-50"
+                >
+                  Delete expert profile
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           {isExpertRole && modalMode === "edit" && hasExpertProfile ? (
             <p className="text-xs text-zinc-500">
-              Expert profile is managed on the Experts page.
+              Additional expert details (fees, availability) are on the Experts page.
             </p>
           ) : null}
           <p className="text-xs text-zinc-500">Provide at least one of phone or email.</p>

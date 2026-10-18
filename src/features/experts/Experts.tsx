@@ -435,6 +435,30 @@ function ExpertsListTab({
       .catch((err) => setError(getApiError(err)));
   };
 
+  const handleDeleteExpert = async (row: ExpertListItem) => {
+    if (
+      !window.confirm(
+        `Delete expert profile for ${row.name?.trim() || row.specialization}? This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await expertsApi.delete(row.expert_id);
+      if (selected?.expert_id === row.expert_id) {
+        setModalOpen(false);
+        setSelected(null);
+      }
+      fetchList();
+    } catch (err) {
+      setError(getApiError(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!formData.specialization.trim()) return;
     if (!formData.partner_id || formData.partner_id <= 0) {
@@ -639,7 +663,8 @@ function ExpertsListTab({
             sortDir={sortDir}
             onSort={handleSort}
             onView={openView}
-            onEdit={openEdit}
+            onEdit={mayEditExperts ? openEdit : undefined}
+            onDelete={mayEditExperts ? handleDeleteExpert : undefined}
             pagination={{
               page,
               limit,
@@ -683,6 +708,17 @@ function ExpertsListTab({
                 "—"
               )}
             </div>
+            {viewPartner ? (
+              <div className="text-zinc-600">
+                <span className="text-zinc-500">Partner role:</span> {viewPartner.role || "—"}
+              </div>
+            ) : null}
+            {viewPartner && String(viewPartner.role || "").toLowerCase() !== "expert" ? (
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                Partner role is not Expert. Delete this profile or correct the partner role on the
+                Partners page.
+              </p>
+            ) : null}
             <div className="text-zinc-600">
               <span className="text-zinc-500">Type:</span> {selected.expert_type}
             </div>
@@ -754,6 +790,24 @@ function ExpertsListTab({
                     </span>
                   ))}
                 </div>
+              </div>
+            ) : null}
+            {mayEditExperts && selected ? (
+              <div className="flex justify-end gap-2 pt-2 border-t border-zinc-200">
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleDeleteExpert({
+                      expert_id: selected.expert_id,
+                      name: selected.name,
+                      specialization: selected.specialization,
+                    } as ExpertListItem)
+                  }
+                  disabled={submitting}
+                  className="px-4 py-2 rounded-lg border border-red-200 text-red-700 text-sm hover:bg-red-50 disabled:opacity-50"
+                >
+                  Delete expert
+                </button>
               </div>
             ) : null}
           </div>

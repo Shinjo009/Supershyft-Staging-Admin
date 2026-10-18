@@ -1793,6 +1793,8 @@ export const expertsApi = {
     api.put<{ data: { expert_id: number } }>(`/experts/${expertId}`, payload),
   updateStatus: (expertId: number, status: "active" | "inactive") =>
     api.patch<{ data: { expert_id: number; status: string } }>(`/experts/${expertId}/status`, { status }),
+  delete: (expertId: number) =>
+    api.delete<{ data: { expert_id: number } }>(`/experts/${expertId}`),
   addTag: (expertId: number, payload: { tag_name: string; display_order?: number | null }) =>
     api.post<{ data: ExpertTag }>(`/experts/${expertId}/tags`, payload),
   deleteTag: (expertId: number, tagId: number) =>
