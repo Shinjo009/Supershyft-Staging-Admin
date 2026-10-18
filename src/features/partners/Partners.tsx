@@ -3,13 +3,13 @@ import { Search, Plus, Loader2 } from "lucide-react";
 import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { Modal } from "../../shared/ui/Modal";
-import { EngagementMultiSearchPicker } from "../../shared/ui/EngagementMultiSearchPicker";
 import {
   partnersApi,
-  onboardingAssistantsApi,
+  expertTypesApi,
   type PartnerListItem,
   type PartnerCreate,
   type PartnerUpdate,
+  type ExpertTypeItem,
   getApiError,
 } from "../../lib/api";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
@@ -20,7 +20,6 @@ const ROLE_OPTIONS = [
   { value: "expert", label: "Expert" },
   { value: "organization_manager", label: "Organization Manager" },
 ] as const;
-const ASSIGNABLE_PARTNER_ROLES = new Set(["phlebo", "expert"]);
 const SEARCH_DEBOUNCE_MS = 300;
 
 type ModalMode = "add" | "edit";
@@ -31,6 +30,11 @@ const emptyForm = (): PartnerCreate => ({
   email: "",
   role: "phlebo",
   status: "active",
+});
+
+const emptyExpertProfile = () => ({
+  expert_type: "",
+  specialization: "",
 });
 
 function roleLabel(role: string | null | undefined): string {
@@ -62,17 +66,45 @@ export function Partners() {
   const [modalMode, setModalMode] = useState<ModalMode>("add");
   const [selected, setSelected] = useState<PartnerListItem | null>(null);
   const [formData, setFormData] = useState<PartnerCreate>(emptyForm());
-  const [engagementIds, setEngagementIds] = useState<number[]>([]);
+  const [expertProfile, setExpertProfile] = useState(emptyExpertProfile());
+  const [hasExpertProfile, setHasExpertProfile] = useState(false);
+  const [expertTypes, setExpertTypes] = useState<ExpertTypeItem[]>([]);
+  const [expertTypesLoading, setExpertTypesLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const canAssignToEngagements = ASSIGNABLE_PARTNER_ROLES.has(
-    String(formData.role || "").toLowerCase()
-  );
+  const isExpertRole = String(formData.role || "").toLowerCase() === "expert";
+  const showExpertProfileFields =
+    isExpertRole && (modalMode === "add" || !hasExpertProfile);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
   }, [search]);
+
+  const loadExpertTypes = useCallback(async () => {
+    setExpertTypesLoading(true);
+    try {
+      const res = await expertTypesApi.list();
+      const types = res.data.data ?? [];
+      setExpertTypes(types);
+      if (types.length > 0) {
+        setExpertProfile((prev) => ({
+          ...prev,
+          expert_type: prev.expert_type || types[0].type_key,
+        }));
+      }
+    } catch {
+      setExpertTypes([]);
+    } finally {
+      setExpertTypesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (modalOpen && isExpertRole && showExpertProfileFields) {
+      void loadExpertTypes();
+    }
+  }, [modalOpen, isExpertRole, showExpertProfileFields, loadExpertTypes]);
 
   const fetchList = useCallback(async () => {
     setLoading(true);
@@ -107,13 +139,14 @@ export function Partners() {
   const openAdd = () => {
     setSelected(null);
     setFormData(emptyForm());
-    setEngagementIds([]);
+    setExpertProfile(emptyExpertProfile());
+    setHasExpertProfile(false);
     setModalMode("add");
     setModalOpen(true);
     setError(null);
   };
 
-  const openEdit = (row: PartnerListItem) => {
+  const openEdit = async (row: PartnerListItem) => {
     setSelected(row);
     setFormData({
       name: row.name ?? "",
@@ -122,26 +155,18 @@ export function Partners() {
       role: row.role ?? "phlebo",
       status: row.status ?? "active",
     });
-    setEngagementIds([]);
+    setExpertProfile(emptyExpertProfile());
+    setHasExpertProfile(false);
     setModalMode("edit");
     setModalOpen(true);
     setError(null);
-  };
 
-  const assignToEngagements = async (partnerId: number, ids: number[]) => {
-    if (ids.length === 0) return;
-    const failures: string[] = [];
-    for (const engagementId of ids) {
-      try {
-        await onboardingAssistantsApi.assign(engagementId, { partner_ids: [partnerId] });
-      } catch (err) {
-        failures.push(`#${engagementId}: ${getApiError(err)}`);
-      }
-    }
-    if (failures.length) {
-      throw new Error(
-        `Partner saved, but some engagement assignments failed: ${failures.join("; ")}`
-      );
+    try {
+      const res = await partnersApi.get(row.partner_id);
+      const detail = res.data.data;
+      setHasExpertProfile(Boolean(detail.has_expert_profile));
+    } catch {
+      setHasExpertProfile(false);
     }
   };
 
@@ -162,45 +187,48 @@ export function Partners() {
       return;
     }
     const role = String(formData.role).toLowerCase();
-    const assignIds =
-      ASSIGNABLE_PARTNER_ROLES.has(role) && engagementIds.length > 0 ? [...engagementIds] : [];
+
+    let expertProfilePayload: { expert_type: string; specialization: string } | undefined;
+    if (role === "expert" && (modalMode === "add" || !hasExpertProfile)) {
+      const specialization = expertProfile.specialization.trim();
+      const expertType = expertProfile.expert_type.trim();
+      if (!specialization) {
+        setError("Specialization is required for expert partners");
+        return;
+      }
+      if (!expertType) {
+        setError("Expert type is required for expert partners");
+        return;
+      }
+      expertProfilePayload = { expert_type: expertType, specialization };
+    }
 
     setSubmitting(true);
     setError(null);
     try {
-      let partnerId: number | null = null;
       if (modalMode === "add") {
-        const created = await partnersApi.create({
+        await partnersApi.create({
           name,
           phone: phone || null,
           email: email || null,
           role: formData.role,
           status: formData.status ?? "active",
+          expert_profile: expertProfilePayload,
         });
-        partnerId = created.data.data.partner_id;
       } else if (selected) {
         const payload: PartnerUpdate = {
           name,
           phone: phone || null,
           email: email || null,
           role: formData.role,
+          expert_profile: expertProfilePayload,
         };
         await partnersApi.update(selected.partner_id, payload);
-        partnerId = selected.partner_id;
-      }
-      if (partnerId != null && assignIds.length > 0) {
-        await assignToEngagements(partnerId, assignIds);
       }
       setModalOpen(false);
-      setEngagementIds([]);
       fetchList();
     } catch (err) {
-      if (err instanceof Error && err.message.startsWith("Partner saved")) {
-        setError(err.message);
-        fetchList();
-      } else {
-        setError(getApiError(err));
-      }
+      setError(getApiError(err));
     } finally {
       setSubmitting(false);
     }
@@ -291,9 +319,9 @@ export function Partners() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
           <input
             type="search"
-            placeholder="Search by name, phone, or email..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, phone, or email..."
             className="w-full pl-9 pr-4 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent"
           />
         </div>
@@ -397,8 +425,8 @@ export function Partners() {
               onChange={(e) => {
                 const nextRole = e.target.value;
                 setFormData({ ...formData, role: nextRole });
-                if (!ASSIGNABLE_PARTNER_ROLES.has(nextRole.toLowerCase())) {
-                  setEngagementIds([]);
+                if (nextRole.toLowerCase() !== "expert") {
+                  setExpertProfile(emptyExpertProfile());
                 }
               }}
               className="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
@@ -411,24 +439,54 @@ export function Partners() {
               ))}
             </select>
           </div>
-          {canAssignToEngagements ? (
-            <div>
-              <EngagementMultiSearchPicker
-                label={
-                  modalMode === "add"
-                    ? "Assign to engagements (optional)"
-                    : "Also assign to engagements (optional)"
-                }
-                value={engagementIds}
-                onChange={setEngagementIds}
-                disabled={submitting}
-                placeholder="Search and add one or more engagements…"
-              />
-              <p className="mt-1 text-xs text-zinc-500">
-                Selected engagements will get this {roleLabel(String(formData.role)).toLowerCase()} as
-                an onboarding assistant.
+          {showExpertProfileFields ? (
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 space-y-3">
+              <p className="text-sm font-medium text-zinc-800">Expert profile</p>
+              <p className="text-xs text-zinc-500">
+                Creates a listing on the Experts page. Fees, availability, and other details can be
+                added there later.
               </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="block sm:col-span-2">
+                  <span className="text-zinc-600 text-xs">Specialization *</span>
+                  <input
+                    className="mt-1 w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm bg-white"
+                    value={expertProfile.specialization}
+                    onChange={(e) =>
+                      setExpertProfile((p) => ({ ...p, specialization: e.target.value }))
+                    }
+                    placeholder="e.g. General physician"
+                  />
+                </label>
+                <label className="block sm:col-span-2">
+                  <span className="text-zinc-600 text-xs">Expert type *</span>
+                  <select
+                    className="mt-1 w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm bg-white"
+                    value={expertProfile.expert_type}
+                    onChange={(e) =>
+                      setExpertProfile((p) => ({ ...p, expert_type: e.target.value }))
+                    }
+                    disabled={expertTypesLoading}
+                  >
+                    {expertTypes.length === 0 && (
+                      <option value="">
+                        {expertTypesLoading ? "Loading types…" : "No types available"}
+                      </option>
+                    )}
+                    {expertTypes.map((et) => (
+                      <option key={et.id} value={et.type_key}>
+                        {et.type}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
             </div>
+          ) : null}
+          {isExpertRole && modalMode === "edit" && hasExpertProfile ? (
+            <p className="text-xs text-zinc-500">
+              Expert profile is managed on the Experts page.
+            </p>
           ) : null}
           <p className="text-xs text-zinc-500">Provide at least one of phone or email.</p>
           <div className="flex flex-col sm:flex-row gap-3 pt-2">

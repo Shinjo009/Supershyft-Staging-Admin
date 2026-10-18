@@ -3781,12 +3781,18 @@ export interface PartnerListItem {
   updated_at?: string | null;
 }
 
+export interface PartnerExpertProfileIn {
+  expert_type: string;
+  specialization: string;
+}
+
 export interface PartnerCreate {
   name: string;
   phone?: string | null;
   email?: string | null;
   role: PartnerRoleValue | string;
   status?: string | null;
+  expert_profile?: PartnerExpertProfileIn | null;
 }
 
 export interface PartnerUpdate {
@@ -3794,6 +3800,12 @@ export interface PartnerUpdate {
   phone?: string | null;
   email?: string | null;
   role: PartnerRoleValue | string;
+  expert_profile?: PartnerExpertProfileIn | null;
+}
+
+export interface PartnerDetails extends PartnerListItem {
+  has_expert_profile?: boolean;
+  expert_id?: number | null;
 }
 
 export const partnersApi = {
@@ -3810,11 +3822,11 @@ export const partnersApi = {
       "/partners",
       { params }
     ),
-  get: (id: number) => api.get<{ data: PartnerListItem }>(`/partners/${id}`),
+  get: (id: number) => api.get<{ data: PartnerDetails }>(`/partners/${id}`),
   create: (payload: PartnerCreate) =>
-    api.post<{ data: { partner_id: number } }>("/partners", payload),
+    api.post<{ data: { partner_id: number; expert_id?: number } }>("/partners", payload),
   update: (id: number, payload: PartnerUpdate) =>
-    api.put<{ data: { partner_id: number } }>(`/partners/${id}`, payload),
+    api.put<{ data: { partner_id: number; expert_id?: number } }>(`/partners/${id}`, payload),
   updateStatus: (id: number, status: string) =>
     api.patch<{ data: { partner_id: number; status: string } }>(`/partners/${id}/status`, {
       status,
