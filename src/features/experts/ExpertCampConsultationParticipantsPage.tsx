@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Loader2, MoreVertical, Search, Stethoscope, Users } from "lucide-react";
 import { CampConsultationAskRequestModal } from "./CampConsultationAskRequestModal";
+import { CampConsultationDirectRequestConfirmDialog } from "./CampConsultationDirectRequestConfirmDialog";
 import { ExpertPortalLayout } from "../../layouts/ExpertPortalLayout";
 import { PortalMenu } from "../../shared/ui/PortalMenu";
 import {
@@ -23,6 +24,17 @@ function participantRowKey(item: CampConsultationParticipantItem): string {
 
 function canConsultParticipant(item: CampConsultationParticipantItem): boolean {
   return Boolean(item.requested && item.consultation_id);
+}
+
+function needsAskConsent(item: CampConsultationParticipantItem): boolean {
+  if (!item.requested) return false;
+  const c = item.consent;
+  if (!c) return true;
+  return !c.bio_ai || !c.blood_report || !c.questionnaire;
+}
+
+function rowHasActions(item: CampConsultationParticipantItem): boolean {
+  return canConsultParticipant(item) || !item.requested || needsAskConsent(item);
 }
 
 function fullName(item: CampConsultationParticipantItem): string {
@@ -64,6 +76,12 @@ export function ExpertCampConsultationParticipantsPage() {
   const [actionMenuRow, setActionMenuRow] = useState<number | null>(null);
   const [askRequestParticipant, setAskRequestParticipant] =
     useState<CampConsultationParticipantItem | null>(null);
+  const [askConsentParticipant, setAskConsentParticipant] =
+    useState<CampConsultationParticipantItem | null>(null);
+  const [directRequestParticipant, setDirectRequestParticipant] =
+    useState<CampConsultationParticipantItem | null>(null);
+  const [directRequestLoading, setDirectRequestLoading] = useState(false);
+  const [directRequestError, setDirectRequestError] = useState<string | null>(null);
   const actionMenuAnchorRef = useRef<HTMLButtonElement | null>(null);
 
   const engagementTitle =
@@ -132,6 +150,29 @@ export function ExpertCampConsultationParticipantsPage() {
         row.engagement_participant_id === updated.engagement_participant_id ? updated : row
       )
     );
+  };
+
+  const closeDirectRequestDialog = () => {
+    if (directRequestLoading) return;
+    setDirectRequestParticipant(null);
+    setDirectRequestError(null);
+  };
+
+  const handleDirectRequestConfirm = async () => {
+    if (!directRequestParticipant || !Number.isFinite(engagementId)) return;
+    setDirectRequestLoading(true);
+    setDirectRequestError(null);
+    try {
+      const res = await expertsPortalApi.markCampConsultationRequested(engagementId, {
+        engagementParticipantId: directRequestParticipant.engagement_participant_id,
+      });
+      handleAskRequestSuccess(res.data.data);
+      setDirectRequestParticipant(null);
+    } catch (err) {
+      setDirectRequestError(getApiError(err));
+    } finally {
+      setDirectRequestLoading(false);
+    }
   };
 
   const handleConsult = (item: CampConsultationParticipantItem) => {
@@ -300,7 +341,7 @@ export function ExpertCampConsultationParticipantsPage() {
                           )}
                         </td>
                         <td className="px-2 sm:px-4 py-3 text-center">
-                          {consultable || !item.requested ? (
+                          {rowHasActions(item) ? (
                           <button
                             ref={
                               actionMenuRow === item.engagement_participant_id
@@ -338,19 +379,46 @@ export function ExpertCampConsultationParticipantsPage() {
             open={actionMenuRow !== null}
             anchorRef={actionMenuAnchorRef}
             onClose={closeActionMenu}
-            width={180}
+            width={240}
           >
             {actionMenuParticipant && !actionMenuParticipant.requested ? (
+              <>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAskRequestParticipant(actionMenuParticipant);
+                    closeActionMenu();
+                  }}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 text-left"
+                >
+                  Ask request with consent
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDirectRequestParticipant(actionMenuParticipant);
+                    setDirectRequestError(null);
+                    closeActionMenu();
+                  }}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 text-left"
+                >
+                  Ask request
+                </button>
+              </>
+            ) : null}
+            {actionMenuParticipant && needsAskConsent(actionMenuParticipant) ? (
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setAskRequestParticipant(actionMenuParticipant);
+                  setAskConsentParticipant(actionMenuParticipant);
                   closeActionMenu();
                 }}
                 className="flex items-center gap-2 w-full px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
               >
-                Ask request
+                Ask consent
               </button>
             ) : null}
             <button
@@ -374,6 +442,23 @@ export function ExpertCampConsultationParticipantsPage() {
             engagementId={engagementId}
             participant={askRequestParticipant}
             onSuccess={handleAskRequestSuccess}
+            mode="request"
+          />
+          <CampConsultationAskRequestModal
+            open={askConsentParticipant !== null}
+            onClose={() => setAskConsentParticipant(null)}
+            engagementId={engagementId}
+            participant={askConsentParticipant}
+            onSuccess={handleAskRequestSuccess}
+            mode="consent"
+          />
+          <CampConsultationDirectRequestConfirmDialog
+            open={directRequestParticipant !== null}
+            onClose={closeDirectRequestDialog}
+            participant={directRequestParticipant}
+            loading={directRequestLoading}
+            error={directRequestError}
+            onConfirm={() => void handleDirectRequestConfirm()}
           />
         </div>
       )}

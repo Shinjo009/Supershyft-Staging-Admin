@@ -2047,6 +2047,19 @@ export const expertsPortalApi = {
     api.get<{ data: CampConsultationParticipantItem[] }>(
       `/experts/portal/camp-consultations/engagements/${engagementId}/participants`
     ),
+  markCampConsultationRequested: (
+    engagementId: number,
+    payload: {
+      engagementParticipantId: number;
+      expertType?: string;
+    }
+  ) =>
+    api.post<{ data: CampConsultationParticipantItem }>(
+      `/experts/portal/camp-consultations/engagements/${engagementId}/participants/${payload.engagementParticipantId}/request-consultation`,
+      {
+        expert_type: payload.expertType,
+      }
+    ),
   sendCampConsultationRequestOtp: (
     engagementId: number,
     payload: {
@@ -2072,6 +2085,36 @@ export const expertsPortalApi = {
   ) =>
     api.post<{ data: CampConsultationParticipantItem }>(
       `/experts/portal/camp-consultations/engagements/${engagementId}/participants/${payload.engagementParticipantId}/request-consultation/verify-otp`,
+      {
+        session_id: payload.sessionId,
+        otp: payload.otp,
+      }
+    ),
+  sendCampConsultationUpdateConsentOtp: (
+    engagementId: number,
+    payload: {
+      engagementParticipantId: number;
+      consent: CampConsultationRequestConsent;
+      expertType?: string;
+    }
+  ) =>
+    api.post<{ data: { session_id: number; masked_phone?: string | null } }>(
+      `/experts/portal/camp-consultations/engagements/${engagementId}/participants/${payload.engagementParticipantId}/update-consent/send-otp`,
+      {
+        consent: payload.consent,
+        expert_type: payload.expertType,
+      }
+    ),
+  verifyCampConsultationUpdateConsentOtp: (
+    engagementId: number,
+    payload: {
+      engagementParticipantId: number;
+      sessionId: number;
+      otp: string;
+    }
+  ) =>
+    api.post<{ data: CampConsultationParticipantItem }>(
+      `/experts/portal/camp-consultations/engagements/${engagementId}/participants/${payload.engagementParticipantId}/update-consent/verify-otp`,
       {
         session_id: payload.sessionId,
         otp: payload.otp,

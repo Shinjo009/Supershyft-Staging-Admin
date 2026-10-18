@@ -18,18 +18,35 @@ const defaultConsent: ConsentState = {
   questionnaire: false,
 };
 
+function initialConsentForMode(
+  mode: "request" | "consent",
+  participant: CampConsultationParticipantItem | null
+): ConsentState {
+  if (mode !== "consent" || !participant?.consent) {
+    return defaultConsent;
+  }
+  const existing = participant.consent;
+  return {
+    bio_ai: !existing.bio_ai,
+    blood_report: !existing.blood_report,
+    questionnaire: !existing.questionnaire,
+  };
+}
+
 export function CampConsultationAskRequestModal({
   open,
   onClose,
   engagementId,
   participant,
   onSuccess,
+  mode = "request",
 }: {
   open: boolean;
   onClose: () => void;
   engagementId: number;
   participant: CampConsultationParticipantItem | null;
   onSuccess: (updated: CampConsultationParticipantItem) => void;
+  mode?: "request" | "consent";
 }) {
   const [step, setStep] = useState<Step>("consent");
   const [consent, setConsent] = useState<ConsentState>(defaultConsent);
@@ -48,8 +65,10 @@ export function CampConsultationAskRequestModal({
       setOtp("");
       setLoading(false);
       setError(null);
+    } else {
+      setConsent(initialConsentForMode(mode, participant));
     }
-  }, [open]);
+  }, [open, mode, participant]);
 
   const consentSelected = consent.bio_ai || consent.blood_report || consent.questionnaire;
 
@@ -66,10 +85,16 @@ export function CampConsultationAskRequestModal({
     setLoading(true);
     setError(null);
     try {
-      const res = await expertsPortalApi.sendCampConsultationRequestOtp(engagementId, {
-        engagementParticipantId: participant.engagement_participant_id,
-        consent,
-      });
+      const res =
+        mode === "consent"
+          ? await expertsPortalApi.sendCampConsultationUpdateConsentOtp(engagementId, {
+              engagementParticipantId: participant.engagement_participant_id,
+              consent,
+            })
+          : await expertsPortalApi.sendCampConsultationRequestOtp(engagementId, {
+              engagementParticipantId: participant.engagement_participant_id,
+              consent,
+            });
       setSessionId(res.data.data.session_id);
       setMaskedPhone(res.data.data.masked_phone ?? null);
       setStep("otp");
@@ -86,11 +111,18 @@ export function CampConsultationAskRequestModal({
     setLoading(true);
     setError(null);
     try {
-      const res = await expertsPortalApi.verifyCampConsultationRequestOtp(engagementId, {
-        engagementParticipantId: participant.engagement_participant_id,
-        sessionId,
-        otp: otp.trim(),
-      });
+      const res =
+        mode === "consent"
+          ? await expertsPortalApi.verifyCampConsultationUpdateConsentOtp(engagementId, {
+              engagementParticipantId: participant.engagement_participant_id,
+              sessionId,
+              otp: otp.trim(),
+            })
+          : await expertsPortalApi.verifyCampConsultationRequestOtp(engagementId, {
+              engagementParticipantId: participant.engagement_participant_id,
+              sessionId,
+              otp: otp.trim(),
+            });
       onSuccess(res.data.data);
       onClose();
     } catch (err) {
@@ -108,14 +140,25 @@ export function CampConsultationAskRequestModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="Ask consultation request"
+      title={mode === "consent" ? "Ask health data consent" : "Ask request with consent"}
       maxWidthClassName="max-w-md"
     >
       {participant ? (
         <div className="space-y-4">
           <p className="text-sm text-zinc-600">
-            Request consultation on behalf of <span className="font-medium text-zinc-900">{participantName}</span>.
-            The participant must confirm via OTP sent to their phone.
+            {mode === "consent" ? (
+              <>
+                Collect health data consent from{" "}
+                <span className="font-medium text-zinc-900">{participantName}</span>. The participant must
+                confirm via OTP sent to their phone.
+              </>
+            ) : (
+              <>
+                Record health data consent and request consultation for{" "}
+                <span className="font-medium text-zinc-900">{participantName}</span>. The participant must
+                confirm via OTP sent to their phone.
+              </>
+            )}
           </p>
 
           {error && (
