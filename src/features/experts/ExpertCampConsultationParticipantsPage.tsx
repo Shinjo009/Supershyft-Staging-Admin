@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Loader2, MoreVertical, Search, Stethoscope, Users } from "lucide-react";
 import { CampConsultationAskRequestModal } from "./CampConsultationAskRequestModal";
 import { CampConsultationDirectRequestConfirmDialog } from "./CampConsultationDirectRequestConfirmDialog";
+import { needsAskConsentFromParticipant } from "./campConsultationConsent";
 import { ExpertPortalLayout } from "../../layouts/ExpertPortalLayout";
 import { PortalMenu } from "../../shared/ui/PortalMenu";
 import {
@@ -26,15 +27,8 @@ function canConsultParticipant(item: CampConsultationParticipantItem): boolean {
   return Boolean(item.requested && item.consultation_id);
 }
 
-function needsAskConsent(item: CampConsultationParticipantItem): boolean {
-  if (!item.requested) return false;
-  const c = item.consent;
-  if (!c) return true;
-  return !c.bio_ai || !c.blood_report || !c.questionnaire;
-}
-
 function rowHasActions(item: CampConsultationParticipantItem): boolean {
-  return canConsultParticipant(item) || !item.requested || needsAskConsent(item);
+  return canConsultParticipant(item) || !item.requested || needsAskConsentFromParticipant(item);
 }
 
 function fullName(item: CampConsultationParticipantItem): string {
@@ -408,7 +402,7 @@ export function ExpertCampConsultationParticipantsPage() {
                 </button>
               </>
             ) : null}
-            {actionMenuParticipant && needsAskConsent(actionMenuParticipant) ? (
+            {actionMenuParticipant && needsAskConsentFromParticipant(actionMenuParticipant) ? (
               <button
                 type="button"
                 onClick={(e) => {

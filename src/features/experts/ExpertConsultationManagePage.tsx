@@ -7,12 +7,18 @@ import {
   Paperclip,
   X,
 } from "lucide-react";
+import { CampConsultationAskRequestModal } from "./CampConsultationAskRequestModal";
+import {
+  manageDetailToConsentParticipantItem,
+  needsAskConsentFromManageDetail,
+} from "./campConsultationConsent";
 import { ExpertPortalLayout } from "../../layouts/ExpertPortalLayout";
 import { Modal } from "../../shared/ui/Modal";
 import {
   expertsPortalApi,
   getApiError,
   uploadsApi,
+  type CampConsultationParticipantItem,
   type ConsultationManageDetail,
   type ConsultationQuestionnaireCategory,
   type ConsultationQuestionnairePayload,
@@ -92,6 +98,10 @@ export function ExpertConsultationManagePage() {
   const [selectedCategory, setSelectedCategory] = useState<ConsultationQuestionnaireCategory | null>(
     null
   );
+
+  const [askConsentOpen, setAskConsentOpen] = useState(false);
+  const [askConsentParticipant, setAskConsentParticipant] =
+    useState<CampConsultationParticipantItem | null>(null);
 
   const load = useCallback(async () => {
     if (!Number.isFinite(consultationId) || consultationId <= 0) {
@@ -299,11 +309,25 @@ export function ExpertConsultationManagePage() {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <section className="bg-white border border-zinc-200 rounded-xl overflow-hidden flex flex-col min-h-[28rem]">
-              <div className="px-4 py-3 border-b border-zinc-100">
-                <h2 className="text-sm font-semibold text-zinc-900">Shared records</h2>
-                <p className="text-xs text-zinc-500 mt-0.5">
-                  Visible only when the patient has given consent.
-                </p>
+              <div className="px-4 py-3 border-b border-zinc-100 flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <h2 className="text-sm font-semibold text-zinc-900">Shared records</h2>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Visible only when the patient has given consent.
+                  </p>
+                </div>
+                {needsAskConsentFromManageDetail(detail) ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAskConsentParticipant(manageDetailToConsentParticipantItem(detail));
+                      setAskConsentOpen(true);
+                    }}
+                    className="shrink-0 px-3 py-1.5 text-xs font-medium rounded-lg border border-zinc-300 text-zinc-800 hover:bg-zinc-50"
+                  >
+                    Ask consent
+                  </button>
+                ) : null}
               </div>
               <div className="px-4 py-3 flex flex-wrap gap-2 border-b border-zinc-100">
                 <SharedButton
@@ -503,6 +527,24 @@ export function ExpertConsultationManagePage() {
           </div>
         )}
       </Modal>
+
+      {detail ? (
+        <CampConsultationAskRequestModal
+          open={askConsentOpen}
+          onClose={() => {
+            setAskConsentOpen(false);
+            setAskConsentParticipant(null);
+          }}
+          engagementId={detail.engagement_id}
+          participant={askConsentParticipant}
+          mode="consent"
+          onSuccess={() => {
+            setAskConsentOpen(false);
+            setAskConsentParticipant(null);
+            void load();
+          }}
+        />
+      ) : null}
     </ExpertPortalLayout>
   );
 }
