@@ -1893,7 +1893,8 @@ export interface CampConsultationEngagementItem {
 }
 
 export interface CampConsultationParticipantItem {
-  consultation_id: number;
+  engagement_participant_id: number;
+  consultation_id: number | null;
   user_id: number;
   first_name?: string | null;
   last_name?: string | null;
@@ -1904,6 +1905,8 @@ export interface CampConsultationParticipantItem {
   cabin?: string | null;
   done: boolean;
   expert_type: string;
+  requested: boolean;
+  want: boolean;
 }
 
 export interface ConsultationQuestionnaireQuestion {

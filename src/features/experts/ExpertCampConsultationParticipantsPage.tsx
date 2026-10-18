@@ -14,6 +14,16 @@ type CampEngagementNavState = {
   engagementCode?: string;
 };
 
+type ParticipantScopeFilter = "requested" | "all";
+
+function participantRowKey(item: CampConsultationParticipantItem): string {
+  return String(item.engagement_participant_id ?? item.consultation_id ?? item.user_id);
+}
+
+function canConsultParticipant(item: CampConsultationParticipantItem): boolean {
+  return Boolean(item.requested && item.consultation_id);
+}
+
 function fullName(item: CampConsultationParticipantItem): string {
   return [item.first_name, item.last_name].filter(Boolean).join(" ") || "—";
 }
@@ -49,6 +59,7 @@ export function ExpertCampConsultationParticipantsPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [dateFilter, setDateFilter] = useState("");
+  const [scopeFilter, setScopeFilter] = useState<ParticipantScopeFilter>("requested");
   const [actionMenuRow, setActionMenuRow] = useState<number | null>(null);
   const actionMenuAnchorRef = useRef<HTMLButtonElement | null>(null);
 
@@ -89,6 +100,9 @@ export function ExpertCampConsultationParticipantsPage() {
 
   const filtered = useMemo(() => {
     let rows = items;
+    if (scopeFilter === "requested") {
+      rows = rows.filter((item) => item.requested);
+    }
     if (dateFilter) {
       rows = rows.filter((item) => item.date === dateFilter);
     }
@@ -96,10 +110,11 @@ export function ExpertCampConsultationParticipantsPage() {
       rows = rows.filter((item) => matchesSearch(item, search));
     }
     return rows;
-  }, [items, search, dateFilter]);
+  }, [items, search, dateFilter, scopeFilter]);
 
   const actionMenuParticipant = useMemo(
-    () => items.find((item) => item.consultation_id === actionMenuRow) ?? null,
+    () =>
+      items.find((item) => item.engagement_participant_id === actionMenuRow) ?? null,
     [items, actionMenuRow]
   );
 
@@ -109,6 +124,7 @@ export function ExpertCampConsultationParticipantsPage() {
   };
 
   const handleConsult = (item: CampConsultationParticipantItem) => {
+    if (!canConsultParticipant(item)) return;
     navigate(`/experts/consultation/${item.consultation_id}/manage`, {
       state: {
         fromCamp: true,
@@ -145,6 +161,15 @@ export function ExpertCampConsultationParticipantsPage() {
             </div>
             <div className="flex-1" />
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <select
+                value={scopeFilter}
+                onChange={(e) => setScopeFilter(e.target.value as ParticipantScopeFilter)}
+                className="px-3 py-2 rounded-lg border border-zinc-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-zinc-900"
+                aria-label="Participant filter"
+              >
+                <option value="requested">Requested</option>
+                <option value="all">All participants</option>
+              </select>
               <div className="relative flex-1 sm:flex-initial sm:w-60">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
                 <input
@@ -175,7 +200,7 @@ export function ExpertCampConsultationParticipantsPage() {
           {items.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-zinc-500 bg-white border border-zinc-200 rounded-xl">
               <Stethoscope className="w-10 h-10 mb-3 text-zinc-300" />
-              <p className="text-sm">No participants waiting for consultation</p>
+              <p className="text-sm">No participants on this engagement</p>
             </div>
           ) : (
             <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
@@ -210,15 +235,25 @@ export function ExpertCampConsultationParticipantsPage() {
                   {filtered.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="px-4 py-12 text-center text-zinc-400">
-                        No participants found.
+                        {scopeFilter === "requested"
+                          ? "No participants have requested consultation."
+                          : "No participants found."}
                       </td>
                     </tr>
                   ) : (
-                    filtered.map((item) => (
+                    filtered.map((item) => {
+                      const consultable = canConsultParticipant(item);
+                      return (
                       <tr
-                        key={item.consultation_id}
-                        onClick={() => handleConsult(item)}
-                        className="hover:bg-zinc-50 cursor-pointer transition-colors"
+                        key={participantRowKey(item)}
+                        onClick={() => {
+                          if (consultable) handleConsult(item);
+                        }}
+                        className={`transition-colors ${
+                          consultable
+                            ? "hover:bg-zinc-50 cursor-pointer"
+                            : "cursor-default"
+                        }`}
                       >
                         <td className="px-3 sm:px-4 py-3 font-medium text-zinc-900 truncate">
                           {fullName(item)}
@@ -239,7 +274,11 @@ export function ExpertCampConsultationParticipantsPage() {
                           {item.cabin ?? "—"}
                         </td>
                         <td className="px-4 py-3 hidden xl:table-cell">
-                          {item.done ? (
+                          {!item.requested ? (
+                            <span className="inline-flex text-[11px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-600">
+                              Not requested
+                            </span>
+                          ) : item.done ? (
                             <span className="inline-flex text-[11px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700">
                               Done
                             </span>
@@ -250,31 +289,34 @@ export function ExpertCampConsultationParticipantsPage() {
                           )}
                         </td>
                         <td className="px-2 sm:px-4 py-3 text-center">
+                          {consultable ? (
                           <button
                             ref={
-                              actionMenuRow === item.consultation_id
+                              actionMenuRow === item.engagement_participant_id
                                 ? actionMenuAnchorRef
                                 : undefined
                             }
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (actionMenuRow === item.consultation_id) {
+                              if (actionMenuRow === item.engagement_participant_id) {
                                 closeActionMenu();
                               } else {
                                 actionMenuAnchorRef.current = e.currentTarget;
-                                setActionMenuRow(item.consultation_id);
+                                setActionMenuRow(item.engagement_participant_id);
                               }
                             }}
                             className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
                             aria-label="Actions"
                             aria-haspopup="menu"
-                            aria-expanded={actionMenuRow === item.consultation_id}
+                            aria-expanded={actionMenuRow === item.engagement_participant_id}
                           >
                             <MoreVertical className="w-4 h-4" />
                           </button>
+                          ) : null}
                         </td>
                       </tr>
-                    ))
+                    );
+                    })
                   )}
                 </tbody>
               </table>
@@ -289,12 +331,13 @@ export function ExpertCampConsultationParticipantsPage() {
           >
             <button
               type="button"
+              disabled={!actionMenuParticipant || !canConsultParticipant(actionMenuParticipant)}
               onClick={(e) => {
                 e.stopPropagation();
                 if (actionMenuParticipant) handleConsult(actionMenuParticipant);
                 closeActionMenu();
               }}
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Stethoscope className="w-4 h-4" />
               Consult
