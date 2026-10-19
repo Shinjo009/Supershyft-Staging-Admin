@@ -2269,6 +2269,7 @@ export type EngagementKind = "bio_ai" | "blood_test" | "consultation" | "blood_t
 export type EngagementStatus = "draft" | "scheduled" | "running" | "completed" | "cancelled";
 export type BloodCollectionType = "home_collection" | "camp_collection";
 export type ConsultationMode = "online" | "offline";
+export type EngagementPaymentType = "paid_by_group" | "paid_by_patient";
 
 export interface EngagementLocationFields {
   city?: string | null;
@@ -2393,6 +2394,8 @@ export interface Engagement {
   external_camp_id?: number | null;
   blood_collection_type?: BloodCollectionType | string | null;
   consultation_mode?: ConsultationMode | string | null;
+  payment_type?: EngagementPaymentType | string | null;
+  auto_booking?: boolean | null;
   create_profile_on_metsights?: boolean | null;
   enroll_for_fitprint_full?: boolean | null;
   load_prev_assessment_questionnaires?: boolean | null;
@@ -2451,6 +2454,8 @@ export interface EngagementListItem {
   external_camp_id?: number | null;
   blood_collection_type?: BloodCollectionType | string | null;
   consultation_mode?: ConsultationMode | string | null;
+  payment_type?: EngagementPaymentType | string | null;
+  auto_booking?: boolean | null;
   create_profile_on_metsights?: boolean | null;
   enroll_for_fitprint_full?: boolean | null;
   load_prev_assessment_questionnaires?: boolean | null;
@@ -2514,6 +2519,8 @@ export interface EngagementCreate {
   external_camp_id?: number | null;
   blood_collection_type?: BloodCollectionType | string | null;
   consultation_mode?: ConsultationMode | string | null;
+  payment_type?: EngagementPaymentType | string;
+  auto_booking?: boolean | null;
   create_profile_on_metsights?: boolean;
   enroll_for_fitprint_full?: boolean;
   load_prev_assessment_questionnaires?: boolean;
@@ -3071,6 +3078,8 @@ export interface Participant {
   barcode?: string | null;
   booking_id?: string | null;
   booked_by_user_id?: number | null;
+  paid?: boolean | null;
+  booker_message?: string | null;
   blood_test_complete?: boolean | null;
   engagement_name?: string | null;
   engagement_code?: string | null;

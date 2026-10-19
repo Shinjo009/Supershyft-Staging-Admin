@@ -39,6 +39,17 @@ describe("buildEngagementUpdatePayload", () => {
     expect(payload.notifications).toEqual(notifications);
   });
 
+  it("includes payment_type and auto_booking", () => {
+    const { payload } = buildEngagementUpdatePayload(
+      minimalEngagementCreate({
+        payment_type: "paid_by_patient",
+        auto_booking: true,
+      }),
+    );
+    expect(payload.payment_type).toBe("paid_by_patient");
+    expect(payload.auto_booking).toBe(true);
+  });
+
   it("includes slot_detail when provided", () => {
     const slot_detail = { blood_collection: { is_enable: true } };
     const { payload } = buildEngagementUpdatePayload(

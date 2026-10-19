@@ -71,6 +71,11 @@ const CONSULTATION_MODE_OPTIONS = [
   { value: "online", label: "Online (expert calendar)" },
 ] as const;
 
+const PAYMENT_TYPE_OPTIONS = [
+  { value: "paid_by_group", label: "Paid by group (organisation)" },
+  { value: "paid_by_patient", label: "Paid by patient" },
+] as const;
+
 export type EngagementFormStepKey = "basics" | "location" | "offerings" | "schedule" | "notifications";
 
 type StepKey = EngagementFormStepKey;
@@ -981,6 +986,8 @@ export function EngagementFormWizard({
         typeConfig.needsAssessment && formData.load_prev_assessment_questionnaires
           ? selectedLoadPrevCategoryKeys
           : null,
+      payment_type: formData.payment_type ?? "paid_by_group",
+      auto_booking: Boolean(formData.auto_booking),
     };
   };
 
@@ -1582,6 +1589,54 @@ export function EngagementFormWizard({
                 </div>
               </div>
             )}
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-zinc-700 mb-1">Payment type *</label>
+              <select
+                value={formData.payment_type ?? "paid_by_group"}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    payment_type: e.target.value as EngagementCreate["payment_type"],
+                  })
+                }
+                className={inputClass}
+              >
+                {PAYMENT_TYPE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-zinc-700 mb-1">Auto booking</label>
+              <div className="flex flex-wrap gap-4">
+                <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
+                  <input
+                    type="radio"
+                    name="auto_booking"
+                    checked={Boolean(formData.auto_booking)}
+                    onChange={() => setFormData({ ...formData, auto_booking: true })}
+                  />
+                  Yes
+                </label>
+                <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
+                  <input
+                    type="radio"
+                    name="auto_booking"
+                    checked={!formData.auto_booking}
+                    onChange={() => setFormData({ ...formData, auto_booking: false })}
+                  />
+                  No
+                </label>
+              </div>
+              <p className="text-xs text-zinc-500 mt-1">
+                When enabled, creates the diagnostic partner order after onboard (group) or payment
+                confirm (patient).
+              </p>
+            </div>
 
             {typeConfig.needsConsultation && (
               <div className="md:col-span-2">

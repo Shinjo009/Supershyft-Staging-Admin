@@ -54,6 +54,8 @@ export function buildEngagementCreatePayload(data: EngagementCreate): Engagement
     enroll_for_fitprint_full: Boolean(data.enroll_for_fitprint_full),
     load_prev_assessment_questionnaires: Boolean(data.load_prev_assessment_questionnaires),
     load_prev_questionnaire_category_keys: data.load_prev_questionnaire_category_keys ?? null,
+    payment_type: data.payment_type ?? "paid_by_group",
+    auto_booking: Boolean(data.auto_booking),
     notifications: data.notifications ?? [],
     camp_no: computeCampNo(orgId, data.start_date),
     slot_detail: data.slot_detail ?? null,
@@ -98,6 +100,8 @@ export function buildEngagementUpdatePayload(data: EngagementCreate) {
     enroll_for_fitprint_full: Boolean(data.enroll_for_fitprint_full),
     load_prev_assessment_questionnaires: Boolean(data.load_prev_assessment_questionnaires),
     load_prev_questionnaire_category_keys: data.load_prev_questionnaire_category_keys ?? null,
+    payment_type: data.payment_type ?? "paid_by_group",
+    auto_booking: Boolean(data.auto_booking),
   };
   if (data.notifications !== undefined) {
     payload.notifications = data.notifications;

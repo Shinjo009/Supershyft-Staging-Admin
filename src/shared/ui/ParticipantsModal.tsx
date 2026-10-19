@@ -165,6 +165,7 @@ async function fetchEngagementParticipantsBootstrap(
               consultations: eng.consultations,
               public_slot_detail: eng.public_slot_detail,
               blood_collection_type: eng.blood_collection_type,
+              payment_type: eng.payment_type,
             },
             organization,
             booking_dates: bookingRes.data.data,
@@ -992,6 +993,8 @@ export function ParticipantsModal({
     null
   );
   const [engagementBloodCollectionType, setEngagementBloodCollectionType] = useState<string | null>(null);
+  const [engagementPaymentType, setEngagementPaymentType] = useState<string | null>(null);
+  const showPaidColumn = engagementPaymentType === "paid_by_patient";
   const [engagementConsultations, setEngagementConsultations] = useState<Record<string, boolean> | null>(
     null
   );
@@ -1057,6 +1060,7 @@ export function ParticipantsModal({
               setEngagementConsultations((eng.consultations as typeof engagementConsultations) ?? null);
               setEngagementPublicSlotDetail(parsePublicSlotDetail(eng.public_slot_detail));
               setEngagementBloodCollectionType((eng.blood_collection_type as string | null) ?? null);
+              setEngagementPaymentType((eng.payment_type as string | null) ?? null);
               const orgId = (eng.organization_id as number | null) ?? null;
               setOrganizationId(orgId);
             }
@@ -1590,6 +1594,7 @@ export function ParticipantsModal({
       const engagementRes = await engagementsApi.get(source.engagementId);
       setEngagementPublicSlotDetail(engagementRes.data.data.public_slot_detail ?? null);
       setEngagementBloodCollectionType(engagementRes.data.data.blood_collection_type ?? null);
+      setEngagementPaymentType(engagementRes.data.data.payment_type ?? null);
     } catch {
       // ignore refresh errors
     }
@@ -2902,6 +2907,11 @@ export function ParticipantsModal({
                       Email
                     </th>
                     )}
+                    {showPaidColumn && (
+                    <th className="px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap">
+                      Paid
+                    </th>
+                    )}
                     <th className="px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap">
                       <EditableColumnHeader
                         label="Booking Id"
@@ -3143,6 +3153,11 @@ export function ParticipantsModal({
                         {!compactRoster && (
                         <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-zinc-600 whitespace-nowrap">
                           {p.email || "—"}
+                        </td>
+                        )}
+                        {showPaidColumn && (
+                        <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-zinc-600 whitespace-nowrap">
+                          {p.paid ? "Yes" : "No"}
                         </td>
                         )}
                         <td
