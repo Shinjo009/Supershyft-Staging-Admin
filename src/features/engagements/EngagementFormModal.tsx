@@ -667,6 +667,7 @@ export function EngagementFormWizard({
       ...prev,
       blood_collection_type: next,
       external_camp_id: next === "camp_collection" ? prev.external_camp_id : undefined,
+      auto_booking: next === "camp_collection" ? false : prev.auto_booking,
     }));
     if (next !== "camp_collection") {
       setScheduleIntent((prev) => ({ ...prev, configureBlood: false }));
@@ -987,7 +988,10 @@ export function EngagementFormWizard({
           ? selectedLoadPrevCategoryKeys
           : null,
       payment_type: formData.payment_type ?? "paid_by_group",
-      auto_booking: Boolean(formData.auto_booking),
+      auto_booking:
+        typeConfig.needsBloodCollection &&
+        formData.blood_collection_type !== "camp_collection" &&
+        Boolean(formData.auto_booking),
     };
   };
 
@@ -1610,34 +1614,6 @@ export function EngagementFormWizard({
               </select>
             </div>
 
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-zinc-700 mb-1">Auto booking</label>
-              <div className="flex flex-wrap gap-4">
-                <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
-                  <input
-                    type="radio"
-                    name="auto_booking"
-                    checked={Boolean(formData.auto_booking)}
-                    onChange={() => setFormData({ ...formData, auto_booking: true })}
-                  />
-                  Yes
-                </label>
-                <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
-                  <input
-                    type="radio"
-                    name="auto_booking"
-                    checked={!formData.auto_booking}
-                    onChange={() => setFormData({ ...formData, auto_booking: false })}
-                  />
-                  No
-                </label>
-              </div>
-              <p className="text-xs text-zinc-500 mt-1">
-                When enabled, creates the diagnostic partner order after onboard (group) or payment
-                confirm (patient).
-              </p>
-            </div>
-
             {typeConfig.needsConsultation && (
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-zinc-700 mb-1">
@@ -1679,6 +1655,43 @@ export function EngagementFormWizard({
                 </select>
                 <p className="text-xs text-zinc-500 mt-1">
                   Camp collection uses on-site cabins. Home collection uses Healthians per participant.
+                </p>
+              </div>
+            )}
+
+            {typeConfig.needsBloodCollection && (
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-zinc-700 mb-1">Auto booking</label>
+                <div className="flex flex-wrap gap-4">
+                  <label
+                    className={`inline-flex items-center gap-2 text-sm ${
+                      formData.blood_collection_type === "camp_collection"
+                        ? "text-zinc-400 cursor-not-allowed"
+                        : "text-zinc-700"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="auto_booking"
+                      checked={Boolean(formData.auto_booking)}
+                      disabled={formData.blood_collection_type === "camp_collection"}
+                      onChange={() => setFormData({ ...formData, auto_booking: true })}
+                    />
+                    Yes
+                  </label>
+                  <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
+                    <input
+                      type="radio"
+                      name="auto_booking"
+                      checked={!formData.auto_booking}
+                      onChange={() => setFormData({ ...formData, auto_booking: false })}
+                    />
+                    No
+                  </label>
+                </div>
+                <p className="text-xs text-zinc-500 mt-1">
+                  When enabled, creates the diagnostic partner order after onboard (group) or payment
+                  confirm (patient). Not available for camp collection.
                 </p>
               </div>
             )}
