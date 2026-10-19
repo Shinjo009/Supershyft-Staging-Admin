@@ -3237,6 +3237,16 @@ export const participantsApi = {
       `/engagements/${engagementId}/participants/${userId}/clinical-data`,
       body
     ),
+  regenerateBioaiReport: (engagementId: number, userId: number) =>
+    api.post<{
+      data: ParticipantClinicalSnapshot & {
+        regenerate?: {
+          assessment_instance_id: number;
+          metsights_record_id: string;
+          report_url: string;
+        };
+      };
+    }>(`/engagements/${engagementId}/participants/${userId}/regenerate-bioai-report`),
   byEngagementId: (engagementId: number, params?: ParticipantListQueryParams) =>
     api.get<{ data: Participant[]; meta?: { page?: number; limit?: number; total: number } }>(
       `/engagements/${engagementId}/participants`,

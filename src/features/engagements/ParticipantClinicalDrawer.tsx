@@ -18,6 +18,12 @@ import {
 
 type Tab = "blood" | "bio_ai" | "fitprint" | "questionnaires";
 
+function isPermanentBioAiReportUrl(url: string | null | undefined): boolean {
+  const cleaned = (url || "").trim();
+  if (!cleaned) return false;
+  return cleaned.includes("bio-ai-reports") && cleaned.includes("/r/");
+}
+
 function bioAiValuesPresent(
   snapshot: ParticipantClinicalSnapshot | null,
   participant: Participant
@@ -93,6 +99,25 @@ export function ParticipantClinicalDrawer({
         product,
         field,
       });
+      setSnapshot(res.data.data);
+      onParticipantUpdated?.();
+    } catch (err) {
+      setError(getApiError(err));
+    } finally {
+      setClearing(false);
+    }
+  };
+
+  const handleRegenerateBioAi = async () => {
+    if (!participant || !canClearClinicalData) return;
+    const ok = window.confirm(
+      "Regenerate the Bio AI PDF at the same link using this camp's latest MetSights data? The public URL will not change."
+    );
+    if (!ok) return;
+    setClearing(true);
+    setError(null);
+    try {
+      const res = await participantsApi.regenerateBioaiReport(engagementId, participant.user_id);
       setSnapshot(res.data.data);
       onParticipantUpdated?.();
     } catch (err) {
@@ -260,6 +285,11 @@ export function ParticipantClinicalDrawer({
                   hasValues={hasBioValues}
                   onClearReportUrl={() => void handleClear("bio_ai", "report_url", "Bio AI report URL")}
                   onClearValues={() => void handleClear("bio_ai", "values", "Bio AI values")}
+                  onRegenerate={
+                    isPermanentBioAiReportUrl(bioAiReportUrl)
+                      ? () => void handleRegenerateBioAi()
+                      : undefined
+                  }
                 />
               )}
               {hasBioValues && bioAiReports && (
@@ -345,15 +375,27 @@ function ClinicalAdminActions({
   hasValues,
   onClearReportUrl,
   onClearValues,
+  onRegenerate,
 }: {
   clearing: boolean;
   hasReportUrl: boolean;
   hasValues: boolean;
   onClearReportUrl: () => void;
   onClearValues: () => void;
+  onRegenerate?: () => void;
 }) {
   return (
     <div className="flex flex-wrap gap-2 pt-1">
+      {onRegenerate && (
+        <button
+          type="button"
+          disabled={clearing || !hasReportUrl}
+          onClick={onRegenerate}
+          className="text-xs text-sky-800 border border-sky-200 rounded px-2 py-1 hover:bg-sky-50 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Regenerate report (same link)
+        </button>
+      )}
       <button
         type="button"
         disabled={clearing || !hasReportUrl}
