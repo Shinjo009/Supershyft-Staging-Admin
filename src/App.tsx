@@ -367,7 +367,8 @@ function AppRoutes() {
           path="integration-logs"
           element={<PermissionRoute category="system_monitoring"><IntegrationLogsPage /></PermissionRoute>}
         />
-        <Route path="settings" element={<PermissionRoute category="platform_settings"><Settings /></PermissionRoute>} />
+        <Route path="settings" element={<Navigate to="/settings/onboarding" replace />} />
+        <Route path="settings/:tab" element={<PermissionRoute category="platform_settings"><Settings /></PermissionRoute>} />
       </Route>
       <Route
         path="/engagements/console"

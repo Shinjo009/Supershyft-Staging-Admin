@@ -365,7 +365,7 @@ function AdminLayoutView() {
                 </p>
               ) : isSettings ? (
                 <p className="text-[11px] text-zinc-500 truncate leading-tight">
-                  Platform defaults and Metsights profile synchronization.
+                  Onboarding defaults, notifications, and integrations.
                 </p>
               ) : null}
             </div>

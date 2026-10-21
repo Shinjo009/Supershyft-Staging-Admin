@@ -78,10 +78,19 @@ function labelDiagnostic(p: DiagnosticPackageListItem): string {
 
 function defaultDiagnosticForType(
   defaults: B2cOnboardingDefaults | null,
-  typeCode: string
+  typeCode: string,
+  gender?: string | null
 ): number | "" {
   const entry = defaults?.defaults_by_engagement_type?.[typeCode];
-  const id = entry?.diagnostic_package_id;
+  if (!entry) return "";
+  const g = (gender ?? "").trim().toLowerCase();
+  if ((g === "male" || g === "m") && entry.diagnostic_package_id_male) {
+    return entry.diagnostic_package_id_male;
+  }
+  if ((g === "female" || g === "f") && entry.diagnostic_package_id_female) {
+    return entry.diagnostic_package_id_female;
+  }
+  const id = entry.diagnostic_package_id;
   return id != null && id > 0 ? id : "";
 }
 
@@ -136,7 +145,7 @@ export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Pro
       const config = getTypeConfig(code);
       setEngagementType(code);
       if (config.needsDiagnostic) {
-        setDiagnosticPackageId(defaultDiagnosticForType(defaults, code));
+        setDiagnosticPackageId(defaultDiagnosticForType(defaults, code, user?.gender));
       } else {
         setDiagnosticPackageId("");
       }
@@ -146,7 +155,7 @@ export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Pro
         setWantBoth(false);
       }
     },
-    [b2cDefaults]
+    [b2cDefaults, user?.gender]
   );
 
   const resetState = useCallback(() => {

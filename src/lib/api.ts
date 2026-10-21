@@ -269,13 +269,22 @@ export const supportApi = {
 export interface B2cOnboardingTypeDefaults {
   assessment_package_id: number;
   diagnostic_package_id: number | null;
+  diagnostic_package_id_male?: number | null;
+  diagnostic_package_id_female?: number | null;
   blood_collection_type: BloodCollectionType | null;
   create_profile_on_metsights: boolean;
   enroll_for_fitprint_full: boolean;
+  load_prev_assessment_questionnaires?: boolean;
+  load_prev_questionnaire_category_keys?: string[] | null;
+  slot_duration?: number;
+  consultation_mode?: ConsultationMode | null;
+  auto_booking?: boolean;
+  payment_type?: EngagementPaymentType;
 }
 
 export interface B2cOnboardingDefaults {
   defaults_by_engagement_type: Record<string, B2cOnboardingTypeDefaults>;
+  default_engagement_type_code?: string;
 }
 
 /** @deprecated Use NotificationDefaultItem[] via engagementNotificationsApi instead */
