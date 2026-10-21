@@ -3080,6 +3080,7 @@ export interface Participant {
   booked_by_user_id?: number | null;
   paid?: boolean | null;
   booker_message?: string | null;
+  booker_relation?: string | null;
   blood_test_complete?: boolean | null;
   engagement_name?: string | null;
   engagement_code?: string | null;
