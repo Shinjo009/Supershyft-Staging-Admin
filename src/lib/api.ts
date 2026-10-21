@@ -3891,7 +3891,7 @@ export const onboardingAssistantsApi = {
 };
 
 // Partners
-export type PartnerRoleValue = "phlebo" | "expert" | "organization_manager";
+export type PartnerRoleValue = "phlebo" | "expert" | "organization_manager" | "author";
 
 export interface PartnerListItem {
   partner_id: number;

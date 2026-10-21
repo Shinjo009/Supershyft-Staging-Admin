@@ -27,7 +27,7 @@ export type EmployeeRole =
   | "organization_manager"
   | "expert";
 
-export type PartnerRole = "phlebo" | "expert" | "organization_manager";
+export type PartnerRole = "phlebo" | "expert" | "organization_manager" | "author";
 
 export interface CategoryPermission {
   category: PermissionCategory;

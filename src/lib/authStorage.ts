@@ -111,6 +111,9 @@ export function resolvePostLoginPath(
   if (role === "organization_manager") {
     return "/organisations";
   }
+  if (role === "author") {
+    return "/blog";
+  }
   if (authKind === "partner" || role === "phlebo" || role === "expert") {
     if (role === "phlebo") return "/engagements/console";
     if (role === "expert") return "/experts/portal";

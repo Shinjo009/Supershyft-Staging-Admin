@@ -27,6 +27,7 @@ import {
   Handshake,
   Tag,
   RefreshCw,
+  PenLine,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { usePermissions } from "../contexts/PermissionContext";
@@ -63,6 +64,8 @@ const orgManagerNavItems = [
   { to: "/engagements/console", icon: CalendarCheck, label: "Engagement Console" },
 ];
 
+const authorNavItems = [{ to: "/blog", icon: PenLine, label: "Blog Dashboard", end: false as const }];
+
 function isLibraryPath(pathname: string) {
   return (
     pathname.startsWith("/assessments") ||
@@ -89,6 +92,8 @@ function pageTitleForPath(pathname: string): string {
     "/settings": "Settings",
     "/employees": "Employees",
     "/partners": "Partners",
+    "/blog": "Blog Dashboard",
+    "/blog/editor": "Write post",
     "/my-tasks": "My Tasks",
     "/assessments/packages": "Assessments",
     "/diagnostics/packages": "Diagnostics",
@@ -116,6 +121,9 @@ function pageTitleForPath(pathname: string): string {
   if (pathname.startsWith("/support")) return "Support Tickets";
   if (pathname.startsWith("/employees")) return "Employees";
   if (pathname.startsWith("/partners")) return "Partners";
+  if (pathname.startsWith("/blog/view")) return "View post";
+  if (pathname.startsWith("/blog/editor")) return "Write post";
+  if (pathname.startsWith("/blog")) return "Blog Dashboard";
   if (pathname.startsWith("/discounts")) return "Discounts";
   if (pathname.startsWith("/checklists")) return "Checklist Templates";
   return "Admin";
@@ -142,6 +150,8 @@ function AdminLayoutView() {
   const [libraryOpen, setLibraryOpen] = useState(() => isLibraryPath(location.pathname));
   const libraryExpanded = libraryOpen || isLibraryPath(location.pathname);
   const isOrgManager = employeeRole === "organization_manager";
+  const isAuthor = employeeRole === "author";
+  const isFullAdmin = employeeRole === "admin";
   const visiblePrimaryItems = primaryNavItems.filter(
     (item) => item.category === null || canView(item.category as PermissionCategory)
   );
@@ -221,7 +231,22 @@ function AdminLayoutView() {
           </div>
         </div>
         <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
-          {isOrgManager ? (
+          {isAuthor ? (
+            authorNavItems.map(({ to, icon: Icon, label, end }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                onClick={closeMobileMenu}
+                className={({ isActive }) =>
+                  `${navLinkClass({ isActive })} ${sidebarCollapsed ? "justify-center" : ""}`
+                }
+              >
+                <Icon className="w-5 h-5 shrink-0" />
+                {!sidebarCollapsed && <span>{label}</span>}
+              </NavLink>
+            ))
+          ) : isOrgManager ? (
             orgManagerNavItems.map(({ to, icon: Icon, label }) => (
               <NavLink
                 key={to}
@@ -251,7 +276,6 @@ function AdminLayoutView() {
               {!sidebarCollapsed && <span>{label}</span>}
             </NavLink>
           ))}
-
           {sidebarCollapsed ? (
             visibleLibraryItems.map(({ to, icon: Icon, label }) => (
               <NavLink
@@ -327,6 +351,22 @@ function AdminLayoutView() {
               {!sidebarCollapsed && <span>{label}</span>}
             </NavLink>
           ))}
+          {isFullAdmin
+            ? authorNavItems.map(({ to, icon: Icon, label, end }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={end}
+                  onClick={closeMobileMenu}
+                  className={({ isActive }) =>
+                    `${navLinkClass({ isActive })} ${sidebarCollapsed ? "justify-center" : ""}`
+                  }
+                >
+                  <Icon className="w-5 h-5 shrink-0" />
+                  {!sidebarCollapsed && <span>{label}</span>}
+                </NavLink>
+              ))
+            : null}
             </>
           )}
         </nav>

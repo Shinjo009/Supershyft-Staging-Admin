@@ -1,0 +1,253 @@
+/* Story editor: full-page layout like the Tiptap Simple Editor demo
+   (https://tiptap.dev/docs/ui-components/templates/simple-editor).
+   Light and dark colors follow .story-rich-editor and .story-rich-editor.dark.
+   Title, description, and story text sit in one centred column. */
+
+.writer.writer-page {
+  min-height: 0;
+  color: #18181b;
+  background-color: #fff;
+  border: 1px solid #e4e4e7;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.writer-page .writer-top {
+  background: #fff;
+  border-bottom: 1px solid #e6eeec;
+}
+
+.writer-page .writer-top a {
+  color: #4b5d59;
+}
+
+.writer-page .writer-status {
+  color: #0f766e;
+}
+
+.simple-editor-wrapper.story-rich-editor {
+  /* Fill the writing area. The toolbar stays put; only the story scrolls. */
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--tt-bg-color, #fff);
+  color: #18181b;
+  border: 0;
+  border-radius: 0;
+}
+
+.story-rich-editor.dark {
+  background: var(--black, #0a0a0a);
+  color: #f4f4f5;
+}
+
+.story-rich-editor .tiptap-toolbar {
+  position: relative;
+  top: auto;
+  z-index: 40;
+  flex-shrink: 0;
+  width: 100%;
+  overflow-x: auto;
+  background: var(--tt-toolbar-bg-color, #fff);
+  border-bottom: 1px solid var(--tt-toolbar-border-color);
+  color: inherit;
+}
+
+.story-rich-editor .story-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* The story header sits above the template's fixed search panel. */
+.story-rich-editor .simple-editor-search-and-replace {
+  top: calc(64px + 0.5rem);
+}
+
+@media (min-width: 768px) {
+  .story-rich-editor .simple-editor-search-and-replace {
+    top: calc(64px + var(--tt-toolbar-height) + 0.5rem);
+  }
+}
+
+.story-page {
+  max-width: 648px;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 30vh;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.story-rich-editor .story-video {
+  margin: 1.25rem 0;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  background: #f4f4f5;
+  aspect-ratio: 16 / 9;
+}
+
+.story-rich-editor .story-video iframe,
+.story-rich-editor .story-video video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.story-rich-editor .story-audio {
+  margin: 1rem 0;
+}
+
+.story-rich-editor .story-section,
+.story-rich-editor .ProseMirror div[data-type="section"] {
+  margin: 1rem 0;
+  padding: 1rem 1.1rem;
+  border-radius: 0.5rem;
+  border: 1px dashed rgba(24, 24, 27, 0.12);
+}
+
+.story-rich-editor .ProseMirror div[data-type="section"] > *:first-child {
+  margin-top: 0;
+}
+
+.story-rich-editor .ProseMirror div[data-type="section"] > *:last-child {
+  margin-bottom: 0;
+}
+
+.story-rich-editor .story-audio audio {
+  width: 100%;
+}
+
+.story-page-header .writer-title,
+.story-page-header .writer-excerpt {
+  display: block;
+  width: 100%;
+  border: 0;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  color: inherit;
+  padding: 0.15rem 0;
+  field-sizing: content;
+}
+
+.story-page-header .writer-title {
+  font-family: "DM Sans", Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 2.25rem;
+  font-weight: 500;
+  line-height: 1.25;
+  min-height: 2.8rem;
+}
+
+.story-page-header .writer-excerpt {
+  margin-top: 0.35rem;
+  color: #71717a;
+  font-size: 1.125rem;
+  line-height: 1.45;
+  min-height: 1.8rem;
+}
+
+.story-rich-editor.dark .story-page-header .writer-excerpt {
+  color: #d6d3d1;
+}
+
+.story-page-header .writer-title::placeholder,
+.story-page-header .writer-excerpt::placeholder {
+  color: #a1a1aa;
+}
+
+.story-rich-editor.dark .story-page-header .writer-title::placeholder,
+.story-rich-editor.dark .story-page-header .writer-excerpt::placeholder {
+  color: #d4d4d8;
+}
+
+.story-page-header .admin-error {
+  color: #b42318;
+  margin: 0.75rem 0 0;
+}
+
+.story-rich-editor .simple-editor-content {
+  max-width: none;
+  margin-top: 1.5rem;
+  height: auto;
+}
+
+.story-rich-editor .simple-editor-content .tiptap.ProseMirror.simple-editor {
+  padding: 0;
+  min-height: 50vh;
+  color: inherit;
+  caret-color: currentColor;
+  background: transparent;
+}
+
+.story-rich-editor .tiptap.ProseMirror h1,
+.story-rich-editor .tiptap.ProseMirror h2,
+.story-rich-editor .tiptap.ProseMirror h3,
+.story-rich-editor .tiptap.ProseMirror h4,
+.story-rich-editor .tiptap.ProseMirror p,
+.story-rich-editor .tiptap.ProseMirror li {
+  color: inherit;
+}
+
+.story-rich-editor .tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: #a1a1aa;
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.story-rich-editor.dark .tiptap p.is-editor-empty:first-child::before {
+  color: #d4d4d8;
+}
+
+@media (max-width: 640px) {
+  .story-page {
+    padding: 2rem 1rem 30vh;
+  }
+}
+
+/* Text highlight marks (multicolor Highlight extension) */
+.story-rich-editor .tiptap mark {
+  border-radius: 0.2em;
+  padding: 0.05em 0.15em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  color: inherit;
+}
+
+/* Tables (kept so existing posts with tables can be edited) */
+.story-rich-editor .tiptap table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+.story-rich-editor .tiptap th,
+.story-rich-editor .tiptap td {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  padding: 6px 10px;
+  vertical-align: top;
+  color: inherit;
+}
+
+.story-rich-editor.dark .tiptap th,
+.story-rich-editor.dark .tiptap td {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.story-rich-editor .tiptap th {
+  background: transparent;
+  font-weight: 600;
+}
+
+.story-rich-editor .tiptap th p,
+.story-rich-editor .tiptap td p {
+  margin: 0;
+}
