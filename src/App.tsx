@@ -99,6 +99,11 @@ const ExpertCampConsultationParticipantsPage = lazy(() =>
 const Notifications = lazy(() =>
   import("./features/notifications/Notifications").then((m) => ({ default: m.Notifications }))
 );
+const NotificationSetupWizard = lazy(() =>
+  import("./features/notifications/NotificationSetupWizard").then((m) => ({
+    default: m.NotificationSetupWizard,
+  }))
+);
 const EngagementConsolePage = lazy(() =>
   import("./features/console/EngagementConsolePage").then((m) => ({ default: m.EngagementConsolePage }))
 );
@@ -321,6 +326,22 @@ function AppRoutes() {
           }
         />
         <Route
+          path="engagements/new/notifications/setup"
+          element={
+            <PermissionRoute category="notifications">
+              <NotificationSetupWizard mode="create" scope="engagement" />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="engagements/:engagementCode/notifications/:engagementNotificationId/edit"
+          element={
+            <PermissionRoute category="notifications">
+              <NotificationSetupWizard mode="edit" scope="engagement" />
+            </PermissionRoute>
+          }
+        />
+        <Route
           path="engagements/:engagementCode/edit"
           element={
             <PermissionRoute category="engagements">
@@ -391,7 +412,23 @@ function AppRoutes() {
         <Route path="payments/bookings" element={<PermissionRoute category="payments_bookings"><Bookings /></PermissionRoute>} />
         <Route path="checklists" element={<PermissionRoute category="checklists_tasks"><ChecklistTemplates /></PermissionRoute>} />
         <Route path="library/health-metrics" element={<PermissionRoute category="diagnostics"><HealthMetrics /></PermissionRoute>} />
-        <Route path="notifications" element={<Navigate to="/notifications/notifications" replace />} />
+        <Route path="notifications" element={<Navigate to="/notifications/logs" replace />} />
+        <Route
+          path="notifications/notifications/new"
+          element={
+            <PermissionRoute category="notifications">
+              <NotificationSetupWizard mode="create" />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="notifications/notifications/:bindingId/edit"
+          element={
+            <PermissionRoute category="notifications">
+              <NotificationSetupWizard mode="edit" />
+            </PermissionRoute>
+          }
+        />
         <Route path="notifications/:tab" element={<PermissionRoute category="notifications"><Notifications /></PermissionRoute>} />
         <Route
           path="admin/library/health-metrics"

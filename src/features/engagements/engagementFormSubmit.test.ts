@@ -29,7 +29,8 @@ describe("buildEngagementUpdatePayload", () => {
   it("includes notifications when provided", () => {
     const notifications = [
       {
-        notification_event_id: 10,
+        event_code: "test_event",
+        recipient_type: "participant",
         notification_services: [{ service_key: "email", enabled: true }],
       },
     ];

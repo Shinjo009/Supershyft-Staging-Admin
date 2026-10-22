@@ -50,7 +50,7 @@ export const PERMISSION_METADATA: ReadonlyArray<{
   { key: "experts", label: "Experts", description: "Experts, types and consultations" },
   { key: "payments_bookings", label: "Payments & Bookings", description: "Payment and booking records" },
   { key: "discounts", label: "Discounts", description: "Discount codes, instances, allowlists, and reports" },
-  { key: "notifications", label: "Notifications", description: "Notifications, services and events" },
+  { key: "notifications", label: "Notifications", description: "Logs, services, and platform notification bindings" },
   { key: "checklists_tasks", label: "Checklists & Tasks", description: "Checklist templates and task administration" },
   { key: "support", label: "Support", description: "Support tickets" },
   { key: "employees", label: "Employees", description: "Employee directory" },

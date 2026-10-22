@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import type { NotificationServiceConfigItem, NotificationServiceItem } from "../../lib/api";
+import { serviceNeedsExternalLink } from "../../lib/notificationServiceUtils";
 
 function parseServiceKeys(value: string | null | undefined): string[] {
   if (!value) return [];
@@ -162,7 +163,10 @@ export function NotificationEventServicesInput({
   };
 
   const servicesRequiringExternalLink = value.filter(
-    (item) => serviceByKey.get(item.service_key)?.require_external_link
+    (item) => {
+      const svc = serviceByKey.get(item.service_key);
+      return svc ? serviceNeedsExternalLink(svc) : false;
+    }
   );
 
   return (
@@ -273,7 +277,7 @@ export function validateNotificationServiceConfigs(
   const serviceByKey = new Map(services.map((s) => [s.service_key, s]));
   for (const item of configs) {
     const svc = serviceByKey.get(item.service_key);
-    if (svc?.require_external_link) {
+    if (svc && serviceNeedsExternalLink(svc)) {
       const link = (item.external_link ?? "").trim();
       if (!link) {
         return `External link is required for ${svc.display_name}.`;

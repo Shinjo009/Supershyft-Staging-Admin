@@ -11,6 +11,7 @@ export const PROVIDER_OPTIONS = [
   { value: "healthians", label: "Healthians" },
   { value: "orange_health", label: "Orange Health" },
   { value: "n8n", label: "n8n" },
+  { value: "whatapi", label: "WhatAPI" },
   { value: "nutrition_api", label: "Nutrition API" },
   { value: "aurae", label: "Aurae" },
   { value: "bio_ai_reports", label: "Bio AI Reports" },

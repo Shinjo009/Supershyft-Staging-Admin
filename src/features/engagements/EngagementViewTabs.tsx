@@ -14,7 +14,7 @@ import type {
   EngagementDataCompletenessResponse,
   EngagementNotificationItem,
   EngagementTypeItem,
-  NotificationEventItem,
+  NotificationCatalogEvent,
 } from "../../lib/api";
 import { normalizeNotificationServiceConfigs } from "../../shared/ui/NotificationEventServicesInput";
 import {
@@ -22,7 +22,7 @@ import {
   engagementNotificationsApi,
   engagementTypesApi,
   getApiError,
-  notificationEventsApi,
+  notificationCatalogApi,
 } from "../../lib/api";
 import { ConsoleUrlActions } from "./consoleUrlActions";
 import { EngagementBookingSummaryCards } from "./EngagementBookingSummary";
@@ -429,7 +429,7 @@ export function EngagementNotificationsTab({
 }: Pick<SharedProps, "engagement" | "notificationServiceLabel">) {
   const [loading, setLoading] = useState(true);
   const [engagementTypes, setEngagementTypes] = useState<EngagementTypeItem[]>([]);
-  const [notificationEvents, setNotificationEvents] = useState<NotificationEventItem[]>([]);
+  const [catalogEvents, setCatalogEvents] = useState<NotificationCatalogEvent[]>([]);
   const [configuredNotifications, setConfiguredNotifications] = useState<
     EngagementNotificationItem[]
   >([]);
@@ -464,10 +464,8 @@ export function EngagementNotificationsTab({
         const hasEmbedded =
           Array.isArray(embeddedNotifications) && embeddedNotifications.length > 0;
 
-        const [eventsRes, configRes] = await Promise.all([
-          engagementTypeId
-            ? notificationEventsApi.list({ engagement_type_id: engagementTypeId })
-            : Promise.resolve({ data: { data: [] as NotificationEventItem[] } }),
+        const [catalogRes, configRes] = await Promise.all([
+          notificationCatalogApi.list(),
           hasEmbedded
             ? Promise.resolve({ data: { data: embeddedNotifications } })
             : engagementNotificationsApi.getForEngagement(engagement.engagement_id),
@@ -475,15 +473,13 @@ export function EngagementNotificationsTab({
 
         if (cancelled) return;
 
-        setNotificationEvents(
-          Array.isArray(eventsRes.data.data) ? eventsRes.data.data : []
-        );
+        setCatalogEvents(catalogRes.data.data ?? []);
         setConfiguredNotifications(
           Array.isArray(configRes.data.data) ? configRes.data.data : []
         );
       } catch {
         if (!cancelled) {
-          setNotificationEvents([]);
+          setCatalogEvents([]);
           setConfiguredNotifications([]);
         }
       } finally {
@@ -497,16 +493,11 @@ export function EngagementNotificationsTab({
     };
   }, [engagement.engagement_id, engagementTypeId, embeddedNotifications]);
 
-  const servicesByEventId = useMemo(() => {
-    const map = new Map<number, ReturnType<typeof normalizeNotificationServiceConfigs>>();
-    for (const item of configuredNotifications) {
-      map.set(
-        item.notification_event_id,
-        normalizeNotificationServiceConfigs(item.notification_services)
-      );
-    }
+  const catalogNameByCode = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const ev of catalogEvents) map.set(ev.event_code, ev.event_name);
     return map;
-  }, [configuredNotifications]);
+  }, [catalogEvents]);
 
   const formatServices = (
     services: ReturnType<typeof normalizeNotificationServiceConfigs>
@@ -520,20 +511,18 @@ export function EngagementNotificationsTab({
           .join(", ")
       : "—";
 
-  const rows = useMemo(() => {
-    if (notificationEvents.length > 0) {
-      return notificationEvents.map((event) => ({
-        key: event.notification_event_id,
-        label: event.display_name,
-        services: servicesByEventId.get(event.notification_event_id) ?? [],
-      }));
-    }
-    return configuredNotifications.map((item) => ({
-      key: item.notification_event_id,
-      label: item.event_display_name ?? `Event #${item.notification_event_id}`,
-      services: normalizeNotificationServiceConfigs(item.notification_services),
-    }));
-  }, [configuredNotifications, notificationEvents, servicesByEventId]);
+  const rows = useMemo(
+    () =>
+      configuredNotifications.map((item) => ({
+        key: `${item.event_code}:${item.recipient_type}`,
+        label:
+          item.event_display_name ??
+          catalogNameByCode.get(item.event_code) ??
+          item.event_code,
+        services: normalizeNotificationServiceConfigs(item.notification_services),
+      })),
+    [configuredNotifications, catalogNameByCode]
+  );
 
   return (
     <div className="bg-white border border-zinc-200 rounded-xl p-4">

@@ -10,20 +10,38 @@ import { EngagementSearchPicker } from "../../shared/ui/EngagementSearchPicker";
 import { buildIntegrationLogsPath } from "../integration-logs/integrationSyncLogsUtils";
 import {
   notificationsApi,
-  notificationEventsApi,
-  engagementTypesApi,
+  notificationEventBindingsApi,
   type NotificationItem,
   type NotificationRecipient,
   type NotificationServiceItem,
-  type NotificationEventItem,
-  type EngagementTypeItem,
+  type NotificationEventBindingItem,
+  type NotificationServiceConfigItem,
   getApiError,
 } from "../../lib/api";
+import {
+  bindingChannels,
+  recipientTypeLabel,
+  serviceContentSummary,
+} from "./notificationWizardUtils";
 
-type TabKey = "notifications" | "services" | "events";
-const TAB_KEYS: TabKey[] = ["notifications", "services", "events"];
+type TabKey = "logs" | "services" | "notifications";
+const TAB_KEYS: TabKey[] = ["logs", "services", "notifications"];
 
-const STATUS_OPTIONS = ["pending", "sent", "failed"];
+const TAB_LABELS: Record<TabKey, string> = {
+  logs: "Logs",
+  services: "Services",
+  notifications: "Notifications",
+};
+
+const STATUS_OPTIONS = [
+  "pending",
+  "queued",
+  "sent",
+  "delivered",
+  "read",
+  "failed",
+  "deleted",
+];
 const CHANNEL_OPTIONS = ["email", "whatsapp"];
 const FILTER_DEBOUNCE_MS = 300;
 
@@ -43,8 +61,12 @@ const TIME_PRESETS: { key: TimePreset; label: string }[] = [
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
     pending: "bg-amber-50 text-amber-700 border-amber-200",
+    queued: "bg-blue-50 text-blue-700 border-blue-200",
     sent: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    delivered: "bg-emerald-50 text-emerald-800 border-emerald-300",
+    read: "bg-zinc-100 text-zinc-700 border-zinc-300",
     failed: "bg-red-50 text-red-700 border-red-200",
+    deleted: "bg-zinc-50 text-zinc-500 border-zinc-200",
   };
   return (
     <span
@@ -151,9 +173,9 @@ function filterChipClass(active: boolean): string {
   }`;
 }
 
-// ── Notifications Tab ──────────────────────────────────────────────────
+// ── Logs Tab ─────────────────────────────────────────────────────────
 
-function NotificationsTab() {
+function LogsTab() {
   const location = useLocation();
   const { canEditTask } = usePermissions();
   const mayEditNotifications = canEditTask("notifications", "messages");
@@ -447,6 +469,37 @@ function NotificationsTab() {
       render: (r) => <StatusBadge status={r.status} />,
     },
     {
+      key: "queue_id",
+      label: "Queue ID",
+      sortable: false,
+      hideOnMobile: true,
+      render: (r) => {
+        const q = r.queue_id?.trim();
+        if (!q) return <span className="text-zinc-400">—</span>;
+        const short = q.length > 14 ? `${q.slice(0, 12)}…` : q;
+        return (
+          <span className="font-mono text-xs text-zinc-600" title={q}>
+            {short}
+          </span>
+        );
+      },
+    },
+    {
+      key: "event_code",
+      label: "Event",
+      sortable: false,
+      hideOnTablet: true,
+      render: (r) => {
+        if (!r.event_code) return <span className="text-zinc-400">—</span>;
+        const title = r.recipient_type ? `${r.event_code} (${r.recipient_type})` : r.event_code;
+        return (
+          <span className="text-xs text-zinc-600 truncate max-w-[8rem] block" title={title}>
+            {r.event_code}
+          </span>
+        );
+      },
+    },
+    {
       key: "recipients",
       label: "Recipients",
       sortable: false,
@@ -710,61 +763,62 @@ interface ServiceFormData {
   service_key: string;
   display_name: string;
   channel: string;
-  webhook_path: string;
   is_active: boolean;
-  require_blood_report_url: boolean;
-  require_bio_ai_report_url: boolean;
-  require_participant_detail: boolean;
-  require_otp: boolean;
-  require_session_details: boolean;
-  require_external_link: boolean;
+  template_name: string;
+  template_variables_json: string;
+  email_subject: string;
+  email_body: string;
+  email_html: string;
 }
 
 const EMPTY_SERVICE_FORM: ServiceFormData = {
   service_key: "",
   display_name: "",
   channel: "email",
-  webhook_path: "",
   is_active: true,
-  require_blood_report_url: false,
-  require_bio_ai_report_url: false,
-  require_participant_detail: false,
-  require_otp: false,
-  require_session_details: false,
-  require_external_link: false,
+  template_name: "",
+  template_variables_json: "[]",
+  email_subject: "",
+  email_body: "",
+  email_html: "",
 };
 
 type ServiceChannelFilter = "" | "email" | "whatsapp";
 type ServiceStatusFilter = "" | "active" | "inactive";
-type ServiceRequirementsFilter = "" | "any";
 
-function getServiceRequirementLabels(row: NotificationServiceItem): string[] {
-  const labels: string[] = [];
-  if (row.require_blood_report_url) labels.push("Blood report");
-  if (row.require_bio_ai_report_url) labels.push("BioAI report");
-  if (row.require_participant_detail) labels.push("Participant");
-  if (row.require_session_details) labels.push("Session");
-  if (row.require_external_link) labels.push("External link");
-  if (row.require_otp) labels.push("OTP");
-  return labels;
+function templateVariablesToJson(raw: unknown[] | null | undefined): string {
+  if (!raw || !Array.isArray(raw)) return "[]";
+  try {
+    return JSON.stringify(raw, null, 2);
+  } catch {
+    return "[]";
+  }
 }
 
-function ServiceRequirementsCell({ row }: { row: NotificationServiceItem }) {
-  const labels = getServiceRequirementLabels(row);
-  if (labels.length === 0) {
-    return <span className="text-zinc-400">—</span>;
+function parseTemplateVariablesJson(text: string): unknown[] | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  const parsed = JSON.parse(trimmed) as unknown;
+  if (!Array.isArray(parsed)) {
+    throw new Error("Template variables must be a JSON array");
   }
+  return parsed;
+}
+
+function ServiceContentCell({ row }: { row: NotificationServiceItem }) {
+  if (row.channel === "whatsapp") {
+    const name = row.template_name?.trim();
+    return (
+      <span className="text-sm text-zinc-700 truncate max-w-[12rem] block" title={name ?? undefined}>
+        {name || "—"}
+      </span>
+    );
+  }
+  const subject = row.email_subject?.trim();
   return (
-    <div className="flex flex-wrap gap-1 max-w-xs">
-      {labels.map((label) => (
-        <span
-          key={label}
-          className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-violet-50 text-violet-700 border-violet-200"
-        >
-          {label}
-        </span>
-      ))}
-    </div>
+    <span className="text-sm text-zinc-700 truncate max-w-[12rem] block" title={subject ?? undefined}>
+      {subject || "—"}
+    </span>
   );
 }
 
@@ -789,8 +843,6 @@ function ServicesTab() {
   const [searchQuery, setSearchQuery] = useState("");
   const [channelFilter, setChannelFilter] = useState<ServiceChannelFilter>("");
   const [statusFilter, setStatusFilter] = useState<ServiceStatusFilter>("");
-  const [requirementsFilter, setRequirementsFilter] = useState<ServiceRequirementsFilter>("");
-
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -818,16 +870,15 @@ function ServicesTab() {
     const query = searchQuery.trim().toLowerCase();
     return data.filter((row) => {
       if (query) {
-        const haystack = `${row.display_name} ${row.service_key} ${row.webhook_path}`.toLowerCase();
+        const haystack = `${row.display_name} ${row.service_key} ${row.template_name ?? ""} ${row.email_subject ?? ""}`.toLowerCase();
         if (!haystack.includes(query)) return false;
       }
       if (channelFilter && row.channel !== channelFilter) return false;
       if (statusFilter === "active" && !row.is_active) return false;
       if (statusFilter === "inactive" && row.is_active) return false;
-      if (requirementsFilter === "any" && getServiceRequirementLabels(row).length === 0) return false;
       return true;
     });
-  }, [channelFilter, data, requirementsFilter, searchQuery, statusFilter]);
+  }, [channelFilter, data, searchQuery, statusFilter]);
 
   const editingRow = useMemo(
     () => (editingId != null ? data.find((row) => row.notification_service_id === editingId) ?? null : null),
@@ -847,14 +898,14 @@ function ServicesTab() {
       service_key: row.service_key,
       display_name: row.display_name,
       channel: row.channel,
-      webhook_path: row.webhook_path,
       is_active: row.is_active,
-      require_blood_report_url: row.require_blood_report_url,
-      require_bio_ai_report_url: row.require_bio_ai_report_url,
-      require_participant_detail: row.require_participant_detail,
-      require_otp: row.require_otp,
-      require_session_details: row.require_session_details,
-      require_external_link: row.require_external_link,
+      template_name: row.template_name ?? "",
+      template_variables_json: templateVariablesToJson(
+        row.template_variables as unknown[] | null | undefined
+      ),
+      email_subject: row.email_subject ?? "",
+      email_body: row.email_body ?? "",
+      email_html: row.email_html ?? "",
     });
     setEditingId(row.notification_service_id);
     setModalMode("edit");
@@ -882,26 +933,29 @@ function ServicesTab() {
     setSubmitting(true);
     setError(null);
     try {
+      const template_variables = parseTemplateVariablesJson(formData.template_variables_json);
+      const payload = {
+        display_name: formData.display_name,
+        channel: formData.channel,
+        is_active: formData.is_active,
+        template_name: formData.template_name.trim() || null,
+        template_variables,
+        email_subject: formData.email_subject.trim() || null,
+        email_body: formData.email_body.trim() || null,
+        email_html: formData.email_html.trim() || null,
+      };
       if (modalMode === "add") {
-        await notificationsApi.createService(formData);
-      } else if (editingId !== null) {
-        await notificationsApi.updateService(editingId, {
-          display_name: formData.display_name,
-          channel: formData.channel,
-          webhook_path: formData.webhook_path,
-          is_active: formData.is_active,
-          require_blood_report_url: formData.require_blood_report_url,
-          require_bio_ai_report_url: formData.require_bio_ai_report_url,
-          require_participant_detail: formData.require_participant_detail,
-          require_otp: formData.require_otp,
-          require_session_details: formData.require_session_details,
-          require_external_link: formData.require_external_link,
+        await notificationsApi.createService({
+          service_key: formData.service_key,
+          ...payload,
         });
+      } else if (editingId !== null) {
+        await notificationsApi.updateService(editingId, payload);
       }
       setModalOpen(false);
       fetchList();
     } catch (err) {
-      setError(getApiError(err));
+      setError(err instanceof Error ? err.message : getApiError(err));
     } finally {
       setSubmitting(false);
     }
@@ -927,10 +981,10 @@ function ServicesTab() {
       render: (r) => <ActiveBadge active={r.is_active} />,
     },
     {
-      key: "requirements",
-      label: "Requirements",
+      key: "content",
+      label: "Template / Subject",
       sortable: false,
-      render: (r) => <ServiceRequirementsCell row={r} />,
+      render: (r) => <ServiceContentCell row={r} />,
     },
   ];
 
@@ -978,13 +1032,6 @@ function ServicesTab() {
               className={filterChipClass(statusFilter === "inactive")}
             >
               Inactive
-            </button>
-            <button
-              type="button"
-              onClick={() => setRequirementsFilter((prev) => (prev === "any" ? "" : "any"))}
-              className={filterChipClass(requirementsFilter === "any")}
-            >
-              Has requirements
             </button>
           </div>
         </div>
@@ -1069,7 +1116,7 @@ function ServicesTab() {
             <div>
               <h3 className="text-sm font-semibold text-zinc-800">Delivery</h3>
               <p className="text-xs text-zinc-500 mt-0.5">
-                How this service sends notifications through n8n.
+                Direct send via WhatAPI (WhatsApp) or SMTP (email).
               </p>
             </div>
 
@@ -1086,21 +1133,6 @@ function ServicesTab() {
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1">Webhook Path</label>
-              <input
-                type="text"
-                value={formData.webhook_path}
-                onChange={(e) => setFormData({ ...formData, webhook_path: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
-                placeholder="/webhook/send-reports-email"
-                required
-              />
-              <p className="mt-1 text-xs text-zinc-500">
-                Only enter the path. The BASE_URL will be auto-picked from server configuration.
-              </p>
-            </div>
-
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -1112,88 +1144,66 @@ function ServicesTab() {
             </label>
           </div>
 
-          <div className="rounded-lg border border-zinc-200 p-4 space-y-4">
-            <div>
-              <h3 className="text-sm font-semibold text-zinc-800">Required payload</h3>
-              <p className="text-xs text-zinc-500 mt-0.5">
-                Data the admin UI must collect before dispatching this service.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label className="flex items-center gap-2 cursor-pointer">
+          {formData.channel === "whatsapp" ? (
+            <div className="rounded-lg border border-zinc-200 p-4 space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-800">WhatsApp template</h3>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">Template name</label>
                 <input
-                  type="checkbox"
-                  checked={formData.require_blood_report_url}
-                  onChange={(e) => setFormData({ ...formData, require_blood_report_url: e.target.checked })}
-                  className="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
+                  type="text"
+                  value={formData.template_name}
+                  onChange={(e) => setFormData({ ...formData, template_name: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
+                  placeholder="e.g. otp_message"
                 />
-                <span className="text-sm text-zinc-700">Blood report URL</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.require_bio_ai_report_url}
-                  onChange={(e) => setFormData({ ...formData, require_bio_ai_report_url: e.target.checked })}
-                  className="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">Template variables (JSON array)</label>
+                <textarea
+                  value={formData.template_variables_json}
+                  onChange={(e) => setFormData({ ...formData, template_variables_json: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-zinc-900 min-h-[100px]"
+                  placeholder='["{{otp}}", "{{first_name}}"]'
                 />
-                <span className="text-sm text-zinc-700">BioAI report URL</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.require_participant_detail}
-                  onChange={(e) => setFormData({ ...formData, require_participant_detail: e.target.checked })}
-                  className="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
-                />
-                <span className="text-sm text-zinc-700">Participant detail</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.require_session_details}
-                  onChange={(e) => setFormData({ ...formData, require_session_details: e.target.checked })}
-                  className="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
-                />
-                <span className="text-sm text-zinc-700">Session details</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.require_external_link}
-                  onChange={(e) => setFormData({ ...formData, require_external_link: e.target.checked })}
-                  className="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
-                />
-                <span className="text-sm text-zinc-700">External link</span>
-              </label>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1">OTP</label>
-              <div className="flex items-center gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="require_otp"
-                    checked={formData.require_otp === true}
-                    onChange={() => setFormData({ ...formData, require_otp: true })}
-                    className="w-4 h-4 border-zinc-300 text-zinc-900 focus:ring-zinc-900"
-                  />
-                  <span className="text-sm text-zinc-700">Required</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="require_otp"
-                    checked={formData.require_otp === false}
-                    onChange={() => setFormData({ ...formData, require_otp: false })}
-                    className="w-4 h-4 border-zinc-300 text-zinc-900 focus:ring-zinc-900"
-                  />
-                  <span className="text-sm text-zinc-700">Not required</span>
-                </label>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Ordered list of literals or {"{{placeholder}}"} bindings for the template body.
+                </p>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="rounded-lg border border-zinc-200 p-4 space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-800">Email content</h3>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">Subject</label>
+                <input
+                  type="text"
+                  value={formData.email_subject}
+                  onChange={(e) => setFormData({ ...formData, email_subject: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">Plain body</label>
+                <textarea
+                  value={formData.email_body}
+                  onChange={(e) => setFormData({ ...formData, email_body: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 min-h-[80px]"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">HTML body</label>
+                <textarea
+                  value={formData.email_html}
+                  onChange={(e) => setFormData({ ...formData, email_html: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-zinc-900 min-h-[100px]"
+                />
+              </div>
+            </div>
+          )}
 
           {modalMode === "edit" && editingRow ? (
             <p className="text-xs text-zinc-500">
@@ -1223,44 +1233,55 @@ function ServicesTab() {
   );
 }
 
-// ── Events Tab ────────────────────────────────────────────────────────
+// ── Platform notifications (event bindings) ─────────────────────────
 
-interface EventFormData {
-  event_code: string;
-  display_name: string;
-  description: string;
-  engagement_type_ids: number[];
+function formatBindingServices(services: NotificationServiceConfigItem[]): string {
+  return services.map((s) => s.service_key).join(", ");
 }
 
-const EMPTY_EVENT_FORM: EventFormData = {
-  event_code: "",
-  display_name: "",
-  description: "",
-  engagement_type_ids: [],
-};
+function ChannelBadges({ channels }: { channels: Array<"whatsapp" | "email"> }) {
+  if (!channels.length) return <span className="text-zinc-400">—</span>;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {channels.map((ch) => (
+        <span
+          key={ch}
+          className={`inline-flex px-2 py-0.5 rounded-full text-xs border ${
+            ch === "whatsapp"
+              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+              : "bg-blue-50 text-blue-800 border-blue-200"
+          }`}
+        >
+          {ch === "whatsapp" ? "WhatsApp" : "Email"}
+        </span>
+      ))}
+    </div>
+  );
+}
 
-function EventsTab() {
-  const [data, setData] = useState<NotificationEventItem[]>([]);
+function EventBindingsTab() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [data, setData] = useState<NotificationEventBindingItem[]>([]);
+  const [serviceByKey, setServiceByKey] = useState<Map<string, NotificationServiceItem>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState<"add" | "edit">("add");
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState<EventFormData>(EMPTY_EVENT_FORM);
-  const [submitting, setSubmitting] = useState(false);
-
-  const [detailModalOpen, setDetailModalOpen] = useState(false);
-  const [detailItem, setDetailItem] = useState<NotificationEventItem | null>(null);
-
-  const [engagementTypes, setEngagementTypes] = useState<EngagementTypeItem[]>([]);
+  const [successBanner, setSuccessBanner] = useState(false);
 
   const fetchList = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await notificationEventsApi.list();
-      setData(res.data.data);
+      const [bindingsRes, servicesRes] = await Promise.all([
+        notificationEventBindingsApi.list(),
+        notificationsApi.listServices(),
+      ]);
+      setData(bindingsRes.data.data);
+      const map = new Map<string, NotificationServiceItem>();
+      for (const s of servicesRes.data.data ?? []) {
+        map.set(s.service_key, s);
+      }
+      setServiceByKey(map);
     } catch (err) {
       setError(getApiError(err));
     } finally {
@@ -1273,119 +1294,82 @@ function EventsTab() {
   }, [fetchList]);
 
   useEffect(() => {
-    engagementTypesApi.list().then((r) => setEngagementTypes(r.data.data)).catch(() => {});
-  }, []);
-
-  const openAdd = () => {
-    setFormData(EMPTY_EVENT_FORM);
-    setEditingId(null);
-    setModalMode("add");
-    setModalOpen(true);
-    setError(null);
-  };
-
-  const openEdit = (row: NotificationEventItem) => {
-    setFormData({
-      event_code: row.event_code,
-      display_name: row.display_name,
-      description: row.description ?? "",
-      engagement_type_ids: row.engagement_types.map((et) => et.engagement_type_id),
-    });
-    setEditingId(row.notification_event_id);
-    setModalMode("edit");
-    setModalOpen(true);
-    setError(null);
-  };
-
-  const openDetail = (row: NotificationEventItem) => {
-    setDetailItem(row);
-    setDetailModalOpen(true);
-  };
-
-  const handleDelete = async (row: NotificationEventItem) => {
-    if (
-      !window.confirm(
-        `Delete event "${row.display_name}" (${row.event_code})? This cannot be undone.`
-      )
-    ) {
-      return;
+    const saved = (location.state as { notificationSaved?: boolean } | null)?.notificationSaved;
+    if (saved) {
+      setSuccessBanner(true);
+      navigate("/notifications/notifications", { replace: true, state: {} });
     }
+  }, [location.state, navigate]);
+
+  const openEdit = (row: NotificationEventBindingItem) => {
+    navigate(`/notifications/notifications/${row.id}/edit`);
+  };
+
+  const handleDelete = async (row: NotificationEventBindingItem) => {
+    if (!window.confirm(`Delete binding for "${row.event_code}" (${row.recipient_type})?`)) return;
     try {
-      await notificationEventsApi.delete(row.notification_event_id);
+      await notificationEventBindingsApi.delete(row.id);
       await fetchList();
     } catch (err) {
       setError(getApiError(err));
     }
   };
 
-  const handleSubmit = async () => {
-    setSubmitting(true);
-    setError(null);
-    try {
-      if (modalMode === "add") {
-        await notificationEventsApi.create({
-          event_code: formData.event_code,
-          display_name: formData.display_name,
-          description: formData.description || undefined,
-          engagement_type_ids: formData.engagement_type_ids,
-        });
-      } else if (editingId !== null) {
-        await notificationEventsApi.update(editingId, {
-          display_name: formData.display_name,
-          description: formData.description || undefined,
-          engagement_type_ids: formData.engagement_type_ids,
-        });
-      }
-      setModalOpen(false);
-      fetchList();
-    } catch (err) {
-      setError(getApiError(err));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const toggleEngagementType = (id: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      engagement_type_ids: prev.engagement_type_ids.includes(id)
-        ? prev.engagement_type_ids.filter((x) => x !== id)
-        : [...prev.engagement_type_ids, id],
-    }));
-  };
-
-  const columns: Column<NotificationEventItem>[] = [
-    { key: "event_code", label: "Event Code", sortable: false },
-    { key: "display_name", label: "Display Name", sortable: false },
+  const columns: Column<NotificationEventBindingItem>[] = [
     {
-      key: "engagement_types",
-      label: "Engagement Types",
+      key: "event",
+      label: "Event",
       sortable: false,
-      hideOnMobile: true,
-      render: (r) =>
-        r.engagement_types.length > 0 ? (
-          <div className="flex flex-wrap gap-1">
-            {r.engagement_types.map((et) => (
-              <span
-                key={et.engagement_type_id}
-                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-blue-50 text-blue-700 border-blue-200"
-              >
-                {et.display_name}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <span className="text-zinc-400">—</span>
-        ),
+      render: (r) => (
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-zinc-900 truncate">{r.event_name}</p>
+          <p className="text-xs font-mono text-zinc-500 truncate">{r.event_code}</p>
+        </div>
+      ),
     },
     {
-      key: "description",
-      label: "Description",
+      key: "recipient_type",
+      label: "Recipient",
+      sortable: false,
+      hideOnMobile: true,
+      render: (r) => (
+        <span className="text-sm text-zinc-700">{recipientTypeLabel(r.recipient_type)}</span>
+      ),
+    },
+    {
+      key: "channels",
+      label: "Channel(s)",
+      sortable: false,
+      render: (r) => (
+        <ChannelBadges channels={bindingChannels(r.notification_services ?? [], serviceByKey)} />
+      ),
+    },
+    {
+      key: "content",
+      label: "Content",
       sortable: false,
       hideOnTablet: true,
+      render: (r) => {
+        const sk = r.notification_services?.[0]?.service_key;
+        const svc = sk ? serviceByKey.get(sk) : undefined;
+        const summary = serviceContentSummary(svc);
+        return (
+          <span className="text-sm text-zinc-700 truncate max-w-[10rem] block" title={summary}>
+            {summary}
+          </span>
+        );
+      },
+    },
+    {
+      key: "notification_services",
+      label: "Services",
+      sortable: false,
       render: (r) => (
-        <span className="block max-w-xs truncate" title={r.description ?? ""}>
-          {r.description || "—"}
+        <span
+          className="text-xs text-zinc-600 truncate max-w-md block"
+          title={formatBindingServices(r.notification_services)}
+        >
+          {formatBindingServices(r.notification_services) || "—"}
         </span>
       ),
     },
@@ -1393,13 +1377,22 @@ function EventsTab() {
 
   return (
     <>
-      {error && !modalOpen && (
+      {successBanner && (
+        <div className="mb-4 p-3 rounded-lg bg-emerald-50 text-emerald-800 text-sm border border-emerald-200">
+          Notification saved successfully.
+        </div>
+      )}
+      {error && (
         <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">{error}</div>
       )}
 
       <PageHeaderActions>
-        <PermissionGate category="notifications" taskKey="events" action="edit">
-          <HeaderActionButton label="Add Event" icon={Plus} onClick={openAdd} />
+        <PermissionGate category="notifications" taskKey="bindings" action="edit">
+          <HeaderActionButton
+            label="Add notification"
+            icon={Plus}
+            onClick={() => navigate("/notifications/notifications/new")}
+          />
         </PermissionGate>
       </PageHeaderActions>
 
@@ -1412,156 +1405,15 @@ function EventsTab() {
           <DataTable
             columns={columns}
             data={data}
-            keyExtractor={(r) => r.notification_event_id}
-            onView={openDetail}
+            keyExtractor={(r) => r.id}
             onEdit={openEdit}
             onDelete={handleDelete}
             firstColumnClickableView={false}
             mutationCategory="notifications"
-            mutationTaskKey="events"
+            mutationTaskKey="bindings"
           />
         )}
       </div>
-
-      {/* Add / Edit Modal */}
-      <Modal
-        open={modalOpen}
-        onClose={() => { setModalOpen(false); setError(null); }}
-        title={modalMode === "add" ? "Add Notification Event" : "Edit Notification Event"}
-      >
-        <form
-          onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}
-          className="space-y-4"
-        >
-          {error && (
-            <div className="p-3 rounded-lg bg-red-50 text-red-700 text-sm">{error}</div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-1">Event Code</label>
-            <input
-              type="text"
-              value={formData.event_code}
-              onChange={(e) => setFormData({ ...formData, event_code: e.target.value })}
-              disabled={modalMode === "edit"}
-              className="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 disabled:bg-zinc-100 disabled:text-zinc-500"
-              placeholder="e.g. report_ready"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-1">Display Name</label>
-            <input
-              type="text"
-              value={formData.display_name}
-              onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
-              placeholder="e.g. Report Ready"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-1">Description</label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 min-h-[80px]"
-              placeholder="Describe the event..."
-              rows={3}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-1">Engagement Types</label>
-            <div className="flex flex-wrap gap-2 mt-1">
-              {engagementTypes.map((et) => {
-                const selected = formData.engagement_type_ids.includes(et.id);
-                return (
-                  <button
-                    key={et.id}
-                    type="button"
-                    onClick={() => toggleEngagementType(et.id)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                      selected
-                        ? "bg-zinc-900 text-white border-zinc-900"
-                        : "bg-white text-zinc-600 border-zinc-300 hover:border-zinc-400"
-                    }`}
-                  >
-                    {et.display_name}
-                  </button>
-                );
-              })}
-              {engagementTypes.length === 0 && (
-                <span className="text-xs text-zinc-400">No engagement types available</span>
-              )}
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3 pt-2 border-t border-zinc-100">
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full sm:w-auto px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 disabled:opacity-50"
-            >
-              {submitting ? "Saving..." : modalMode === "add" ? "Create Event" : "Update Event"}
-            </button>
-            <button
-              type="button"
-              onClick={() => { setModalOpen(false); setError(null); }}
-              className="w-full sm:w-auto px-4 py-2 rounded-lg border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Detail Modal (read-only) */}
-      <Modal
-        open={detailModalOpen}
-        onClose={() => setDetailModalOpen(false)}
-        title="Event Details"
-      >
-        {detailItem && (
-          <div className="space-y-4">
-            <div>
-              <span className="block text-xs text-zinc-500 mb-0.5">Event Code</span>
-              <span className="text-sm font-medium text-zinc-900">{detailItem.event_code}</span>
-            </div>
-            <div>
-              <span className="block text-xs text-zinc-500 mb-0.5">Display Name</span>
-              <span className="text-sm text-zinc-900">{detailItem.display_name}</span>
-            </div>
-            <div>
-              <span className="block text-xs text-zinc-500 mb-0.5">Description</span>
-              <span className="text-sm text-zinc-900">{detailItem.description || "—"}</span>
-            </div>
-            <div>
-              <span className="block text-xs text-zinc-500 mb-0.5">Engagement Types</span>
-              {detailItem.engagement_types.length > 0 ? (
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {detailItem.engagement_types.map((et) => (
-                    <span
-                      key={et.engagement_type_id}
-                      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-blue-50 text-blue-700 border-blue-200"
-                    >
-                      {et.display_name}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <span className="text-sm text-zinc-400">—</span>
-              )}
-            </div>
-            <div>
-              <span className="block text-xs text-zinc-500 mb-0.5">Created</span>
-              <span className="text-sm text-zinc-900">{formatDateTime(detailItem.created_at)}</span>
-            </div>
-          </div>
-        )}
-      </Modal>
     </>
   );
 }
@@ -1573,7 +1425,7 @@ export function Notifications() {
   const { tab: tabParam } = useParams<{ tab?: string }>();
   const activeTab: TabKey = TAB_KEYS.includes((tabParam ?? "") as TabKey)
     ? (tabParam as TabKey)
-    : "notifications";
+    : "logs";
 
   useEffect(() => {
     if (tabParam !== activeTab) {
@@ -1584,12 +1436,12 @@ export function Notifications() {
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto">
       <PageHeaderActions>
-        {activeTab === "notifications" && (
+        {activeTab === "logs" && (
           <HeaderActionButton
             label="Sync Logs"
             icon={ScrollText}
             variant="secondary"
-            onClick={() => navigate(buildIntegrationLogsPath({ provider: "n8n" }))}
+            onClick={() => navigate(buildIntegrationLogsPath({ provider: "whatapi" }))}
           />
         )}
       </PageHeaderActions>
@@ -1605,14 +1457,14 @@ export function Notifications() {
                 : "border-transparent text-zinc-500 hover:text-zinc-700"
             }`}
           >
-            {tab === "notifications" ? "Notifications" : tab === "services" ? "Services" : "Events"}
+            {TAB_LABELS[tab]}
           </button>
         ))}
       </div>
 
-      {activeTab === "notifications" && <NotificationsTab />}
+      {activeTab === "logs" && <LogsTab />}
       {activeTab === "services" && <ServicesTab />}
-      {activeTab === "events" && <EventsTab />}
+      {activeTab === "notifications" && <EventBindingsTab />}
 
     </div>
   );

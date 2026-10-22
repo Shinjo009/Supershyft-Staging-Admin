@@ -56,7 +56,7 @@ const libraryNavItems = [
   { to: "/payments/bookings", icon: CreditCard, label: "Payments", category: "payments_bookings" },
   { to: "/checklists", icon: ClipboardCheck, label: "Checklist templates", category: "checklists_tasks" },
   { to: "/library/health-metrics", icon: Activity, label: "Health Metrics", category: "diagnostics" },
-  { to: "/notifications/notifications", icon: Bell, label: "Notifications", category: "notifications" },
+  { to: "/notifications/logs", icon: Bell, label: "Notifications", category: "notifications" },
 ];
 
 const orgManagerNavItems = [
@@ -101,7 +101,7 @@ function pageTitleForPath(pathname: string): string {
     "/payments/bookings": "Payments",
     "/checklists": "Checklist Templates",
     "/library/health-metrics": "Health Metrics",
-    "/notifications/notifications": "Notifications",
+    "/notifications/logs": "Notifications",
   };
   if (exact[pathname]) return exact[pathname];
 

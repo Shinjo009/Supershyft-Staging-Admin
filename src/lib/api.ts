@@ -357,9 +357,9 @@ export interface EngagementsSyncImportPageResult {
 export interface NotificationDefaultItem {
   id: number;
   engagement_type_id: number;
-  notification_event_id: number;
+  event_code: string;
+  recipient_type: string;
   notification_services: NotificationServiceConfigItem[];
-  event_code?: string;
   event_display_name?: string;
 }
 
@@ -386,7 +386,7 @@ export const platformSettingsApi = {
       "/platform-settings/engagement-notification-defaults",
       { params: { engagement_type_id: engagementTypeId } }
     ),
-  patchEngagementNotificationDefaults: (engagementTypeId: number, defaults: { notification_event_id: number; notification_services: NotificationServiceConfigItem[] }[]) =>
+  patchEngagementNotificationDefaults: (engagementTypeId: number, defaults: { event_code: string; notification_services: NotificationServiceConfigItem[] }[]) =>
     api.put<{ data: NotificationDefaultItem[]; meta: Record<string, unknown> }>(
       "/platform-settings/engagement-notification-defaults",
       { engagement_type_id: engagementTypeId, defaults }
@@ -2424,8 +2424,8 @@ export interface Engagement {
   /** @deprecated Use notifications array instead */
   notify_users_for_consultation?: string | null;
   notifications?: {
-    notification_event_id: number;
-    event_code?: string | null;
+    event_code: string;
+    recipient_type: string;
     event_display_name?: string | null;
     notification_services: NotificationServiceConfigItem[];
   }[];
@@ -2548,7 +2548,11 @@ export interface EngagementCreate {
   bioai_report_notification?: string | null;
   /** @deprecated Use notifications array instead */
   notify_users_for_consultation?: string | null;
-  notifications?: { notification_event_id: number; notification_services: NotificationServiceConfigItem[] }[];
+  notifications?: {
+    event_code: string;
+    recipient_type: string;
+    notification_services: NotificationServiceConfigItem[];
+  }[];
 }
 
 export interface GeocodeSuggestion extends EngagementLocationFields {
@@ -5104,11 +5108,20 @@ export interface NotificationRecipient {
   last_name: string | null;
 }
 
+export type NotificationLogStatus =
+  | "pending"
+  | "queued"
+  | "sent"
+  | "delivered"
+  | "read"
+  | "failed"
+  | "deleted";
+
 export interface NotificationItem {
   notification_id: number;
   service_key: string;
   service_display_name?: string | null;
-  status: "pending" | "sent" | "failed";
+  status: NotificationLogStatus;
   channel: "email" | "whatsapp";
   user: { user_ids: number[] } | null;
   recipients?: NotificationRecipient[];
@@ -5117,6 +5130,9 @@ export interface NotificationItem {
   engagement_code?: string | null;
   assessment_instance_id: number | null;
   message: string | null;
+  queue_id?: string | null;
+  event_code?: string | null;
+  recipient_type?: string | null;
   triggered_by_user_id: number | null;
   dispatched_at: string | null;
   completed_at: string | null;
@@ -5132,14 +5148,12 @@ export interface NotificationServiceItem {
   service_key: string;
   display_name: string;
   channel: "email" | "whatsapp";
-  webhook_path: string;
   is_active: boolean;
-  require_blood_report_url: boolean;
-  require_bio_ai_report_url: boolean;
-  require_participant_detail: boolean;
-  require_otp: boolean;
-  require_session_details: boolean;
-  require_external_link: boolean;
+  template_name?: string | null;
+  template_variables?: unknown[] | null;
+  email_subject?: string | null;
+  email_body?: string | null;
+  email_html?: string | null;
   created_at: string | null;
 }
 
@@ -5204,14 +5218,12 @@ export const notificationsApi = {
     service_key: string;
     display_name: string;
     channel: string;
-    webhook_path: string;
     is_active?: boolean;
-    require_blood_report_url?: boolean;
-    require_bio_ai_report_url?: boolean;
-    require_participant_detail?: boolean;
-    require_otp?: boolean;
-    require_session_details?: boolean;
-    require_external_link?: boolean;
+    template_name?: string | null;
+    template_variables?: unknown[] | null;
+    email_subject?: string | null;
+    email_body?: string | null;
+    email_html?: string | null;
   }) =>
     api.post<{ data: NotificationServiceItem; meta: Record<string, unknown> }>("/notifications/services", body),
   updateService: (
@@ -5219,14 +5231,12 @@ export const notificationsApi = {
     body: {
       display_name?: string;
       channel?: string;
-      webhook_path?: string;
       is_active?: boolean;
-      require_blood_report_url?: boolean;
-      require_bio_ai_report_url?: boolean;
-      require_participant_detail?: boolean;
-      require_otp?: boolean;
-      require_session_details?: boolean;
-      require_external_link?: boolean;
+      template_name?: string | null;
+      template_variables?: unknown[] | null;
+      email_subject?: string | null;
+      email_body?: string | null;
+      email_html?: string | null;
     }
   ) =>
     api.put<{ data: NotificationServiceItem; meta: Record<string, unknown> }>(
@@ -5465,6 +5475,82 @@ export interface NotificationEventItem {
   created_at?: string | null;
 }
 
+export interface NotificationEventBindingItem {
+  id: number;
+  event_code: string;
+  event_name: string;
+  recipient_type: string;
+  notification_services: NotificationServiceConfigItem[];
+  created_at?: string | null;
+}
+
+export interface NotificationCatalogEvent {
+  event_code: string;
+  event_name: string;
+  event_type: "api" | "scheduled" | "emergency";
+  allowed_recipient_types: string[];
+  variables: { key: string; label: string; description?: string | null }[];
+  is_active: boolean;
+}
+
+export interface WhatsAppTemplateMeta {
+  name?: string;
+  status?: string;
+  language?: string | { code?: string };
+  category?: string;
+  parameter_format?: string;
+  components?: Array<{ type?: string; text?: string; format?: string }>;
+}
+
+export const notificationCatalogApi = {
+  list: () =>
+    api.get<{ data: NotificationCatalogEvent[]; meta: Record<string, unknown> }>(
+      "/notifications/events/catalog"
+    ),
+};
+
+export const notificationWhatsAppTemplatesApi = {
+  get: (name: string) =>
+    api.get<{ data: WhatsAppTemplateMeta; meta: Record<string, unknown> }>(
+      "/notifications/whatsapp-templates",
+      { params: { name } }
+    ),
+};
+
+export const notificationEventBindingsApi = {
+  list: () =>
+    api.get<{ data: NotificationEventBindingItem[]; meta: Record<string, unknown> }>(
+      "/notifications/event-bindings"
+    ),
+  create: (payload: {
+    event_code: string;
+    event_name: string;
+    recipient_type: string;
+    notification_services: NotificationServiceConfigItem[];
+  }) =>
+    api.post<{ data: NotificationEventBindingItem; meta: Record<string, unknown> }>(
+      "/notifications/event-bindings",
+      payload
+    ),
+  update: (
+    id: number,
+    payload: {
+      event_name?: string;
+      recipient_type?: string;
+      notification_services?: NotificationServiceConfigItem[];
+    }
+  ) =>
+    api.put<{ data: NotificationEventBindingItem; meta: Record<string, unknown> }>(
+      `/notifications/event-bindings/${id}`,
+      payload
+    ),
+  delete: (id: number) =>
+    api.delete<{ data: { deleted: boolean }; meta: Record<string, unknown> }>(
+      `/notifications/event-bindings/${id}`
+    ),
+};
+
+/** @deprecated Backend CRUD removed in prompt 3; used until engagement/settings migrate (prompt 6). */
 export const notificationEventsApi = {
   list: (params?: { engagement_type_id?: number }) =>
     api.get<{ data: NotificationEventItem[]; meta: Record<string, unknown> }>("/notification-events", { params }),
@@ -5483,9 +5569,9 @@ export const notificationEventsApi = {
 export interface EngagementNotificationItem {
   id: number;
   engagement_id: number;
-  notification_event_id: number;
+  event_code: string;
+  recipient_type: string;
   notification_services: NotificationServiceConfigItem[];
-  event_code?: string;
   event_display_name?: string;
 }
 
@@ -5494,7 +5580,14 @@ export const engagementNotificationsApi = {
     api.get<{ data: EngagementNotificationItem[]; meta: Record<string, unknown> }>(
       `/engagements/${engagementId}/notifications`
     ),
-  upsertForEngagement: (engagementId: number, notifications: { notification_event_id: number; notification_services: NotificationServiceConfigItem[] }[]) =>
+  upsertForEngagement: (
+    engagementId: number,
+    notifications: {
+      event_code: string;
+      recipient_type: string;
+      notification_services: NotificationServiceConfigItem[];
+    }[]
+  ) =>
     api.put<{ data: EngagementNotificationItem[]; meta: Record<string, unknown> }>(
       `/engagements/${engagementId}/notifications`,
       { notifications }
@@ -5504,7 +5597,7 @@ export const engagementNotificationsApi = {
       "/platform-settings/engagement-notification-defaults",
       { params: { engagement_type_id: engagementTypeId } }
     ),
-  upsertDefaults: (engagementTypeId: number, defaults: { notification_event_id: number; notification_services: NotificationServiceConfigItem[] }[]) =>
+  upsertDefaults: (engagementTypeId: number, defaults: { event_code: string; notification_services: NotificationServiceConfigItem[] }[]) =>
     api.put<{ data: NotificationDefaultItem[]; meta: Record<string, unknown> }>(
       "/platform-settings/engagement-notification-defaults",
       { engagement_type_id: engagementTypeId, defaults }

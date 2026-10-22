@@ -11,6 +11,11 @@ import {
   type SessionDetailsPayload,
   getApiError,
 } from "../../lib/api";
+import {
+  serviceNeedsExternalLink,
+  serviceNeedsParticipantDetail,
+  serviceNeedsSessionDetails,
+} from "../../lib/notificationServiceUtils";
 
 async function fetchParticipantCacheForSend(
   engagementId: number,
@@ -278,7 +283,7 @@ export function EngagementNotificationModal({
     const svc = selectedService;
     if (!svc) return;
 
-    if (svc.require_external_link) {
+    if (serviceNeedsExternalLink(svc)) {
       const link = externalLink.trim();
       if (!link) {
         setError("This service requires an external link.");
@@ -302,7 +307,7 @@ export function EngagementNotificationModal({
     setSendProgress({ done: 0, total: pendingUserIds.length });
 
     let participantsByUserId = new Map(recipients.map((participant) => [participant.user_id, participant]));
-    if (svc.require_session_details || svc.require_participant_detail) {
+    if (serviceNeedsSessionDetails(svc) || serviceNeedsParticipantDetail(svc)) {
       participantsByUserId = await fetchParticipantCacheForSend(
         engagement.engagement_id,
         pendingUserIds,
@@ -320,7 +325,7 @@ export function EngagementNotificationModal({
 
         try {
           let sessionDetails: SessionDetailsPayload | undefined;
-          if (svc.require_session_details) {
+          if (serviceNeedsSessionDetails(svc)) {
             const resolved = participant
               ? sessionDetailsFromParticipantConsultations(participant.consultations)
               : null;
@@ -337,11 +342,11 @@ export function EngagementNotificationModal({
             user_ids: [userId],
             engagement_id: engagement.engagement_id,
             participant_details:
-              svc.require_participant_detail && participant
+              serviceNeedsParticipantDetail(svc) && participant
                 ? participantDetailsFromRow(participant)
                 : undefined,
             session_details: sessionDetails,
-            external_link: svc.require_external_link ? externalLink.trim() : undefined,
+            external_link: serviceNeedsExternalLink(svc) ? externalLink.trim() : undefined,
           });
           sentCount += 1;
           setNotifiedIds((prev) => {
@@ -520,7 +525,7 @@ export function EngagementNotificationModal({
           )}
         </div>
 
-        {selectedService?.require_external_link && (
+        {selectedService && serviceNeedsExternalLink(selectedService) && (
           <div>
             <label className="block text-sm font-medium text-zinc-700 mb-1">External link</label>
             <input
@@ -553,7 +558,7 @@ export function EngagementNotificationModal({
               submitting ||
               !serviceKey ||
               !recipientsLoaded ||
-              (selectedService?.require_external_link && !externalLink.trim()) ||
+              (selectedService && serviceNeedsExternalLink(selectedService) && !externalLink.trim()) ||
               totalRecipients === 0 ||
               pendingUserIds.length === 0 ||
               !!success

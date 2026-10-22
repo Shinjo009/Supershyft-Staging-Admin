@@ -19,6 +19,14 @@ import {
   type ParticipantJourneyInstanceSummary,
   getApiError,
 } from "../../lib/api";
+import {
+  serviceNeedsBioAiReportUrl,
+  serviceNeedsBloodReportUrl,
+  serviceNeedsExternalLink,
+  serviceNeedsOtp,
+  serviceNeedsParticipantDetail,
+  serviceNeedsSessionDetails,
+} from "../../lib/notificationServiceUtils";
 import { isMaskedContact } from "../../lib/isMaskedContact";
 import { HeaderActionButton, HeaderInfoButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 function hasMetsightsProfileId(user: UserListItem): boolean {
@@ -40,8 +48,8 @@ function filterInstancesForService(
   svc: NotificationServiceItem | undefined
 ): ParticipantJourneyInstanceSummary[] {
   if (!svc) return instances;
-  const needsBlood = svc.require_blood_report_url;
-  const needsBio = svc.require_bio_ai_report_url;
+  const needsBlood = serviceNeedsBloodReportUrl(svc);
+  const needsBio = serviceNeedsBioAiReportUrl(svc);
   if (!needsBlood && !needsBio) return instances;
   return instances.filter((i) => {
     if (needsBlood && needsBio) {
@@ -68,13 +76,13 @@ function formatAssessmentReportBadges(inst: ParticipantJourneyInstanceSummary): 
 }
 
 function reportAssessmentEmptyMessage(svc: NotificationServiceItem): string {
-  if (svc.require_blood_report_url && svc.require_bio_ai_report_url) {
+  if (serviceNeedsBloodReportUrl(svc) && serviceNeedsBioAiReportUrl(svc)) {
     return "No assessment with both blood and BioAI reports is available for this user.";
   }
-  if (svc.require_blood_report_url) {
+  if (serviceNeedsBloodReportUrl(svc)) {
     return "No assessment with a blood report is available for this user.";
   }
-  if (svc.require_bio_ai_report_url) {
+  if (serviceNeedsBioAiReportUrl(svc)) {
     return "No assessment with a BioAI report is available for this user.";
   }
   return "No assessment is available for this user.";
@@ -578,7 +586,8 @@ export function Users() {
       ? null
       : sendMsgEligibleInstances.find((i) => i.assessment_instance_id === sendMsgInstanceId) ?? null;
   const needsSendMsgAssessment = Boolean(
-    selectedSendMsgService?.require_blood_report_url || selectedSendMsgService?.require_bio_ai_report_url
+    (selectedSendMsgService && serviceNeedsBloodReportUrl(selectedSendMsgService)) ||
+    (selectedSendMsgService && serviceNeedsBioAiReportUrl(selectedSendMsgService))
   );
   const sendMsgPrepareSummary = useMemo(
     () => formatPrepareDetailsSummary(sendMsgPrepareDetails),
@@ -612,7 +621,7 @@ export function Users() {
     setSendMsgError(null);
     setSendMsgPrepareDetails([]);
 
-    const needsReports = s.require_blood_report_url || s.require_bio_ai_report_url;
+    const needsReports = serviceNeedsBloodReportUrl(s) || serviceNeedsBioAiReportUrl(s);
     if (!needsReports || !sendMsgUser) return;
 
     const requestId = ++sendMsgPrepareRequestId.current;
@@ -620,8 +629,8 @@ export function Users() {
     try {
       const res = await notificationsApi.prepareReports({
         user_id: sendMsgUser.user_id,
-        require_blood_report_url: s.require_blood_report_url,
-        require_bio_ai_report_url: s.require_bio_ai_report_url,
+        require_blood_report_url: serviceNeedsBloodReportUrl(s),
+        require_bio_ai_report_url: serviceNeedsBioAiReportUrl(s),
       });
       if (requestId !== sendMsgPrepareRequestId.current) return;
       setSendMsgInstances(res.data.data.instances ?? []);
@@ -643,15 +652,15 @@ export function Users() {
     const svc = selectedSendMsgService;
     if (!svc) return;
 
-    const needsAssessment = svc.require_blood_report_url || svc.require_bio_ai_report_url;
+    const needsAssessment = serviceNeedsBloodReportUrl(svc) || serviceNeedsBioAiReportUrl(svc);
     if (needsAssessment && sendMsgEligibleInstances.length === 0) return;
     if (needsAssessment && !selectedSendMsgInstance) return;
     if (!needsAssessment && sendMsgScopeEngagement && sendMsgEngagements.length > 0 && sendMsgEngagementId === "") return;
-    if (svc.require_otp && !sendMsgOtp.trim()) {
+    if (serviceNeedsOtp(svc) && !sendMsgOtp.trim()) {
       setSendMsgError("This service requires an OTP.");
       return;
     }
-    if (svc.require_session_details) {
+    if (serviceNeedsSessionDetails(svc)) {
       if (!sendMsgSessionDate.trim()) {
         setSendMsgError("This service requires session date.");
         return;
@@ -661,7 +670,7 @@ export function Users() {
         return;
       }
     }
-    if (svc.require_external_link) {
+    if (serviceNeedsExternalLink(svc)) {
       const externalLink = sendMsgExternalLink.trim();
       if (!externalLink) {
         setSendMsgError("This service requires an external link.");
@@ -704,11 +713,11 @@ export function Users() {
         assessment_instance_id: needsAssessment
           ? selectedSendMsgInstance?.assessment_instance_id ?? null
           : null,
-        participant_details: svc.require_participant_detail
+        participant_details: serviceNeedsParticipantDetail(svc)
           ? participantDetailsFromUser(sendMsgUser, engagementLabel)
           : undefined,
-        otp: svc.require_otp ? sendMsgOtp.trim() : undefined,
-        session_details: svc.require_session_details
+        otp: serviceNeedsOtp(svc) ? sendMsgOtp.trim() : undefined,
+        session_details: serviceNeedsSessionDetails(svc)
           ? {
               want: sendMsgSessionWant,
               date: sendMsgSessionDate.trim(),
@@ -719,7 +728,7 @@ export function Users() {
                 : {}),
             }
           : undefined,
-        external_link: svc.require_external_link ? sendMsgExternalLink.trim() : undefined,
+        external_link: serviceNeedsExternalLink(svc) ? sendMsgExternalLink.trim() : undefined,
       });
       setSendMsgSuccess("Message dispatched successfully");
     } catch (err) {
@@ -1531,7 +1540,7 @@ export function Users() {
               </div>
             )}
 
-            {selectedSendMsgService?.require_otp && (
+            {selectedSendMsgService && serviceNeedsOtp(selectedSendMsgService) && (
               <div>
                 <label className="block text-sm font-medium text-zinc-700 mb-1">OTP</label>
                 <input
@@ -1545,7 +1554,7 @@ export function Users() {
               </div>
             )}
 
-            {selectedSendMsgService?.require_session_details && (
+            {selectedSendMsgService && serviceNeedsSessionDetails(selectedSendMsgService) && (
               <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3">
                 <p className="text-sm font-medium text-zinc-700">Session details</p>
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -1605,7 +1614,7 @@ export function Users() {
               </div>
             )}
 
-            {selectedSendMsgService?.require_external_link && (
+            {selectedSendMsgService && serviceNeedsExternalLink(selectedSendMsgService) && (
               <div>
                 <label className="block text-sm font-medium text-zinc-700 mb-1">External link</label>
                 <input
@@ -1703,10 +1712,10 @@ export function Users() {
                   sendMsgLoading ||
                   !sendMsgKey ||
                   !!sendMsgSuccess ||
-                  (selectedSendMsgService?.require_otp && !sendMsgOtp.trim()) ||
-                  (selectedSendMsgService?.require_session_details &&
+                  (selectedSendMsgService && serviceNeedsOtp(selectedSendMsgService) && !sendMsgOtp.trim()) ||
+                  (selectedSendMsgService && serviceNeedsSessionDetails(selectedSendMsgService) &&
                     (!sendMsgSessionDate.trim() || !sendMsgSessionExpertType.trim())) ||
-                  (selectedSendMsgService?.require_external_link && !sendMsgExternalLink.trim()) ||
+                  (selectedSendMsgService && serviceNeedsExternalLink(selectedSendMsgService) && !sendMsgExternalLink.trim()) ||
                   (needsSendMsgAssessment &&
                     (sendMsgEligibleInstances.length === 0 || sendMsgInstanceId === "")) ||
                   (!needsSendMsgAssessment &&

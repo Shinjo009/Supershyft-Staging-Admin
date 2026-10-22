@@ -9,7 +9,6 @@ import {
   type EngagementTypeItem,
   type ExpertTypeItem,
   type GeocodeSuggestion,
-  type NotificationEventItem,
   type NotificationServiceConfigItem,
   type NotificationServiceItem,
   type OrganizationListItem,
@@ -20,7 +19,6 @@ import {
   engagementTypesApi,
   expertTypesApi,
   getApiError,
-  notificationEventsApi,
   questionnaireCategoriesApi,
   type QuestionnaireCategory,
 } from "../../lib/api";
@@ -29,7 +27,9 @@ import {
   DEFAULT_LOAD_PREV_QUESTIONNAIRE_CATEGORY_KEYS,
   effectiveLoadPrevCategoryKeys,
 } from "./loadPrevQuestionnaireDefaults";
-import { NotificationEventServicesInput, normalizeNotificationServiceConfigs, validateNotificationServiceConfigs } from "../../shared/ui/NotificationEventServicesInput";
+import { normalizeNotificationServiceConfigs, validateNotificationServiceConfigs } from "../../shared/ui/NotificationEventServicesInput";
+import { recipientTypeLabel, serviceContentSummary } from "../notifications/notificationWizardUtils";
+import { useLocation, useNavigate } from "react-router-dom";
 import { AddressAutocomplete } from "./AddressAutocomplete";
 import { EngagementScheduleStep } from "./EngagementScheduleStep";
 import {
@@ -196,8 +196,11 @@ export function EngagementFormWizard({
   const [packageMode, setPackageMode] = useState<"single" | "split">("single");
 
   const [engagementTypes, setEngagementTypes] = useState<EngagementTypeItem[]>([]);
-  const [notificationEvents, setNotificationEvents] = useState<NotificationEventItem[]>([]);
-  const [notificationConfig, setNotificationConfig] = useState<Record<number, NotificationServiceConfigItem[]>>({});
+  const navigate = useNavigate();
+  const routerLocation = useLocation();
+  const [notificationRows, setNotificationRows] = useState<
+    { event_code: string; recipient_type: string; notification_services: NotificationServiceConfigItem[]; event_display_name?: string; id?: number }[]
+  >([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [questionnaireCategories, setQuestionnaireCategories] = useState<QuestionnaireCategory[]>([]);
   const editConfigLoaded = useRef(false);
@@ -218,8 +221,7 @@ export function EngagementFormWizard({
     setSidePanelOpen(false);
     setZoneMessage(null);
     setZoneMessageTone("info");
-    setNotificationEvents([]);
-    setNotificationConfig({});
+    setNotificationRows([]);
     editConfigLoaded.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -804,60 +806,36 @@ export function EngagementFormWizard({
 
   useEffect(() => {
     if (currentStepKey !== "notifications" || !selectedTypeId) return;
+    if (notificationRows.length > 0 && editConfigLoaded.current) return;
 
     let cancelled = false;
     setNotificationsLoading(true);
 
     (async () => {
       try {
-        const eventsRes = await notificationEventsApi.list({
-          engagement_type_id: selectedTypeId,
-        });
-        if (cancelled) return;
-        const events = Array.isArray(eventsRes.data.data) ? eventsRes.data.data : [];
-        setNotificationEvents(events);
-
-        const config: Record<number, NotificationServiceConfigItem[]> = {};
-
+        let items: typeof notificationRows = [];
         if (mode === "edit" && engagementId && !editConfigLoaded.current) {
           editConfigLoaded.current = true;
-          try {
-            const configRes =
-              await engagementNotificationsApi.getForEngagement(engagementId);
-            if (!cancelled) {
-              const items = Array.isArray(configRes.data.data) ? configRes.data.data : [];
-              for (const item of items) {
-                config[item.notification_event_id] = normalizeNotificationServiceConfigs(
-                  item.notification_services
-                );
-              }
-            }
-          } catch {
-            // fall through with empty config
-          }
-        } else {
-          try {
-            const defaultsRes =
-              await engagementNotificationsApi.getDefaults(selectedTypeId);
-            if (!cancelled) {
-              const items = Array.isArray(defaultsRes.data.data) ? defaultsRes.data.data : [];
-              for (const item of items) {
-                config[item.notification_event_id] = normalizeNotificationServiceConfigs(
-                  item.notification_services
-                );
-              }
-            }
-          } catch {
-            // keep empty config
-          }
+          const configRes = await engagementNotificationsApi.getForEngagement(engagementId);
+          items = (configRes.data.data ?? []).map((item) => ({
+            id: item.id,
+            event_code: item.event_code,
+            recipient_type: item.recipient_type,
+            event_display_name: item.event_display_name,
+            notification_services: normalizeNotificationServiceConfigs(item.notification_services),
+          }));
+        } else if (notificationRows.length === 0) {
+          const defaultsRes = await engagementNotificationsApi.getDefaults(selectedTypeId);
+          items = (defaultsRes.data.data ?? []).map((item) => ({
+            event_code: item.event_code,
+            recipient_type: item.recipient_type,
+            event_display_name: item.event_display_name,
+            notification_services: normalizeNotificationServiceConfigs(item.notification_services),
+          }));
         }
-
-        if (!cancelled) setNotificationConfig(config);
+        if (!cancelled && items.length > 0) setNotificationRows(items);
       } catch {
-        if (!cancelled) {
-          setNotificationEvents([]);
-          setNotificationConfig({});
-        }
+        if (!cancelled) setNotificationRows([]);
       } finally {
         if (!cancelled) setNotificationsLoading(false);
       }
@@ -866,15 +844,52 @@ export function EngagementFormWizard({
     return () => {
       cancelled = true;
     };
-  }, [currentStepKey, selectedTypeId, mode, engagementId]);
+  }, [currentStepKey, selectedTypeId, mode, engagementId, notificationRows.length]);
+
+  useEffect(() => {
+    const st = routerLocation.state as {
+      engagementNotificationDraft?: {
+        event_code: string;
+        recipient_type: string;
+        notification_services: NotificationServiceConfigItem[];
+      };
+      replaceKey?: string;
+    } | null;
+    if (!st?.engagementNotificationDraft) return;
+    const draft = st.engagementNotificationDraft;
+    const replaceKey = st.replaceKey ?? `${draft.event_code}:${draft.recipient_type}`;
+    const itemKey = (i: { event_code: string; recipient_type: string }) =>
+      `${i.event_code}:${i.recipient_type}`;
+    setNotificationRows((prev) => {
+      const next = prev.filter((i) => itemKey(i) !== replaceKey);
+      next.push({
+        ...draft,
+        notification_services: normalizeNotificationServiceConfigs(draft.notification_services),
+      });
+      return next;
+    });
+    navigate(`${routerLocation.pathname}${routerLocation.search}`, { replace: true, state: {} });
+  }, [navigate, routerLocation.pathname, routerLocation.search, routerLocation.state]);
+
+  useEffect(() => {
+    setFormData((prev) => ({
+      ...prev,
+      notifications: notificationRows.map((row) => ({
+        event_code: row.event_code,
+        recipient_type: row.recipient_type,
+        notification_services: row.notification_services.filter((s) => s.service_key.trim()),
+      })),
+    }));
+  }, [notificationRows]);
 
   const findStepIndex = (key: StepKey) => steps.findIndex((s) => s.key === key);
 
   const buildNotificationsPayload = () =>
-    Object.entries(notificationConfig)
-      .map(([eventId, services]) => ({
-        notification_event_id: Number(eventId),
-        notification_services: services.filter((item) => item.service_key.trim()),
+    notificationRows
+      .map((row) => ({
+        event_code: row.event_code,
+        recipient_type: row.recipient_type,
+        notification_services: row.notification_services.filter((item) => item.service_key.trim()),
       }))
       .filter((item) => item.notification_services.length > 0);
 
@@ -1948,32 +1963,100 @@ export function EngagementFormWizard({
         )}
 
         {currentStepKey === "notifications" && (
-          <div className="grid grid-cols-1 gap-4">
+          <div className="space-y-4">
             {notificationsLoading ? (
               <div className="py-8 flex justify-center">
                 <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
               </div>
-            ) : notificationEvents.length === 0 ? (
-              <p className="text-sm text-zinc-500">
-                {selectedTypeId
-                  ? "No notification events configured for this engagement type."
-                  : "Select an engagement type in Type & basics first."}
-              </p>
             ) : (
-              notificationEvents.map((event) => (
-                <NotificationEventServicesInput
-                  key={event.notification_event_id}
-                  label={event.display_name}
-                  value={notificationConfig[event.notification_event_id] ?? []}
-                  onChange={(next) =>
-                    setNotificationConfig((prev) => ({
-                      ...prev,
-                      [event.notification_event_id]: next,
-                    }))
-                  }
-                  services={notificationServices}
-                />
-              ))
+              <>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    className="px-3 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium"
+                    onClick={() => {
+                      const returnTo = `${routerLocation.pathname}${routerLocation.search}`;
+                      navigate("/engagements/new/notifications/setup", {
+                        state: {
+                          returnTo,
+                          engagementId: engagementId ?? undefined,
+                        },
+                      });
+                    }}
+                  >
+                    Set up notification
+                  </button>
+                </div>
+                {notificationRows.length === 0 ? (
+                  <p className="text-sm text-zinc-500">
+                    No notifications configured yet. Platform defaults apply on save unless you add overrides here.
+                  </p>
+                ) : (
+                  <div className="border border-zinc-200 rounded-xl overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-zinc-50 text-zinc-600">
+                        <tr>
+                          <th className="text-left px-3 py-2 font-medium">Event</th>
+                          <th className="text-left px-3 py-2 font-medium">Recipient</th>
+                          <th className="text-left px-3 py-2 font-medium hidden sm:table-cell">Services</th>
+                          <th className="text-right px-3 py-2 font-medium">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {notificationRows.map((row) => {
+                          const sk = row.notification_services[0]?.service_key;
+                          const svc = notificationServices.find((s) => s.service_key === sk);
+                          const code = (formData.engagement_code ?? "").trim();
+                          return (
+                            <tr key={`${row.event_code}:${row.recipient_type}`} className="border-t border-zinc-100">
+                              <td className="px-3 py-2">
+                                <div className="font-medium text-zinc-900">{row.event_display_name ?? row.event_code}</div>
+                                <div className="text-xs font-mono text-zinc-500">{row.event_code}</div>
+                              </td>
+                              <td className="px-3 py-2">{recipientTypeLabel(row.recipient_type)}</td>
+                              <td className="px-3 py-2 hidden sm:table-cell text-zinc-600">
+                                {row.notification_services.map((s) => s.service_key).join(", ")}
+                                <span className="block text-xs text-zinc-500">{serviceContentSummary(svc)}</span>
+                              </td>
+                              <td className="px-3 py-2 text-right space-x-2">
+                                {row.id && code ? (
+                                  <button
+                                    type="button"
+                                    className="text-xs text-zinc-700 underline"
+                                    onClick={() =>
+                                      navigate(
+                                        `/engagements/${encodeURIComponent(code)}/notifications/${row.id}/edit`,
+                                        { state: { returnTo: `${routerLocation.pathname}${routerLocation.search}`, engagementId } }
+                                      )
+                                    }
+                                  >
+                                    Edit
+                                  </button>
+                                ) : null}
+                                <button
+                                  type="button"
+                                  className="text-xs text-red-600 underline"
+                                  onClick={() =>
+                                    setNotificationRows((prev) =>
+                                      prev.filter(
+                                        (i) =>
+                                          `${i.event_code}:${i.recipient_type}` !==
+                                          `${row.event_code}:${row.recipient_type}`
+                                      )
+                                    )
+                                  }
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
