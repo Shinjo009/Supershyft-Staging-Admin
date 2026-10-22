@@ -151,6 +151,17 @@ export function ParticipantClinicalDrawer({
   const hasFitprintValues = Boolean(
     snapshot?.fitprint?.has_fitprint_values ?? activeParticipant?.has_fitprint_values
   );
+  const hasBloodReportRaw = Boolean(
+    snapshot?.blood.has_blood_report_raw ?? activeParticipant?.has_blood_report_raw
+  );
+  const hasBloodReport = Boolean(
+    snapshot?.blood.has_blood_report ??
+      activeParticipant?.has_blood_report ??
+      snapshot?.blood.has_blood_values ??
+      activeParticipant?.has_blood_values
+  );
+  const bloodReportRawJson = snapshot?.blood.blood_report_raw ?? null;
+  const bloodReportJson = snapshot?.blood.blood_parameters ?? null;
 
   if (!open || !participant) {
     return null;
@@ -214,18 +225,12 @@ export function ParticipantClinicalDrawer({
             <div className="space-y-4">
               <div className="flex flex-wrap gap-4">
                 <span className="inline-flex items-center gap-1">
-                  Report{" "}
-                  <CompletenessFlagIcon
-                    present={Boolean(snapshot?.blood.has_blood_report ?? participant.has_blood_report)}
-                    label="Blood report"
-                  />
+                  Blood report raw{" "}
+                  <CompletenessFlagIcon present={hasBloodReportRaw} label="Blood report raw" />
                 </span>
                 <span className="inline-flex items-center gap-1">
-                  Values{" "}
-                  <CompletenessFlagIcon
-                    present={Boolean(snapshot?.blood.has_blood_values ?? participant.has_blood_values)}
-                    label="Blood values"
-                  />
+                  Blood report{" "}
+                  <CompletenessFlagIcon present={hasBloodReport} label="Blood report" />
                 </span>
               </div>
               <div>
@@ -238,8 +243,19 @@ export function ParticipantClinicalDrawer({
                   hasReportUrl={Boolean(bloodReportUrl)}
                   hasValues={Boolean(snapshot?.blood.has_blood_values ?? participant.has_blood_values)}
                   onClearReportUrl={() => void handleClear("blood", "report_url", "blood report URL")}
-                  onClearValues={() => void handleClear("blood", "values", "blood values")}
+                  onClearValues={() => void handleClear("blood", "values", "blood report data")}
                 />
+              )}
+              {hasBloodReportRaw && bloodReportRawJson && (
+                <ClinicalJsonPanel title="Blood report raw (JSON)" value={bloodReportRawJson} />
+              )}
+              {hasBloodReport && bloodReportJson && (
+                <ClinicalJsonPanel title="Blood report (JSON)" value={bloodReportJson} />
+              )}
+              {hasBloodReport && !bloodReportJson && !loading && (
+                <p className="text-xs text-zinc-500">
+                  Report is on file (PDF URL or collection data). Open Participant Journey for full detail.
+                </p>
               )}
               {(snapshot?.blood.blood_bookings.length ?? 0) > 0 && (
                 <div>
@@ -416,9 +432,18 @@ function ClinicalAdminActions({
   );
 }
 
-function ClinicalJsonPanel({ title, value }: { title: string; value: Record<string, unknown> }) {
+function ClinicalJsonPanel({
+  title,
+  value,
+}: {
+  title: string;
+  value: Record<string, unknown> | unknown[];
+}) {
   const [open, setOpen] = useState(false);
   const text = useMemo(() => JSON.stringify(value, null, 2), [value]);
+  const sizeLabel = Array.isArray(value)
+    ? `${value.length} items`
+    : `${Object.keys(value).length} keys`;
   return (
     <div className="rounded border border-zinc-200">
       <button
@@ -428,7 +453,7 @@ function ClinicalJsonPanel({ title, value }: { title: string; value: Record<stri
       >
         {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
         {title}
-        <span className="text-zinc-400 font-normal">({Object.keys(value).length} keys)</span>
+        <span className="text-zinc-400 font-normal">({sizeLabel})</span>
       </button>
       {open && (
         <div className="border-t border-zinc-100 p-2">

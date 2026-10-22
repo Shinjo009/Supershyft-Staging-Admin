@@ -3011,8 +3011,11 @@ export interface ParticipantClinicalSnapshot {
   user_id: number;
   blood: {
     has_blood_report: boolean;
+    has_blood_report_raw?: boolean;
     has_blood_values: boolean;
     blood_report_url?: string | null;
+    blood_report_raw?: Record<string, unknown> | unknown[] | null;
+    blood_parameters?: Record<string, unknown> | unknown[] | null;
     blood_bookings: ParticipantBloodBooking[];
   };
   bio_ai: {
@@ -3070,6 +3073,7 @@ export interface Participant {
   is_fitprint_record_id_synced?: boolean | null;
   has_booking_id?: boolean;
   has_blood_report?: boolean;
+  has_blood_report_raw?: boolean;
   has_blood_values?: boolean;
   has_bio_ai_report?: boolean;
   has_bio_ai_values?: boolean;
