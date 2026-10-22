@@ -20,6 +20,7 @@ const ROLE_OPTIONS = [
   { value: "phlebo", label: "Phlebo" },
   { value: "expert", label: "Expert" },
   { value: "organization_manager", label: "Organization Manager" },
+  { value: "author", label: "Author" },
 ] as const;
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -42,6 +43,7 @@ function roleLabel(role: string | null | undefined): string {
   if (role === "phlebo") return "Phlebo";
   if (role === "expert") return "Expert";
   if (role === "organization_manager") return "Organization Manager";
+  if (role === "author") return "Author";
   return role || "—";
 }
 

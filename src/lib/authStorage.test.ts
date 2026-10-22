@@ -13,4 +13,8 @@ describe("resolvePostLoginPath", () => {
   it("still sends partner experts to the expert portal", () => {
     expect(resolvePostLoginPath("expert", null, "partner")).toBe("/experts/portal");
   });
+
+  it("sends authors to the blog dashboard", () => {
+    expect(resolvePostLoginPath("author", null, "partner")).toBe("/blog");
+  });
 });

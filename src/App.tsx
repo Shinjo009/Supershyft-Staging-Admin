@@ -111,6 +111,15 @@ const ServerHealth = lazy(() =>
 const IntegrationLogsPage = lazy(() =>
   import("./features/integration-logs/IntegrationLogsPage").then((m) => ({ default: m.IntegrationLogsPage }))
 );
+const BlogDashboard = lazy(() =>
+  import("./features/blog/BlogDashboard").then((m) => ({ default: m.BlogDashboard }))
+);
+const BlogEditor = lazy(() =>
+  import("./features/blog/BlogEditor").then((m) => ({ default: m.BlogEditor }))
+);
+const BlogPreview = lazy(() =>
+  import("./features/blog/BlogPreview").then((m) => ({ default: m.BlogPreview }))
+);
 
 function RouteFallback() {
   return (
@@ -151,8 +160,8 @@ function AdminOnlyRoute({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  // Partner org managers use AdminLayout (Organisations + Console nav) — not phlebo/expert bounce.
-  if (authKind === "partner" && employeeRole === "organization_manager") {
+  // Partner org managers and authors use AdminLayout — not the phlebo/expert bounce.
+  if (authKind === "partner" && (employeeRole === "organization_manager" || employeeRole === "author")) {
     return <>{children}</>;
   }
   if (authKind === "partner" || employeeRole === "expert" || employeeRole === "phlebo") {
@@ -246,6 +255,28 @@ function OrgManagerRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AuthorRoute({ children }: { children: React.ReactNode }) {
+  const { employeeRole, isLoading } = useAuth();
+  const location = useLocation();
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-50">
+        <div className="animate-pulse text-zinc-500">Loading...</div>
+      </div>
+    );
+  }
+  const isAuthor = employeeRole === "author";
+  const canUseBlog = isAuthor || employeeRole === "admin";
+  const onBlog = location.pathname === "/blog" || location.pathname.startsWith("/blog/");
+  if (isAuthor && !onBlog) {
+    return <Navigate to="/blog" replace />;
+  }
+  if (onBlog && !canUseBlog) {
+    return <AccessDenied />;
+  }
+  return <>{children}</>;
+}
+
 function PermissionRoute({
   category,
   children,
@@ -268,7 +299,9 @@ function AppRoutes() {
           <ProtectedRoute>
             <AdminOnlyRoute>
               <OrgManagerRoute>
-                <AdminLayout />
+                <AuthorRoute>
+                  <AdminLayout />
+                </AuthorRoute>
               </OrgManagerRoute>
             </AdminOnlyRoute>
           </ProtectedRoute>
@@ -306,6 +339,10 @@ function AppRoutes() {
         <Route path="employees" element={<Navigate to="/employees/employees" replace />} />
         <Route path="employees/:tab" element={<PermissionRoute category="employees"><Employees /></PermissionRoute>} />
         <Route path="partners" element={<PermissionRoute category="partners"><Partners /></PermissionRoute>} />
+        <Route path="blog" element={<BlogDashboard />} />
+        <Route path="blog/editor" element={<BlogEditor />} />
+        <Route path="blog/editor/:id" element={<BlogEditor />} />
+        <Route path="blog/view/:id" element={<BlogPreview />} />
         <Route
           path="assessments"
           element={<Navigate to="/assessments/packages" replace />}
