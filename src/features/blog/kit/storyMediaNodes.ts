@@ -2,7 +2,8 @@
  * Media nodes for the TipTap story editor.
  * Display URLs through mediaUrl() (same as the public article). Stored `src` is unchanged.
  */
-import { mergeAttributes, Node, type DOMOutputSpec } from '@tiptap/core'
+import { mergeAttributes, Node } from '@tiptap/core'
+import type { DOMOutputSpec } from 'prosemirror-model'
 import { Image } from '@tiptap/extension-image'
 import { mediaUrl, vimeoId, youtubeId } from './lib/storyBlocks'
 

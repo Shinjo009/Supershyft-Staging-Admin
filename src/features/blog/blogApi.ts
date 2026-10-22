@@ -111,9 +111,9 @@ export async function savePost(
   return unwrap(data);
 }
 
-export async function uploadBlogMedia(file: File): Promise<string> {
+export async function uploadBlogMedia(file: File, field: "image" | "file" = "image"): Promise<string> {
   const form = new FormData();
-  form.append("image", file);
+  form.append(field, file);
   const { data } = await api.post<Envelope<{ url: string }>>("/blog/uploads", form);
   return unwrap(data).url;
 }

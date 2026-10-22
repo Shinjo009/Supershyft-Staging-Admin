@@ -113,7 +113,7 @@ export const StorySection = Node.create({
     return {
       insertSection:
         (backgroundColor = SECTION_DEFAULT_BG) =>
-        ({ editor, chain, state }) => {
+        ({ chain, state }) => {
           const color = normalizeSectionHex(backgroundColor) || SECTION_DEFAULT_BG
           if (sectionDepth(state.selection.$from) >= 0) {
             return chain().focus().setSectionBackgroundColor(color).run()
