@@ -6,6 +6,7 @@ import { pageBackgroundStyle } from "./pageBackgroundStyle";
 import { StoryRichEditor, type StoryRichEditorHandle } from "./kit/StoryRichEditor";
 import { mediaUrl as resolveMedia, PALETTE, type StoryBlock } from "./kit/lib/storyBlocks";
 import { authStorage } from "../../lib/authStorage";
+import { Modal } from "../../shared/ui/Modal";
 import {
   blogError,
   getPost,
@@ -72,6 +73,7 @@ export function BlogEditor() {
   const [drawer, setDrawer] = useState(false);
   const [saveState, setSaveState] = useState("");
   const [error, setError] = useState("");
+  const [confirmPublish, setConfirmPublish] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [previewContent, setPreviewContent] = useState<StoryBlock[]>([]);
   const [authorName, setAuthorName] = useState(() => authStorage.getProfile()?.name || "");
@@ -256,7 +258,7 @@ export function BlogEditor() {
             <button
               type="button"
               className="h-8 rounded-full bg-emerald-500 px-3 text-sm font-semibold text-white"
-              onClick={() => void save("published")}
+              onClick={() => setConfirmPublish(true)}
             >
               Publish
             </button>
@@ -491,7 +493,7 @@ export function BlogEditor() {
               <button
                 type="button"
                 className="h-10 flex-1 rounded-lg bg-zinc-900 text-sm font-medium text-white"
-                onClick={() => void save("published")}
+                onClick={() => setConfirmPublish(true)}
               >
                 Publish
               </button>
@@ -499,6 +501,35 @@ export function BlogEditor() {
           </aside>
         </>
       ) : null}
+
+      <Modal
+        open={confirmPublish}
+        onClose={() => setConfirmPublish(false)}
+        title="Publish"
+        maxWidthClassName="max-w-md"
+        zIndexClassName="z-[60]"
+      >
+        <p className="mb-4 text-sm text-zinc-600">Are you sure you want to publish?</p>
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            className="w-full rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 sm:w-auto"
+            onClick={() => setConfirmPublish(false)}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="w-full rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 sm:w-auto"
+            onClick={() => {
+              setConfirmPublish(false);
+              void save("published");
+            }}
+          >
+            Yes
+          </button>
+        </div>
+      </Modal>
 
       {showPreview ? (
         <div className="fixed inset-0 z-[60] flex flex-col bg-white">

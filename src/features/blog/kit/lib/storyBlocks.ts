@@ -90,7 +90,9 @@ export type StoryAttributes = {
  */
 export type StoryBlock = {
   tag: string
-  /** Text for p / heading / blockquote / pre, or nested blocks for section. */
+  /** Text body for p / heading / blockquote / pre. */
+  text?: string
+  /** Nested blocks for section only. Legacy posts may still store a string here. */
   content?: string | StoryBlock[]
   /** Always present on text blocks; empty array when unmarked. */
   marks?: Mark[]
@@ -122,6 +124,7 @@ export function cellMarks(value: RichCell | string | null | undefined): Mark[] {
 
 /** Plain text content for text/code blocks (empty for sections). */
 export function blockText(block: StoryBlock | null | undefined): string {
+  if (typeof block?.text === 'string') return block.text
   return typeof block?.content === 'string' ? block.content : ''
 }
 
@@ -474,7 +477,7 @@ export function isTaskList(block: StoryBlock): boolean {
 function pushRich(out: StoryBlock[], tag: string, node: Node) {
   const [content, marks] = richText(node)
   if (!content) return
-  out.push({ tag, content, marks })
+  out.push({ tag, text: content, marks })
 }
 
 function tableBlock(table: Element): StoryBlock | null {
@@ -497,7 +500,7 @@ function walkFlow(node: Node, out: StoryBlock[]) {
   node.childNodes.forEach((child) => {
     if (child.nodeType === Node.TEXT_NODE) {
       const text = cleanText(child.textContent || '')
-      if (text) out.push({ tag: 'p', content: text, marks: [] })
+      if (text) out.push({ tag: 'p', text, marks: [] })
       return
     }
     if (child.nodeType !== Node.ELEMENT_NODE) return
@@ -521,7 +524,7 @@ function walkFlow(node: Node, out: StoryBlock[]) {
       if (src) out.push({ tag: 'img', attributes: { src, alt: element.getAttribute('alt') || '' } })
     } else if (tag === 'pre') {
       const content = plainText(element)
-      if (content) out.push({ tag: 'pre', attributes: { language: 'text' }, content })
+      if (content) out.push({ tag: 'pre', attributes: { language: 'text' }, text: content })
     } else if (tag !== 'br') walkFlow(element, out)
   })
 }
@@ -581,7 +584,7 @@ export function blocksToContent(items: EditorBlock[]): StoryBlock[] {
     if (block.type === 'text') content.push(...htmlToBlocks(block.html || ''))
     else if (block.type === 'divider') content.push({ tag: 'hr' })
     else if (block.type === 'code' && (block.code || '').trim()) {
-      content.push({ tag: 'pre', attributes: { language: block.language || 'text' }, content: block.code })
+      content.push({ tag: 'pre', attributes: { language: block.language || 'text' }, text: block.code })
     } else if (block.type === 'image' && block.url) {
       content.push({ tag: 'img', attributes: { src: block.url, alt: block.alt || '' } })
     } else if ((block.type === 'audio' || block.type === 'video') && block.url) {

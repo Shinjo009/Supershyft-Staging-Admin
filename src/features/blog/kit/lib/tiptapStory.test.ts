@@ -83,7 +83,9 @@ describe('tiptapStory tag-only roundtrip', () => {
     const again = docToStory(storyToDoc(story))
     assertUniformCells(again)
     expect(again.map((b) => b.tag)).toEqual(story.map((b) => b.tag))
-    expect(again[0].content).toBe('Introduction')
+    expect(again[0].text).toBe('Introduction')
+    expect(again[0]).not.toHaveProperty('content')
+    expect(again[6].text).toBe('print(1)')
     expect(again[2].items?.[0]).toEqual({ text: 'First', marks: [] })
   })
 
@@ -165,5 +167,16 @@ describe('tiptapStory tag-only roundtrip', () => {
 
     const again = docToStory(storyToDoc(story))
     expect(again[0].marks).toEqual([{ type: 'highlight', start: 0, end: 5, value: 'yellow' }])
+  })
+
+  it('reads legacy string content and writes text', () => {
+    const legacy: StoryBlock[] = [
+      { tag: 'h2', content: 'Introduction', marks: [] },
+      { tag: 'p', content: 'Hello world', marks: [] },
+    ]
+    const again = docToStory(storyToDoc(legacy))
+    expect(again[0]).toEqual({ tag: 'h2', text: 'Introduction', marks: [] })
+    expect(again[1]).toEqual({ tag: 'p', text: 'Hello world', marks: [] })
+    expect(again[0]).not.toHaveProperty('content')
   })
 })

@@ -25,9 +25,9 @@ function readingText(blocks: StoryBlock[] | undefined): string {
       );
       if (nested) parts.push(nested);
     } else if (tag === "p" || HEADING_TAGS.has(tag) || tag === "blockquote") {
-      parts.push(cellText(block.content));
+      parts.push(typeof block.text === "string" ? block.text : cellText(block.content));
     } else if (tag === "pre") {
-      parts.push(String(block.content || ""));
+      parts.push(typeof block.text === "string" ? block.text : String(block.content || ""));
     } else if (tag === "ul" || tag === "ol") {
       for (const item of block.items || []) parts.push(cellText(item));
     } else if (tag === "table") {

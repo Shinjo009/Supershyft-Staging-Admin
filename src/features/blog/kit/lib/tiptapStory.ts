@@ -327,7 +327,7 @@ function cell(rich: Rich): RichCell {
 
 function textBlock(tag: string, rich: Rich, align?: TextAlign): StoryBlock | null {
   if (!rich.text.trim()) return null
-  const block: StoryBlock = { tag, content: rich.text, marks: rich.marks }
+  const block: StoryBlock = { tag, text: rich.text, marks: rich.marks }
   const attributes = withAlign(align)
   if (attributes) block.attributes = attributes
   return block
@@ -411,7 +411,7 @@ function nodeToBlocks(node: JSONContent): StoryBlock[] {
       const content = (node.content || []).map((child) => child.text || '').join('')
       if (!content.trim()) return []
       const language = String(node.attrs?.language || 'text').toLowerCase()
-      return [{ tag: 'pre', attributes: { language: LANGUAGES.has(language) ? language : 'text' }, content }]
+      return [{ tag: 'pre', attributes: { language: LANGUAGES.has(language) ? language : 'text' }, text: content }]
     }
     case 'storyAudio':
     case 'storyVideo': {
