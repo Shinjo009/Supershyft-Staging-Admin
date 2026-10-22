@@ -59,6 +59,7 @@ export function ParticipantClinicalDrawer({
   const [tab, setTab] = useState<Tab>("blood");
   const [loading, setLoading] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [reloadingBlood, setReloadingBlood] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<ParticipantClinicalSnapshot | null>(null);
 
@@ -105,6 +106,34 @@ export function ParticipantClinicalDrawer({
       setError(getApiError(err));
     } finally {
       setClearing(false);
+    }
+  };
+
+  const handleReloadBloodFromDiagnostic = async () => {
+    if (!participant || !canClearClinicalData) return;
+    const ok = window.confirm(
+      "Re-fetch blood data from the diagnostic provider, normalize it, and update this participant's stored blood report? Existing blood parameters and raw data will be overwritten."
+    );
+    if (!ok) return;
+    setReloadingBlood(true);
+    setError(null);
+    try {
+      const res = await participantsApi.reloadProviderBloodParameters(engagementId, {
+        user_ids: [participant.user_id],
+      });
+      const result = res.data.data;
+      const detail = result.details.find((d) => d.user_id === participant.user_id);
+      if (result.reloaded < 1 || detail?.action !== "reloaded") {
+        const reason = detail?.reason ?? "Provider blood data could not be reloaded.";
+        setError(reason);
+      } else {
+        loadSnapshot();
+        onParticipantUpdated?.();
+      }
+    } catch (err) {
+      setError(getApiError(err));
+    } finally {
+      setReloadingBlood(false);
     }
   };
 
@@ -238,13 +267,23 @@ export function ParticipantClinicalDrawer({
                 <ReportUrlCell url={bloodReportUrl} label="Blood report" />
               </div>
               {canClearClinicalData && (
-                <ClinicalAdminActions
-                  clearing={clearing}
-                  hasReportUrl={Boolean(bloodReportUrl)}
-                  hasValues={Boolean(snapshot?.blood.has_blood_values ?? participant.has_blood_values)}
-                  onClearReportUrl={() => void handleClear("blood", "report_url", "blood report URL")}
-                  onClearValues={() => void handleClear("blood", "values", "blood report data")}
-                />
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    disabled={reloadingBlood || clearing}
+                    onClick={() => void handleReloadBloodFromDiagnostic()}
+                    className="text-xs text-sky-800 border border-sky-200 rounded px-2 py-1 hover:bg-sky-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {reloadingBlood ? "Reloading from diagnostic…" : "Reload from diagnostic"}
+                  </button>
+                  <ClinicalAdminActions
+                    clearing={clearing || reloadingBlood}
+                    hasReportUrl={Boolean(bloodReportUrl)}
+                    hasValues={Boolean(snapshot?.blood.has_blood_values ?? participant.has_blood_values)}
+                    onClearReportUrl={() => void handleClear("blood", "report_url", "blood report URL")}
+                    onClearValues={() => void handleClear("blood", "values", "blood report data")}
+                  />
+                </div>
               )}
               {hasBloodReportRaw && bloodReportRawJson && (
                 <ClinicalJsonPanel title="Blood report raw (JSON)" value={bloodReportRawJson} />
