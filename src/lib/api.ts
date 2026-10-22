@@ -5485,6 +5485,8 @@ export interface NotificationEventBindingItem {
 }
 
 export interface NotificationCatalogEvent {
+  engagement_type_codes?: string[];
+  engagement_type_labels?: string[];
   event_code: string;
   event_name: string;
   event_type: "api" | "scheduled" | "emergency";

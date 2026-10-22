@@ -11,6 +11,8 @@ import { buildIntegrationLogsPath } from "../integration-logs/integrationSyncLog
 import {
   notificationsApi,
   notificationEventBindingsApi,
+  notificationCatalogApi,
+  type NotificationCatalogEvent,
   type NotificationItem,
   type NotificationRecipient,
   type NotificationServiceItem,
@@ -24,12 +26,13 @@ import {
   serviceContentSummary,
 } from "./notificationWizardUtils";
 
-type TabKey = "logs" | "services" | "notifications";
-const TAB_KEYS: TabKey[] = ["logs", "services", "notifications"];
+type TabKey = "logs" | "services" | "events" | "notifications";
+const TAB_KEYS: TabKey[] = ["logs", "services", "events", "notifications"];
 
 const TAB_LABELS: Record<TabKey, string> = {
   logs: "Logs",
   services: "Services",
+  events: "Events",
   notifications: "Notifications",
 };
 
@@ -1259,6 +1262,142 @@ function ChannelBadges({ channels }: { channels: Array<"whatsapp" | "email"> }) 
   );
 }
 
+function EventsCatalogTab() {
+  const navigate = useNavigate();
+  const [catalog, setCatalog] = useState<NotificationCatalogEvent[]>([]);
+  const [bindings, setBindings] = useState<NotificationEventBindingItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const [catRes, bindRes] = await Promise.all([
+          notificationCatalogApi.list(),
+          notificationEventBindingsApi.list(),
+        ]);
+        if (!cancelled) {
+          setCatalog(catRes.data.data ?? []);
+          setBindings(bindRes.data.data ?? []);
+        }
+      } catch (err) {
+        if (!cancelled) setError(getApiError(err));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const bindingByKey = useMemo(() => {
+    const map = new Map<string, NotificationEventBindingItem>();
+    for (const b of bindings) {
+      map.set(`${b.event_code}:${b.recipient_type}`, b);
+    }
+    return map;
+  }, [bindings]);
+
+  const columns: Column<NotificationCatalogEvent>[] = [
+    {
+      key: "event_code",
+      label: "Event Code",
+      sortable: false,
+      render: (r) => (
+        <div>
+          <p className="text-sm font-medium text-zinc-900">{r.event_name}</p>
+          <p className="text-xs font-mono text-zinc-500">{r.event_code}</p>
+        </div>
+      ),
+    },
+    {
+      key: "engagement_types",
+      label: "Engagement Types",
+      sortable: false,
+      hideOnMobile: true,
+      render: (r) => (
+        <div className="flex flex-wrap gap-1 max-w-md">
+          {(r.engagement_type_labels ?? []).map((label) => (
+            <span
+              key={label}
+              className="inline-flex px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-200"
+            >
+              {label}
+            </span>
+          ))}
+          {(r.engagement_type_labels ?? []).length === 0 && (
+            <span className="text-xs text-zinc-400">—</span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "binding",
+      label: "Platform binding",
+      sortable: false,
+      render: (r) => {
+        const recipient = r.allowed_recipient_types[0];
+        const binding = recipient
+          ? bindingByKey.get(`${r.event_code}:${recipient}`)
+          : undefined;
+        if (!binding) {
+          return (
+            <button
+              type="button"
+              className="text-xs text-zinc-500 hover:text-zinc-800 underline"
+              onClick={() =>
+                navigate("/notifications/notifications/new", {
+                  state: { presetEventCode: r.event_code, presetRecipientType: recipient },
+                })
+              }
+            >
+              Set up
+            </button>
+          );
+        }
+        return (
+          <button
+            type="button"
+            className="text-xs text-emerald-700 hover:text-emerald-900 underline"
+            onClick={() => navigate(`/notifications/notifications/${binding.id}/edit`)}
+          >
+            Edit binding
+          </button>
+        );
+      },
+    },
+  ];
+
+  if (loading) {
+    return (
+      <div className="py-12 flex justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {error && <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">{error}</div>}
+      <p className="text-sm text-zinc-500 mb-4">
+        Read-only catalog of notification events. Platform defaults are configured under Notifications.
+      </p>
+      <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden">
+        <DataTable
+          columns={columns}
+          data={catalog.filter((e) => e.is_active)}
+          keyExtractor={(r) => r.event_code}
+          firstColumnClickableView={false}
+        />
+      </div>
+    </>
+  );
+}
+
 function EventBindingsTab() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1464,6 +1603,7 @@ export function Notifications() {
 
       {activeTab === "logs" && <LogsTab />}
       {activeTab === "services" && <ServicesTab />}
+      {activeTab === "events" && <EventsCatalogTab />}
       {activeTab === "notifications" && <EventBindingsTab />}
 
     </div>
