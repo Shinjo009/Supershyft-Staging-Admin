@@ -4251,6 +4251,8 @@ export interface DiagnosticPackageListItem {
   min_price?: number | null;
   discount_percent?: number | null;
   is_most_popular?: boolean | null;
+  has_allergy_screening?: boolean | null;
+  has_cancer_screening?: boolean | null;
   complementary_consultation?: Record<string, boolean> | null;
   gender_suitability?: string | null;
   package_for?: "public" | "camp" | null;
@@ -4546,6 +4548,8 @@ export interface DiagnosticTestGroupStandalone {
   discount?: string | null;
   original_price?: number | null;
   is_most_popular?: boolean | null;
+  has_allergy_screening?: boolean | null;
+  has_cancer_screening?: boolean | null;
   gender_suitability?: string | null;
   package_for?: "public" | "camp" | null;
   tests?: DiagnosticTestStandalone[];
@@ -4723,6 +4727,8 @@ export const diagnosticTestGroupsApi = {
     price?: number | null;
     original_price?: number | null;
     is_most_popular?: boolean | null;
+    has_allergy_screening?: boolean | null;
+    has_cancer_screening?: boolean | null;
     gender_suitability?: string | null;
     package_for?: "public" | "camp" | null;
   }) => api.post<{ data: DiagnosticTestGroupStandalone }>("/diagnostic-test-groups", payload),
@@ -4735,6 +4741,8 @@ export const diagnosticTestGroupsApi = {
       price?: number | null;
       original_price?: number | null;
       is_most_popular?: boolean | null;
+      has_allergy_screening?: boolean | null;
+      has_cancer_screening?: boolean | null;
       gender_suitability?: string | null;
       package_for?: "public" | "camp" | null;
     }

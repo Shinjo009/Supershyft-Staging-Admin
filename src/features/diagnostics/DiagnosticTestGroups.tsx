@@ -50,6 +50,8 @@ const EMPTY_FORM = {
   price: "",
   original_price: "",
   is_most_popular: false,
+  has_allergy_screening: false,
+  has_cancer_screening: false,
   gender_suitability: "",
   package_for: "public" as "public" | "camp",
 };
@@ -179,6 +181,8 @@ export function DiagnosticTestGroups({ onRequestCreate }: DiagnosticTestGroupsPr
       price: row.price != null ? String(row.price) : "",
       original_price: row.original_price != null ? String(row.original_price) : "",
       is_most_popular: !!row.is_most_popular,
+      has_allergy_screening: !!row.has_allergy_screening,
+      has_cancer_screening: !!row.has_cancer_screening,
       gender_suitability: row.gender_suitability ?? "",
       package_for: row.package_for ?? "public",
     });
@@ -270,6 +274,8 @@ export function DiagnosticTestGroups({ onRequestCreate }: DiagnosticTestGroupsPr
         price: toNumberOrNull(form.price),
         original_price: toNumberOrNull(form.original_price),
         is_most_popular: form.is_most_popular,
+        has_allergy_screening: form.has_allergy_screening,
+        has_cancer_screening: form.has_cancer_screening,
         gender_suitability: form.gender_suitability.trim() || undefined,
         package_for: form.package_for || "public",
       };
@@ -632,6 +638,22 @@ export function DiagnosticTestGroups({ onRequestCreate }: DiagnosticTestGroupsPr
               onChange={(e) => setForm((prev) => ({ ...prev, is_most_popular: e.target.checked }))}
             />
             Most popular
+          </label>
+          <label className="flex items-center gap-2 text-sm text-zinc-700">
+            <input
+              type="checkbox"
+              checked={form.has_allergy_screening}
+              onChange={(e) => setForm((prev) => ({ ...prev, has_allergy_screening: e.target.checked }))}
+            />
+            Allergy screening
+          </label>
+          <label className="flex items-center gap-2 text-sm text-zinc-700">
+            <input
+              type="checkbox"
+              checked={form.has_cancer_screening}
+              onChange={(e) => setForm((prev) => ({ ...prev, has_cancer_screening: e.target.checked }))}
+            />
+            Cancer screening
           </label>
           <div className="flex flex-col-reverse sm:flex-row gap-2 pt-1">
             <button
