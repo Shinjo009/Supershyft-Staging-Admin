@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   PERMISSION_CATEGORIES,
+  PERMISSION_METADATA,
   categoryForPath,
   normalizePermissions,
   normalizeTaskPermissions,
@@ -76,5 +77,10 @@ describe("RBAC permission contracts", () => {
     expect(categoryForPath("/engagements/55/console")).toBe("engagement_console");
     expect(categoryForPath("/engagements")).toBe("engagements");
     expect(categoryForPath("/discounts")).toBe("discounts");
+  });
+
+  it("does not expose blog as an Employees permission category", () => {
+    expect(PERMISSION_CATEGORIES).not.toContain("blog");
+    expect(PERMISSION_METADATA.map((row) => row.key)).not.toContain("blog");
   });
 });
