@@ -7,6 +7,7 @@ import { AccessDenied } from "./pages/AccessDenied";
 import { AdminLayout } from "./layouts/AdminLayout";
 import { Login } from "./pages/Login";
 import { Dashboard } from "./features/dashboard/Dashboard";
+import { PublicServiceabilityPage } from "./features/serviceability/PublicServiceabilityPage";
 
 import { loginPathWithRedirect } from "./lib/authStorage";
 
@@ -293,6 +294,7 @@ function AppRoutes() {
     <Suspense fallback={<RouteFallback />}>
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/serviceability" element={<PublicServiceabilityPage />} />
       <Route
         path="/"
         element={

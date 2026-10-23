@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { getApiError } from "../lib/api";
 import { resolvePostLoginPath, type AuthKind } from "../lib/authStorage";
@@ -274,6 +274,12 @@ export function Login() {
             </button>
           </form>
         )}
+
+        <p className="mt-6 text-center text-sm text-zinc-500">
+          <Link to="/serviceability" className="font-medium text-zinc-700 hover:text-zinc-900">
+            Check home collection serviceability
+          </Link>
+        </p>
       </div>
     </div>
   );

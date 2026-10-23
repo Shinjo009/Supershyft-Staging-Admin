@@ -2,14 +2,28 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { geocodeApi, getApiError, type GeocodeSuggestion } from "../../lib/api";
 
+export type GeocodeSearchFn = (
+  q: string,
+  limit: number
+) => Promise<{ data: { data: GeocodeSuggestion[] } }>;
+
 type Props = {
   value: string;
   onChange: (value: string) => void;
   onSelect: (suggestion: GeocodeSuggestion) => void;
   inputClassName?: string;
+  search?: GeocodeSearchFn;
+  searchLimit?: number;
 };
 
-export function AddressAutocomplete({ value, onChange, onSelect, inputClassName }: Props) {
+export function AddressAutocomplete({
+  value,
+  onChange,
+  onSelect,
+  inputClassName,
+  search,
+  searchLimit = 3,
+}: Props) {
   const [suggestions, setSuggestions] = useState<GeocodeSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -35,9 +49,9 @@ export function AddressAutocomplete({ value, onChange, onSelect, inputClassName 
     let cancelled = false;
     setLoading(true);
     setError(null);
+    const searchFn = search ?? ((q, limit) => geocodeApi.search(q, limit));
     const timer = window.setTimeout(() => {
-      geocodeApi
-        .search(query, 3)
+      searchFn(query, searchLimit)
         .then((res) => {
           if (cancelled) return;
           setSuggestions(res.data.data ?? []);
@@ -58,7 +72,7 @@ export function AddressAutocomplete({ value, onChange, onSelect, inputClassName 
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [value]);
+  }, [value, search, searchLimit]);
 
   useEffect(() => {
     const onDocClick = (event: MouseEvent) => {

@@ -3,6 +3,7 @@ import {
   Bell,
   CalendarCheck,
   CreditCard,
+  MapPin,
   Ticket,
   UserRound,
 } from "lucide-react";
@@ -683,6 +684,36 @@ export function DashboardOverview({
           )}
         </div>
       ) : null}
+
+      <div className={CARD}>
+        <div className="flex items-start justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="p-1.5 rounded-md bg-sky-50 text-sky-700 shrink-0">
+              <MapPin className="w-4 h-4" />
+            </div>
+            <h2 className="text-sm font-semibold text-zinc-900">Serviceability checker</h2>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate("/serviceability")}
+            className="shrink-0 self-start text-xs font-medium text-zinc-600 hover:text-zinc-900 whitespace-nowrap"
+          >
+            Open tool
+          </button>
+        </div>
+        <div className="flex-1 flex flex-col justify-center">
+          <p className="text-sm text-zinc-600 leading-relaxed">
+            Public page to check Healthians and Orange Health coverage by address or pincode.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate("/serviceability")}
+            className="mt-3 self-start text-xs font-medium text-zinc-900 underline hover:no-underline"
+          >
+            Go to serviceability page
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -24,6 +24,13 @@ const authHttp = axios.create({
   timeout: 30_000,
 });
 
+/** Unauthenticated API client (no 401 redirect to login). */
+const publicHttp = axios.create({
+  baseURL: API_BASE,
+  headers: { "Content-Type": "application/json" },
+  timeout: 30_000,
+});
+
 let isRefreshing = false;
 let failedQueue: Array<{ resolve: (token: string) => void; reject: (err: unknown) => void }> = [];
 
@@ -2561,6 +2568,47 @@ export const geocodeApi = {
       data: GeocodeSuggestion[];
       meta: { geocoding_provider?: GeocodingProvider; geocoding_fallback_used?: boolean };
     }>("/geocode/search", { params: { q, limit } }),
+};
+
+export const publicGeocodeApi = {
+  search: (q: string, limit = 5) =>
+    publicHttp.get<{
+      data: GeocodeSuggestion[];
+      meta: { geocoding_provider?: GeocodingProvider; geocoding_fallback_used?: boolean };
+    }>("/geocode/public/search", { params: { q, limit } }),
+};
+
+export type PublicServiceabilityProviderResult = {
+  provider: string;
+  serviceable: boolean;
+  message?: string | null;
+  zone_id?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  data?: unknown;
+};
+
+export type PublicAddressServiceabilityRequest = {
+  address_line: string;
+  city: string;
+  pincode: string;
+  landmark?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  provider?: string | null;
+};
+
+export const publicDiagnosticsApi = {
+  checkServiceability: (body: PublicAddressServiceabilityRequest) =>
+    publicHttp.post<{ data: { providers: PublicServiceabilityProviderResult[] } }>(
+      "/diagnostics/public/serviceability",
+      body
+    ),
+  checkPincodeServiceability: (body: { pincode: string; provider?: string | null }) =>
+    publicHttp.post<{ data: { providers: PublicServiceabilityProviderResult[] } }>(
+      "/diagnostics/public/pincode-serviceability",
+      body
+    ),
 };
 
 
