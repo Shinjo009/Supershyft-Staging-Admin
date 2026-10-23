@@ -14,7 +14,6 @@ import {
   formatCount,
   labelAssessment,
   labelDiagnostic,
-  labelPartner,
   shortProfileId,
   totalPagesFromCount,
   type B2cDefaultsByType,
@@ -29,7 +28,7 @@ import { questionnaireCategoriesApi, type QuestionnaireCategory } from "../../li
 import {
   assessmentPackagesApi,
   diagnosticPackagesApi,
-  partnersApi,
+  employeesApi,
   engagementNotificationsApi,
   engagementTypesApi,
   notificationEventsApi,
@@ -38,7 +37,7 @@ import {
   type AssessmentPackage,
   type B2cOnboardingTypeDefaults,
   type DiagnosticPackageListItem,
-  type PartnerListItem,
+  type EmployeeListItem,
   type EngagementTypeItem,
   type BloodCollectionType,
   type EngagementsSyncImportPageResult,
@@ -63,6 +62,20 @@ import { fetchAllPages } from "../../lib/fetchAllPages";
 
 const SYNC_STORAGE_KEY = "metsights-sync-v1";
 const ENG_SYNC_STORAGE_KEY = "engagements-sync-v1";
+
+const ASSIGNABLE_DEFAULT_ASSISTANT_ROLES = new Set(["admin", "inferior_admin"]);
+
+function defaultAssistantEmployeeName(row: EmployeeListItem): string {
+  if (row.name?.trim()) return row.name.trim();
+  const legacy = [row.first_name, row.last_name].filter(Boolean).join(" ").trim();
+  return legacy || `Employee #${row.employee_id}`;
+}
+
+function defaultAssistantStaffRoleLabel(role: string | null | undefined): string {
+  if (role === "admin") return "Admin";
+  if (role === "inferior_admin") return "Employee";
+  return role ?? "";
+}
 
 type SyncPhase = "idle" | "running" | "paused" | "completed" | "error";
 
@@ -111,7 +124,7 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
   const mayEditSettings = canEditTask("platform_settings", "settings");
   const mayViewAssessments = canViewTask("assessments", "packages");
   const mayViewDiagnostics = canViewTask("diagnostics", "packages");
-  const mayViewPartners = canViewTask("partners", "directory");
+  const mayViewEmployees = canViewTask("employees", "directory");
   const mayViewNotifications = canViewTask("notifications", "defaults");
   const mayEditNotifications = canEditTask("notifications", "defaults");
   const mayEditUsers = canEditTask("users", "profiles");
@@ -152,7 +165,7 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
   const notifDraftsRef = useRef<Record<number, Record<number, NotificationServiceConfigItem[]>>>({});
   const notifOriginalsRef = useRef<Record<number, Record<number, NotificationServiceConfigItem[]>>>({});
 
-  const [defaultAssistantPartners, setDefaultAssistantPartners] = useState<PartnerListItem[]>([]);
+  const [defaultAssistantEmployees, setDefaultAssistantEmployees] = useState<EmployeeListItem[]>([]);
   const [selectedDefaultAssistantIds, setSelectedDefaultAssistantIds] = useState<Set<number>>(new Set());
   const [defaultAssistantSearch, setDefaultAssistantSearch] = useState("");
   const [savingDefaultAssistants, setSavingDefaultAssistants] = useState(false);
@@ -209,7 +222,7 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
 
   const loadB2cPickers = useCallback(async () => {
     try {
-      const [notifServicesRes, aPkgs, dRes, partnersRes] = await Promise.all([
+      const [notifServicesRes, aPkgs, dRes, employeesRes] = await Promise.all([
         mayViewNotifications ? notificationsApi.listServices() : Promise.resolve(null),
         mayViewAssessments
           ? fetchAllPages<AssessmentPackage>((page, limit) =>
@@ -217,9 +230,9 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
             )
           : Promise.resolve([]),
         mayViewDiagnostics ? diagnosticPackagesApi.list() : Promise.resolve(null),
-        mayViewPartners
-          ? fetchAllPages<PartnerListItem>((page, limit) =>
-              partnersApi.list({ status: "active", role: "phlebo", page, limit })
+        mayViewEmployees
+          ? fetchAllPages<EmployeeListItem>((page, limit) =>
+              employeesApi.list({ status: "active", page, limit })
             ).then((rows) => ({ data: { data: rows } }))
           : Promise.resolve(null),
       ]);
@@ -227,7 +240,10 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
         (notifServicesRes?.data.data ?? []).filter((s) => s.is_active !== false)
       );
       setAssessmentPackages(aPkgs);
-      setDefaultAssistantPartners(partnersRes?.data.data ?? []);
+      const staff = (employeesRes?.data.data ?? []).filter((e) =>
+        ASSIGNABLE_DEFAULT_ASSISTANT_ROLES.has((e.role || "").toLowerCase())
+      );
+      setDefaultAssistantEmployees(staff);
       const dPkgs = (dRes?.data.data ?? []).filter(
         (p) => (p.status ?? "active").toLowerCase() === "active"
       );
@@ -235,7 +251,7 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
     } catch {
       // Pickers are optional until a settings control needs them.
     }
-  }, [mayViewAssessments, mayViewDiagnostics, mayViewPartners, mayViewNotifications]);
+  }, [mayViewAssessments, mayViewDiagnostics, mayViewEmployees, mayViewNotifications]);
 
   const loadB2c = useCallback(async () => {
     setLoading(true);
@@ -470,9 +486,11 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
     setDefaultAssistantsError(null);
     setDefaultAssistantsSaveOk(null);
     try {
+      const savedIds = Array.from(selectedDefaultAssistantIds);
       await platformSettingsApi.patchDefaultOnboardingAssistants({
-        employee_ids: Array.from(selectedDefaultAssistantIds),
+        employee_ids: savedIds,
       });
+      setSavedDefaultAssistantIds(new Set(savedIds));
       setDefaultAssistantsSaveOk(
         "Saved. New B2B and B2C engagements will auto-assign these assistants."
       );
@@ -531,19 +549,20 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
     });
   }
 
-  const filteredDefaultAssistantPartners = useMemo(() => {
+  const filteredDefaultAssistantEmployees = useMemo(() => {
     const q = defaultAssistantSearch.trim().toLowerCase();
-    if (!q) return defaultAssistantPartners;
-    return defaultAssistantPartners.filter((p) => {
-      const name = labelPartner(p).toLowerCase();
+    if (!q) return defaultAssistantEmployees;
+    return defaultAssistantEmployees.filter((e) => {
+      const name = defaultAssistantEmployeeName(e).toLowerCase();
       return (
-        String(p.partner_id).includes(q) ||
-        (p.role ?? "").toLowerCase().includes(q) ||
-        (p.phone ?? "").toLowerCase().includes(q) ||
+        String(e.employee_id).includes(q) ||
+        (e.role ?? "").toLowerCase().includes(q) ||
+        (e.phone ?? "").toLowerCase().includes(q) ||
+        (e.email ?? "").toLowerCase().includes(q) ||
         name.includes(q)
       );
     });
-  }, [defaultAssistantPartners, defaultAssistantSearch]);
+  }, [defaultAssistantEmployees, defaultAssistantSearch]);
 
   useEffect(() => {
     engagementTypesApi.list({ is_active: true }).then((res) => {
@@ -1361,7 +1380,7 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
 
               <SettingsFormCard
                 title="Default onboarding assistants"
-                description="Auto-assigned when new B2B or B2C engagements are created. Select active phlebo partners."
+                description="Auto-assigned when new B2B or B2C engagements are created. Select active admins and employees."
                 error={defaultAssistantsError}
                 success={defaultAssistantsSaveOk}
                 dirty={assistantsDirty}
@@ -1386,31 +1405,36 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
                     disabled={!mayEditSettings}
                   />
                 </div>
-                {defaultAssistantPartners.length === 0 ? (
-                  <p className="text-sm text-zinc-500">No active phlebo partners found.</p>
-                ) : filteredDefaultAssistantPartners.length === 0 ? (
-                  <p className="text-sm text-zinc-500">No phlebos match your search.</p>
+                {defaultAssistantEmployees.length === 0 ? (
+                  <p className="text-sm text-zinc-500">No active admins or employees found.</p>
+                ) : filteredDefaultAssistantEmployees.length === 0 ? (
+                  <p className="text-sm text-zinc-500">No staff match your search.</p>
                 ) : (
                   <ul className="divide-y divide-zinc-100 border border-zinc-200 rounded-lg overflow-hidden max-h-64 overflow-y-auto">
-                    {filteredDefaultAssistantPartners.map((partner) => {
-                      const checked = selectedDefaultAssistantIds.has(partner.partner_id);
+                    {filteredDefaultAssistantEmployees.map((employee) => {
+                      const checked = selectedDefaultAssistantIds.has(employee.employee_id);
+                      const roleLabel = defaultAssistantStaffRoleLabel(employee.role);
+                      const contact = employee.phone || employee.email || roleLabel;
+                      const subtitle = roleLabel && contact !== roleLabel ? `${contact} · ${roleLabel}` : contact || roleLabel;
                       return (
                         <li
-                          key={partner.partner_id}
+                          key={employee.employee_id}
                           className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-zinc-50 ${checked ? "bg-zinc-50" : "bg-white"}`}
-                          onClick={() => mayEditSettings && toggleDefaultAssistantSelection(partner.partner_id)}
+                          onClick={() => mayEditSettings && toggleDefaultAssistantSelection(employee.employee_id)}
                         >
                           <input
                             type="checkbox"
                             checked={checked}
-                            onChange={() => toggleDefaultAssistantSelection(partner.partner_id)}
+                            onChange={() => toggleDefaultAssistantSelection(employee.employee_id)}
                             onClick={(ev) => ev.stopPropagation()}
                             disabled={!mayEditSettings}
                             className="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 shrink-0"
                           />
                           <div className="min-w-0">
-                            <p className="text-sm font-medium text-zinc-900 truncate">{labelPartner(partner)}</p>
-                            <p className="text-xs text-zinc-500 truncate">{partner.phone || partner.email || "Phlebo"}</p>
+                            <p className="text-sm font-medium text-zinc-900 truncate">
+                              {defaultAssistantEmployeeName(employee)}
+                            </p>
+                            <p className="text-xs text-zinc-500 truncate">{subtitle}</p>
                           </div>
                         </li>
                       );
