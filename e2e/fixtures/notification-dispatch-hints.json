@@ -3,14 +3,14 @@
     "otp": "654321",
     "external_link": "https://app.supershyft.com/e2e",
     "participant_details": {
-      "name": "E2E Test",
+      "name": "Notify Testuser",
       "phone": "8762830757",
-      "email": "e2e@test.supershyft.com",
+      "email": "notify.test.8762830757@test.supershyft.com",
       "collection_date": "2026-01-15",
       "collection_time": "10:00"
     },
     "session_details": {
-      "want": "blood_collection",
+      "want": true,
       "date": "2026-01-15",
       "slot": "10:00",
       "expert_type": "doctor",
@@ -38,7 +38,7 @@
         "collection_time": "10:00"
       },
       "session_details": {
-        "want": "blood_collection",
+        "want": true,
         "date": "2026-01-15",
         "slot": "10:00",
         "expert_type": "doctor",
@@ -54,7 +54,7 @@
         "collection_time": "10:00"
       },
       "session_details": {
-        "want": "blood_collection",
+        "want": true,
         "date": "2026-01-15",
         "slot": "10:00",
         "expert_type": "doctor",
@@ -70,7 +70,7 @@
         "collection_time": "10:00"
       },
       "session_details": {
-        "want": "blood_collection",
+        "want": true,
         "date": "2026-01-15",
         "slot": "10:00",
         "expert_type": "doctor",
@@ -79,7 +79,7 @@
     },
     "booking-confirmation-whatsapp": {
       "session_details": {
-        "want": "blood_collection",
+        "want": true,
         "date": "2026-01-15",
         "slot": "10:00",
         "expert_type": "doctor",
@@ -95,7 +95,7 @@
         "collection_time": "10:00"
       },
       "session_details": {
-        "want": "blood_collection",
+        "want": true,
         "date": "2026-01-15",
         "slot": "10:00",
         "expert_type": "doctor",
@@ -104,7 +104,7 @@
     },
     "nvidia-collection-confirmed-whatsapp-v1": {
       "session_details": {
-        "want": "blood_collection",
+        "want": true,
         "date": "2026-01-15",
         "slot": "10:00",
         "expert_type": "doctor",
@@ -113,7 +113,7 @@
     },
     "nvidia-consultation-confirmed-whatsapp-v1": {
       "session_details": {
-        "want": "blood_collection",
+        "want": true,
         "date": "2026-01-15",
         "slot": "10:00",
         "expert_type": "doctor",
@@ -122,7 +122,7 @@
     },
     "nvidia-consultation-remainder-whatsapp-v1": {
       "session_details": {
-        "want": "blood_collection",
+        "want": true,
         "date": "2026-01-15",
         "slot": "10:00",
         "expert_type": "doctor",
@@ -131,7 +131,7 @@
     },
     "phlebo-assigned-whatsapp": {
       "session_details": {
-        "want": "blood_collection",
+        "want": true,
         "date": "2026-01-15",
         "slot": "10:00",
         "expert_type": "doctor",
@@ -140,7 +140,7 @@
     },
     "phlebo-reassigned-whatsapp": {
       "session_details": {
-        "want": "blood_collection",
+        "want": true,
         "date": "2026-01-15",
         "slot": "10:00",
         "expert_type": "doctor",
@@ -149,7 +149,7 @@
     },
     "pretest-whatsapp-session-v1": {
       "session_details": {
-        "want": "blood_collection",
+        "want": true,
         "date": "2026-01-15",
         "slot": "10:00",
         "expert_type": "doctor",
@@ -158,7 +158,7 @@
     },
     "welcome-booking-whatsapp-1plus1-v1": {
       "session_details": {
-        "want": "blood_collection",
+        "want": true,
         "date": "2026-01-15",
         "slot": "10:00",
         "expert_type": "doctor",
