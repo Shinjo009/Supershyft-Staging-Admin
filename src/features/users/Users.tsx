@@ -121,12 +121,12 @@ function participantDetailsFromUser(
   engagementLabel?: string | null
 ): Record<string, string> {
   const name = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
-  return {
-    name: name || "",
-    email: user.email ?? "",
-    phone: user.phone ?? "",
-    engagement: engagementLabel ?? "",
-  };
+  const out: Record<string, string> = {};
+  if (name) out.name = name;
+  if (user.email?.trim()) out.email = user.email.trim();
+  if (user.phone?.trim()) out.phone = user.phone.trim();
+  if (engagementLabel?.trim()) out.engagement = engagementLabel.trim();
+  return out;
 }
 
 function formatPrepareDetailsSummary(details: PrepareReportDetail[]): string | null {
