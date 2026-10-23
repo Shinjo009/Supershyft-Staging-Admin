@@ -1,0 +1,172 @@
+{
+  "defaults": {
+    "otp": "654321",
+    "external_link": "https://app.supershyft.com/e2e",
+    "participant_details": {
+      "name": "E2E Test",
+      "phone": "8762830757",
+      "email": "e2e@test.supershyft.com",
+      "collection_date": "2026-01-15",
+      "collection_time": "10:00"
+    },
+    "session_details": {
+      "want": "blood_collection",
+      "date": "2026-01-15",
+      "slot": "10:00",
+      "expert_type": "doctor",
+      "cabin": "A1"
+    }
+  },
+  "skip_service_keys": [
+    "cpu_above_threshold",
+    "b2b-booking-alert-whatsapp-v1",
+    "face-scan-report",
+    "nvidia-collection-booking-alert-whatsapp-v1",
+    "nvidia-consultation-booking-alert-whatsapp-v1",
+    "onboard-face-scan-alert",
+    "questionnaire-reminder-supershyft",
+    "tech-hr-discount",
+    "welcome-for-face-scan-techhr"
+  ],
+  "per_service": {
+    "booking-alert-email-whatsapp-welcome-booking-1plus1-v1": {
+      "participant_details": {
+        "name": "E2E Test",
+        "phone": "8762830757",
+        "email": "e2e@test.supershyft.com",
+        "collection_date": "2026-01-15",
+        "collection_time": "10:00"
+      },
+      "session_details": {
+        "want": "blood_collection",
+        "date": "2026-01-15",
+        "slot": "10:00",
+        "expert_type": "doctor",
+        "cabin": "A1"
+      }
+    },
+    "booking-alert-whatsapp": {
+      "participant_details": {
+        "name": "E2E Test",
+        "phone": "8762830757",
+        "email": "e2e@test.supershyft.com",
+        "collection_date": "2026-01-15",
+        "collection_time": "10:00"
+      },
+      "session_details": {
+        "want": "blood_collection",
+        "date": "2026-01-15",
+        "slot": "10:00",
+        "expert_type": "doctor",
+        "cabin": "A1"
+      }
+    },
+    "booking-alert-whatsapp-metsights": {
+      "participant_details": {
+        "name": "E2E Test",
+        "phone": "8762830757",
+        "email": "e2e@test.supershyft.com",
+        "collection_date": "2026-01-15",
+        "collection_time": "10:00"
+      },
+      "session_details": {
+        "want": "blood_collection",
+        "date": "2026-01-15",
+        "slot": "10:00",
+        "expert_type": "doctor",
+        "cabin": "A1"
+      }
+    },
+    "booking-confirmation-whatsapp": {
+      "session_details": {
+        "want": "blood_collection",
+        "date": "2026-01-15",
+        "slot": "10:00",
+        "expert_type": "doctor",
+        "cabin": "A1"
+      }
+    },
+    "consultation-booking-alert-whatsapp": {
+      "participant_details": {
+        "name": "E2E Test",
+        "phone": "8762830757",
+        "email": "e2e@test.supershyft.com",
+        "collection_date": "2026-01-15",
+        "collection_time": "10:00"
+      },
+      "session_details": {
+        "want": "blood_collection",
+        "date": "2026-01-15",
+        "slot": "10:00",
+        "expert_type": "doctor",
+        "cabin": "A1"
+      }
+    },
+    "nvidia-collection-confirmed-whatsapp-v1": {
+      "session_details": {
+        "want": "blood_collection",
+        "date": "2026-01-15",
+        "slot": "10:00",
+        "expert_type": "doctor",
+        "cabin": "A1"
+      }
+    },
+    "nvidia-consultation-confirmed-whatsapp-v1": {
+      "session_details": {
+        "want": "blood_collection",
+        "date": "2026-01-15",
+        "slot": "10:00",
+        "expert_type": "doctor",
+        "cabin": "A1"
+      }
+    },
+    "nvidia-consultation-remainder-whatsapp-v1": {
+      "session_details": {
+        "want": "blood_collection",
+        "date": "2026-01-15",
+        "slot": "10:00",
+        "expert_type": "doctor",
+        "cabin": "A1"
+      }
+    },
+    "phlebo-assigned-whatsapp": {
+      "session_details": {
+        "want": "blood_collection",
+        "date": "2026-01-15",
+        "slot": "10:00",
+        "expert_type": "doctor",
+        "cabin": "A1"
+      }
+    },
+    "phlebo-reassigned-whatsapp": {
+      "session_details": {
+        "want": "blood_collection",
+        "date": "2026-01-15",
+        "slot": "10:00",
+        "expert_type": "doctor",
+        "cabin": "A1"
+      }
+    },
+    "pretest-whatsapp-session-v1": {
+      "session_details": {
+        "want": "blood_collection",
+        "date": "2026-01-15",
+        "slot": "10:00",
+        "expert_type": "doctor",
+        "cabin": "A1"
+      }
+    },
+    "welcome-booking-whatsapp-1plus1-v1": {
+      "session_details": {
+        "want": "blood_collection",
+        "date": "2026-01-15",
+        "slot": "10:00",
+        "expert_type": "doctor",
+        "cabin": "A1"
+      }
+    },
+    "whatapi-otp": {
+      "otp": "654321"
+    }
+  }
+}
