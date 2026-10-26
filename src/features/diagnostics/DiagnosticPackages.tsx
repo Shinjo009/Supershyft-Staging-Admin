@@ -1,72 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AlertTriangle, Loader2, Plus, Search } from "lucide-react";
 import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
-import { Modal } from "../../shared/ui/Modal";
 import {
   diagnosticPackagesApi,
-  expertTypesApi,
   getApiError,
-  uploadsApi,
-  type DiagnosticPackageCreate,
   type DiagnosticPackageListItem,
-  type ExpertTypeItem,
 } from "../../lib/api";
 import { DiagnosticFilterChips } from "./DiagnosticFilterChips";
-import { DiagnosticPackageDrawer } from "./DiagnosticPackageDrawer";
 import { DiagnosticTests } from "./DiagnosticTests";
 import { DiagnosticTestGroups } from "./DiagnosticTestGroups";
-import {
-  diagnosticProviderDisplayLabel,
-  isOrangeHealthProvider,
-} from "./providerParameterKeys";
+import { diagnosticProviderDisplayLabel } from "./providerParameterKeys";
 
 type TabKey = "packages" | "test-groups" | "tests" | "filter-chips";
-type ModalMode = "add" | "edit";
-type PackageLinkMode = "own" | "linked";
-
-type PackageFormState = DiagnosticPackageCreate & {
-  linkMode: PackageLinkMode;
-  same_as_package_id: number | null;
-};
-
-const EMPTY_FORM: PackageFormState = {
-  package_name: "",
-  package_image: null,
-  diagnostic_provider: "",
-  external_package_code: null,
-  collection_type: "",
-  gender_suitability: "",
-  package_for: "public",
-  report_duration_hours: null,
-  price: null,
-  original_price: null,
-  min_price: null,
-  is_most_popular: false,
-  complementary_consultation: {},
-  health_areas_covered: "",
-  about_text: "",
-  bookings_count: null,
-  linkMode: "own",
-  same_as_package_id: null,
-};
-
-function packageLinkOptionLabel(row: DiagnosticPackageListItem): string {
-  const provider = diagnosticProviderDisplayLabel(row.diagnostic_provider);
-  return `${row.package_name} — ${provider}`;
-}
 
 function formatAlsoOfferedBy(row: DiagnosticPackageListItem): string {
   const peers = row.same_packages ?? [];
   if (peers.length === 0) return "—";
   return peers.map((peer) => diagnosticProviderDisplayLabel(peer.diagnostic_provider)).join(", ");
-}
-
-function toNumberOrNull(value: string): number | null {
-  if (!value.trim()) return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
 }
 
 function sortPackagesByDisplayOrder(items: DiagnosticPackageListItem[]) {
@@ -79,6 +32,7 @@ function sortPackagesByDisplayOrder(items: DiagnosticPackageListItem[]) {
 }
 
 export function DiagnosticPackages() {
+  const navigate = useNavigate();
   const { canEditTask } = usePermissions();
   const mayEditDiagnostics = canEditTask("diagnostics", "packages");
   const [activeTab, setActiveTab] = useState<TabKey>("packages");
@@ -91,26 +45,10 @@ export function DiagnosticPackages() {
   const [genderFilter, setGenderFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState<ModalMode>("add");
-  const [editing, setEditing] = useState<DiagnosticPackageListItem | null>(null);
-  const [form, setForm] = useState<PackageFormState>(EMPTY_FORM);
-  const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [imageUploading, setImageUploading] = useState(false);
-
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerPackageId, setDrawerPackageId] = useState<number | null>(null);
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
   const [reorderingPackages, setReorderingPackages] = useState(false);
   const [openCreateTestGroup, setOpenCreateTestGroup] = useState<(() => void) | null>(null);
   const [openCreateTest, setOpenCreateTest] = useState<(() => void) | null>(null);
-  const [expertTypes, setExpertTypes] = useState<ExpertTypeItem[]>([]);
-
-  const loadExpertTypes = useCallback(() => {
-    if (expertTypes.length > 0) return;
-    expertTypesApi.list().then((res) => setExpertTypes(res.data.data)).catch(() => {});
-  }, [expertTypes.length]);
 
   const fetchPackages = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) {
@@ -135,34 +73,6 @@ export function DiagnosticPackages() {
       void fetchPackages();
     }
   }, [activeTab, fetchPackages]);
-
-  useEffect(() => {
-    if (!modalOpen || modalMode !== "edit" || !editing) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const detailRes = await diagnosticPackagesApi.get(editing.diagnostic_package_id);
-        const detail = detailRes.data.data;
-        if (!cancelled) {
-          setForm((f) => ({
-            ...f,
-            package_image: detail.package_image ?? f.package_image ?? null,
-            min_price: detail.min_price ?? f.min_price ?? null,
-            health_areas_covered: detail.health_areas_covered ?? "",
-            about_text: detail.about_text ?? "",
-            bookings_count: detail.bookings_count ?? f.bookings_count ?? null,
-            linkMode: (detail.same_packages?.length ?? 0) > 0 ? "linked" : "own",
-            same_as_package_id: detail.same_packages?.[0]?.diagnostic_package_id ?? null,
-          }));
-        }
-      } catch {
-        /* keep existing form */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [modalOpen, modalMode, editing?.diagnostic_package_id]);
 
   const tagOptions = useMemo(
     () =>
@@ -220,51 +130,16 @@ export function DiagnosticPackages() {
     });
   }, [rows, search, providerFilter, genderFilter, statusFilter, tagFilter]);
 
-  const openCreate = () => {
-    loadExpertTypes();
-    setModalMode("add");
-    setEditing(null);
-    setForm({ ...EMPTY_FORM });
-    setFormError(null);
-    setModalOpen(true);
+  const openView = (row: DiagnosticPackageListItem) => {
+    navigate(`/diagnostics/packages/${row.diagnostic_package_id}`);
   };
 
   const openEdit = (row: DiagnosticPackageListItem) => {
-    loadExpertTypes();
-    setModalMode("edit");
-    setEditing(row);
-    setForm({
-      package_name: row.package_name,
-      package_image: row.package_image ?? null,
-      diagnostic_provider: row.diagnostic_provider ?? "",
-      external_package_code: row.external_package_code ?? null,
-      collection_type: row.collection_type ?? "",
-      gender_suitability: row.gender_suitability ?? "",
-      package_for: row.package_for ?? "public",
-      report_duration_hours: row.report_duration_hours ?? null,
-      price: row.price ?? null,
-      original_price: row.original_price ?? null,
-      min_price: row.min_price ?? null,
-      is_most_popular: !!row.is_most_popular,
-      complementary_consultation: row.complementary_consultation ?? {},
-      health_areas_covered: "",
-      about_text: "",
-      bookings_count: null,
-      linkMode: (row.same_packages?.length ?? 0) > 0 ? "linked" : "own",
-      same_as_package_id: row.same_packages?.[0]?.diagnostic_package_id ?? null,
-    });
-    setFormError(null);
-    setModalOpen(true);
+    navigate(`/diagnostics/packages/${row.diagnostic_package_id}/edit`);
   };
 
-  const linkTargetOptions = useMemo(() => {
-    const editingId = editing?.diagnostic_package_id;
-    return rows.filter((row) => row.diagnostic_package_id !== editingId);
-  }, [rows, editing?.diagnostic_package_id]);
-
-  const openDrawer = (row: DiagnosticPackageListItem) => {
-    setDrawerPackageId(row.diagnostic_package_id);
-    setDrawerOpen(true);
+  const openCreate = () => {
+    navigate("/diagnostics/packages/new");
   };
 
   const toggleStatus = async (row: DiagnosticPackageListItem) => {
@@ -326,75 +201,6 @@ export function DiagnosticPackages() {
     }
   };
 
-  const handleImageUpload = async (file?: File) => {
-    if (!file) return;
-    setImageUploading(true);
-    setFormError(null);
-    try {
-      const res = await uploadsApi.uploadPackageImage(file);
-      setForm((prev) => ({ ...prev, package_image: res.data.data.url }));
-    } catch (err) {
-      setFormError(getApiError(err));
-    } finally {
-      setImageUploading(false);
-    }
-  };
-
-  const handleSubmit = async () => {
-    if (!form.package_name.trim()) {
-      setFormError("Package name is required.");
-      return;
-    }
-    if (form.linkMode === "linked" && !form.same_as_package_id) {
-      setFormError("Select which existing package this is the same as.");
-      return;
-    }
-    setSubmitting(true);
-    setFormError(null);
-    try {
-      const payload: DiagnosticPackageCreate = {
-        package_name: form.package_name.trim(),
-        package_image: form.package_image?.trim() || null,
-        diagnostic_provider: form.diagnostic_provider?.trim() || null,
-        external_package_code: form.external_package_code?.trim() || null,
-        collection_type: form.collection_type?.trim() || null,
-        gender_suitability: form.gender_suitability?.trim() || null,
-        package_for: (form.package_for as "public" | "camp") || "public",
-        report_duration_hours: form.report_duration_hours ?? null,
-        price: form.price ?? null,
-        original_price: form.original_price ?? null,
-        min_price: form.min_price ?? null,
-        is_most_popular: !!form.is_most_popular,
-        complementary_consultation: form.complementary_consultation ?? {},
-        health_areas_covered: form.health_areas_covered?.trim() || null,
-        about_text: form.about_text?.trim() || null,
-        bookings_count: form.bookings_count ?? null,
-      };
-      if (modalMode === "add") {
-        if (form.linkMode === "linked" && form.same_as_package_id) {
-          payload.same_as_package_id = form.same_as_package_id;
-        }
-        await diagnosticPackagesApi.create(payload);
-      } else if (editing) {
-        const updatePayload: Partial<DiagnosticPackageCreate> & { same_as_package_id?: number | null } = {
-          ...payload,
-        };
-        if (form.linkMode === "linked" && form.same_as_package_id) {
-          updatePayload.same_as_package_id = form.same_as_package_id;
-        } else {
-          updatePayload.same_as_package_id = null;
-        }
-        await diagnosticPackagesApi.update(editing.diagnostic_package_id, updatePayload);
-      }
-      setModalOpen(false);
-      await fetchPackages();
-    } catch (err) {
-      setFormError(getApiError(err));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const columns: Column<DiagnosticPackageListItem>[] = [
     {
       key: "package_name",
@@ -404,7 +210,14 @@ export function DiagnosticPackages() {
         const total = row.no_of_tests ?? 0;
         const mapped = Math.max(total - unmapped, 0);
         return (
-          <span className="inline-flex items-center gap-1.5 font-medium text-zinc-900">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              openView(row);
+            }}
+            className="inline-flex items-center gap-1.5 font-medium text-zinc-900 hover:underline text-left"
+          >
             {row.package_name}
             {unmapped > 0 && (
               <span
@@ -415,7 +228,7 @@ export function DiagnosticPackages() {
                 <AlertTriangle className="w-4 h-4 shrink-0" />
               </span>
             )}
-          </span>
+          </button>
         );
       },
     },
@@ -641,7 +454,7 @@ export function DiagnosticPackages() {
                 columns={columns}
                 data={filteredRows}
                 keyExtractor={(row) => row.diagnostic_package_id}
-                onView={openDrawer}
+                onView={openView}
                 onEdit={openEdit}
                 onDuplicate={handleDuplicatePackage}
                 onDelete={handleDeletePackage}
@@ -662,311 +475,6 @@ export function DiagnosticPackages() {
       ) : (
         <DiagnosticFilterChips embedded />
       )}
-
-      <Modal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title={modalMode === "add" ? "Add Package" : "Edit Package"}
-        maxWidthClassName="max-w-2xl"
-      >
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            void handleSubmit();
-          }}
-          className="space-y-4"
-        >
-          {formError && <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{formError}</div>}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="sm:col-span-2">
-              <label className="block text-sm font-medium text-zinc-700 mb-1">Package name *</label>
-              <input
-                type="text"
-                value={form.package_name}
-                onChange={(e) => setForm((prev) => ({ ...prev, package_name: e.target.value }))}
-                className="w-full border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1">Package image URL</label>
-              <input
-                type="url"
-                value={form.package_image ?? ""}
-                onChange={(e) => setForm((prev) => ({ ...prev, package_image: e.target.value }))}
-                className="w-full border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900"
-                placeholder="https://"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1">Upload package image</label>
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={(e) => void handleImageUpload(e.target.files?.[0])}
-                className="w-full text-sm"
-                disabled={imageUploading}
-              />
-              {imageUploading && <p className="mt-1 text-xs text-zinc-500">Uploading image...</p>}
-            </div>
-            {form.package_image ? (
-              <div className="sm:col-span-2">
-                <img
-                  src={form.package_image}
-                  alt="Package preview"
-                  className="h-20 w-20 rounded-lg object-cover border border-zinc-200"
-                />
-              </div>
-            ) : null}
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1">Provider</label>
-              <select
-                value={form.diagnostic_provider ?? ""}
-                onChange={(e) => setForm((prev) => ({ ...prev, diagnostic_provider: e.target.value }))}
-                className="w-full border border-zinc-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-zinc-900"
-              >
-                <option value="">Select</option>
-                <option value="Healthians">Healthians</option>
-                <option value="orange_health">Orange Health</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1">
-                {diagnosticProviderDisplayLabel(form.diagnostic_provider)} package code
-              </label>
-              <input
-                type="text"
-                value={form.external_package_code ?? ""}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    external_package_code: e.target.value.trim() ? e.target.value.trim() : null,
-                  }))
-                }
-                placeholder={
-                  isOrangeHealthProvider(form.diagnostic_provider)
-                    ? `${diagnosticProviderDisplayLabel(form.diagnostic_provider)} package_id`
-                    : `${diagnosticProviderDisplayLabel(form.diagnostic_provider)} numeric package id`
-                }
-                className="w-full border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900"
-              />
-              <p className="mt-1 text-xs text-zinc-500">
-                {isOrangeHealthProvider(form.diagnostic_provider)
-                  ? `Stored as text and sent to ${diagnosticProviderDisplayLabel(form.diagnostic_provider)} as package_id.`
-                  : `Stored as text; API sends ${diagnosticProviderDisplayLabel(form.diagnostic_provider)} deal id package_{id}.`}
-              </p>
-            </div>
-            <div className="sm:col-span-2 rounded-lg border border-zinc-200 bg-zinc-50 p-4 space-y-3">
-              <div>
-                <p className="text-sm font-medium text-zinc-900">Same package, different lab</p>
-                <p className="text-xs text-zinc-600 mt-1">
-                  Choose this when Healthians and Orange Health both offer this package. Price and lab code stay on
-                  this package.
-                </p>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <label className="flex items-center gap-2 text-sm text-zinc-800 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="package-link-mode"
-                    checked={form.linkMode === "own"}
-                    onChange={() =>
-                      setForm((prev) => ({ ...prev, linkMode: "own", same_as_package_id: null }))
-                    }
-                  />
-                  This is its own package
-                </label>
-                <label className="flex items-center gap-2 text-sm text-zinc-800 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="package-link-mode"
-                    checked={form.linkMode === "linked"}
-                    onChange={() => setForm((prev) => ({ ...prev, linkMode: "linked" }))}
-                  />
-                  Same as another package
-                </label>
-              </div>
-              {form.linkMode === "linked" ? (
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700 mb-1">Match to existing package</label>
-                  <select
-                    value={form.same_as_package_id ?? ""}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        same_as_package_id: e.target.value ? Number(e.target.value) : null,
-                      }))
-                    }
-                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-zinc-900"
-                    required
-                  >
-                    <option value="">Select a package</option>
-                    {linkTargetOptions.map((row) => (
-                      <option key={row.diagnostic_package_id} value={row.diagnostic_package_id}>
-                        {packageLinkOptionLabel(row)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : null}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1">Collection type</label>
-              <select
-                value={form.collection_type ?? ""}
-                onChange={(e) => setForm((prev) => ({ ...prev, collection_type: e.target.value }))}
-                className="w-full border border-zinc-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-zinc-900"
-              >
-                <option value="">Select</option>
-                <option value="home_collection">home_collection</option>
-                <option value="centre_visit">centre_visit</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1">Gender suitability</label>
-              <select
-                value={form.gender_suitability ?? ""}
-                onChange={(e) => setForm((prev) => ({ ...prev, gender_suitability: e.target.value }))}
-                className="w-full border border-zinc-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-zinc-900"
-              >
-                <option value="">Select</option>
-                <option value="male">male</option>
-                <option value="female">female</option>
-                <option value="both">both</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1">Package for</label>
-              <select
-                value={form.package_for ?? "public"}
-                onChange={(e) => setForm((prev) => ({ ...prev, package_for: e.target.value as "public" | "camp" }))}
-                className="w-full border border-zinc-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-zinc-900"
-              >
-                <option value="public">public</option>
-                <option value="camp">camp</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1">Report duration hours</label>
-              <input
-                type="number"
-                value={form.report_duration_hours ?? ""}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, report_duration_hours: toNumberOrNull(e.target.value) }))
-                }
-                className="w-full border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1">Price</label>
-              <input
-                type="number"
-                value={form.price ?? ""}
-                onChange={(e) => setForm((prev) => ({ ...prev, price: toNumberOrNull(e.target.value) }))}
-                className="w-full border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1">Original price</label>
-              <input
-                type="number"
-                value={form.original_price ?? ""}
-                onChange={(e) => setForm((prev) => ({ ...prev, original_price: toNumberOrNull(e.target.value) }))}
-                className="w-full border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1">Minimum price (floor)</label>
-              <input
-                type="number"
-                value={form.min_price ?? ""}
-                onChange={(e) => setForm((prev) => ({ ...prev, min_price: toNumberOrNull(e.target.value) }))}
-                className="w-full border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1">Bookings count</label>
-              <input
-                type="number"
-                value={form.bookings_count ?? ""}
-                onChange={(e) => setForm((prev) => ({ ...prev, bookings_count: toNumberOrNull(e.target.value) }))}
-                className="w-full border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900"
-              />
-            </div>
-            <div className="flex flex-col gap-2 self-stretch justify-center">
-              <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-300 text-sm text-zinc-700">
-                <input
-                  type="checkbox"
-                  checked={!!form.is_most_popular}
-                  onChange={(e) => setForm((prev) => ({ ...prev, is_most_popular: e.target.checked }))}
-                />
-                Most popular
-              </label>
-            </div>
-            {expertTypes.map((et) => (
-              <div key={et.type_key} className="sm:col-span-2">
-                <label className="flex items-center gap-2 px-3 py-4 rounded-lg border border-zinc-300 bg-zinc-50 text-sm font-medium text-zinc-900 cursor-pointer hover:bg-zinc-100 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={!!(form.complementary_consultation ?? {})[et.type_key]}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        complementary_consultation: {
-                          ...(prev.complementary_consultation ?? {}),
-                          [et.type_key]: e.target.checked,
-                        },
-                      }))
-                    }
-                    className="w-4 h-4 text-zinc-900 bg-white border-zinc-300 rounded focus:ring-zinc-900 focus:ring-2"
-                  />
-                  {et.type} consultation
-                </label>
-              </div>
-            ))}
-            <div className="sm:col-span-2">
-              <label className="block text-sm font-medium text-zinc-700 mb-1">Health areas covered</label>
-              <textarea
-                value={form.health_areas_covered ?? ""}
-                onChange={(e) => setForm((prev) => ({ ...prev, health_areas_covered: e.target.value }))}
-                className="w-full border border-zinc-300 rounded-lg px-3 py-2 min-h-24 focus:ring-2 focus:ring-zinc-900"
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="block text-sm font-medium text-zinc-700 mb-1">About</label>
-              <textarea
-                value={form.about_text ?? ""}
-                onChange={(e) => setForm((prev) => ({ ...prev, about_text: e.target.value }))}
-                className="w-full border border-zinc-300 rounded-lg px-3 py-2 min-h-24 focus:ring-2 focus:ring-zinc-900"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col-reverse sm:flex-row gap-2 pt-1">
-            <button
-              type="submit"
-              disabled={submitting}
-              className="px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 disabled:opacity-50"
-            >
-              {submitting ? "Saving..." : modalMode === "add" ? "Create Package" : "Save Changes"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setModalOpen(false)}
-              className="px-4 py-2 rounded-lg border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      <DiagnosticPackageDrawer
-        open={drawerOpen}
-        packageId={drawerPackageId}
-        onClose={() => setDrawerOpen(false)}
-        onUpdated={() => void fetchPackages()}
-      />
     </div>
   );
 }

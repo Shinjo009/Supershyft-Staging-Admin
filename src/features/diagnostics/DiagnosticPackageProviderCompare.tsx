@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import { ChevronDown, ChevronRight, Link, Loader2, RefreshCw, Search } from "lucide-react";
 import { diagnosticPackagesApi, getApiError, type ProviderTestDiffResponse } from "../../lib/api";
 
 interface DiagnosticPackageProviderCompareProps {
   packageId: number;
   externalPackageCode: string | null | undefined;
+  editPackagePath?: string;
   onMapTest: (testId: number, testName: string) => void;
   /** When set, diff is loaded by the parent (no duplicate fetch). */
   diff?: ProviderTestDiffResponse | null;
@@ -75,6 +77,7 @@ function GroupList({ names }: { names: string[] }) {
 export function DiagnosticPackageProviderCompare({
   packageId,
   externalPackageCode,
+  editPackagePath,
   onMapTest,
   diff: controlledDiff,
   diffLoading: controlledLoading,
@@ -128,7 +131,14 @@ export function DiagnosticPackageProviderCompare({
   if (!code) {
     return (
       <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm">
-        Set the Healthians package code on the Overview tab before comparing tests.
+        Add a Healthians package code before comparing tests.{" "}
+        {editPackagePath ? (
+          <RouterLink to={editPackagePath} className="font-medium text-zinc-900 underline underline-offset-2">
+            Edit package
+          </RouterLink>
+        ) : (
+          <span>Set the lab code on this package first.</span>
+        )}
       </div>
     );
   }
@@ -209,49 +219,52 @@ export function DiagnosticPackageProviderCompare({
         </div>
       )}
 
-      {filtered && filtered.only_at_provider.length > 0 && (
-        <section className="bg-white border border-zinc-200 rounded-xl p-4 space-y-2">
-          <h3 className="text-sm font-medium text-zinc-900">
-            Only at Healthians
-            <span className="ml-2 inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800">
-              {filtered.only_at_provider.length}
-            </span>
-          </h3>
-          <div className="space-y-2">
-            {filtered.only_at_provider.map((row) => (
-              <div key={row.provider_id} className="border border-zinc-200 rounded-lg px-3 py-2">
-                <p className="text-sm text-zinc-900">{row.provider_name}</p>
-                <p className="text-xs text-zinc-500">ID {row.provider_id}</p>
-                <p className="text-xs text-amber-700 mt-1">
-                  {row.catalog_test_name
-                    ? `In catalog as ${row.catalog_test_name}, not in this package.`
-                    : "Not in our test catalog."}
-                </p>
+      {filtered && (filtered.only_at_provider.length > 0 || filtered.only_in_package.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {filtered.only_at_provider.length > 0 && (
+            <section className="bg-white border border-zinc-200 rounded-xl p-4 space-y-2">
+              <h3 className="text-sm font-medium text-zinc-900">
+                Only at Healthians
+                <span className="ml-2 inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800">
+                  {filtered.only_at_provider.length}
+                </span>
+              </h3>
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {filtered.only_at_provider.map((row) => (
+                  <div key={row.provider_id} className="border border-zinc-200 rounded-lg px-3 py-2">
+                    <p className="text-sm text-zinc-900">{row.provider_name}</p>
+                    <p className="text-xs text-zinc-500">ID {row.provider_id}</p>
+                    <p className="text-xs text-amber-700 mt-1">
+                      {row.catalog_test_name
+                        ? `In catalog as ${row.catalog_test_name}, not in this package.`
+                        : "Not in our test catalog."}
+                    </p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {filtered && filtered.only_in_package.length > 0 && (
-        <section className="bg-white border border-zinc-200 rounded-xl p-4 space-y-2">
-          <h3 className="text-sm font-medium text-zinc-900">
-            Only in this package
-            <span className="ml-2 inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-zinc-100 text-zinc-600">
-              {filtered.only_in_package.length}
-            </span>
-          </h3>
-          <div className="space-y-2">
-            {filtered.only_in_package.map((row) => (
-              <div key={row.test_id} className="border border-zinc-200 rounded-lg px-3 py-2">
-                <p className="text-sm text-zinc-900">{row.test_name}</p>
-                <GroupList names={row.group_names} />
-                <p className="text-xs text-zinc-500 mt-1">Mapped ID {row.provider_id}</p>
-                <p className="text-xs text-amber-700">Healthians does not include this id in the product.</p>
+            </section>
+          )}
+          {filtered.only_in_package.length > 0 && (
+            <section className="bg-white border border-zinc-200 rounded-xl p-4 space-y-2">
+              <h3 className="text-sm font-medium text-zinc-900">
+                Only in this package
+                <span className="ml-2 inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-zinc-100 text-zinc-600">
+                  {filtered.only_in_package.length}
+                </span>
+              </h3>
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {filtered.only_in_package.map((row) => (
+                  <div key={row.test_id} className="border border-zinc-200 rounded-lg px-3 py-2">
+                    <p className="text-sm text-zinc-900">{row.test_name}</p>
+                    <GroupList names={row.group_names} />
+                    <p className="text-xs text-zinc-500 mt-1">Mapped ID {row.provider_id}</p>
+                    <p className="text-xs text-amber-700">Healthians does not include this id in the product.</p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </section>
+            </section>
+          )}
+        </div>
       )}
 
       {filtered && filtered.not_linked.length > 0 && (

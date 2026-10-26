@@ -42,6 +42,16 @@ const ParticipantJourneyPage = lazy(() =>
 const DiagnosticPackages = lazy(() =>
   import("./features/diagnostics/DiagnosticPackages").then((m) => ({ default: m.DiagnosticPackages }))
 );
+const DiagnosticPackageDetailPage = lazy(() =>
+  import("./features/diagnostics/DiagnosticPackageDetailPage").then((m) => ({
+    default: m.DiagnosticPackageDetailPage,
+  }))
+);
+const DiagnosticPackageFormPage = lazy(() =>
+  import("./features/diagnostics/DiagnosticPackageFormPage").then((m) => ({
+    default: m.DiagnosticPackageFormPage,
+  }))
+);
 const Bookings = lazy(() =>
   import("./features/payments/Bookings").then((m) => ({ default: m.Bookings }))
 );
@@ -387,6 +397,30 @@ function AppRoutes() {
         <Route path="users" element={<PermissionRoute category="users"><Users /></PermissionRoute>} />
         <Route path="experts" element={<PermissionRoute category="experts"><Experts /></PermissionRoute>} />
         <Route path="diagnostics" element={<Navigate to="/diagnostics/packages" replace />} />
+        <Route
+          path="diagnostics/packages/new"
+          element={
+            <PermissionRoute category="diagnostics">
+              <DiagnosticPackageFormPage mode="add" />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="diagnostics/packages/:packageId/edit"
+          element={
+            <PermissionRoute category="diagnostics">
+              <DiagnosticPackageFormPage mode="edit" />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="diagnostics/packages/:packageId"
+          element={
+            <PermissionRoute category="diagnostics">
+              <DiagnosticPackageDetailPage />
+            </PermissionRoute>
+          }
+        />
         <Route path="diagnostics/packages" element={<PermissionRoute category="diagnostics"><DiagnosticPackages /></PermissionRoute>} />
         <Route path="diagnostics/filters-chips" element={<PermissionRoute category="diagnostics"><DiagnosticFilterChips /></PermissionRoute>} />
         <Route path="discounts" element={<PermissionRoute category="discounts"><Discounts /></PermissionRoute>} />

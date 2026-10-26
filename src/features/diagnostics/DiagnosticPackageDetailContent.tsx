@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import {
   DndContext,
   PointerSensor,
@@ -52,19 +53,23 @@ import {
 import { ensurePackageScopedGroupId } from "./ensurePackageScopedGroup";
 import { testSyncKind } from "./providerTestDiffStatus";
 
-interface DiagnosticPackageDrawerProps {
-  open: boolean;
-  packageId: number | null;
-  onClose: () => void;
+export type PackageDetailTab = "overview" | "tests" | "compare" | "samples-prep";
+
+interface DiagnosticPackageDetailContentProps {
+  packageId: number;
+  activeTab: PackageDetailTab;
+  onRequestTab: (tab: PackageDetailTab) => void;
   onUpdated?: () => void;
 }
 
-type DrawerTab = "overview" | "reasons" | "tests" | "compare" | "samples-prep";
-
-export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }: DiagnosticPackageDrawerProps) {
+export function DiagnosticPackageDetailContent({
+  packageId,
+  activeTab,
+  onRequestTab,
+  onUpdated,
+}: DiagnosticPackageDetailContentProps) {
   const { canEdit } = usePermissions();
   const mayEditDiagnostics = canEdit("diagnostics");
-  const [activeTab, setActiveTab] = useState<DrawerTab>("overview");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<DiagnosticPackageDetail | null>(null);
@@ -116,19 +121,6 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
   const [addTestsSelectedIds, setAddTestsSelectedIds] = useState<number[]>([]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
-
-  const drawerTabs = useMemo(() => {
-    const tabs = [
-      { key: "overview" as DrawerTab, label: "Overview" },
-      { key: "reasons" as DrawerTab, label: "Reasons" },
-      { key: "tests" as DrawerTab, label: "Tests" },
-    ];
-    if (isHealthiansProvider(detail?.diagnostic_provider)) {
-      tabs.push({ key: "compare", label: "Compare" });
-    }
-    tabs.push({ key: "samples-prep", label: "Samples & Prep" });
-    return tabs;
-  }, [detail?.diagnostic_provider]);
 
   const openMapForTest = useCallback(
     (testId: number, testName: string) => {
@@ -224,7 +216,7 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
       const nextGroups = testsRes.data.data?.groups ?? [];
       setDetail(nextDetail);
       setTestGroups(nextGroups);
-      setExpandedGroups(Object.fromEntries(nextGroups.map((group) => [group.group_id, true])));
+      setExpandedGroups(Object.fromEntries(nextGroups.map((group) => [group.group_id, false])));
       await fetchProviderDiff(
         packageId,
         nextDetail.diagnostic_provider,
@@ -238,29 +230,15 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
   }, [fetchProviderDiff, packageId]);
 
   useEffect(() => {
-    if (open && packageId) {
-      void fetchData();
-    }
-  }, [fetchData, open, packageId]);
+    void fetchData();
+  }, [fetchData]);
 
   useEffect(() => {
-    if (!open) {
-      setProviderDiff(null);
-      setProviderDiffError(null);
-      setProviderDiffLoading(false);
-      setGroupForkNote(false);
-      setAddTestsModalOpen(false);
-      setAddTestsGroupId(null);
-    }
-  }, [open]);
-
-  useEffect(() => {
-    if (!open || !packageId) return;
     void diagnosticFilterChipsApi
       .list("public_package")
       .then((res) => setFilterChipCatalog(res.data.data ?? []))
       .catch(() => setFilterChipCatalog([]));
-  }, [open, packageId]);
+  }, [packageId]);
 
   const withBusy = async (key: string, fn: () => Promise<void>) => {
     setBusyKey(key);
@@ -639,104 +617,178 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
     });
   };
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} aria-hidden />
-      <div className="absolute inset-y-0 right-0 w-full max-w-2xl bg-white shadow-xl border-l border-zinc-200 flex flex-col">
-        <div className="px-4 sm:px-6 py-4 border-b border-zinc-200 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-zinc-900">{detail?.package_name ?? "Package details"}</h2>
-            {detail?.diagnostic_provider && (
-              <p className="text-sm text-zinc-500">{detail.diagnostic_provider}</p>
-            )}
-            {(detail?.same_packages?.length ?? 0) > 0 ? (
-              <p className="text-sm text-zinc-600 mt-1">
-                Also offered by{" "}
-                {detail!.same_packages!
-                  .map((peer) => diagnosticProviderDisplayLabel(peer.diagnostic_provider))
-                  .join(", ")}
-              </p>
-            ) : null}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
-            aria-label="Close drawer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="px-4 sm:px-6 border-b border-zinc-200">
-          <div
-            className="flex gap-1 overflow-x-auto [&::-webkit-scrollbar]:hidden"
-            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-          >
-            {drawerTabs.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setActiveTab(tab.key as DrawerTab)}
-                className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${
-                  activeTab === tab.key
-                    ? "border-zinc-900 text-zinc-900"
-                    : "border-transparent text-zinc-500 hover:text-zinc-700"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div
-          className={`flex-1 overflow-y-auto p-4 sm:p-6 bg-zinc-50 [&::-webkit-scrollbar]:hidden ${
-            mayEditDiagnostics
-              ? ""
-              : "[&_button]:hidden [&_input]:hidden [&_textarea]:hidden [&_select]:hidden"
-          }`}
-          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-        >
+    <div className="min-w-0">
+        <div className="space-y-4">
           {error && <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>}
           {loading ? (
             <div className="text-sm text-zinc-500">Loading...</div>
           ) : activeTab === "overview" ? (
             <div className="space-y-4">
-              <div className="bg-white border border-zinc-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                <div><p className="text-zinc-500">Package name</p><p className="text-zinc-900 font-medium">{detail?.package_name ?? "—"}</p></div>
-                <div><p className="text-zinc-500">Provider</p><p className="text-zinc-900">{detail?.diagnostic_provider ?? "—"}</p></div>
-                <div><p className="text-zinc-500">{diagnosticProviderDisplayLabel(detail?.diagnostic_provider)} package code</p><p className="text-zinc-900">{detail?.external_package_code ?? "—"}</p></div>
-                <div><p className="text-zinc-500">Tests</p><p className="text-zinc-900">{detail?.no_of_tests ?? "—"}</p></div>
-                <div><p className="text-zinc-500">Report duration (hrs)</p><p className="text-zinc-900">{detail?.report_duration_hours ?? "—"}</p></div>
-                <div><p className="text-zinc-500">Collection type</p><p className="text-zinc-900">{detail?.collection_type ?? "—"}</p></div>
-                <div><p className="text-zinc-500">Gender</p><p className="text-zinc-900">{detail?.gender_suitability ?? "—"}</p></div>
-                <div><p className="text-zinc-500">Price</p><p className="text-zinc-900">{detail?.price != null ? `₹${detail.price}` : "—"}</p></div>
-                <div><p className="text-zinc-500">Original price</p><p className="text-zinc-900">{detail?.original_price != null ? `₹${detail.original_price}` : "—"}</p></div>
-                <div><p className="text-zinc-500">Bookings</p><p className="text-zinc-900">{detail?.bookings_count ?? "—"}</p></div>
-                {detail?.complementary_consultation && Object.keys(detail.complementary_consultation).length > 0 ? (
-                  Object.entries(detail.complementary_consultation).map(([key, val]) => (
-                    <div key={key}>
-                      <p className="text-zinc-500 capitalize">{key} consultation</p>
-                      <p className="text-zinc-900">{val ? "Yes" : "No"}</p>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-3 text-sm">
+                  <h3 className="text-sm font-semibold text-zinc-900">Package</h3>
+                  <div className="flex gap-3">
+                    {detail?.package_image ? (
+                      <img
+                        src={detail.package_image}
+                        alt=""
+                        className="h-16 w-16 rounded-lg object-cover border border-zinc-200 shrink-0"
+                      />
+                    ) : null}
+                    <div className="min-w-0 grid grid-cols-1 sm:grid-cols-2 gap-2 flex-1">
+                      <div><p className="text-zinc-500">Provider</p><p className="text-zinc-900">{diagnosticProviderDisplayLabel(detail?.diagnostic_provider)}</p></div>
+                      <div><p className="text-zinc-500">Lab code</p><p className="text-zinc-900">{detail?.external_package_code ?? "—"}</p></div>
+                      <div><p className="text-zinc-500">Tests</p><p className="text-zinc-900">{detail?.no_of_tests ?? "—"}</p></div>
+                      <div><p className="text-zinc-500">Report (hrs)</p><p className="text-zinc-900">{detail?.report_duration_hours ?? "—"}</p></div>
+                      <div><p className="text-zinc-500">Collection</p><p className="text-zinc-900">{detail?.collection_type ?? "—"}</p></div>
+                      <div><p className="text-zinc-500">Gender</p><p className="text-zinc-900">{detail?.gender_suitability ?? "—"}</p></div>
+                      <div><p className="text-zinc-500">Audience</p><p className="text-zinc-900">{detail?.package_for ?? "—"}</p></div>
+                      <div>
+                        <p className="text-zinc-500">Status</p>
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${(detail?.status ?? "").toLowerCase() === "active" ? "bg-green-50 text-green-700" : "bg-zinc-100 text-zinc-500"}`}>
+                          {(detail?.status ?? "").toLowerCase() === "active" ? "Active" : "Inactive"}
+                        </span>
+                      </div>
                     </div>
-                  ))
-                ) : (
-                  <div>
-                    <p className="text-zinc-500">Consultations</p>
-                    <p className="text-zinc-900">None</p>
                   </div>
-                )}
-                <div>
-                  <p className="text-zinc-500">Status</p>
-                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${(detail?.status ?? "").toLowerCase() === "active" ? "bg-green-50 text-green-700" : "bg-zinc-100 text-zinc-500"}`}>
-                    {(detail?.status ?? "").toLowerCase() === "active" ? "Active" : "Inactive"}
-                  </span>
+                  {(detail?.same_packages?.length ?? 0) > 0 && (
+                    <p className="text-xs text-zinc-600">
+                      Also offered by{" "}
+                      {detail!.same_packages!.map((peer, i) => (
+                        <span key={peer.diagnostic_package_id}>
+                          {i > 0 ? ", " : ""}
+                          <RouterLink
+                            to={`/diagnostics/packages/${peer.diagnostic_package_id}`}
+                            className="text-zinc-900 underline underline-offset-2"
+                          >
+                            {diagnosticProviderDisplayLabel(peer.diagnostic_provider)}
+                          </RouterLink>
+                        </span>
+                      ))}
+                    </p>
+                  )}
                 </div>
-                <div className="sm:col-span-2"><p className="text-zinc-500">Health areas covered</p><p className="text-zinc-900 whitespace-pre-wrap">{detail?.health_areas_covered ?? "—"}</p></div>
-                <div className="sm:col-span-2"><p className="text-zinc-500">About</p><p className="text-zinc-900 whitespace-pre-wrap">{detail?.about_text ?? "—"}</p></div>
+                <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-2 text-sm">
+                  <h3 className="text-sm font-semibold text-zinc-900">Price</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div><p className="text-zinc-500">Price</p><p className="text-zinc-900 font-medium">{detail?.price != null ? `₹${detail.price}` : "—"}</p></div>
+                    <div><p className="text-zinc-500">Original</p><p className="text-zinc-900">{detail?.original_price != null ? `₹${detail.original_price}` : "—"}</p></div>
+                    <div><p className="text-zinc-500">Min price</p><p className="text-zinc-900">{detail?.min_price != null ? `₹${detail.min_price}` : "—"}</p></div>
+                    <div><p className="text-zinc-500">Bookings</p><p className="text-zinc-900">{detail?.bookings_count ?? "—"}</p></div>
+                  </div>
+                  {detail?.is_most_popular ? (
+                    <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800">Most popular</span>
+                  ) : null}
+                  <div className="pt-1">
+                    <p className="text-zinc-500 text-xs mb-1">Complementary consultations</p>
+                    {detail?.complementary_consultation && Object.keys(detail.complementary_consultation).length > 0 ? (
+                      <ul className="text-zinc-900 text-sm list-disc ml-4">
+                        {Object.entries(detail.complementary_consultation)
+                          .filter(([, val]) => val)
+                          .map(([key]) => (
+                            <li key={key} className="capitalize">{key}</li>
+                          ))}
+                      </ul>
+                    ) : (
+                      <p className="text-zinc-900">None</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-4 text-sm">
+                <h3 className="text-sm font-semibold text-zinc-900">For customers</h3>
+                <div>
+                  <p className="text-zinc-500 mb-1">About</p>
+                  <p className="text-zinc-900 whitespace-pre-wrap">{detail?.about_text?.trim() ? detail.about_text : "—"}</p>
+                </div>
+                <div>
+                  <p className="text-zinc-500 mb-1">Health areas covered</p>
+                  <p className="text-zinc-900 whitespace-pre-wrap">{detail?.health_areas_covered?.trim() ? detail.health_areas_covered : "—"}</p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-zinc-900 mb-2">Reasons to book</h4>
+                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onReasonDragEnd}>
+                    <SortableContext items={reasons.map((reason) => reason.reason_id)} strategy={verticalListSortingStrategy}>
+                      <div className="space-y-2 mb-3">
+                        {reasons.length === 0 && <p className="text-xs text-zinc-400">No reasons yet.</p>}
+                        {reasons.map((reason, index) => (
+                          <SortableItem
+                            key={reason.reason_id}
+                            id={reason.reason_id}
+                            handle={mayEditDiagnostics ? <GripVertical className="w-4 h-4" /> : <span className="w-4 shrink-0" aria-hidden />}
+                            className="bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-xs text-zinc-500 mb-0.5">#{index + 1}</p>
+                                {editingReasonId === reason.reason_id ? (
+                                  <textarea
+                                    value={editingReasonText}
+                                    onChange={(e) => setEditingReasonText(e.target.value)}
+                                    className="w-full min-h-16 border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900 text-sm"
+                                  />
+                                ) : (
+                                  <p className="text-sm text-zinc-900 whitespace-pre-wrap">{reason.reason_text}</p>
+                                )}
+                              </div>
+                              {mayEditDiagnostics && (
+                                <div className="flex gap-1 shrink-0">
+                                  {editingReasonId === reason.reason_id ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => void saveReasonEdit(reason.reason_id)}
+                                      className="px-2 py-1 text-xs rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+                                    >
+                                      Save
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingReasonId(reason.reason_id);
+                                        setEditingReasonText(reason.reason_text);
+                                      }}
+                                      className="p-1.5 rounded text-zinc-500 hover:bg-zinc-100"
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => void deleteReason(reason)}
+                                    className="p-1.5 rounded text-zinc-500 hover:bg-zinc-100 hover:text-red-600"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </SortableItem>
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
+                  {mayEditDiagnostics && (
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <textarea
+                        value={reasonInput}
+                        onChange={(e) => setReasonInput(e.target.value)}
+                        className="flex-1 min-h-20 border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900 text-sm"
+                        placeholder="Add a reason…"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void addReason()}
+                        className="px-3 py-2 rounded-lg bg-zinc-900 text-white hover:bg-zinc-800 text-sm inline-flex items-center justify-center gap-2 shrink-0"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="bg-white border border-zinc-200 rounded-xl p-4">
@@ -745,29 +797,33 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
                   {(detail?.tags ?? []).map((tag) => (
                     <span key={tag.tag_id} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-zinc-100 text-zinc-700 text-xs">
                       {tag.tag_name}
-                      <button
-                        type="button"
-                        onClick={() => void removeTag(tag)}
-                        className="text-zinc-500 hover:text-zinc-800"
-                        disabled={busyKey === `delete-tag-${tag.tag_id}`}
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
+                      {mayEditDiagnostics && (
+                        <button
+                          type="button"
+                          onClick={() => void removeTag(tag)}
+                          className="text-zinc-500 hover:text-zinc-800"
+                          disabled={busyKey === `delete-tag-${tag.tag_id}`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
                     </span>
                   ))}
                 </div>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    placeholder="Add tag"
-                    className="flex-1 border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900"
-                  />
-                  <button type="button" onClick={() => void addTag()} className="px-3 py-2 rounded-lg bg-zinc-900 text-white hover:bg-zinc-800 text-sm">
-                    Add
-                  </button>
-                </div>
+                {mayEditDiagnostics && (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      placeholder="Add tag"
+                      className="flex-1 border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900"
+                    />
+                    <button type="button" onClick={() => void addTag()} className="px-3 py-2 rounded-lg bg-zinc-900 text-white hover:bg-zinc-800 text-sm">
+                      Add
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="bg-white border border-zinc-200 rounded-xl p-4">
@@ -782,117 +838,46 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
                       className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-50 text-indigo-800 text-xs"
                     >
                       {chip.display_name}
-                      <button
-                        type="button"
-                        onClick={() => void removeFilterChipFromPackage(chip)}
-                        className="text-indigo-600 hover:text-indigo-900"
-                        disabled={busyKey === `delete-filter-chip-${chip.filter_chip_id}`}
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
+                      {mayEditDiagnostics && (
+                        <button
+                          type="button"
+                          onClick={() => void removeFilterChipFromPackage(chip)}
+                          className="text-indigo-600 hover:text-indigo-900"
+                          disabled={busyKey === `delete-filter-chip-${chip.filter_chip_id}`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
                     </span>
                   ))}
                   {packageFilterChips.length === 0 && (
                     <span className="text-xs text-zinc-400">No filter chips assigned.</span>
                   )}
                 </div>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <select
-                    value={selectedFilterChipId}
-                    onChange={(e) => setSelectedFilterChipId(e.target.value)}
-                    className="flex-1 border border-zinc-300 rounded-lg px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-zinc-900"
-                  >
-                    <option value="">Select a filter chip…</option>
-                    {assignableFilterChips.map((c) => (
-                      <option key={c.filter_chip_id} value={c.filter_chip_id}>
-                        {c.display_name} ({c.chip_key})
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => void addFilterChipToPackage()}
-                    disabled={!selectedFilterChipId || busyKey?.startsWith("add-filter-chip-")}
-                    className="px-3 py-2 rounded-lg bg-zinc-900 text-white hover:bg-zinc-800 text-sm disabled:opacity-50"
-                  >
-                    Add chip
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : activeTab === "reasons" ? (
-            <div className="space-y-3">
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onReasonDragEnd}>
-                <SortableContext items={reasons.map((reason) => reason.reason_id)} strategy={verticalListSortingStrategy}>
-                  <div className="space-y-2">
-                    {reasons.map((reason, index) => (
-                      <SortableItem
-                        key={reason.reason_id}
-                        id={reason.reason_id}
-                        handle={<GripVertical className="w-4 h-4" />}
-                        className="bg-white border border-zinc-200 rounded-lg px-3 py-3"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-xs text-zinc-500 mb-1">#{index + 1}</p>
-                            {editingReasonId === reason.reason_id ? (
-                              <textarea
-                                value={editingReasonText}
-                                onChange={(e) => setEditingReasonText(e.target.value)}
-                                className="w-full min-h-20 border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900"
-                              />
-                            ) : (
-                              <p className="text-sm text-zinc-900 whitespace-pre-wrap">{reason.reason_text}</p>
-                            )}
-                          </div>
-                          <div className="flex gap-1">
-                            {editingReasonId === reason.reason_id ? (
-                              <button
-                                type="button"
-                                onClick={() => void saveReasonEdit(reason.reason_id)}
-                                className="px-2 py-1 text-xs rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
-                              >
-                                Save
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingReasonId(reason.reason_id);
-                                  setEditingReasonText(reason.reason_text);
-                                }}
-                                className="p-1.5 rounded text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => void deleteReason(reason)}
-                              className="p-1.5 rounded text-zinc-500 hover:bg-zinc-100 hover:text-red-600"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </SortableItem>
-                    ))}
+                {mayEditDiagnostics && (
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <select
+                      value={selectedFilterChipId}
+                      onChange={(e) => setSelectedFilterChipId(e.target.value)}
+                      className="flex-1 border border-zinc-300 rounded-lg px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-zinc-900"
+                    >
+                      <option value="">Select a filter chip…</option>
+                      {assignableFilterChips.map((c) => (
+                        <option key={c.filter_chip_id} value={c.filter_chip_id}>
+                          {c.display_name} ({c.chip_key})
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => void addFilterChipToPackage()}
+                      disabled={!selectedFilterChipId || busyKey?.startsWith("add-filter-chip-")}
+                      className="px-3 py-2 rounded-lg bg-zinc-900 text-white hover:bg-zinc-800 text-sm disabled:opacity-50"
+                    >
+                      Add chip
+                    </button>
                   </div>
-                </SortableContext>
-              </DndContext>
-              <div className="bg-white border border-zinc-200 rounded-xl p-3">
-                <textarea
-                  value={reasonInput}
-                  onChange={(e) => setReasonInput(e.target.value)}
-                  className="w-full min-h-24 border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900"
-                  placeholder="Add reason..."
-                />
-                <div className="flex justify-end mt-2">
-                  <button type="button" onClick={() => void addReason()} className="px-3 py-2 rounded-lg bg-zinc-900 text-white hover:bg-zinc-800 text-sm inline-flex items-center gap-2">
-                    <Plus className="w-4 h-4" />
-                    Add Reason
-                  </button>
-                </div>
+                )}
               </div>
             </div>
           ) : activeTab === "tests" ? (
@@ -996,7 +981,7 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
                     {isHealthians && (
                       <button
                         type="button"
-                        onClick={() => setActiveTab("compare")}
+                        onClick={() => onRequestTab("compare")}
                         className="text-sm font-medium text-zinc-900 underline underline-offset-2 hover:text-zinc-700"
                       >
                         Compare with Healthians
@@ -1163,6 +1148,7 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
               <DiagnosticPackageProviderCompare
                 packageId={packageId}
                 externalPackageCode={detail?.external_package_code}
+                editPackagePath={`/diagnostics/packages/${packageId}/edit`}
                 diff={providerDiff}
                 diffLoading={providerDiffLoading}
                 diffError={providerDiffError}
@@ -1623,7 +1609,6 @@ export function DiagnosticPackageDrawer({ open, packageId, onClose, onUpdated }:
             );
           }}
         />
-      </div>
     </div>
   );
 }
