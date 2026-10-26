@@ -6,6 +6,7 @@ import { pageBackgroundStyle } from "./pageBackgroundStyle";
 import { StoryRichEditor, type StoryRichEditorHandle } from "./kit/StoryRichEditor";
 import { mediaUrl as resolveMedia, PALETTE, type StoryBlock } from "./kit/lib/storyBlocks";
 import { authStorage } from "../../lib/authStorage";
+import { usePermissions } from "../../contexts/PermissionContext";
 import { Modal } from "../../shared/ui/Modal";
 import {
   blogError,
@@ -54,6 +55,8 @@ function parseFocusKeywords(focusKeyword: string | undefined): string[] {
 export function BlogEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { canEditTask } = usePermissions();
+  const mayEditPosts = canEditTask("blog", "posts");
   const editorRef = useRef<StoryRichEditorHandle>(null);
   const [postId, setPostId] = useState(id || "");
   const [title, setTitle] = useState("");
@@ -229,6 +232,12 @@ export function BlogEditor() {
 
   return (
     <div className="-m-4 flex h-[calc(100dvh-3.5rem)] min-h-0 min-w-0 flex-col overflow-hidden sm:-m-6">
+      {!mayEditPosts ? (
+        <p className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          View-only access. You cannot save changes to this post.
+        </p>
+      ) : null}
+      <div className={mayEditPosts ? undefined : "pointer-events-none opacity-95"}>
       <StoryRichEditor
         key={editorKey}
         ref={editorRef}
@@ -248,20 +257,24 @@ export function BlogEditor() {
               Preview
             </button>
             {saveState ? <span className="text-sm text-zinc-500">{saveState}</span> : null}
-            <button
-              type="button"
-              className="h-8 rounded-full border border-zinc-300 bg-white px-3 text-sm text-zinc-800"
-              onClick={() => void save("draft")}
-            >
-              Save draft
-            </button>
-            <button
-              type="button"
-              className="h-8 rounded-full bg-emerald-500 px-3 text-sm font-semibold text-white"
-              onClick={() => setConfirmPublish(true)}
-            >
-              Publish
-            </button>
+            {mayEditPosts ? (
+              <>
+                <button
+                  type="button"
+                  className="h-8 rounded-full border border-zinc-300 bg-white px-3 text-sm text-zinc-800"
+                  onClick={() => void save("draft")}
+                >
+                  Save draft
+                </button>
+                <button
+                  type="button"
+                  className="h-8 rounded-full bg-emerald-500 px-3 text-sm font-semibold text-white"
+                  onClick={() => setConfirmPublish(true)}
+                >
+                  Publish
+                </button>
+              </>
+            ) : null}
           </div>
         }
         header={
@@ -294,6 +307,7 @@ export function BlogEditor() {
           </>
         }
       />
+      </div>
 
       {drawer ? (
         <>
@@ -482,22 +496,24 @@ export function BlogEditor() {
                 <img className="h-32 w-full rounded-lg object-cover" src={resolveMedia(thumbnailUrl) || ""} alt="" />
               ) : null}
             </div>
-            <footer className="flex gap-2 border-t border-zinc-200 px-4 py-3">
-              <button
-                type="button"
-                className="h-10 flex-1 rounded-lg border border-zinc-300 text-sm text-zinc-800"
-                onClick={() => void save("draft")}
-              >
-                Save draft
-              </button>
-              <button
-                type="button"
-                className="h-10 flex-1 rounded-lg bg-zinc-900 text-sm font-medium text-white"
-                onClick={() => setConfirmPublish(true)}
-              >
-                Publish
-              </button>
-            </footer>
+            {mayEditPosts ? (
+              <footer className="flex gap-2 border-t border-zinc-200 px-4 py-3">
+                <button
+                  type="button"
+                  className="h-10 flex-1 rounded-lg border border-zinc-300 text-sm text-zinc-800"
+                  onClick={() => void save("draft")}
+                >
+                  Save draft
+                </button>
+                <button
+                  type="button"
+                  className="h-10 flex-1 rounded-lg bg-zinc-900 text-sm font-medium text-white"
+                  onClick={() => setConfirmPublish(true)}
+                >
+                  Publish
+                </button>
+              </footer>
+            ) : null}
           </aside>
         </>
       ) : null}

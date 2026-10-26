@@ -14,7 +14,7 @@ describe("RBAC permission contracts", () => {
       "users", "organizations", "engagements", "engagement_console",
       "assessments", "diagnostics", "reports", "experts",
       "payments_bookings", "discounts", "notifications", "checklists_tasks", "support",
-      "employees", "partners", "platform_settings", "system_monitoring",
+      "employees", "partners", "blog", "platform_settings", "system_monitoring",
     ]);
   });
 
@@ -26,7 +26,7 @@ describe("RBAC permission contracts", () => {
     });
     expect(permissions.users).toBe("edit");
     expect(permissions.support).toBe("view");
-    expect(Object.keys(permissions)).toHaveLength(17);
+    expect(Object.keys(permissions)).toHaveLength(18);
   });
 
   it("normalizes the permissions envelope returned by users/me", () => {
@@ -79,8 +79,9 @@ describe("RBAC permission contracts", () => {
     expect(categoryForPath("/discounts")).toBe("discounts");
   });
 
-  it("does not expose blog as an Employees permission category", () => {
-    expect(PERMISSION_CATEGORIES).not.toContain("blog");
-    expect(PERMISSION_METADATA.map((row) => row.key)).not.toContain("blog");
+  it("maps blog routes to the blog permission category", () => {
+    expect(categoryForPath("/blog")).toBe("blog");
+    expect(categoryForPath("/blog/editor/12")).toBe("blog");
+    expect(PERMISSION_METADATA.map((row) => row.key)).toContain("blog");
   });
 });

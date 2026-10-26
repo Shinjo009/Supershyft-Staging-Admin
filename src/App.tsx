@@ -258,6 +258,7 @@ function OrgManagerRoute({ children }: { children: React.ReactNode }) {
 
 function AuthorRoute({ children }: { children: React.ReactNode }) {
   const { employeeRole, isLoading } = useAuth();
+  const { canView } = usePermissions();
   const location = useLocation();
   if (isLoading) {
     return (
@@ -267,7 +268,7 @@ function AuthorRoute({ children }: { children: React.ReactNode }) {
     );
   }
   const isAuthor = employeeRole === "author";
-  const canUseBlog = isAuthor || employeeRole === "admin";
+  const canUseBlog = isAuthor || employeeRole === "admin" || canView("blog");
   const onBlog = location.pathname === "/blog" || location.pathname.startsWith("/blog/");
   if (isAuthor && !onBlog) {
     return <Navigate to="/blog" replace />;
@@ -341,10 +342,10 @@ function AppRoutes() {
         <Route path="employees" element={<Navigate to="/employees/employees" replace />} />
         <Route path="employees/:tab" element={<PermissionRoute category="employees"><Employees /></PermissionRoute>} />
         <Route path="partners" element={<PermissionRoute category="partners"><Partners /></PermissionRoute>} />
-        <Route path="blog" element={<BlogDashboard />} />
-        <Route path="blog/editor" element={<BlogEditor />} />
-        <Route path="blog/editor/:id" element={<BlogEditor />} />
-        <Route path="blog/view/:id" element={<BlogPreview />} />
+        <Route path="blog" element={<PermissionRoute category="blog"><BlogDashboard /></PermissionRoute>} />
+        <Route path="blog/editor" element={<PermissionRoute category="blog"><BlogEditor /></PermissionRoute>} />
+        <Route path="blog/editor/:id" element={<PermissionRoute category="blog"><BlogEditor /></PermissionRoute>} />
+        <Route path="blog/view/:id" element={<PermissionRoute category="blog"><BlogPreview /></PermissionRoute>} />
         <Route
           path="assessments"
           element={<Navigate to="/assessments/packages" replace />}

@@ -2,9 +2,12 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { BlogArticleBody, DevicePreviewFrame } from "./DevicePreviewFrame";
 import { blogError, getPost, type PostDetail } from "./blogApi";
+import { usePermissions } from "../../contexts/PermissionContext";
 
 export function BlogPreview() {
   const { id = "" } = useParams();
+  const { canEditTask } = usePermissions();
+  const mayEditPosts = canEditTask("blog", "posts");
   const [post, setPost] = useState<PostDetail | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -39,7 +42,7 @@ export function BlogPreview() {
       {!loading && !error && post ? (
         <DevicePreviewFrame
           toolbarExtra={
-            id ? (
+            id && mayEditPosts ? (
               <Link
                 className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm text-zinc-800 hover:bg-zinc-50"
                 to={`/blog/editor/${id}`}

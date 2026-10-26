@@ -14,6 +14,7 @@ export const PERMISSION_CATEGORIES = [
   "support",
   "employees",
   "partners",
+  "blog",
   "platform_settings",
   "system_monitoring",
 ] as const;
@@ -55,6 +56,7 @@ export const PERMISSION_METADATA: ReadonlyArray<{
   { key: "support", label: "Support", description: "Support tickets" },
   { key: "employees", label: "Employees", description: "Employee directory" },
   { key: "partners", label: "Partners", description: "Phlebo, expert, and organization manager partners" },
+  { key: "blog", label: "Blogs", description: "Blog posts, categories, and media" },
   { key: "platform_settings", label: "Platform Settings", description: "Platform-level configuration" },
   { key: "system_monitoring", label: "System Monitoring", description: "Server health and monitoring" },
 ] as const;
@@ -192,6 +194,7 @@ export function categoryForPath(pathname: string): PermissionCategory | null {
   if (pathname.startsWith("/support")) return "support";
   if (pathname.startsWith("/employees")) return "employees";
   if (pathname.startsWith("/partners")) return "partners";
+  if (pathname.startsWith("/blog")) return "blog";
   if (pathname.startsWith("/settings")) return "platform_settings";
   if (pathname.startsWith("/server")) return "system_monitoring";
   if (pathname.startsWith("/integration-logs")) return "system_monitoring";

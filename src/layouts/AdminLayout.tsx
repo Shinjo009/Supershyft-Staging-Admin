@@ -47,6 +47,7 @@ const primaryNavItems = [
   { to: "/settings", icon: Settings, label: "Settings", category: "platform_settings" },
   { to: "/employees", icon: Users, label: "Employees", category: "employees" },
   { to: "/partners", icon: Handshake, label: "Partners", category: "partners" },
+  { to: "/blog", icon: PenLine, label: "Blog Dashboard", end: false as const, category: "blog" },
 ];
 
 const libraryNavItems = [
@@ -151,7 +152,6 @@ function AdminLayoutView() {
   const libraryExpanded = libraryOpen || isLibraryPath(location.pathname);
   const isOrgManager = employeeRole === "organization_manager";
   const isAuthor = employeeRole === "author";
-  const isFullAdmin = employeeRole === "admin";
   const visiblePrimaryItems = primaryNavItems.filter(
     (item) => item.category === null || canView(item.category as PermissionCategory)
   );
@@ -351,22 +351,6 @@ function AdminLayoutView() {
               {!sidebarCollapsed && <span>{label}</span>}
             </NavLink>
           ))}
-          {isFullAdmin
-            ? authorNavItems.map(({ to, icon: Icon, label, end }) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  end={end}
-                  onClick={closeMobileMenu}
-                  className={({ isActive }) =>
-                    `${navLinkClass({ isActive })} ${sidebarCollapsed ? "justify-center" : ""}`
-                  }
-                >
-                  <Icon className="w-5 h-5 shrink-0" />
-                  {!sidebarCollapsed && <span>{label}</span>}
-                </NavLink>
-              ))
-            : null}
             </>
           )}
         </nav>

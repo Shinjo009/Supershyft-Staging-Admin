@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { Link, useNavigate } from "react-router-dom";
 import { Plus } from "lucide-react";
 import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
+import { usePermissions } from "../../contexts/PermissionContext";
 import { PortalMenu } from "../../shared/ui/PortalMenu";
 import { mediaUrl } from "./kit/lib/storyBlocks";
 import {
@@ -31,12 +32,14 @@ function PostRowActions({
   onToggle,
   onClose,
   onDelete,
+  canEditPosts,
 }: {
   post: ListedPost;
   open: boolean;
   onToggle: () => void;
   onClose: () => void;
   onDelete: () => void;
+  canEditPosts: boolean;
 }) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const itemClass = "block w-full px-3 py-2 text-left text-sm text-zinc-800 hover:bg-zinc-50";
@@ -60,12 +63,16 @@ function PostRowActions({
         <Link className={itemClass} to={`/blog/view/${post.id}`} role="menuitem" onClick={onClose}>
           View
         </Link>
-        <Link className={itemClass} to={`/blog/editor/${post.id}`} role="menuitem" onClick={onClose}>
-          Edit
-        </Link>
-        <button type="button" className={`${itemClass} text-red-600 hover:bg-red-50`} role="menuitem" onClick={onDelete}>
-          Delete
-        </button>
+        {canEditPosts ? (
+          <>
+            <Link className={itemClass} to={`/blog/editor/${post.id}`} role="menuitem" onClick={onClose}>
+              Edit
+            </Link>
+            <button type="button" className={`${itemClass} text-red-600 hover:bg-red-50`} role="menuitem" onClick={onDelete}>
+              Delete
+            </button>
+          </>
+        ) : null}
       </PortalMenu>
     </>
   );
@@ -80,6 +87,9 @@ function formatWhen(iso: string | null): string {
 
 export function BlogDashboard() {
   const navigate = useNavigate();
+  const { canEditTask } = usePermissions();
+  const mayEditPosts = canEditTask("blog", "posts");
+  const mayEditCategories = canEditTask("blog", "categories");
   const [posts, setPosts] = useState<ListedPost[]>([]);
   const [categories, setCategories] = useState<BlogCategory[]>([]);
   const [status, setStatus] = useState("all");
@@ -225,7 +235,9 @@ export function BlogDashboard() {
   return (
     <div className="min-w-0 space-y-4" onClick={() => setMenuId(null)}>
       <PageHeaderActions>
-        <HeaderActionButton label="New post" icon={Plus} onClick={() => navigate("/blog/editor")} />
+        {mayEditPosts ? (
+          <HeaderActionButton label="New post" icon={Plus} onClick={() => navigate("/blog/editor")} />
+        ) : null}
       </PageHeaderActions>
 
       <div>
@@ -358,6 +370,7 @@ export function BlogDashboard() {
                         onToggle={() => setMenuId((current) => (current === post.id ? null : post.id))}
                         onClose={() => setMenuId(null)}
                         onDelete={() => void removePost(post)}
+                        canEditPosts={mayEditPosts}
                       />
                     </td>
                   </tr>
@@ -400,17 +413,19 @@ export function BlogDashboard() {
 
       <section className="rounded-xl border border-zinc-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-zinc-900">Categories</h2>
-        <form className="mt-3 flex gap-2" onSubmit={saveCategory}>
-          <input
-            className={`${fieldClass} flex-1`}
-            value={categoryName}
-            onChange={(event) => setCategoryName(event.target.value)}
-            placeholder="New category"
-          />
-          <button type="submit" className="h-10 rounded-lg border border-zinc-300 px-4 text-sm text-zinc-800">
-            Add
-          </button>
-        </form>
+        {mayEditCategories ? (
+          <form className="mt-3 flex gap-2" onSubmit={saveCategory}>
+            <input
+              className={`${fieldClass} flex-1`}
+              value={categoryName}
+              onChange={(event) => setCategoryName(event.target.value)}
+              placeholder="New category"
+            />
+            <button type="submit" className="h-10 rounded-lg border border-zinc-300 px-4 text-sm text-zinc-800">
+              Add
+            </button>
+          </form>
+        ) : null}
         <ul className="mt-3 divide-y divide-zinc-100">
           {categories.map((item) => (
             <li key={item.id} className="flex items-center justify-between gap-3 py-2 text-sm">
@@ -430,20 +445,22 @@ export function BlogDashboard() {
                   {item.name} <span className="text-zinc-400">({item.post_count})</span>
                 </span>
               )}
-              <span className="flex gap-3 text-zinc-500">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRenameId(item.id);
-                    setRenameValue(item.name);
-                  }}
-                >
-                  Rename
-                </button>
-                <button type="button" className="text-red-600" onClick={() => void removeCategory(item)}>
-                  Delete
-                </button>
-              </span>
+              {mayEditCategories ? (
+                <span className="flex gap-3 text-zinc-500">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRenameId(item.id);
+                      setRenameValue(item.name);
+                    }}
+                  >
+                    Rename
+                  </button>
+                  <button type="button" className="text-red-600" onClick={() => void removeCategory(item)}>
+                    Delete
+                  </button>
+                </span>
+              ) : null}
             </li>
           ))}
         </ul>
