@@ -28,6 +28,7 @@ import {
   Tag,
   RefreshCw,
   PenLine,
+  Trophy,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { usePermissions } from "../contexts/PermissionContext";
@@ -40,6 +41,9 @@ const primaryNavItems = [
   { to: "/users", icon: UserRound, label: "Users", category: "users" },
   { to: "/experts", icon: Stethoscope, label: "Experts", category: "experts" },
   { to: "/organisations", icon: Building2, label: "Organisations", category: "organizations" },
+  { to: "/diagnostics/packages", icon: FlaskConical, label: "Diagnostics", category: "diagnostics" },
+  { to: "/notifications/notifications", icon: Bell, label: "Notifications", category: "notifications" },
+  { to: "/superclub", icon: Trophy, label: "Super Club", category: "superclub" },
   { to: "/engagements", icon: CalendarCheck, label: "Engagements", category: "engagements" },
   { to: "/support", icon: LifeBuoy, label: "Support", category: "support" },
   { to: "/server", icon: Server, label: "Server", category: "system_monitoring" },
@@ -52,12 +56,10 @@ const primaryNavItems = [
 
 const libraryNavItems = [
   { to: "/assessments/packages", icon: ClipboardList, label: "Assessments", category: "assessments" },
-  { to: "/diagnostics/packages", icon: FlaskConical, label: "Diagnostics", category: "diagnostics" },
   { to: "/discounts", icon: Tag, label: "Discounts", category: "discounts" },
   { to: "/payments/bookings", icon: CreditCard, label: "Payments", category: "payments_bookings" },
   { to: "/checklists", icon: ClipboardCheck, label: "Checklist templates", category: "checklists_tasks" },
   { to: "/library/health-metrics", icon: Activity, label: "Health Metrics", category: "diagnostics" },
-  { to: "/notifications/notifications", icon: Bell, label: "Notifications", category: "notifications" },
 ];
 
 const orgManagerNavItems = [
@@ -70,12 +72,10 @@ const authorNavItems = [{ to: "/blog", icon: PenLine, label: "Blog Dashboard", e
 function isLibraryPath(pathname: string) {
   return (
     pathname.startsWith("/assessments") ||
-    pathname.startsWith("/diagnostics") ||
     pathname.startsWith("/discounts") ||
     pathname.startsWith("/payments") ||
     pathname.startsWith("/checklists") ||
-    pathname.startsWith("/library") ||
-    pathname.startsWith("/notifications")
+    pathname.startsWith("/library")
   );
 }
 
@@ -103,6 +103,7 @@ function pageTitleForPath(pathname: string): string {
     "/checklists": "Checklist Templates",
     "/library/health-metrics": "Health Metrics",
     "/notifications/notifications": "Notifications",
+    "/superclub": "Super Club",
   };
   if (exact[pathname]) return exact[pathname];
 
@@ -114,6 +115,7 @@ function pageTitleForPath(pathname: string): string {
   if (pathname.startsWith("/diagnostics/")) return "Diagnostics";
   if (pathname.startsWith("/payments/")) return "Payments";
   if (pathname.startsWith("/notifications/")) return "Notifications";
+  if (pathname.startsWith("/superclub")) return "Super Club";
   if (pathname.startsWith("/checklists/")) return "Checklist templates";
   if (pathname.startsWith("/library/")) return "Health Metrics";
   if (pathname.startsWith("/server")) return "Server";

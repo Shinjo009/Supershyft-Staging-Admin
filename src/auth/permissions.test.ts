@@ -14,7 +14,7 @@ describe("RBAC permission contracts", () => {
       "users", "organizations", "engagements", "engagement_console",
       "assessments", "diagnostics", "reports", "experts",
       "payments_bookings", "discounts", "notifications", "checklists_tasks", "support",
-      "employees", "partners", "blog", "platform_settings", "system_monitoring",
+      "employees", "partners", "blog", "superclub", "platform_settings", "system_monitoring",
     ]);
   });
 
@@ -26,7 +26,7 @@ describe("RBAC permission contracts", () => {
     });
     expect(permissions.users).toBe("edit");
     expect(permissions.support).toBe("view");
-    expect(Object.keys(permissions)).toHaveLength(18);
+    expect(Object.keys(permissions)).toHaveLength(19);
   });
 
   it("normalizes the permissions envelope returned by users/me", () => {

@@ -819,6 +819,56 @@ export const usersApi = {
     api.post<{ data: PublicUserOnboardResponse }>("/users/public/onboard", payload),
 };
 
+export interface SportsPlaylistPayload {
+  sportIds: string[];
+  otherSelected: boolean;
+  otherNote: string;
+}
+
+export interface SuperClubPlaylistRow {
+  user_id: number;
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  city?: string | null;
+  status?: string | null;
+  is_participant?: boolean | null;
+  created_at?: string | null;
+  sports_playlists: SportsPlaylistPayload;
+  playlist_updated_at?: string | null;
+}
+
+export interface SuperClubSportCatalogItem {
+  id: string;
+  label: string;
+}
+
+export const superclubApi = {
+  list: (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    sport_id?: string[];
+    other_selected?: boolean;
+    sort_by?: string;
+    sort_dir?: "asc" | "desc";
+  }) =>
+    api.get<{
+      data: SuperClubPlaylistRow[];
+      meta: {
+        page: number;
+        limit: number;
+        total: number;
+        playlists_submitted: number;
+        other_count: number;
+        avg_sports: number;
+        sport_catalog: SuperClubSportCatalogItem[];
+        sport_counts: Record<string, number>;
+      };
+    }>("/superclub/playlists", { params }),
+};
+
 // Participant journey (employee: per-user assessments + questionnaire)
 export interface ParticipantJourneyUnansweredQuestion {
   question_id: number;

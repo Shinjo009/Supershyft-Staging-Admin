@@ -110,6 +110,9 @@ const ExpertCampConsultationParticipantsPage = lazy(() =>
 const Notifications = lazy(() =>
   import("./features/notifications/Notifications").then((m) => ({ default: m.Notifications }))
 );
+const SuperClub = lazy(() =>
+  import("./features/superclub/SuperClub").then((m) => ({ default: m.SuperClub }))
+);
 const EngagementConsolePage = lazy(() =>
   import("./features/console/EngagementConsolePage").then((m) => ({ default: m.EngagementConsolePage }))
 );
@@ -395,6 +398,7 @@ function AppRoutes() {
         />
         <Route path="users/:userId/journey" element={<PermissionRoute category="users"><ParticipantJourneyPage /></PermissionRoute>} />
         <Route path="users" element={<PermissionRoute category="users"><Users /></PermissionRoute>} />
+        <Route path="superclub" element={<PermissionRoute category="superclub"><SuperClub /></PermissionRoute>} />
         <Route path="experts" element={<PermissionRoute category="experts"><Experts /></PermissionRoute>} />
         <Route path="diagnostics" element={<Navigate to="/diagnostics/packages" replace />} />
         <Route
