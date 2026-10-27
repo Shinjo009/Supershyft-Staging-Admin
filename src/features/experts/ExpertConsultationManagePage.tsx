@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
+  ChevronDown,
   FileText,
   Loader2,
   Paperclip,
@@ -12,8 +13,13 @@ import {
   manageDetailToConsentParticipantItem,
   needsAskConsentFromManageDetail,
 } from "./campConsultationConsent";
+import {
+  categoryCompletionLabel,
+  formatQuestionnaireAnswer,
+  prepareExpertQuestionnaireCategories,
+  shouldHideQuestionInExpertView,
+} from "./questionnaireAnswerDisplay";
 import { ExpertPortalLayout } from "../../layouts/ExpertPortalLayout";
-import { Modal } from "../../shared/ui/Modal";
 import {
   expertsPortalApi,
   getApiError,
@@ -22,9 +28,11 @@ import {
   type ConsultationManageDetail,
   type ConsultationQuestionnaireCategory,
   type ConsultationQuestionnairePayload,
+  type ConsultationQuestionnaireQuestion,
 } from "../../lib/api";
 
 type PdfKind = "bio_ai" | "blood_report";
+type SharedRecordsView = PdfKind | "questionnaire" | null;
 
 type CampNavState = {
   fromCamp?: boolean;
@@ -52,16 +60,107 @@ function attachmentLabel(url: string): string {
   }
 }
 
-function formatAnswer(answer: unknown): string {
-  if (answer == null) return "—";
-  if (typeof answer === "string" || typeof answer === "number" || typeof answer === "boolean") {
-    return String(answer);
+function QuestionAnswerRow({ question }: { question: ConsultationQuestionnaireQuestion }) {
+  const formatted = formatQuestionnaireAnswer(question);
+  const label =
+    String(question.question_text || question.question_key || `Question #${question.question_id}`);
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 sm:gap-4 py-2.5 border-b border-zinc-100 last:border-0">
+      <div className="text-sm text-zinc-700">{label}</div>
+      <div className="text-sm text-zinc-900 font-medium">
+        {formatted.kind === "empty" ? (
+          <span className="text-zinc-400 font-normal">Not answered</span>
+        ) : formatted.kind === "chips" ? (
+          <div className="flex flex-wrap gap-1.5">
+            {formatted.labels.map((chip) => (
+              <span
+                key={chip}
+                className="inline-flex px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-800 text-xs font-medium"
+              >
+                {chip}
+              </span>
+            ))}
+          </div>
+        ) : (
+          formatted.text
+        )}
+      </div>
+    </div>
+  );
+}
+
+function QuestionnairePane({
+  categories,
+  expandedKeys,
+  onToggle,
+}: {
+  categories: ConsultationQuestionnaireCategory[];
+  expandedKeys: Set<string>;
+  onToggle: (categoryKey: string) => void;
+}) {
+  if (categories.length === 0) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-zinc-500">
+        No questionnaire data available
+      </div>
+    );
   }
-  try {
-    return JSON.stringify(answer);
-  } catch {
-    return String(answer);
-  }
+
+  return (
+    <div className="absolute inset-0 overflow-y-auto p-3 sm:p-4">
+      <div className="space-y-2">
+        {categories.map((cat) => {
+          const key = String(cat.category_key ?? cat.category_id);
+          const open = expandedKeys.has(key);
+          const { answered, total, complete } = categoryCompletionLabel(cat);
+          const visibleQuestions = cat.questions.filter((q) => !shouldHideQuestionInExpertView(q));
+
+          return (
+            <div key={key} className="rounded-lg border border-zinc-200 bg-white overflow-hidden">
+              <button
+                type="button"
+                onClick={() => onToggle(key)}
+                className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-zinc-50"
+              >
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-zinc-900 truncate">
+                    {cat.display_name || cat.category_key || `Category #${cat.category_id}`}
+                  </div>
+                  <div className="text-xs text-zinc-500 mt-0.5">
+                    {answered}/{total} answered
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span
+                    className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                      complete
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-amber-50 text-amber-700"
+                    }`}
+                  >
+                    {complete ? "Complete" : "Incomplete"}
+                  </span>
+                  <ChevronDown
+                    className={`w-4 h-4 text-zinc-400 transition-transform ${open ? "rotate-180" : ""}`}
+                  />
+                </div>
+              </button>
+              {open ? (
+                <div className="px-3 pb-3 border-t border-zinc-100">
+                  {visibleQuestions.length === 0 ? (
+                    <p className="text-sm text-zinc-500 py-3">No questions in this category</p>
+                  ) : (
+                    visibleQuestions.map((q) => <QuestionAnswerRow key={q.question_id} question={q} />)
+                  )}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export function ExpertConsultationManagePage() {
@@ -70,7 +169,7 @@ export function ExpertConsultationManagePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const campState = (location.state as CampNavState | null) ?? null;
-  const fromCamp = Boolean(campState?.fromCamp && campState.engagementId);
+  const fromCamp = Boolean(campState?.fromCamp && campState?.engagementId);
   const backPath = fromCamp
     ? `/experts/portal/camp-consultations/${campState?.engagementId}`
     : "/experts/upcoming";
@@ -86,18 +185,15 @@ export function ExpertConsultationManagePage() {
   const [doing, setDoing] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  const [activePdf, setActivePdf] = useState<PdfKind | null>(null);
+  const [sharedView, setSharedView] = useState<SharedRecordsView>(null);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
 
-  const [questionnaireOpen, setQuestionnaireOpen] = useState(false);
   const [questionnaireLoading, setQuestionnaireLoading] = useState(false);
   const [questionnaireError, setQuestionnaireError] = useState<string | null>(null);
   const [questionnaire, setQuestionnaire] = useState<ConsultationQuestionnairePayload | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<ConsultationQuestionnaireCategory | null>(
-    null
-  );
+  const [expandedCategoryKeys, setExpandedCategoryKeys] = useState<Set<string>>(new Set());
 
   const [askConsentOpen, setAskConsentOpen] = useState(false);
   const [askConsentParticipant, setAskConsentParticipant] =
@@ -131,6 +227,17 @@ export function ExpertConsultationManagePage() {
   }, [load]);
 
   useEffect(() => {
+    setQuestionnaire(null);
+    setQuestionnaireError(null);
+    setExpandedCategoryKeys(new Set());
+    setSharedView(null);
+    setPdfBlobUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+  }, [consultationId]);
+
+  useEffect(() => {
     return () => {
       if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
     };
@@ -140,19 +247,30 @@ export function ExpertConsultationManagePage() {
 
   const shared = detail?.shared_resources;
 
+  const categories = useMemo(() => {
+    if (!questionnaire) return [];
+    const flat: ConsultationQuestionnaireCategory[] = [];
+    for (const assessment of questionnaire.assessments) {
+      flat.push(...assessment.categories);
+    }
+    return prepareExpertQuestionnaireCategories(flat);
+  }, [questionnaire]);
+
   const loadPdf = async (kind: PdfKind) => {
     if (!detail) return;
     const state = shared?.[kind];
     if (!state?.consent) {
       setPdfError("Patient has not shared this report");
+      setSharedView(kind);
       return;
     }
     if (!state.available) {
       setPdfError("Report is not available yet");
+      setSharedView(kind);
       return;
     }
 
-    setActivePdf(kind);
+    setSharedView(kind);
     setPdfLoading(true);
     setPdfError(null);
     try {
@@ -175,8 +293,20 @@ export function ExpertConsultationManagePage() {
 
   const openQuestionnaire = async () => {
     if (!detail || !shared?.questionnaire.consent) return;
-    setQuestionnaireOpen(true);
-    setSelectedCategory(null);
+    if (sharedView === "questionnaire") {
+      setSharedView(null);
+      return;
+    }
+
+    setSharedView("questionnaire");
+    setPdfError(null);
+    setPdfBlobUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+
+    if (questionnaire) return;
+
     setQuestionnaireError(null);
     setQuestionnaireLoading(true);
     try {
@@ -188,6 +318,26 @@ export function ExpertConsultationManagePage() {
     } finally {
       setQuestionnaireLoading(false);
     }
+  };
+
+  useEffect(() => {
+    if (categories.length === 0) return;
+    setExpandedCategoryKeys((prev) => {
+      if (prev.size > 0) return prev;
+      const firstWithAnswers = categories.find((cat) => categoryCompletionLabel(cat).answered > 0);
+      const target = firstWithAnswers ?? categories[0];
+      const key = String(target.category_key ?? target.category_id);
+      return new Set([key]);
+    });
+  }, [categories]);
+
+  const toggleCategory = (categoryKey: string) => {
+    setExpandedCategoryKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(categoryKey)) next.delete(categoryKey);
+      else next.add(categoryKey);
+      return next;
+    });
   };
 
   const saveConsultationNotes = useCallback(async (): Promise<boolean> => {
@@ -250,14 +400,8 @@ export function ExpertConsultationManagePage() {
     }
   };
 
-  const categories = useMemo(() => {
-    if (!questionnaire) return [];
-    const out: ConsultationQuestionnaireCategory[] = [];
-    for (const assessment of questionnaire.assessments) {
-      out.push(...assessment.categories);
-    }
-    return out;
-  }, [questionnaire]);
+  const showQuestionnairePane = sharedView === "questionnaire";
+  const showPdfPane = sharedView === "bio_ai" || sharedView === "blood_report";
 
   return (
     <ExpertPortalLayout>
@@ -342,41 +486,59 @@ export function ExpertConsultationManagePage() {
                 <SharedButton
                   label="BioAI"
                   state={shared?.bio_ai}
-                  active={activePdf === "bio_ai"}
+                  active={sharedView === "bio_ai"}
                   onClick={() => void loadPdf("bio_ai")}
                 />
                 <SharedButton
                   label="Blood report"
                   state={shared?.blood_report}
-                  active={activePdf === "blood_report"}
+                  active={sharedView === "blood_report"}
                   onClick={() => void loadPdf("blood_report")}
                 />
                 <SharedButton
                   label="Questionnaire"
                   state={shared?.questionnaire}
-                  active={questionnaireOpen}
+                  active={sharedView === "questionnaire"}
                   onClick={() => void openQuestionnaire()}
                 />
               </div>
               <div className="flex-1 bg-zinc-50 relative min-h-[20rem]">
-                {pdfLoading ? (
+                {showQuestionnairePane ? (
+                  questionnaireLoading ? (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Loader2 className="w-7 h-7 animate-spin text-zinc-400" />
+                    </div>
+                  ) : questionnaireError ? (
+                    <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-red-600">
+                      {questionnaireError}
+                    </div>
+                  ) : (
+                    <QuestionnairePane
+                      categories={categories}
+                      expandedKeys={expandedCategoryKeys}
+                      onToggle={toggleCategory}
+                    />
+                  )
+                ) : showPdfPane && pdfLoading ? (
                   <div className="absolute inset-0 flex items-center justify-center">
                     <Loader2 className="w-7 h-7 animate-spin text-zinc-400" />
                   </div>
-                ) : pdfError ? (
+                ) : showPdfPane && pdfError ? (
                   <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-zinc-500">
                     {pdfError}
                   </div>
-                ) : pdfBlobUrl ? (
+                ) : showPdfPane && pdfBlobUrl ? (
                   <iframe
-                    title={activePdf === "bio_ai" ? "BioAI report" : "Blood report"}
+                    title={sharedView === "bio_ai" ? "BioAI report" : "Blood report"}
                     src={pdfBlobUrl}
                     className="absolute inset-0 w-full h-full border-0"
                   />
                 ) : (
                   <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-400 gap-2 px-6 text-center">
                     <FileText className="w-10 h-10" />
-                    <p className="text-sm">Select BioAI or Blood report to view here</p>
+                    <p className="text-sm">
+                      Select BioAI, Blood report, or Questionnaire to view here
+                    </p>
                   </div>
                 )}
               </div>
@@ -468,74 +630,6 @@ export function ExpertConsultationManagePage() {
           </div>
         )}
       </div>
-
-      <Modal
-        open={questionnaireOpen}
-        onClose={() => {
-          setQuestionnaireOpen(false);
-          setSelectedCategory(null);
-        }}
-        title={selectedCategory ? selectedCategory.display_name || "Category" : "Questionnaire"}
-        maxWidthClassName="max-w-2xl"
-      >
-        {questionnaireLoading ? (
-          <div className="flex justify-center py-10">
-            <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
-          </div>
-        ) : questionnaireError ? (
-          <p className="text-sm text-red-600">{questionnaireError}</p>
-        ) : selectedCategory ? (
-          <div className="space-y-4">
-            <button
-              type="button"
-              onClick={() => setSelectedCategory(null)}
-              className="text-xs text-zinc-500 hover:text-zinc-800"
-            >
-              ← All categories
-            </button>
-            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-              {selectedCategory.questions.length === 0 ? (
-                <p className="text-sm text-zinc-500">No questions in this category</p>
-              ) : (
-                selectedCategory.questions.map((q) => (
-                  <div key={q.question_id} className="border-b border-zinc-100 pb-3">
-                    <div className="text-sm font-medium text-zinc-900">
-                      {String(q.question_text || q.question_key || `Question #${q.question_id}`)}
-                    </div>
-                    <div className="text-sm text-zinc-600 mt-1 whitespace-pre-wrap">
-                      {formatAnswer(q.answer)}
-                    </div>
-                    {q.answer_state && q.answer_state !== "empty" && (
-                      <div className="text-[11px] text-zinc-400 mt-1 capitalize">{q.answer_state}</div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        ) : categories.length === 0 ? (
-          <p className="text-sm text-zinc-500">No questionnaire data available</p>
-        ) : (
-          <div className="space-y-2">
-            {categories.map((cat) => (
-              <button
-                key={cat.category_id}
-                type="button"
-                onClick={() => setSelectedCategory(cat)}
-                className="w-full text-left px-3 py-2.5 rounded-lg border border-zinc-200 hover:bg-zinc-50"
-              >
-                <div className="text-sm font-medium text-zinc-900">
-                  {cat.display_name || cat.category_key || `Category #${cat.category_id}`}
-                </div>
-                <div className="text-xs text-zinc-500 mt-0.5">
-                  {cat.questions.filter((q) => q.answer_state && q.answer_state !== "empty").length}/
-                  {cat.questions.length} answered
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-      </Modal>
 
       {detail ? (
         <CampConsultationAskRequestModal

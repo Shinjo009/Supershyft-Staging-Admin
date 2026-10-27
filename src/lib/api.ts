@@ -1982,10 +1982,18 @@ export interface CampConsultationParticipantItem {
   consent?: CampConsultationRequestConsent | null;
 }
 
+export interface ConsultationQuestionnaireOption {
+  option_value?: string | null;
+  display_name?: string | null;
+  tooltip_text?: string | null;
+}
+
 export interface ConsultationQuestionnaireQuestion {
   question_id: number;
   question_key?: string | null;
   question_text?: string | null;
+  question_type?: string | null;
+  options?: ConsultationQuestionnaireOption[] | null;
   answer?: unknown;
   answer_state?: string;
   submitted_at?: string | null;
@@ -1996,6 +2004,7 @@ export interface ConsultationQuestionnaireCategory {
   category_id: number;
   display_name?: string | null;
   category_key?: string | null;
+  category_of?: string | null;
   questions: ConsultationQuestionnaireQuestion[];
 }
 
