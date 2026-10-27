@@ -4671,6 +4671,7 @@ export interface DiagnosticTestGroupStandalone {
   group_id: number;
   group_name: string;
   group_key: string;
+  healthians_group_code?: string | null;
   display_order?: number | null;
   test_count: number;
   price?: number | null;
@@ -4864,6 +4865,7 @@ export const diagnosticTestGroupsApi = {
   create: (payload: {
     group_name: string;
     group_key: string;
+    healthians_group_code?: string | null;
     display_order?: number;
     price?: number | null;
     original_price?: number | null;
@@ -4877,6 +4879,7 @@ export const diagnosticTestGroupsApi = {
     groupId: number,
     payload: {
       group_name?: string;
+      healthians_group_code?: string | null;
       group_key?: string;
       display_order?: number;
       price?: number | null;

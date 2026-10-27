@@ -292,6 +292,10 @@ export function DiagnosticTestGroupDetailContent({ groupId, onUpdated }: Diagnos
             <dt className="text-zinc-500">Display order</dt>
             <dd className="text-zinc-900">{detail.display_order ?? "—"}</dd>
           </div>
+          <div>
+            <dt className="text-zinc-500">Healthians group code</dt>
+            <dd className="text-zinc-900">{detail.healthians_group_code ?? "—"}</dd>
+          </div>
         </dl>
       </div>
 

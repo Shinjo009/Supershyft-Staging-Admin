@@ -47,6 +47,18 @@ export function DiagnosticTestGroupFormFields({
         />
       </div>
       <div>
+        <label className="block text-sm font-medium text-zinc-700 mb-1">Healthians group code</label>
+        <input
+          type="text"
+          value={form.healthians_group_code}
+          onChange={(e) =>
+            setForm((prev) => ({ ...prev, healthians_group_code: e.target.value }))
+          }
+          placeholder="Healthians catalog group id"
+          className="w-full border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900"
+        />
+      </div>
+      <div>
         <label className="block text-sm font-medium text-zinc-700 mb-1">Order</label>
         <input
           type="number"

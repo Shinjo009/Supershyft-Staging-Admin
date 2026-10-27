@@ -13,6 +13,7 @@ export function toNumberOrNull(value: string): number | null {
 export type TestGroupFormState = {
   group_name: string;
   group_key: string;
+  healthians_group_code: string;
   display_order: string;
   price: string;
   original_price: string;
@@ -26,6 +27,7 @@ export type TestGroupFormState = {
 export const EMPTY_TEST_GROUP_FORM: TestGroupFormState = {
   group_name: "",
   group_key: "",
+  healthians_group_code: "",
   display_order: "",
   price: "",
   original_price: "",
@@ -39,6 +41,7 @@ export const EMPTY_TEST_GROUP_FORM: TestGroupFormState = {
 export function testGroupToForm(row: {
   group_name: string;
   group_key?: string | null;
+  healthians_group_code?: string | null;
   display_order?: number | null;
   price?: number | null;
   original_price?: number | null;
@@ -51,6 +54,7 @@ export function testGroupToForm(row: {
   return {
     group_name: row.group_name,
     group_key: row.group_key ?? "",
+    healthians_group_code: row.healthians_group_code ?? "",
     display_order: row.display_order != null ? String(row.display_order) : "",
     price: row.price != null ? String(row.price) : "",
     original_price: row.original_price != null ? String(row.original_price) : "",
@@ -62,9 +66,27 @@ export function testGroupToForm(row: {
   };
 }
 
-export function buildTestGroupPayload(form: TestGroupFormState) {
+export type TestGroupWritePayload = {
+  group_name: string;
+  group_key: string;
+  healthians_group_code?: string | null;
+  display_order?: number;
+  price?: number | null;
+  original_price?: number | null;
+  is_most_popular?: boolean;
+  has_allergy_screening?: boolean;
+  has_cancer_screening?: boolean;
+  gender_suitability?: string;
+  package_for?: "public" | "camp";
+};
+
+export function buildTestGroupPayload(
+  form: TestGroupFormState,
+  mode: "add" | "edit" = "add"
+): TestGroupWritePayload {
   const groupKey = slugifyGroupKey(form.group_key || form.group_name);
-  return {
+  const healthiansCode = form.healthians_group_code.trim();
+  const payload: TestGroupWritePayload = {
     group_name: form.group_name.trim(),
     group_key: groupKey,
     display_order: form.display_order.trim() ? Number(form.display_order) : undefined,
@@ -76,4 +98,10 @@ export function buildTestGroupPayload(form: TestGroupFormState) {
     gender_suitability: form.gender_suitability.trim() || undefined,
     package_for: form.package_for || "public",
   };
+  if (healthiansCode) {
+    payload.healthians_group_code = healthiansCode;
+  } else if (mode === "edit") {
+    payload.healthians_group_code = null;
+  }
+  return payload;
 }

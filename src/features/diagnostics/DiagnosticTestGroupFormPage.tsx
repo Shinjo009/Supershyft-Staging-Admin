@@ -102,7 +102,7 @@ export function DiagnosticTestGroupFormPage({ mode }: { mode: FormPageMode }) {
       setFormError("Group name is required.");
       return;
     }
-    const payload = buildTestGroupPayload(form);
+    const payload = buildTestGroupPayload(form, mode);
     if (!payload.group_key) {
       setFormError("Group key is required.");
       return;
