@@ -43,7 +43,6 @@ const primaryNavItems = [
   { to: "/organisations", icon: Building2, label: "Organisations", category: "organizations" },
   { to: "/diagnostics/packages", icon: FlaskConical, label: "Diagnostics", category: "diagnostics" },
   { to: "/notifications/notifications", icon: Bell, label: "Notifications", category: "notifications" },
-  { to: "/superclub", icon: Trophy, label: "Super Club", category: "superclub" },
   { to: "/engagements", icon: CalendarCheck, label: "Engagements", category: "engagements" },
   { to: "/support", icon: LifeBuoy, label: "Support", category: "support" },
   { to: "/server", icon: Server, label: "Server", category: "system_monitoring" },
@@ -60,6 +59,7 @@ const libraryNavItems = [
   { to: "/payments/bookings", icon: CreditCard, label: "Payments", category: "payments_bookings" },
   { to: "/checklists", icon: ClipboardCheck, label: "Checklist templates", category: "checklists_tasks" },
   { to: "/library/health-metrics", icon: Activity, label: "Health Metrics", category: "diagnostics" },
+  { to: "/superclub", icon: Trophy, label: "Super Club", category: "superclub" },
 ];
 
 const orgManagerNavItems = [
@@ -75,7 +75,8 @@ function isLibraryPath(pathname: string) {
     pathname.startsWith("/discounts") ||
     pathname.startsWith("/payments") ||
     pathname.startsWith("/checklists") ||
-    pathname.startsWith("/library")
+    pathname.startsWith("/library") ||
+    pathname.startsWith("/superclub")
   );
 }
 
