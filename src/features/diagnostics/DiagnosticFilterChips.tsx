@@ -1,10 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { GripVertical, Loader2, Plus, Search, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Loader2, Plus, Search, Trash2 } from "lucide-react";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { Modal } from "../../shared/ui/Modal";
-import { SortableItem } from "../../components/SortableItem";
 import {
   diagnosticFilterChipsApi,
   getApiError,
@@ -20,6 +17,9 @@ interface DiagnosticFilterChipsProps {
 
 type ChipModalMode = "add" | "edit";
 
+const LIST_LIMIT = 10;
+const SEARCH_DEBOUNCE_MS = 300;
+
 const EMPTY_FORM = {
   display_name: "",
   chip_key: "",
@@ -32,9 +32,12 @@ export function DiagnosticFilterChips({ embedded = false }: DiagnosticFilterChip
   const mayEdit = canEditTask("diagnostics", "filter_chips");
   const [chipScope, setChipScope] = useState<DiagnosticFilterChipFor>("public_package");
   const [chips, setChips] = useState<DiagnosticFilterChip[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ChipModalMode>("add");
@@ -43,39 +46,38 @@ export function DiagnosticFilterChips({ embedded = false }: DiagnosticFilterChip
   const [formError, setFormError] = useState<string | null>(null);
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [reorderSaving, setReorderSaving] = useState(false);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   const fetchChips = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await diagnosticFilterChipsApi.list(chipScope);
+      const res = await diagnosticFilterChipsApi.list(chipScope, {
+        page,
+        limit: LIST_LIMIT,
+        search: debouncedSearch || undefined,
+        include_inactive: true,
+      });
       setChips(res.data.data ?? []);
+      setTotal(res.data.meta?.total ?? 0);
     } catch (err) {
       setError(getApiError(err));
     } finally {
       setLoading(false);
     }
-  }, [chipScope]);
+  }, [chipScope, page, debouncedSearch]);
 
   useEffect(() => {
     void fetchChips();
   }, [fetchChips]);
 
-  const filteredRows = useMemo(() => {
-    const rows = [...chips].sort(
-      (a, b) => (a.display_order ?? Number.MAX_SAFE_INTEGER) - (b.display_order ?? Number.MAX_SAFE_INTEGER)
-    );
-    if (!search.trim()) return rows;
-    const q = search.toLowerCase();
-    return rows.filter(
-      (row) =>
-        row.display_name.toLowerCase().includes(q) ||
-        row.chip_key.toLowerCase().includes(q)
-    );
-  }, [chips, search]);
+  useEffect(() => {
+    setPage(1);
+  }, [chipScope, debouncedSearch]);
 
   const openAdd = () => {
     setModalMode("add");
@@ -143,36 +145,6 @@ export function DiagnosticFilterChips({ embedded = false }: DiagnosticFilterChip
     }
   };
 
-  const persistOrder = async (rows: DiagnosticFilterChip[]) => {
-    setReorderSaving(true);
-    try {
-      await diagnosticFilterChipsApi.reorder({
-        filter_chip_ids: rows.map((row) => row.filter_chip_id),
-      });
-      await fetchChips();
-    } catch (err) {
-      setError(getApiError(err));
-    } finally {
-      setReorderSaving(false);
-    }
-  };
-
-  const onDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    const oldIndex = filteredRows.findIndex((row) => row.filter_chip_id === Number(active.id));
-    const newIndex = filteredRows.findIndex((row) => row.filter_chip_id === Number(over.id));
-    if (oldIndex < 0 || newIndex < 0) return;
-
-    const updated = arrayMove(filteredRows, oldIndex, newIndex);
-    setChips((prev) => {
-      const map = new Map(updated.map((r, idx) => [r.filter_chip_id, { ...r, display_order: idx + 1 }]));
-      return prev.map((row) => map.get(row.filter_chip_id) ?? row);
-    });
-    void persistOrder(updated);
-  };
-
   const columns: Column<DiagnosticFilterChip>[] = [
     { key: "display_name", label: "Display name", sortable: true },
     { key: "chip_key", label: "Chip key", sortable: true },
@@ -207,7 +179,10 @@ export function DiagnosticFilterChips({ embedded = false }: DiagnosticFilterChip
         <p className="text-xs font-medium text-zinc-500 px-2 py-1">Package chips</p>
         <button
           type="button"
-          onClick={() => setChipScope("public_package")}
+          onClick={() => {
+            setChipScope("public_package");
+            setPage(1);
+          }}
           className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium ${
             chipScope === "public_package" ? "bg-zinc-900 text-white" : "text-zinc-700 hover:bg-zinc-100"
           }`}
@@ -216,7 +191,10 @@ export function DiagnosticFilterChips({ embedded = false }: DiagnosticFilterChip
         </button>
         <button
           type="button"
-          onClick={() => setChipScope("custom_package")}
+          onClick={() => {
+            setChipScope("custom_package");
+            setPage(1);
+          }}
           className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium ${
             chipScope === "custom_package" ? "bg-zinc-900 text-white" : "text-zinc-700 hover:bg-zinc-100"
           }`}
@@ -242,7 +220,10 @@ export function DiagnosticFilterChips({ embedded = false }: DiagnosticFilterChip
           <input
             type="search"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
             className="w-full pl-9 pr-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-zinc-900"
             placeholder="Search filter chips..."
           />
@@ -257,42 +238,19 @@ export function DiagnosticFilterChips({ embedded = false }: DiagnosticFilterChip
         ) : (
           <DataTable
             columns={columns}
-            data={filteredRows}
+            data={chips}
             keyExtractor={(row) => row.filter_chip_id}
             onEdit={mayEdit ? openEdit : undefined}
             onDelete={mayEdit ? openDeleteConfirm : undefined}
+            pagination={{
+              page,
+              limit: LIST_LIMIT,
+              total,
+              onPageChange: setPage,
+            }}
           />
         )}
       </div>
-
-      {mayEdit && <div className="mt-4 bg-white rounded-xl border border-zinc-200 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-medium text-zinc-900">Drag to reorder</h2>
-          {reorderSaving && <span className="text-xs text-zinc-500">Saving order...</span>}
-        </div>
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-          <SortableContext items={filteredRows.map((row) => row.filter_chip_id)} strategy={verticalListSortingStrategy}>
-            <div className="space-y-2">
-              {filteredRows.map((row) => (
-                <SortableItem
-                  key={row.filter_chip_id}
-                  id={row.filter_chip_id}
-                  handle={<GripVertical className="w-4 h-4" />}
-                  className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-zinc-900 truncate">{row.display_name}</p>
-                      <p className="text-xs text-zinc-500">{row.chip_key}</p>
-                    </div>
-                    <span className="text-xs text-zinc-500">#{row.display_order ?? "-"}</span>
-                  </div>
-                </SortableItem>
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
-      </div>}
 
       <Modal
         open={modalOpen}

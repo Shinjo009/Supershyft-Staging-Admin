@@ -52,6 +52,16 @@ const DiagnosticPackageFormPage = lazy(() =>
     default: m.DiagnosticPackageFormPage,
   }))
 );
+const DiagnosticTestGroupDetailPage = lazy(() =>
+  import("./features/diagnostics/DiagnosticTestGroupDetailPage").then((m) => ({
+    default: m.DiagnosticTestGroupDetailPage,
+  }))
+);
+const DiagnosticTestGroupFormPage = lazy(() =>
+  import("./features/diagnostics/DiagnosticTestGroupFormPage").then((m) => ({
+    default: m.DiagnosticTestGroupFormPage,
+  }))
+);
 const Bookings = lazy(() =>
   import("./features/payments/Bookings").then((m) => ({ default: m.Bookings }))
 );
@@ -422,6 +432,30 @@ function AppRoutes() {
           element={
             <PermissionRoute category="diagnostics">
               <DiagnosticPackageDetailPage />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="diagnostics/test-groups/new"
+          element={
+            <PermissionRoute category="diagnostics">
+              <DiagnosticTestGroupFormPage mode="add" />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="diagnostics/test-groups/:groupId/edit"
+          element={
+            <PermissionRoute category="diagnostics">
+              <DiagnosticTestGroupFormPage mode="edit" />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="diagnostics/test-groups/:groupId"
+          element={
+            <PermissionRoute category="diagnostics">
+              <DiagnosticTestGroupDetailPage />
             </PermissionRoute>
           }
         />

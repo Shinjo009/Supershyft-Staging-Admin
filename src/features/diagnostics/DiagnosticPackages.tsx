@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { AlertTriangle, Loader2, Plus, Search } from "lucide-react";
 import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
@@ -16,57 +16,86 @@ import { diagnosticProviderDisplayLabel } from "./providerParameterKeys";
 
 type TabKey = "packages" | "test-groups" | "tests" | "filter-chips";
 
+const TAB_KEYS: TabKey[] = ["packages", "test-groups", "tests", "filter-chips"];
+const LIST_LIMIT = 10;
+const SEARCH_DEBOUNCE_MS = 300;
+const PROVIDER_FILTER_OPTIONS = ["healthians", "Healthians", "orange_health"];
+const GENDER_FILTER_OPTIONS = ["male", "female", "both"];
+
+function parseTab(raw: string | null): TabKey {
+  if (raw && TAB_KEYS.includes(raw as TabKey) && raw !== "packages") {
+    return raw as TabKey;
+  }
+  return "packages";
+}
+
 function formatAlsoOfferedBy(row: DiagnosticPackageListItem): string {
   const peers = row.same_packages ?? [];
   if (peers.length === 0) return "—";
   return peers.map((peer) => diagnosticProviderDisplayLabel(peer.diagnostic_provider)).join(", ");
 }
 
-function sortPackagesByDisplayOrder(items: DiagnosticPackageListItem[]) {
-  return [...items].sort((a, b) => {
-    const orderA = a.display_order ?? Number.MAX_SAFE_INTEGER;
-    const orderB = b.display_order ?? Number.MAX_SAFE_INTEGER;
-    if (orderA !== orderB) return orderA - orderB;
-    return b.diagnostic_package_id - a.diagnostic_package_id;
-  });
-}
-
 export function DiagnosticPackages() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = parseTab(searchParams.get("tab"));
   const { canEditTask } = usePermissions();
   const mayEditDiagnostics = canEditTask("diagnostics", "packages");
-  const [activeTab, setActiveTab] = useState<TabKey>("packages");
   const [rows, setRows] = useState<DiagnosticPackageListItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [tagFilter, setTagFilter] = useState("");
   const [providerFilter, setProviderFilter] = useState("");
   const [genderFilter, setGenderFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [tagOptions, setTagOptions] = useState<string[]>([]);
 
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
-  const [reorderingPackages, setReorderingPackages] = useState(false);
-  const [openCreateTestGroup, setOpenCreateTestGroup] = useState<(() => void) | null>(null);
   const [openCreateTest, setOpenCreateTest] = useState<(() => void) | null>(null);
 
-  const fetchPackages = useCallback(async (options?: { silent?: boolean }) => {
-    if (!options?.silent) {
-      setLoading(true);
-    }
+  const setActiveTab = (tab: TabKey) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (tab === "packages") next.delete("tab");
+      else next.set("tab", tab);
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  const fetchPackages = useCallback(async () => {
+    setLoading(true);
     setError(null);
     try {
-      const res = await diagnosticPackagesApi.list({ include_inactive: true, type: "public_package" });
-      const baseRows = sortPackagesByDisplayOrder(res.data.data ?? []);
-      setRows(baseRows);
+      const res = await diagnosticPackagesApi.list({
+        include_inactive: true,
+        type: "public_package",
+        page,
+        limit: LIST_LIMIT,
+        search: debouncedSearch || undefined,
+        tag: tagFilter || undefined,
+        diagnostic_provider: providerFilter || undefined,
+        gender: genderFilter || undefined,
+        status: statusFilter || undefined,
+      });
+      setRows(res.data.data ?? []);
+      setTotal(res.data.meta?.total ?? 0);
+      const tags = res.data.meta?.filter_options?.tags;
+      if (tags) setTagOptions(tags);
     } catch (err) {
       setError(getApiError(err));
     } finally {
-      if (!options?.silent) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
-  }, []);
+  }, [page, debouncedSearch, tagFilter, providerFilter, genderFilter, statusFilter]);
 
   useEffect(() => {
     if (activeTab === "packages") {
@@ -74,61 +103,9 @@ export function DiagnosticPackages() {
     }
   }, [activeTab, fetchPackages]);
 
-  const tagOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          rows.flatMap((row) =>
-            (row.tags ?? [])
-              .map((tag) => tag.tag_name?.trim())
-              .filter((tagName): tagName is string => !!tagName)
-          )
-        )
-      ).sort((a, b) => a.localeCompare(b)),
-    [rows]
-  );
-
-  const providerOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          rows
-            .map((row) => row.diagnostic_provider?.trim())
-            .filter((provider): provider is string => !!provider)
-        )
-      ).sort((a, b) => a.localeCompare(b)),
-    [rows]
-  );
-
-  const genderOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          rows
-            .map((row) => row.gender_suitability?.trim().toLowerCase())
-            .filter((gender): gender is string => !!gender)
-        )
-      ).sort((a, b) => a.localeCompare(b)),
-    [rows]
-  );
-
-  const canReorderPackages = useMemo(
-    () => !search.trim() && !tagFilter && !providerFilter && !genderFilter && !statusFilter,
-    [search, tagFilter, providerFilter, genderFilter, statusFilter]
-  );
-
-  const filteredRows = useMemo(() => {
-    const q = search.trim().toLowerCase();
-
-    return rows.filter((row) => {
-      if (q && !row.package_name.toLowerCase().includes(q)) return false;
-      if (providerFilter && (row.diagnostic_provider?.trim() ?? "") !== providerFilter) return false;
-      if (genderFilter && (row.gender_suitability?.trim().toLowerCase() ?? "") !== genderFilter) return false;
-      if (statusFilter && (row.status?.trim().toLowerCase() ?? "") !== statusFilter) return false;
-      if (tagFilter && !(row.tags ?? []).some((tag) => (tag.tag_name?.trim() ?? "") === tagFilter)) return false;
-      return true;
-    });
-  }, [rows, search, providerFilter, genderFilter, statusFilter, tagFilter]);
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, tagFilter, providerFilter, genderFilter, statusFilter]);
 
   const openView = (row: DiagnosticPackageListItem) => {
     navigate(`/diagnostics/packages/${row.diagnostic_package_id}`);
@@ -152,31 +129,6 @@ export function DiagnosticPackages() {
       setError(getApiError(err));
     } finally {
       setUpdatingStatusId(null);
-    }
-  };
-
-  const handlePackageReorder = async (newOrderKeys: (string | number)[]) => {
-    const packageIds = newOrderKeys.map((id) => Number(id));
-    if (packageIds.length < 2) return;
-    const previous = [...rows];
-    const byId = new Map(rows.map((row) => [row.diagnostic_package_id, row]));
-    const reordered = packageIds
-      .map((id) => byId.get(id))
-      .filter((row): row is DiagnosticPackageListItem => Boolean(row))
-      .map((row, index) => ({ ...row, display_order: index + 1 }));
-    const reorderedIds = new Set(packageIds);
-    const rest = rows.filter((row) => !reorderedIds.has(row.diagnostic_package_id));
-    setRows([...reordered, ...rest]);
-    setReorderingPackages(true);
-    setError(null);
-    try {
-      await diagnosticPackagesApi.reorder({ package_ids: packageIds });
-      await fetchPackages({ silent: true });
-    } catch (err) {
-      setRows(previous);
-      setError(getApiError(err));
-    } finally {
-      setReorderingPackages(false);
     }
   };
 
@@ -320,7 +272,11 @@ export function DiagnosticPackages() {
             <HeaderActionButton label="Add Package" icon={Plus} onClick={openCreate} />
           )}
           {activeTab === "test-groups" && (
-            <HeaderActionButton label="Add Test Group" icon={Plus} onClick={() => openCreateTestGroup?.()} />
+            <HeaderActionButton
+              label="Add Test Group"
+              icon={Plus}
+              onClick={() => navigate("/diagnostics/test-groups/new")}
+            />
           )}
           {activeTab === "tests" && (
             <HeaderActionButton label="Add Test" icon={Plus} onClick={() => openCreateTest?.()} />
@@ -385,7 +341,10 @@ export function DiagnosticPackages() {
               <input
                 type="search"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
                 className="w-full pl-9 pr-4 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-zinc-900"
                 placeholder="Search package name..."
               />
@@ -393,7 +352,10 @@ export function DiagnosticPackages() {
             <div className="flex flex-wrap gap-2">
               <select
                 value={tagFilter}
-                onChange={(e) => setTagFilter(e.target.value)}
+                onChange={(e) => {
+                  setTagFilter(e.target.value);
+                  setPage(1);
+                }}
                 className="px-3 py-2 border border-zinc-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-zinc-900"
               >
                 <option value="">All tags</option>
@@ -405,23 +367,29 @@ export function DiagnosticPackages() {
               </select>
               <select
                 value={providerFilter}
-                onChange={(e) => setProviderFilter(e.target.value)}
+                onChange={(e) => {
+                  setProviderFilter(e.target.value);
+                  setPage(1);
+                }}
                 className="px-3 py-2 border border-zinc-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-zinc-900"
               >
                 <option value="">All providers</option>
-                {providerOptions.map((provider) => (
+                {PROVIDER_FILTER_OPTIONS.map((provider) => (
                   <option key={provider} value={provider}>
-                    {provider}
+                    {diagnosticProviderDisplayLabel(provider)}
                   </option>
                 ))}
               </select>
               <select
                 value={genderFilter}
-                onChange={(e) => setGenderFilter(e.target.value)}
+                onChange={(e) => {
+                  setGenderFilter(e.target.value);
+                  setPage(1);
+                }}
                 className="px-3 py-2 border border-zinc-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-zinc-900"
               >
                 <option value="">All genders</option>
-                {genderOptions.map((gender) => (
+                {GENDER_FILTER_OPTIONS.map((gender) => (
                   <option key={gender} value={gender}>
                     {gender}
                   </option>
@@ -429,7 +397,10 @@ export function DiagnosticPackages() {
               </select>
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPage(1);
+                }}
                 className="px-3 py-2 border border-zinc-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-zinc-900"
               >
                 <option value="">All status</option>
@@ -440,11 +411,6 @@ export function DiagnosticPackages() {
           </div>
 
           <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden">
-            {canReorderPackages && !loading && filteredRows.length > 1 && (
-              <p className="px-4 py-2 text-xs text-zinc-500 border-b border-zinc-100">
-                {reorderingPackages ? "Saving order…" : "Drag the handle to reorder packages."}
-              </p>
-            )}
             {loading ? (
               <div className="py-14 flex justify-center">
                 <Loader2 className="w-7 h-7 animate-spin text-zinc-400" />
@@ -452,24 +418,25 @@ export function DiagnosticPackages() {
             ) : (
               <DataTable
                 columns={columns}
-                data={filteredRows}
+                data={rows}
                 keyExtractor={(row) => row.diagnostic_package_id}
                 onView={openView}
                 onEdit={openEdit}
                 onDuplicate={handleDuplicatePackage}
                 onDelete={handleDeletePackage}
-                onReorder={
-                  canReorderPackages && filteredRows.length > 1 && !reorderingPackages
-                    ? handlePackageReorder
-                    : undefined
-                }
                 firstColumnClickableView
+                pagination={{
+                  page,
+                  limit: LIST_LIMIT,
+                  total,
+                  onPageChange: setPage,
+                }}
               />
             )}
           </div>
         </div>
       ) : activeTab === "test-groups" ? (
-        <DiagnosticTestGroups onRequestCreate={(trigger) => setOpenCreateTestGroup(() => trigger)} />
+        <DiagnosticTestGroups />
       ) : activeTab === "tests" ? (
         <DiagnosticTests onRequestCreate={(trigger) => setOpenCreateTest(() => trigger)} />
       ) : (

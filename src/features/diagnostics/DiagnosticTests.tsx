@@ -213,10 +213,16 @@ function RiskRangesPanel({
 export function DiagnosticTests({ onRequestCreate }: DiagnosticTestsProps) {
   const { canEditTask } = usePermissions();
   const mayEditDiagnostics = canEditTask("diagnostics", "tests_groups");
+  const LIST_LIMIT = 10;
+  const SEARCH_DEBOUNCE_MS = 300;
+
   const [rows, setRows] = useState<DiagnosticTestStandalone[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>("add");
@@ -230,22 +236,37 @@ export function DiagnosticTests({ onRequestCreate }: DiagnosticTestsProps) {
 
   const [genderTab, setGenderTab] = useState<GenderTab>("male");
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
   const fetchTests = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await diagnosticTestsApi.list({ parameter_type: "test" });
+      const res = await diagnosticTestsApi.list({
+        parameter_type: "test",
+        page,
+        limit: LIST_LIMIT,
+        search: debouncedSearch || undefined,
+      });
       setRows(res.data.data ?? []);
+      setTotal(res.data.meta?.total ?? 0);
     } catch (err) {
       setError(getApiError(err));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, debouncedSearch]);
 
   useEffect(() => {
     void fetchTests();
   }, [fetchTests]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
   const openCreate = useCallback(() => {
     setModalMode("add");
@@ -310,9 +331,8 @@ export function DiagnosticTests({ onRequestCreate }: DiagnosticTestsProps) {
     }
   };
 
-  const filteredRows = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const next = rows.filter((row) => !q || row.test_name.toLowerCase().includes(q));
+  const sortedRows = useMemo(() => {
+    const next = [...rows];
     next.sort((a, b) => {
       let left: string | number = "";
       let right: string | number = "";
@@ -334,7 +354,7 @@ export function DiagnosticTests({ onRequestCreate }: DiagnosticTestsProps) {
       return 0;
     });
     return next;
-  }, [rows, search, sortDir, sortKey]);
+  }, [rows, sortDir, sortKey]);
 
   const handleSubmit = async () => {
     if (!(form.test_name as string).trim()) {
@@ -448,7 +468,10 @@ export function DiagnosticTests({ onRequestCreate }: DiagnosticTestsProps) {
           <input
             type="search"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
             className="w-full pl-9 pr-4 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-zinc-900"
             placeholder="Search tests..."
           />
@@ -471,13 +494,19 @@ export function DiagnosticTests({ onRequestCreate }: DiagnosticTestsProps) {
         ) : (
           <DataTable
             columns={columns}
-            data={filteredRows}
+            data={sortedRows}
             keyExtractor={(row) => row.test_id}
             sortKey={sortKey}
             sortDir={sortDir}
             onSort={handleSort}
             onEdit={openEdit}
             onDelete={handleDelete}
+            pagination={{
+              page,
+              limit: LIST_LIMIT,
+              total,
+              onPageChange: setPage,
+            }}
           />
         )}
       </div>

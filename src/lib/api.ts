@@ -4407,6 +4407,13 @@ export interface DiagnosticFilterChip {
   status?: string | null;
 }
 
+export type DiagnosticPackageListMeta = {
+  page: number;
+  limit: number;
+  total: number;
+  filter_options?: { tags?: string[] };
+};
+
 export const diagnosticPackagesApi = {
   list: (params?: {
     gender?: string;
@@ -4415,7 +4422,16 @@ export const diagnosticPackagesApi = {
     type?: DiagnosticPackageListType;
     include_inactive?: boolean;
     package_for?: string;
-  }) => api.get<{ data: DiagnosticPackageListItem[] }>("/diagnostic-packages", { params }),
+    page?: number;
+    limit?: number;
+    search?: string;
+    diagnostic_provider?: string;
+    status?: string;
+  }) =>
+    api.get<{ data: DiagnosticPackageListItem[]; meta?: DiagnosticPackageListMeta }>(
+      "/diagnostic-packages",
+      { params }
+    ),
   get: (id: number) =>
     api.get<{ data: DiagnosticPackageDetail }>(`/diagnostic-packages/${id}`),
   getTests: (id: number) =>
@@ -4575,10 +4591,21 @@ export const diagnosticPackagesApi = {
 };
 
 export const diagnosticFilterChipsApi = {
-  list: (forScope: DiagnosticFilterChipFor = "public_package") =>
-    api.get<{ data: DiagnosticFilterChip[] }>("/diagnostic-packages/filters-chips", {
-      params: { for: forScope },
-    }),
+  list: (
+    forScope: DiagnosticFilterChipFor = "public_package",
+    params?: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      include_inactive?: boolean;
+    }
+  ) =>
+    api.get<{ data: DiagnosticFilterChip[]; meta?: { page: number; limit: number; total: number } }>(
+      "/diagnostic-packages/filters-chips",
+      {
+        params: { for: forScope, ...params },
+      }
+    ),
   create: (payload: {
     display_name: string;
     chip_key: string;
@@ -4800,13 +4827,16 @@ export type HealthParameterUpdatePayload = {
 };
 
 export const diagnosticTestsApi = {
-  list: (params?: { parameter_type?: HealthParameterType }) =>
-    api.get<{ data: DiagnosticTestStandalone[] }>("/diagnostics/health-parameters", {
-      params:
-        params?.parameter_type !== undefined
-          ? { parameter_type: params.parameter_type }
-          : undefined,
-    }),
+  list: (params?: {
+    parameter_type?: HealthParameterType;
+    page?: number;
+    limit?: number;
+    search?: string;
+  }) =>
+    api.get<{ data: DiagnosticTestStandalone[]; meta?: { page: number; limit: number; total: number } }>(
+      "/diagnostics/health-parameters",
+      { params }
+    ),
   get: (testId: number) =>
     api.get<{ data: DiagnosticTestStandalone }>(`/diagnostics/health-parameters/${testId}`),
   create: (payload: HealthParameterCreatePayload) =>
@@ -4818,8 +4848,17 @@ export const diagnosticTestsApi = {
 };
 
 export const diagnosticTestGroupsApi = {
-  list: (params?: { filter_chip?: string; package_for?: string }) =>
-    api.get<{ data: DiagnosticTestGroupStandalone[] }>("/diagnostic-test-groups", { params }),
+  list: (params?: {
+    filter_chip?: string;
+    package_for?: string;
+    page?: number;
+    limit?: number;
+    search?: string;
+  }) =>
+    api.get<{ data: DiagnosticTestGroupStandalone[]; meta?: { page: number; limit: number; total: number } }>(
+      "/diagnostic-test-groups",
+      { params }
+    ),
   get: (groupId: number) =>
     api.get<{ data: DiagnosticTestGroupStandalone }>(`/diagnostic-test-groups/${groupId}`),
   create: (payload: {
