@@ -62,14 +62,26 @@ const DiagnosticTestGroupFormPage = lazy(() =>
     default: m.DiagnosticTestGroupFormPage,
   }))
 );
+const DiagnosticTestGroupsListPage = lazy(() =>
+  import("./features/diagnostics/DiagnosticTestGroupsListPage").then((m) => ({
+    default: m.DiagnosticTestGroupsListPage,
+  }))
+);
+const DiagnosticTestsListPage = lazy(() =>
+  import("./features/diagnostics/DiagnosticTestsListPage").then((m) => ({
+    default: m.DiagnosticTestsListPage,
+  }))
+);
+const DiagnosticFilterChipsListPage = lazy(() =>
+  import("./features/diagnostics/DiagnosticFilterChipsListPage").then((m) => ({
+    default: m.DiagnosticFilterChipsListPage,
+  }))
+);
 const Bookings = lazy(() =>
   import("./features/payments/Bookings").then((m) => ({ default: m.Bookings }))
 );
 const Discounts = lazy(() =>
   import("./features/discounts/Discounts").then((m) => ({ default: m.Discounts }))
-);
-const DiagnosticFilterChips = lazy(() =>
-  import("./features/diagnostics/DiagnosticFilterChips").then((m) => ({ default: m.DiagnosticFilterChips }))
 );
 const SupportTickets = lazy(() =>
   import("./features/support/SupportTickets").then((m) => ({ default: m.SupportTickets }))
@@ -459,8 +471,32 @@ function AppRoutes() {
             </PermissionRoute>
           }
         />
+        <Route
+          path="diagnostics/test-groups"
+          element={
+            <PermissionRoute category="diagnostics">
+              <DiagnosticTestGroupsListPage />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="diagnostics/tests"
+          element={
+            <PermissionRoute category="diagnostics">
+              <DiagnosticTestsListPage />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="diagnostics/filter-chips"
+          element={
+            <PermissionRoute category="diagnostics">
+              <DiagnosticFilterChipsListPage />
+            </PermissionRoute>
+          }
+        />
         <Route path="diagnostics/packages" element={<PermissionRoute category="diagnostics"><DiagnosticPackages /></PermissionRoute>} />
-        <Route path="diagnostics/filters-chips" element={<PermissionRoute category="diagnostics"><DiagnosticFilterChips /></PermissionRoute>} />
+        <Route path="diagnostics/filters-chips" element={<Navigate to="/diagnostics/filter-chips" replace />} />
         <Route path="discounts" element={<PermissionRoute category="discounts"><Discounts /></PermissionRoute>} />
         <Route path="payments" element={<Navigate to="/payments/bookings" replace />} />
         <Route path="payments/bookings" element={<PermissionRoute category="payments_bookings"><Bookings /></PermissionRoute>} />

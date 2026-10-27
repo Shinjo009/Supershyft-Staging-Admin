@@ -10,7 +10,9 @@ import { PermissionGate } from "../../contexts/PermissionContext";
 import { diagnosticTestGroupsApi, getApiError, type DiagnosticTestGroupStandalone } from "../../lib/api";
 import { DiagnosticTestGroupDetailContent } from "./DiagnosticTestGroupDetailContent";
 
-const LIST_BACK = "/diagnostics/packages?tab=test-groups";
+import { DIAGNOSTICS_TEST_GROUPS_LIST } from "./diagnosticsCatalogPaths";
+
+const LIST_BACK = DIAGNOSTICS_TEST_GROUPS_LIST;
 
 function parseGroupId(raw: string | undefined): number | null {
   if (!raw) return null;

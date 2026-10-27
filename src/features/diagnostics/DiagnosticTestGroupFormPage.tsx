@@ -10,10 +10,11 @@ import {
   testGroupToForm,
   type TestGroupFormState,
 } from "./diagnosticTestGroupFormData";
+import { DIAGNOSTICS_TEST_GROUPS_LIST } from "./diagnosticsCatalogPaths";
 
 type FormPageMode = "add" | "edit";
 
-const LIST_BACK = "/diagnostics/packages?tab=test-groups";
+const LIST_BACK = DIAGNOSTICS_TEST_GROUPS_LIST;
 
 function parseGroupId(raw: string | undefined): number | null {
   if (!raw) return null;

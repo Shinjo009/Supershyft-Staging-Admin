@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AlertTriangle, Loader2, Plus, Search } from "lucide-react";
-import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
+import { HeaderActionButton } from "../../layouts/PageHeaderActions";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
 import {
@@ -9,25 +9,17 @@ import {
   getApiError,
   type DiagnosticPackageListItem,
 } from "../../lib/api";
-import { DiagnosticFilterChips } from "./DiagnosticFilterChips";
-import { DiagnosticTests } from "./DiagnosticTests";
-import { DiagnosticTestGroups } from "./DiagnosticTestGroups";
+import { DiagnosticsCatalogShell } from "./DiagnosticsCatalogShell";
+import {
+  DIAGNOSTICS_CATALOG_PATHS,
+  type DiagnosticsCatalogTab,
+} from "./diagnosticsCatalogPaths";
 import { diagnosticProviderDisplayLabel } from "./providerParameterKeys";
 
-type TabKey = "packages" | "test-groups" | "tests" | "filter-chips";
-
-const TAB_KEYS: TabKey[] = ["packages", "test-groups", "tests", "filter-chips"];
 const LIST_LIMIT = 10;
 const SEARCH_DEBOUNCE_MS = 300;
 const PROVIDER_FILTER_OPTIONS = ["healthians", "Healthians", "orange_health"];
 const GENDER_FILTER_OPTIONS = ["male", "female", "both"];
-
-function parseTab(raw: string | null): TabKey {
-  if (raw && TAB_KEYS.includes(raw as TabKey) && raw !== "packages") {
-    return raw as TabKey;
-  }
-  return "packages";
-}
 
 function formatAlsoOfferedBy(row: DiagnosticPackageListItem): string {
   const peers = row.same_packages ?? [];
@@ -37,9 +29,15 @@ function formatAlsoOfferedBy(row: DiagnosticPackageListItem): string {
 
 export function DiagnosticPackages() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = parseTab(searchParams.get("tab"));
+  const [searchParams] = useSearchParams();
   const { canEditTask } = usePermissions();
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (!tab || tab === "packages") return;
+    const path = DIAGNOSTICS_CATALOG_PATHS[tab as DiagnosticsCatalogTab];
+    if (path) navigate(path, { replace: true });
+  }, [searchParams, navigate]);
   const mayEditDiagnostics = canEditTask("diagnostics", "packages");
   const [rows, setRows] = useState<DiagnosticPackageListItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -55,16 +53,6 @@ export function DiagnosticPackages() {
   const [tagOptions, setTagOptions] = useState<string[]>([]);
 
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
-  const [openCreateTest, setOpenCreateTest] = useState<(() => void) | null>(null);
-
-  const setActiveTab = (tab: TabKey) => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      if (tab === "packages") next.delete("tab");
-      else next.set("tab", tab);
-      return next;
-    });
-  };
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
@@ -98,10 +86,8 @@ export function DiagnosticPackages() {
   }, [page, debouncedSearch, tagFilter, providerFilter, genderFilter, statusFilter]);
 
   useEffect(() => {
-    if (activeTab === "packages") {
-      void fetchPackages();
-    }
-  }, [activeTab, fetchPackages]);
+    void fetchPackages();
+  }, [fetchPackages]);
 
   useEffect(() => {
     setPage(1);
@@ -265,73 +251,14 @@ export function DiagnosticPackages() {
   ];
 
   return (
-    <div>
-      <PageHeaderActions>
+    <DiagnosticsCatalogShell
+      activeTab="packages"
+      headerActions={
         <PermissionGate category="diagnostics" action="edit">
-          {activeTab === "packages" && (
-            <HeaderActionButton label="Add Package" icon={Plus} onClick={openCreate} />
-          )}
-          {activeTab === "test-groups" && (
-            <HeaderActionButton
-              label="Add Test Group"
-              icon={Plus}
-              onClick={() => navigate("/diagnostics/test-groups/new")}
-            />
-          )}
-          {activeTab === "tests" && (
-            <HeaderActionButton label="Add Test" icon={Plus} onClick={() => openCreateTest?.()} />
-          )}
+          <HeaderActionButton label="Add Package" icon={Plus} onClick={openCreate} />
         </PermissionGate>
-      </PageHeaderActions>
-
-      <div className="flex gap-1 mb-5 border-b border-zinc-200">
-        <button
-          type="button"
-          onClick={() => setActiveTab("packages")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-            activeTab === "packages"
-              ? "border-zinc-900 text-zinc-900"
-              : "border-transparent text-zinc-500 hover:text-zinc-700"
-          }`}
-        >
-          Packages
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("test-groups")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-            activeTab === "test-groups"
-              ? "border-zinc-900 text-zinc-900"
-              : "border-transparent text-zinc-500 hover:text-zinc-700"
-          }`}
-        >
-          Test Groups
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("tests")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-            activeTab === "tests"
-              ? "border-zinc-900 text-zinc-900"
-              : "border-transparent text-zinc-500 hover:text-zinc-700"
-          }`}
-        >
-          Tests
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("filter-chips")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-            activeTab === "filter-chips"
-              ? "border-zinc-900 text-zinc-900"
-              : "border-transparent text-zinc-500 hover:text-zinc-700"
-          }`}
-        >
-          Filter chips
-        </button>
-      </div>
-
-      {activeTab === "packages" ? (
+      }
+    >
         <div>
           {error && <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>}
 
@@ -435,13 +362,6 @@ export function DiagnosticPackages() {
             )}
           </div>
         </div>
-      ) : activeTab === "test-groups" ? (
-        <DiagnosticTestGroups />
-      ) : activeTab === "tests" ? (
-        <DiagnosticTests onRequestCreate={(trigger) => setOpenCreateTest(() => trigger)} />
-      ) : (
-        <DiagnosticFilterChips embedded />
-      )}
-    </div>
+    </DiagnosticsCatalogShell>
   );
 }
