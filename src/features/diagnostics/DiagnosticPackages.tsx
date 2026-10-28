@@ -15,6 +15,8 @@ import {
   type DiagnosticsCatalogTab,
 } from "./diagnosticsCatalogPaths";
 import { diagnosticProviderDisplayLabel } from "./providerParameterKeys";
+
+const LIST_LIMIT = 10;
 const SEARCH_DEBOUNCE_MS = 300;
 const PROVIDER_FILTER_OPTIONS = ["healthians", "Healthians", "orange_health"];
 const GENDER_FILTER_OPTIONS = ["male", "female", "both"];
