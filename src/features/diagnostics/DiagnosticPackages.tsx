@@ -51,7 +51,6 @@ export function DiagnosticPackages() {
   const [statusFilter, setStatusFilter] = useState("");
   const [tagOptions, setTagOptions] = useState<string[]>([]);
 
-  const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
   const [allGroupRows, setAllGroupRows] = useState<DiagnosticPackageGroupListItem[]>([]);
   const [reordering, setReordering] = useState(false);
 
@@ -127,19 +126,6 @@ export function DiagnosticPackages() {
 
   const openCreate = () => {
     navigate("/diagnostics/packages/new");
-  };
-
-  const toggleStatus = async (row: DiagnosticPackageGroupListItem) => {
-    const next = (row.status ?? "active").toLowerCase() === "active" ? "inactive" : "active";
-    setUpdatingStatusId(row.diagnostic_package_id);
-    try {
-      await diagnosticPackagesApi.updateStatus(row.diagnostic_package_id, next);
-      await fetchPackages();
-    } catch (err) {
-      setError(getApiError(err));
-    } finally {
-      setUpdatingStatusId(null);
-    }
   };
 
   const handleDeletePackage = async (row: DiagnosticPackageGroupListItem) => {
@@ -283,39 +269,6 @@ export function DiagnosticPackages() {
           "—"
         ),
       hideOnTablet: true,
-    },
-    {
-      key: "status",
-      label: "Status",
-      render: (row) => mayEditDiagnostics ? (
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            void toggleStatus(row);
-          }}
-          disabled={updatingStatusId === row.diagnostic_package_id}
-          className={`inline-flex items-center w-12 h-6 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-70 ${
-            (row.status ?? "").toLowerCase() === "active" ? "bg-emerald-500" : "bg-zinc-300"
-          }`}
-          aria-pressed={(row.status ?? "").toLowerCase() === "active"}
-          aria-label={`Set ${row.package_name} ${(row.status ?? "").toLowerCase() === "active" ? "inactive" : "active"}`}
-        >
-          <span
-            className={`h-5 w-5 bg-white rounded-full shadow transform transition-transform ${
-              (row.status ?? "").toLowerCase() === "active" ? "translate-x-6" : "translate-x-0.5"
-            }`}
-          />
-        </button>
-      ) : (
-        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-          (row.status ?? "").toLowerCase() === "active"
-            ? "bg-emerald-50 text-emerald-700"
-            : "bg-zinc-100 text-zinc-600"
-        }`}>
-          {(row.status ?? "").toLowerCase() === "active" ? "Active" : "Inactive"}
-        </span>
-      ),
     },
     { key: "collection_type", label: "Collection", render: (row) => row.collection_type ?? "—", hideOnTablet: true },
   ];

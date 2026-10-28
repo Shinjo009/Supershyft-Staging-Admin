@@ -50,6 +50,7 @@ import {
   providerParameterKeyForPackage,
 } from "./providerParameterKeys";
 import { ensurePackageScopedGroupId } from "./ensurePackageScopedGroup";
+import { PackageStatusToggle } from "./PackageStatusToggle";
 import { testSyncKind } from "./providerTestDiffStatus";
 
 export type PackageDetailTab = "overview" | "tests" | "compare" | "samples-prep";
@@ -645,9 +646,16 @@ export function DiagnosticPackageDetailContent({
                       <div><p className="text-zinc-500">Audience</p><p className="text-zinc-900">{detail?.package_for ?? "—"}</p></div>
                       <div>
                         <p className="text-zinc-500">Status</p>
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${(detail?.status ?? "").toLowerCase() === "active" ? "bg-green-50 text-green-700" : "bg-zinc-100 text-zinc-500"}`}>
-                          {(detail?.status ?? "").toLowerCase() === "active" ? "Active" : "Inactive"}
-                        </span>
+                        <PackageStatusToggle
+                          packageId={packageId}
+                          status={detail?.status}
+                          packageName={detail?.package_name}
+                          onStatusChange={(nextStatus) => {
+                            setDetail((d) => (d ? { ...d, status: nextStatus } : d));
+                            onUpdated?.();
+                          }}
+                          onError={(message) => setError(message)}
+                        />
                       </div>
                     </div>
                   </div>
