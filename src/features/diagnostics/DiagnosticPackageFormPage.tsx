@@ -20,8 +20,38 @@ import {
   type PackageFormState,
 } from "./diagnosticPackageFormData";
 import { PackageProviderSwitcher } from "./PackageProviderSwitcher";
+import { diagnosticProviderDisplayLabel } from "./providerParameterKeys";
 
 type FormPageMode = "add" | "edit";
+
+type JoinGroupMemberLine = {
+  diagnostic_package_id: number;
+  package_name: string;
+  diagnostic_provider?: string | null;
+};
+
+function buildJoinGroupMemberLines(detail: DiagnosticPackageDetail): JoinGroupMemberLine[] {
+  const lines: JoinGroupMemberLine[] = [
+    {
+      diagnostic_package_id: detail.diagnostic_package_id,
+      package_name: detail.package_name,
+      diagnostic_provider: detail.diagnostic_provider,
+    },
+  ];
+  for (const peer of detail.same_packages ?? []) {
+    if (lines.some((row) => row.diagnostic_package_id === peer.diagnostic_package_id)) continue;
+    lines.push({
+      diagnostic_package_id: peer.diagnostic_package_id,
+      package_name: peer.package_name,
+      diagnostic_provider: peer.diagnostic_provider,
+    });
+  }
+  return lines.sort((a, b) =>
+    diagnosticProviderDisplayLabel(a.diagnostic_provider).localeCompare(
+      diagnosticProviderDisplayLabel(b.diagnostic_provider)
+    )
+  );
+}
 
 function parsePackageId(raw: string | undefined): number | null {
   if (!raw) return null;
@@ -60,6 +90,7 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
   const [expertTypes, setExpertTypes] = useState<ExpertTypeItem[]>([]);
   const [packageName, setPackageName] = useState("");
   const [joinParentName, setJoinParentName] = useState<string | null>(null);
+  const [joinGroupMembers, setJoinGroupMembers] = useState<JoinGroupMemberLine[]>([]);
   const [editDetail, setEditDetail] = useState<DiagnosticPackageDetail | null>(null);
   const [formDirty, setFormDirty] = useState(false);
 
@@ -110,6 +141,7 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
       const res = await diagnosticPackagesApi.get(joinDefaultId);
       const parent = res.data.data;
       setJoinParentName(parent.package_name);
+      setJoinGroupMembers(buildJoinGroupMemberLines(parent));
       setForm((prev) => ({
         ...prev,
         linkMode: "linked",
@@ -246,10 +278,30 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
           <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{formError}</div>
         )}
         {mode === "add" && joinDefaultId && joinParentName ? (
-          <p className="text-sm text-zinc-700 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2">
-            This new package will use the same package group as{" "}
-            <span className="font-medium text-zinc-900">{joinParentName}</span>.
-          </p>
+          <div className="text-sm text-zinc-700 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 space-y-2">
+            <p>
+              This new package will use the same package group as{" "}
+              <span className="font-medium text-zinc-900">{joinParentName}</span>.
+            </p>
+            {joinGroupMembers.length > 0 ? (
+              <div>
+                <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide mb-1">
+                  Packages in this group
+                </p>
+                <ul className="space-y-1">
+                  {joinGroupMembers.map((member) => (
+                    <li key={member.diagnostic_package_id} className="text-zinc-800">
+                      <span className="font-medium text-zinc-900">{member.package_name}</span>
+                      <span className="text-zinc-500">
+                        {" "}
+                        · {diagnosticProviderDisplayLabel(member.diagnostic_provider)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
         ) : null}
         <DiagnosticPackageFormFields
           form={form}
