@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Link as RouterLink } from "react-router-dom";
 import {
   DndContext,
   PointerSensor,
@@ -652,22 +651,6 @@ export function DiagnosticPackageDetailContent({
                       </div>
                     </div>
                   </div>
-                  {(detail?.same_packages?.length ?? 0) > 0 && (
-                    <p className="text-xs text-zinc-600">
-                      Also offered by{" "}
-                      {detail!.same_packages!.map((peer, i) => (
-                        <span key={peer.diagnostic_package_id}>
-                          {i > 0 ? ", " : ""}
-                          <RouterLink
-                            to={`/diagnostics/packages/${peer.diagnostic_package_id}`}
-                            className="text-zinc-900 underline underline-offset-2"
-                          >
-                            {diagnosticProviderDisplayLabel(peer.diagnostic_provider)}
-                          </RouterLink>
-                        </span>
-                      ))}
-                    </p>
-                  )}
                 </div>
                 <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-2 text-sm">
                   <h3 className="text-sm font-semibold text-zinc-900">Price</h3>

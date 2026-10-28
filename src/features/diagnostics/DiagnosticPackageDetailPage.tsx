@@ -17,6 +17,7 @@ import {
   type PackageDetailTab,
 } from "./DiagnosticPackageDetailContent";
 import { diagnosticProviderDisplayLabel, isHealthiansProvider } from "./providerParameterKeys";
+import { PackageProviderSwitcher } from "./PackageProviderSwitcher";
 
 const BASE_TABS: { key: PackageDetailTab; label: string }[] = [
   { key: "overview", label: "Overview" },
@@ -134,6 +135,15 @@ export function DiagnosticPackageDetailPage() {
             <HeaderActionButton label="Edit" icon={Pencil} onClick={openEdit} variant="secondary" />
           </PermissionGate>
         </PageHeaderActions>
+      )}
+
+      {detail && (
+        <PackageProviderSwitcher
+          currentPackageId={packageId}
+          detail={detail}
+          mode="view"
+          onSetDefaultComplete={() => void loadDetailHeader()}
+        />
       )}
 
       <div className="flex gap-1 mb-5 border-b border-zinc-200 overflow-x-auto">

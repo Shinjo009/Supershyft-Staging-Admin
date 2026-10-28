@@ -8,6 +8,7 @@ import {
   getApiError,
   uploadsApi,
   type DiagnosticPackageCreate,
+  type DiagnosticPackageDetail,
   type DiagnosticPackageListItem,
   type ExpertTypeItem,
 } from "../../lib/api";
@@ -20,6 +21,7 @@ import {
   validatePackageForm,
   type PackageFormState,
 } from "./diagnosticPackageFormData";
+import { PackageProviderSwitcher } from "./PackageProviderSwitcher";
 
 type FormPageMode = "add" | "edit";
 
@@ -43,6 +45,8 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
   const [expertTypes, setExpertTypes] = useState<ExpertTypeItem[]>([]);
   const [linkTargets, setLinkTargets] = useState<DiagnosticPackageListItem[]>([]);
   const [packageName, setPackageName] = useState("");
+  const [editDetail, setEditDetail] = useState<DiagnosticPackageDetail | null>(null);
+  const [formDirty, setFormDirty] = useState(false);
 
   const backTo = useMemo(() => {
     if (mode === "edit" && packageId) return `/diagnostics/packages/${packageId}`;
@@ -87,6 +91,8 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
       ]);
       const row = (listRes.data.data ?? []).find((r) => r.diagnostic_package_id === packageId);
       const detail = detailRes.data.data;
+      setEditDetail(detail);
+      setFormDirty(false);
       setPackageName(detail.package_name);
       const base = row ? listItemToForm(row) : listItemToForm(detail as DiagnosticPackageListItem);
       setForm(detailToForm(detail, base));
@@ -185,6 +191,15 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
 
   return (
     <div className="max-w-3xl mx-auto w-full min-w-0 pb-24">
+      {mode === "edit" && packageId && editDetail ? (
+        <PackageProviderSwitcher
+          currentPackageId={packageId}
+          detail={editDetail}
+          mode="edit"
+          isDirty={formDirty}
+          onSetDefaultComplete={() => void loadForEdit()}
+        />
+      ) : null}
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -197,7 +212,10 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
         )}
         <DiagnosticPackageFormFields
           form={form}
-          setForm={setForm}
+          setForm={(value) => {
+            setFormDirty(true);
+            setForm(value);
+          }}
           linkTargetOptions={linkTargets}
           expertTypes={expertTypes}
           imageUploading={imageUploading}

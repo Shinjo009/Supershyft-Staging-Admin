@@ -4344,6 +4344,9 @@ export interface DiagnosticPackagePeer {
   diagnostic_package_id: number;
   package_name: string;
   diagnostic_provider?: string | null;
+  price?: number | null;
+  status?: string | null;
+  is_default_for_group?: boolean | null;
 }
 
 export interface DiagnosticPackageListItem {
@@ -4373,6 +4376,11 @@ export interface DiagnosticPackageListItem {
   filter_chips?: PackageFilterChip[];
   package_group_id?: number | null;
   same_packages?: DiagnosticPackagePeer[];
+  is_default_for_group?: boolean | null;
+}
+
+export interface DiagnosticPackageGroupListItem extends DiagnosticPackageListItem {
+  package_group: Record<string, number>;
 }
 
 export interface DiagnosticPackageDetail extends DiagnosticPackageListItem {
@@ -4400,6 +4408,7 @@ export interface DiagnosticPackageCreate {
   original_price?: number | null;
   min_price?: number | null;
   is_most_popular?: boolean | null;
+  is_default_for_group?: boolean | null;
   complementary_consultation?: Record<string, boolean> | null;
   gender_suitability?: string | null;
   package_for?: "public" | "camp" | null;
@@ -4439,6 +4448,23 @@ export const diagnosticPackagesApi = {
   }) =>
     api.get<{ data: DiagnosticPackageListItem[]; meta?: DiagnosticPackageListMeta }>(
       "/diagnostic-packages",
+      { params }
+    ),
+  listGroups: (params?: {
+    gender?: string;
+    tag?: string;
+    filter_chip?: string;
+    type?: DiagnosticPackageListType;
+    include_inactive?: boolean;
+    package_for?: string;
+    page?: number;
+    limit?: number;
+    search?: string;
+    diagnostic_provider?: string;
+    status?: string;
+  }) =>
+    api.get<{ data: DiagnosticPackageGroupListItem[]; meta?: DiagnosticPackageListMeta }>(
+      "/diagnostic-packages/groups",
       { params }
     ),
   get: (id: number) =>

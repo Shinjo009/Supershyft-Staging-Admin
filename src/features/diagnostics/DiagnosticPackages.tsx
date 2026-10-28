@@ -7,7 +7,7 @@ import { PermissionGate, usePermissions } from "../../contexts/PermissionContext
 import {
   diagnosticPackagesApi,
   getApiError,
-  type DiagnosticPackageListItem,
+  type DiagnosticPackageGroupListItem,
 } from "../../lib/api";
 import { DiagnosticsCatalogShell } from "./DiagnosticsCatalogShell";
 import {
@@ -15,17 +15,9 @@ import {
   type DiagnosticsCatalogTab,
 } from "./diagnosticsCatalogPaths";
 import { diagnosticProviderDisplayLabel } from "./providerParameterKeys";
-
-const LIST_LIMIT = 10;
 const SEARCH_DEBOUNCE_MS = 300;
 const PROVIDER_FILTER_OPTIONS = ["healthians", "Healthians", "orange_health"];
 const GENDER_FILTER_OPTIONS = ["male", "female", "both"];
-
-function formatAlsoOfferedBy(row: DiagnosticPackageListItem): string {
-  const peers = row.same_packages ?? [];
-  if (peers.length === 0) return "—";
-  return peers.map((peer) => diagnosticProviderDisplayLabel(peer.diagnostic_provider)).join(", ");
-}
 
 export function DiagnosticPackages() {
   const navigate = useNavigate();
@@ -39,7 +31,7 @@ export function DiagnosticPackages() {
     if (path) navigate(path, { replace: true });
   }, [searchParams, navigate]);
   const mayEditDiagnostics = canEditTask("diagnostics", "packages");
-  const [rows, setRows] = useState<DiagnosticPackageListItem[]>([]);
+  const [rows, setRows] = useState<DiagnosticPackageGroupListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -63,7 +55,7 @@ export function DiagnosticPackages() {
     setLoading(true);
     setError(null);
     try {
-      const res = await diagnosticPackagesApi.list({
+      const res = await diagnosticPackagesApi.listGroups({
         include_inactive: true,
         type: "public_package",
         page,
@@ -93,11 +85,11 @@ export function DiagnosticPackages() {
     setPage(1);
   }, [debouncedSearch, tagFilter, providerFilter, genderFilter, statusFilter]);
 
-  const openView = (row: DiagnosticPackageListItem) => {
+  const openView = (row: DiagnosticPackageGroupListItem) => {
     navigate(`/diagnostics/packages/${row.diagnostic_package_id}`);
   };
 
-  const openEdit = (row: DiagnosticPackageListItem) => {
+  const openEdit = (row: DiagnosticPackageGroupListItem) => {
     navigate(`/diagnostics/packages/${row.diagnostic_package_id}/edit`);
   };
 
@@ -105,7 +97,7 @@ export function DiagnosticPackages() {
     navigate("/diagnostics/packages/new");
   };
 
-  const toggleStatus = async (row: DiagnosticPackageListItem) => {
+  const toggleStatus = async (row: DiagnosticPackageGroupListItem) => {
     const next = (row.status ?? "active").toLowerCase() === "active" ? "inactive" : "active";
     setUpdatingStatusId(row.diagnostic_package_id);
     try {
@@ -118,8 +110,19 @@ export function DiagnosticPackages() {
     }
   };
 
-  const handleDeletePackage = async (row: DiagnosticPackageListItem) => {
-    if (!window.confirm(`Delete package "${row.package_name}"? This action cannot be undone.`)) return;
+  const handleDeletePackage = async (row: DiagnosticPackageGroupListItem) => {
+    const labCount = Object.keys(row.package_group ?? {}).length;
+    const labNote =
+      labCount > 1
+        ? " Other labs in this group will remain."
+        : "";
+    if (
+      !window.confirm(
+        `Delete "${row.package_name}"? This removes only this lab's package row.${labNote} This action cannot be undone.`
+      )
+    ) {
+      return;
+    }
     try {
       await diagnosticPackagesApi.delete(row.diagnostic_package_id);
       await fetchPackages();
@@ -128,7 +131,7 @@ export function DiagnosticPackages() {
     }
   };
 
-  const handleDuplicatePackage = async (row: DiagnosticPackageListItem) => {
+  const handleDuplicatePackage = async (row: DiagnosticPackageGroupListItem) => {
     try {
       setLoading(true);
       await diagnosticPackagesApi.duplicate(row.diagnostic_package_id);
@@ -139,7 +142,7 @@ export function DiagnosticPackages() {
     }
   };
 
-  const columns: Column<DiagnosticPackageListItem>[] = [
+  const columns: Column<DiagnosticPackageGroupListItem>[] = [
     {
       key: "package_name",
       label: "Package name",
@@ -147,6 +150,7 @@ export function DiagnosticPackages() {
         const unmapped = row.unmapped_test_count ?? 0;
         const total = row.no_of_tests ?? 0;
         const mapped = Math.max(total - unmapped, 0);
+        const labCount = Object.keys(row.package_group ?? {}).length;
         return (
           <button
             type="button"
@@ -157,6 +161,11 @@ export function DiagnosticPackages() {
             className="inline-flex items-center gap-1.5 font-medium text-zinc-900 hover:underline text-left"
           >
             {row.package_name}
+            {labCount > 1 ? (
+              <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-100 text-zinc-600">
+                {labCount} labs
+              </span>
+            ) : null}
             {unmapped > 0 && (
               <span
                 title={`${mapped} of ${total} tests mapped`}
@@ -169,18 +178,6 @@ export function DiagnosticPackages() {
           </button>
         );
       },
-    },
-    {
-      key: "diagnostic_provider",
-      label: "Provider",
-      render: (row) => row.diagnostic_provider?.trim() || "—",
-      hideOnMobile: true,
-    },
-    {
-      key: "same_packages",
-      label: "Also offered by",
-      render: (row) => formatAlsoOfferedBy(row),
-      hideOnTablet: true,
     },
     { key: "no_of_tests", label: "Tests", render: (row) => row.no_of_tests ?? "—", hideOnMobile: true },
     {
@@ -346,7 +343,7 @@ export function DiagnosticPackages() {
               <DataTable
                 columns={columns}
                 data={rows}
-                keyExtractor={(row) => row.diagnostic_package_id}
+                keyExtractor={(row) => row.package_group_id ?? row.diagnostic_package_id}
                 onView={openView}
                 onEdit={openEdit}
                 onDuplicate={handleDuplicatePackage}
