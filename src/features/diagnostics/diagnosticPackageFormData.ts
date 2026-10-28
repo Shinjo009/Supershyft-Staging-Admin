@@ -1,10 +1,25 @@
-import type { DiagnosticPackageCreate, DiagnosticPackageDetail, DiagnosticPackageListItem } from "../../lib/api";
+import type {
+  DiagnosticPackageCreate,
+  DiagnosticPackageDetail,
+  DiagnosticPackageGroupListItem,
+  DiagnosticPackageListItem,
+} from "../../lib/api";
 
 export type PackageLinkMode = "own" | "linked";
+
+export type CatalogGroupRosterMember = {
+  diagnostic_package_id: number;
+  diagnostic_provider?: string | null;
+  external_package_code?: string | null;
+  price?: number | null;
+  is_default_for_group?: boolean | null;
+};
 
 export type PackageFormState = DiagnosticPackageCreate & {
   linkMode: PackageLinkMode;
   same_as_package_id: number | null;
+  /** Set on edit load when package had group peers (for unlink confirm). */
+  initialHadGroupPeers: boolean;
 };
 
 export const EMPTY_PACKAGE_FORM: PackageFormState = {
@@ -26,6 +41,7 @@ export const EMPTY_PACKAGE_FORM: PackageFormState = {
   bookings_count: null,
   linkMode: "own",
   same_as_package_id: null,
+  initialHadGroupPeers: false,
 };
 
 export function toNumberOrNull(value: string): number | null {
@@ -34,12 +50,44 @@ export function toNumberOrNull(value: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export function packageLinkOptionLabel(row: DiagnosticPackageListItem): string {
-  const provider = row.diagnostic_provider?.trim() || "—";
-  return `${row.package_name} — ${provider}`;
+export function catalogProductOptionLabel(row: DiagnosticPackageGroupListItem): string {
+  const labCount = Object.keys(row.package_group ?? {}).length;
+  const suffix = labCount > 1 ? ` · ${labCount} labs` : "";
+  return `${row.package_name}${suffix}`;
+}
+
+export function resolveGroupDefaultPackageId(
+  detail: Pick<
+    DiagnosticPackageDetail,
+    "diagnostic_package_id" | "is_default_for_group" | "same_packages"
+  >
+): number {
+  if (detail.is_default_for_group) return detail.diagnostic_package_id;
+  const peerDefault = detail.same_packages?.find((p) => p.is_default_for_group);
+  if (peerDefault) return peerDefault.diagnostic_package_id;
+  return detail.same_packages?.[0]?.diagnostic_package_id ?? detail.diagnostic_package_id;
+}
+
+export function buildGroupRosterFromDetail(detail: DiagnosticPackageDetail): CatalogGroupRosterMember[] {
+  const self: CatalogGroupRosterMember = {
+    diagnostic_package_id: detail.diagnostic_package_id,
+    diagnostic_provider: detail.diagnostic_provider,
+    external_package_code: detail.external_package_code,
+    price: detail.price,
+    is_default_for_group: detail.is_default_for_group,
+  };
+  const peers: CatalogGroupRosterMember[] = (detail.same_packages ?? []).map((peer) => ({
+    diagnostic_package_id: peer.diagnostic_package_id,
+    diagnostic_provider: peer.diagnostic_provider,
+    external_package_code: null,
+    price: peer.price,
+    is_default_for_group: peer.is_default_for_group,
+  }));
+  return [self, ...peers.filter((p) => p.diagnostic_package_id !== self.diagnostic_package_id)];
 }
 
 export function listItemToForm(row: DiagnosticPackageListItem): PackageFormState {
+  const inGroup = (row.same_packages?.length ?? 0) > 0;
   return {
     package_name: row.package_name,
     package_image: row.package_image ?? null,
@@ -57,12 +105,17 @@ export function listItemToForm(row: DiagnosticPackageListItem): PackageFormState
     health_areas_covered: "",
     about_text: "",
     bookings_count: null,
-    linkMode: (row.same_packages?.length ?? 0) > 0 ? "linked" : "own",
-    same_as_package_id: row.same_packages?.[0]?.diagnostic_package_id ?? null,
+    linkMode: inGroup ? "linked" : "own",
+    same_as_package_id: inGroup
+      ? row.same_packages?.[0]?.diagnostic_package_id ?? null
+      : null,
+    initialHadGroupPeers: inGroup,
   };
 }
 
 export function detailToForm(detail: DiagnosticPackageDetail, base: PackageFormState): PackageFormState {
+  const inGroup = (detail.same_packages?.length ?? 0) > 0;
+  const defaultId = inGroup ? resolveGroupDefaultPackageId(detail) : null;
   return {
     ...base,
     package_image: detail.package_image ?? base.package_image ?? null,
@@ -70,8 +123,9 @@ export function detailToForm(detail: DiagnosticPackageDetail, base: PackageFormS
     health_areas_covered: detail.health_areas_covered ?? "",
     about_text: detail.about_text ?? "",
     bookings_count: detail.bookings_count ?? base.bookings_count ?? null,
-    linkMode: (detail.same_packages?.length ?? 0) > 0 ? "linked" : "own",
-    same_as_package_id: detail.same_packages?.[0]?.diagnostic_package_id ?? null,
+    linkMode: inGroup ? "linked" : base.linkMode,
+    same_as_package_id: inGroup ? defaultId : base.same_as_package_id,
+    initialHadGroupPeers: inGroup,
   };
 }
 
@@ -99,7 +153,7 @@ export function buildPackagePayload(form: PackageFormState): DiagnosticPackageCr
 export function validatePackageForm(form: PackageFormState): string | null {
   if (!form.package_name.trim()) return "Package name is required.";
   if (form.linkMode === "linked" && !form.same_as_package_id) {
-    return "Select which existing package this is the same as.";
+    return "Choose which catalog product this lab belongs to.";
   }
   return null;
 }

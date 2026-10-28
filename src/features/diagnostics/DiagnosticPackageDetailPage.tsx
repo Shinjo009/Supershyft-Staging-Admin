@@ -143,6 +143,8 @@ export function DiagnosticPackageDetailPage() {
           detail={detail}
           mode="view"
           onSetDefaultComplete={() => void loadDetailHeader()}
+          onSeparated={() => void loadDetailHeader()}
+          labCount={1 + (detail.same_packages?.length ?? 0)}
         />
       )}
 

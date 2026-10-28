@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AlertTriangle, Loader2, Plus, Search } from "lucide-react";
 import { HeaderActionButton } from "../../layouts/PageHeaderActions";
@@ -20,6 +20,11 @@ const LIST_LIMIT = 10;
 const SEARCH_DEBOUNCE_MS = 300;
 const PROVIDER_FILTER_OPTIONS = ["healthians", "Healthians", "orange_health"];
 const GENDER_FILTER_OPTIONS = ["male", "female", "both"];
+const REORDER_FETCH_LIMIT = 100;
+
+function rowSortKey(row: DiagnosticPackageGroupListItem): number {
+  return row.package_group_id ?? row.diagnostic_package_id;
+}
 
 export function DiagnosticPackages() {
   const navigate = useNavigate();
@@ -47,6 +52,21 @@ export function DiagnosticPackages() {
   const [tagOptions, setTagOptions] = useState<string[]>([]);
 
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
+  const [allGroupRows, setAllGroupRows] = useState<DiagnosticPackageGroupListItem[]>([]);
+  const [reordering, setReordering] = useState(false);
+
+  const listFilters = useMemo(
+    () => ({
+      include_inactive: true as const,
+      type: "public_package" as const,
+      search: debouncedSearch || undefined,
+      tag: tagFilter || undefined,
+      diagnostic_provider: providerFilter || undefined,
+      gender: genderFilter || undefined,
+      status: statusFilter || undefined,
+    }),
+    [debouncedSearch, tagFilter, providerFilter, genderFilter, statusFilter]
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
@@ -58,15 +78,9 @@ export function DiagnosticPackages() {
     setError(null);
     try {
       const res = await diagnosticPackagesApi.listGroups({
-        include_inactive: true,
-        type: "public_package",
+        ...listFilters,
         page,
         limit: LIST_LIMIT,
-        search: debouncedSearch || undefined,
-        tag: tagFilter || undefined,
-        diagnostic_provider: providerFilter || undefined,
-        gender: genderFilter || undefined,
-        status: statusFilter || undefined,
       });
       setRows(res.data.data ?? []);
       setTotal(res.data.meta?.total ?? 0);
@@ -77,7 +91,23 @@ export function DiagnosticPackages() {
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch, tagFilter, providerFilter, genderFilter, statusFilter]);
+  }, [page, listFilters]);
+
+  const fetchAllForReorder = useCallback(async () => {
+    try {
+      const res = await diagnosticPackagesApi.listGroups({
+        ...listFilters,
+        limit: REORDER_FETCH_LIMIT,
+      });
+      setAllGroupRows(res.data.data ?? []);
+    } catch {
+      /* optional */
+    }
+  }, [listFilters]);
+
+  useEffect(() => {
+    void fetchAllForReorder();
+  }, [fetchAllForReorder]);
 
   useEffect(() => {
     void fetchPackages();
@@ -138,9 +168,50 @@ export function DiagnosticPackages() {
       setLoading(true);
       await diagnosticPackagesApi.duplicate(row.diagnostic_package_id);
       await fetchPackages();
+      await fetchAllForReorder();
     } catch (err) {
       setError(getApiError(err));
       setLoading(false);
+    }
+  };
+
+  const handleReorder = async (newPageOrderKeys: (string | number)[]) => {
+    if (reordering || allGroupRows.length === 0) return;
+    const full = allGroupRows.length > 0 ? allGroupRows : rows;
+    const fullKeys = full.map(rowSortKey);
+    const pageKeySet = new Set(rows.map(rowSortKey));
+    const pagePositions = fullKeys
+      .map((key, index) => ({ key, index }))
+      .filter((entry) => pageKeySet.has(entry.key));
+    if (pagePositions.length === 0) return;
+
+    const startIndex = pagePositions[0].index;
+    const newFullKeys = [...fullKeys];
+    newPageOrderKeys.forEach((key, offset) => {
+      newFullKeys[startIndex + offset] = Number(key);
+    });
+
+    const keyToRow = new Map(full.map((row) => [rowSortKey(row), row]));
+    const packageIds = newFullKeys
+      .map((key) => keyToRow.get(key)?.diagnostic_package_id)
+      .filter((id): id is number => id != null);
+
+    setReordering(true);
+    setError(null);
+    try {
+      await diagnosticPackagesApi.reorder({ package_ids: packageIds });
+      const reorderedFull = newFullKeys
+        .map((key) => keyToRow.get(key))
+        .filter((row): row is DiagnosticPackageGroupListItem => row != null);
+      setAllGroupRows(reorderedFull);
+      const pageOffset = (page - 1) * LIST_LIMIT;
+      setRows(reorderedFull.slice(pageOffset, pageOffset + LIST_LIMIT));
+      await fetchPackages();
+      await fetchAllForReorder();
+    } catch (err) {
+      setError(getApiError(err));
+    } finally {
+      setReordering(false);
     }
   };
 
@@ -336,6 +407,17 @@ export function DiagnosticPackages() {
             </div>
           </div>
 
+          {mayEditDiagnostics && total > 0 ? (
+            <p className="mb-3 text-xs text-zinc-500">
+              Drag rows to reorder the website catalog
+              {total > REORDER_FETCH_LIMIT
+                ? ` (first ${REORDER_FETCH_LIMIT} of ${total} products in this filter).`
+                : total !== allGroupRows.length && allGroupRows.length > 0
+                  ? ` (${allGroupRows.length} products in this filter).`
+                  : ` (${total} products).`}
+            </p>
+          ) : null}
+
           <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden">
             {loading ? (
               <div className="py-14 flex justify-center">
@@ -350,6 +432,8 @@ export function DiagnosticPackages() {
                 onEdit={openEdit}
                 onDuplicate={handleDuplicatePackage}
                 onDelete={handleDeletePackage}
+                onReorder={mayEditDiagnostics ? handleReorder : undefined}
+                mutationTaskKey="packages"
                 firstColumnClickableView
                 pagination={{
                   page,
