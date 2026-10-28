@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { usePageHeader } from "../../layouts/PageHeaderActions";
+import { Modal } from "../../shared/ui/Modal";
 import {
   diagnosticPackagesApi,
   expertTypesApi,
@@ -16,6 +17,7 @@ import {
   detailToForm,
   EMPTY_PACKAGE_FORM,
   listItemToForm,
+  resolveGroupDefaultPackageId,
   validatePackageForm,
   type PackageFormState,
 } from "./diagnosticPackageFormData";
@@ -90,7 +92,9 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
   const [expertTypes, setExpertTypes] = useState<ExpertTypeItem[]>([]);
   const [packageName, setPackageName] = useState("");
   const [joinParentName, setJoinParentName] = useState<string | null>(null);
+  const [joinDefaultPackageId, setJoinDefaultPackageId] = useState<number | null>(null);
   const [joinGroupMembers, setJoinGroupMembers] = useState<JoinGroupMemberLine[]>([]);
+  const [testGroupChoiceOpen, setTestGroupChoiceOpen] = useState(false);
   const [editDetail, setEditDetail] = useState<DiagnosticPackageDetail | null>(null);
   const [formDirty, setFormDirty] = useState(false);
 
@@ -141,6 +145,7 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
       const res = await diagnosticPackagesApi.get(joinDefaultId);
       const parent = res.data.data;
       setJoinParentName(parent.package_name);
+      setJoinDefaultPackageId(resolveGroupDefaultPackageId(parent));
       setJoinGroupMembers(buildJoinGroupMemberLines(parent));
       setForm((prev) => ({
         ...prev,
@@ -200,26 +205,47 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
     }
   };
 
+  const executeCreate = async (copyTestGroups: boolean) => {
+    setSubmitting(true);
+    setFormError(null);
+    try {
+      const payload = buildPackagePayload(form);
+      if (form.linkMode === "linked" && form.same_as_package_id) {
+        payload.same_as_package_id = form.same_as_package_id;
+      }
+      if (copyTestGroups && joinDefaultPackageId != null) {
+        payload.copy_test_groups_from_package_id = joinDefaultPackageId;
+      }
+      const res = await diagnosticPackagesApi.create(payload);
+      const id = res.data.data.diagnostic_package_id;
+      setTestGroupChoiceOpen(false);
+      navigate(`/diagnostics/packages/${id}`);
+    } catch (err) {
+      setFormError(getApiError(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleSubmit = async () => {
     const validation = validatePackageForm(form);
     if (validation) {
       setFormError(validation);
       return;
     }
+    if (mode === "add" && joinDefaultId) {
+      setTestGroupChoiceOpen(true);
+      return;
+    }
+    if (mode === "add") {
+      await executeCreate(false);
+      return;
+    }
     setSubmitting(true);
     setFormError(null);
     try {
-      const payload = buildPackagePayload(form);
-      if (mode === "add") {
-        if (form.linkMode === "linked" && form.same_as_package_id) {
-          payload.same_as_package_id = form.same_as_package_id;
-        }
-        const res = await diagnosticPackagesApi.create(payload);
-        const id = res.data.data.diagnostic_package_id;
-        navigate(`/diagnostics/packages/${id}`);
-        return;
-      }
       if (!packageId) return;
+      const payload = buildPackagePayload(form);
       await diagnosticPackagesApi.update(packageId, payload);
       navigate(`/diagnostics/packages/${packageId}`);
     } catch (err) {
@@ -331,6 +357,54 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
           </button>
         </div>
       </form>
+
+      {testGroupChoiceOpen ? (
+        <Modal
+          open={testGroupChoiceOpen}
+          onClose={() => {
+            if (!submitting) setTestGroupChoiceOpen(false);
+          }}
+          title="Test groups for new lab package"
+        >
+          <p className="text-sm text-zinc-600 mb-4">
+            Copy test groups from the default lab&apos;s package setup, or start with no test groups and configure them
+            later on the Tests tab.
+          </p>
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => void executeCreate(true)}
+              className="px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 disabled:opacity-50 inline-flex items-center justify-center gap-2"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Creating…
+                </>
+              ) : (
+                "Create with same test groups"
+              )}
+            </button>
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => void executeCreate(false)}
+              className="px-4 py-2 rounded-lg border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium disabled:opacity-50"
+            >
+              Create without test groups
+            </button>
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => setTestGroupChoiceOpen(false)}
+              className="px-4 py-2 rounded-lg text-zinc-500 hover:text-zinc-700 text-sm font-medium disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </Modal>
+      ) : null}
     </div>
   );
 }

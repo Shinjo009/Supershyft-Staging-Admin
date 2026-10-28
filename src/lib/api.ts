@@ -4414,6 +4414,8 @@ export interface DiagnosticPackageCreate {
   package_for?: "public" | "camp" | null;
   /** Link this row to an existing package from another lab (create) or change link (update). */
   same_as_package_id?: number | null;
+  /** Duplicate test groups from this package id on create (same group as same_as). */
+  copy_test_groups_from_package_id?: number | null;
 }
 
 export interface DiagnosticFilterChip {
