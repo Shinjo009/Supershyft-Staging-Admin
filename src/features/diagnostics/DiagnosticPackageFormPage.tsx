@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { usePageHeader } from "../../layouts/PageHeaderActions";
 import {
@@ -29,28 +29,54 @@ function parsePackageId(raw: string | undefined): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+function parseJoinDefaultId(raw: string | null): number | null {
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { packageId: packageIdParam } = useParams<{ packageId: string }>();
   const packageId = mode === "edit" ? parsePackageId(packageIdParam) : null;
+  const joinDefaultId = mode === "add" ? parseJoinDefaultId(searchParams.get("join_default_id")) : null;
 
-  const [loading, setLoading] = useState(mode === "edit");
+  const [loading, setLoading] = useState(mode === "edit" || joinDefaultId != null);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState<PackageFormState>(() => ({ ...EMPTY_PACKAGE_FORM }));
+  const [form, setForm] = useState<PackageFormState>(() => {
+    if (joinDefaultId) {
+      return {
+        ...EMPTY_PACKAGE_FORM,
+        linkMode: "linked",
+        same_as_package_id: joinDefaultId,
+      };
+    }
+    return { ...EMPTY_PACKAGE_FORM };
+  });
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [expertTypes, setExpertTypes] = useState<ExpertTypeItem[]>([]);
   const [packageName, setPackageName] = useState("");
+  const [joinParentName, setJoinParentName] = useState<string | null>(null);
   const [editDetail, setEditDetail] = useState<DiagnosticPackageDetail | null>(null);
   const [formDirty, setFormDirty] = useState(false);
 
   const backTo = useMemo(() => {
+    if (mode === "add" && joinDefaultId) return `/diagnostics/packages/${joinDefaultId}`;
     if (mode === "edit" && packageId) return `/diagnostics/packages/${packageId}`;
     return "/diagnostics/packages";
-  }, [mode, packageId]);
+  }, [mode, packageId, joinDefaultId]);
 
   const headerConfig = useMemo(() => {
+    if (mode === "add" && joinDefaultId) {
+      return {
+        title: "Add package",
+        subtitle: joinParentName ? `Same group as ${joinParentName}` : "Same package group as existing package",
+        backTo,
+      };
+    }
     if (mode === "add") {
       return {
         title: "New diagnostic package",
@@ -63,7 +89,7 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
       subtitle: packageId ? `Package #${packageId}` : undefined,
       backTo,
     };
-  }, [mode, packageName, packageId, backTo]);
+  }, [mode, packageName, packageId, backTo, joinDefaultId, joinParentName]);
 
   usePageHeader(headerConfig);
 
@@ -75,6 +101,27 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
       /* optional */
     }
   }, []);
+
+  const loadJoinParent = useCallback(async () => {
+    if (!joinDefaultId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await diagnosticPackagesApi.get(joinDefaultId);
+      const parent = res.data.data;
+      setJoinParentName(parent.package_name);
+      setForm((prev) => ({
+        ...prev,
+        linkMode: "linked",
+        same_as_package_id: joinDefaultId,
+        package_for: (parent.package_for as "public" | "camp") ?? prev.package_for,
+      }));
+    } catch (err) {
+      setError(getApiError(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [joinDefaultId]);
 
   const loadForEdit = useCallback(async () => {
     if (!packageId) return;
@@ -98,6 +145,10 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
   useEffect(() => {
     void loadBootstrap();
   }, [loadBootstrap]);
+
+  useEffect(() => {
+    if (mode === "add" && joinDefaultId) void loadJoinParent();
+  }, [mode, joinDefaultId, loadJoinParent]);
 
   useEffect(() => {
     if (mode === "edit") void loadForEdit();
@@ -128,6 +179,9 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
     try {
       const payload = buildPackagePayload(form);
       if (mode === "add") {
+        if (form.linkMode === "linked" && form.same_as_package_id) {
+          payload.same_as_package_id = form.same_as_package_id;
+        }
         const res = await diagnosticPackagesApi.create(payload);
         const id = res.data.data.diagnostic_package_id;
         navigate(`/diagnostics/packages/${id}`);
@@ -191,6 +245,12 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
         {formError && (
           <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{formError}</div>
         )}
+        {mode === "add" && joinDefaultId && joinParentName ? (
+          <p className="text-sm text-zinc-700 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2">
+            This new package will use the same package group as{" "}
+            <span className="font-medium text-zinc-900">{joinParentName}</span>.
+          </p>
+        ) : null}
         <DiagnosticPackageFormFields
           form={form}
           setForm={(value) => {

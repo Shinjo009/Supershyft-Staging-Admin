@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ChevronDown, Loader2 } from "lucide-react";
+import { ChevronDown, Loader2, Plus } from "lucide-react";
 import {
   diagnosticPackagesApi,
   getApiError,
@@ -85,6 +85,13 @@ export function PackageProviderSwitcher({
     navigate(`/diagnostics/packages/${packageId}${suffix}`);
   };
 
+  const navigateToAddPackage = () => {
+    if (mode === "edit" && isDirty && !window.confirm("Discard unsaved changes and add a package?")) {
+      return;
+    }
+    navigate(`/diagnostics/packages/new?join_default_id=${defaultPackageId}`);
+  };
+
   const setAsDefault = async () => {
     setSettingDefault(true);
     setError(null);
@@ -118,7 +125,19 @@ export function PackageProviderSwitcher({
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Lab provider</p>
-        {error ? <p className="text-xs text-red-600">{error}</p> : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <PermissionGate category="diagnostics" action="edit">
+            <button
+              type="button"
+              onClick={navigateToAddPackage}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-zinc-300 text-xs font-medium text-zinc-800 hover:bg-zinc-50"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add package
+            </button>
+          </PermissionGate>
+          {error ? <p className="text-xs text-red-600">{error}</p> : null}
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
