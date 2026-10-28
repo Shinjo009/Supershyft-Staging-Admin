@@ -152,8 +152,5 @@ export function buildPackagePayload(form: PackageFormState): DiagnosticPackageCr
 
 export function validatePackageForm(form: PackageFormState): string | null {
   if (!form.package_name.trim()) return "Package name is required.";
-  if (form.linkMode === "linked" && !form.same_as_package_id) {
-    return "Choose which catalog product this lab belongs to.";
-  }
   return null;
 }

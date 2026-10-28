@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { usePageHeader } from "../../layouts/PageHeaderActions";
 import {
@@ -7,20 +7,16 @@ import {
   expertTypesApi,
   getApiError,
   uploadsApi,
-  type DiagnosticPackageCreate,
   type DiagnosticPackageDetail,
-  type DiagnosticPackageGroupListItem,
   type ExpertTypeItem,
 } from "../../lib/api";
 import { DiagnosticPackageFormFields } from "./DiagnosticPackageFormFields";
 import {
-  buildGroupRosterFromDetail,
   buildPackagePayload,
   detailToForm,
   EMPTY_PACKAGE_FORM,
   listItemToForm,
   validatePackageForm,
-  type CatalogGroupRosterMember,
   type PackageFormState,
 } from "./diagnosticPackageFormData";
 import { PackageProviderSwitcher } from "./PackageProviderSwitcher";
@@ -33,37 +29,18 @@ function parsePackageId(raw: string | undefined): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-function parseJoinDefaultId(raw: string | null): number | null {
-  if (!raw) return null;
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
 export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const { packageId: packageIdParam } = useParams<{ packageId: string }>();
   const packageId = mode === "edit" ? parsePackageId(packageIdParam) : null;
-  const joinDefaultId = mode === "add" ? parseJoinDefaultId(searchParams.get("join_default_id")) : null;
 
   const [loading, setLoading] = useState(mode === "edit");
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState<PackageFormState>(() => {
-    if (joinDefaultId) {
-      return {
-        ...EMPTY_PACKAGE_FORM,
-        linkMode: "linked",
-        same_as_package_id: joinDefaultId,
-      };
-    }
-    return { ...EMPTY_PACKAGE_FORM };
-  });
+  const [form, setForm] = useState<PackageFormState>(() => ({ ...EMPTY_PACKAGE_FORM }));
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [expertTypes, setExpertTypes] = useState<ExpertTypeItem[]>([]);
-  const [catalogProductOptions, setCatalogProductOptions] = useState<DiagnosticPackageGroupListItem[]>([]);
-  const [groupRoster, setGroupRoster] = useState<CatalogGroupRosterMember[]>([]);
   const [packageName, setPackageName] = useState("");
   const [editDetail, setEditDetail] = useState<DiagnosticPackageDetail | null>(null);
   const [formDirty, setFormDirty] = useState(false);
@@ -76,8 +53,8 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
   const headerConfig = useMemo(() => {
     if (mode === "add") {
       return {
-        title: joinDefaultId ? "New lab for catalog product" : "New diagnostic package",
-        subtitle: "Create public catalog package",
+        title: "New diagnostic package",
+        subtitle: "Create public package",
         backTo: "/diagnostics/packages",
       };
     }
@@ -86,50 +63,30 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
       subtitle: packageId ? `Package #${packageId}` : undefined,
       backTo,
     };
-  }, [mode, packageName, packageId, backTo, joinDefaultId]);
+  }, [mode, packageName, packageId, backTo]);
 
   usePageHeader(headerConfig);
-
-  const loadCatalogProducts = useCallback(async () => {
-    try {
-      const res = await diagnosticPackagesApi.listGroups({
-        include_inactive: true,
-        type: "public_package",
-        limit: 100,
-      });
-      setCatalogProductOptions(res.data.data ?? []);
-    } catch {
-      /* optional */
-    }
-  }, []);
 
   const loadBootstrap = useCallback(async () => {
     try {
       const typesRes = await expertTypesApi.list();
       setExpertTypes(typesRes.data.data ?? []);
-      await loadCatalogProducts();
     } catch {
       /* optional */
     }
-  }, [loadCatalogProducts]);
+  }, []);
 
   const loadForEdit = useCallback(async () => {
     if (!packageId) return;
     setLoading(true);
     setError(null);
     try {
-      const [groupsRes, detailRes] = await Promise.all([
-        diagnosticPackagesApi.listGroups({ include_inactive: true, type: "public_package", limit: 100 }),
-        diagnosticPackagesApi.get(packageId),
-      ]);
-      setCatalogProductOptions(groupsRes.data.data ?? []);
+      const detailRes = await diagnosticPackagesApi.get(packageId);
       const detail = detailRes.data.data;
       setEditDetail(detail);
-      setGroupRoster(buildGroupRosterFromDetail(detail));
       setFormDirty(false);
       setPackageName(detail.package_name);
-      const listRow = (groupsRes.data.data ?? []).find((r) => r.diagnostic_package_id === packageId);
-      const base = listRow ? listItemToForm(listRow) : listItemToForm(detail);
+      const base = listItemToForm(detail);
       setForm(detailToForm(detail, base));
     } catch (err) {
       setError(getApiError(err));
@@ -145,19 +102,6 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
   useEffect(() => {
     if (mode === "edit") void loadForEdit();
   }, [mode, loadForEdit]);
-
-  useEffect(() => {
-    if (mode !== "add" || !joinDefaultId) return;
-    const product = catalogProductOptions.find((row) => row.diagnostic_package_id === joinDefaultId);
-    if (product?.package_name && !form.package_name) {
-      setForm((prev) => ({
-        ...prev,
-        linkMode: "linked",
-        same_as_package_id: joinDefaultId,
-        package_name: prev.package_name || product.package_name,
-      }));
-    }
-  }, [mode, joinDefaultId, catalogProductOptions, form.package_name]);
 
   const handleImageUpload = async (file?: File) => {
     if (!file) return;
@@ -179,44 +123,18 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
       setFormError(validation);
       return;
     }
-    if (
-      mode === "edit" &&
-      form.linkMode === "own" &&
-      form.initialHadGroupPeers &&
-      editDetail &&
-      (editDetail.same_packages?.length ?? 0) > 0
-    ) {
-      if (
-        !window.confirm(
-          "This lab will appear as its own product on the website. Other labs in this group will stay grouped together. Continue?"
-        )
-      ) {
-        return;
-      }
-    }
     setSubmitting(true);
     setFormError(null);
     try {
       const payload = buildPackagePayload(form);
       if (mode === "add") {
-        if (form.linkMode === "linked" && form.same_as_package_id) {
-          payload.same_as_package_id = form.same_as_package_id;
-        }
         const res = await diagnosticPackagesApi.create(payload);
         const id = res.data.data.diagnostic_package_id;
         navigate(`/diagnostics/packages/${id}`);
         return;
       }
       if (!packageId) return;
-      const updatePayload: Partial<DiagnosticPackageCreate> & { same_as_package_id?: number | null } = {
-        ...payload,
-      };
-      if (form.linkMode === "linked" && form.same_as_package_id) {
-        updatePayload.same_as_package_id = form.same_as_package_id;
-      } else {
-        updatePayload.same_as_package_id = null;
-      }
-      await diagnosticPackagesApi.update(packageId, updatePayload);
+      await diagnosticPackagesApi.update(packageId, payload);
       navigate(`/diagnostics/packages/${packageId}`);
     } catch (err) {
       setFormError(getApiError(err));
@@ -260,7 +178,6 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
           mode="edit"
           isDirty={formDirty}
           onSetDefaultComplete={() => void loadForEdit()}
-          onSeparated={() => void loadForEdit()}
           labCount={1 + (editDetail.same_packages?.length ?? 0)}
         />
       ) : null}
@@ -280,9 +197,6 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
             setFormDirty(true);
             setForm(value);
           }}
-          catalogProductOptions={catalogProductOptions}
-          groupRoster={groupRoster}
-          currentPackageId={packageId}
           expertTypes={expertTypes}
           imageUploading={imageUploading}
           onImageUpload={handleImageUpload}

@@ -1,26 +1,17 @@
-import type { DiagnosticPackageGroupListItem, ExpertTypeItem } from "../../lib/api";
+import type { ExpertTypeItem } from "../../lib/api";
 import {
   diagnosticProviderDisplayLabel,
   isOrangeHealthProvider,
 } from "./providerParameterKeys";
-import {
-  catalogProductOptionLabel,
-  toNumberOrNull,
-  type CatalogGroupRosterMember,
-  type PackageFormState,
-} from "./diagnosticPackageFormData";
+import { toNumberOrNull, type PackageFormState } from "./diagnosticPackageFormData";
 
 type Props = {
   form: PackageFormState;
   setForm: React.Dispatch<React.SetStateAction<PackageFormState>>;
-  catalogProductOptions: DiagnosticPackageGroupListItem[];
-  groupRoster: CatalogGroupRosterMember[];
-  currentPackageId?: number | null;
   expertTypes: ExpertTypeItem[];
   imageUploading: boolean;
   onImageUpload: (file?: File) => void;
 };
-
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="bg-white border border-zinc-200 rounded-xl p-4 sm:p-5 space-y-4">
@@ -33,39 +24,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export function DiagnosticPackageFormFields({
   form,
   setForm,
-  catalogProductOptions,
-  groupRoster,
-  currentPackageId,
   expertTypes,
   imageUploading,
   onImageUpload,
 }: Props) {
-  const showRoster = groupRoster.length > 1 || (form.linkMode === "linked" && groupRoster.length > 0);
-  const currentGroupId =
-    currentPackageId != null
-      ? catalogProductOptions.find((row) =>
-          Object.values(row.package_group ?? {}).includes(currentPackageId)
-        )?.package_group_id
-      : null;
-
-  const joinOptions = catalogProductOptions.filter((row) => {
-    if (row.diagnostic_package_id === currentPackageId) return false;
-    if (currentGroupId != null && row.package_group_id === currentGroupId) return false;
-    return true;
-  });
-
-  const requestSeparateProduct = () => {
-    if (
-      form.initialHadGroupPeers &&
-      !window.confirm(
-        "This lab will appear as its own product on the website. Other labs in this group will stay grouped together. Continue?"
-      )
-    ) {
-      return;
-    }
-    setForm((prev) => ({ ...prev, linkMode: "own", same_as_package_id: null }));
-  };
-
   return (
     <div className="space-y-5">
       <Section title="Basics">
@@ -196,118 +158,6 @@ export function DiagnosticPackageFormFields({
             />
           </div>
         </div>
-      </Section>
-
-      <Section title="Website catalog product">
-        <p className="text-xs text-zinc-600 -mt-2">
-          Each lab has its own price and code. Grouped labs appear as one product to customers on the website.
-        </p>
-        {showRoster ? (
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-zinc-900">Labs in this catalog product</p>
-            <div className="overflow-x-auto rounded-lg border border-zinc-200">
-              <table className="min-w-full text-sm">
-                <thead className="bg-zinc-50 text-left text-xs text-zinc-500">
-                  <tr>
-                    <th className="px-3 py-2 font-medium">Lab</th>
-                    <th className="px-3 py-2 font-medium">Code</th>
-                    <th className="px-3 py-2 font-medium">Price</th>
-                    <th className="px-3 py-2 font-medium">Default</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {groupRoster.map((member) => (
-                    <tr key={member.diagnostic_package_id} className="border-t border-zinc-100">
-                      <td className="px-3 py-2 text-zinc-900">
-                        {diagnosticProviderDisplayLabel(member.diagnostic_provider)}
-                      </td>
-                      <td className="px-3 py-2 text-zinc-600">{member.external_package_code ?? "—"}</td>
-                      <td className="px-3 py-2 text-zinc-900">
-                        {member.price != null ? `₹${member.price}` : "—"}
-                      </td>
-                      <td className="px-3 py-2">
-                        {member.is_default_for_group ? (
-                          <span className="text-xs font-medium text-zinc-700">Catalog default</span>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {currentPackageId ? (
-              <p className="text-xs text-zinc-500">
-                Use the lab bar at the top to switch and edit another lab in this product.
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-
-        {form.linkMode === "linked" ? (
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-1">Same product as…</label>
-            <select
-              value={form.same_as_package_id ?? ""}
-              onChange={(e) =>
-                setForm((prev) => ({
-                  ...prev,
-                  linkMode: "linked",
-                  same_as_package_id: e.target.value ? Number(e.target.value) : null,
-                }))
-              }
-              className="w-full border border-zinc-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-zinc-900"
-              required
-            >
-              <option value="">Select a catalog product</option>
-              {joinOptions.map((row) => (
-                <option key={row.diagnostic_package_id} value={row.diagnostic_package_id}>
-                  {catalogProductOptionLabel(row)}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : (
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-1">
-              Join an existing catalog product (optional)
-            </label>
-            <select
-              value={form.same_as_package_id ?? ""}
-              onChange={(e) => {
-                const id = e.target.value ? Number(e.target.value) : null;
-                if (!id) {
-                  setForm((prev) => ({ ...prev, linkMode: "own", same_as_package_id: null }));
-                  return;
-                }
-                setForm((prev) => ({
-                  ...prev,
-                  linkMode: "linked",
-                  same_as_package_id: id,
-                }));
-              }}
-              className="w-full border border-zinc-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-zinc-900"
-            >
-              <option value="">This lab is its own product on the website</option>
-              {joinOptions.map((row) => (
-                <option key={row.diagnostic_package_id} value={row.diagnostic_package_id}>
-                  {catalogProductOptionLabel(row)}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {(form.linkMode === "linked" || form.initialHadGroupPeers) && (
-          <button
-            type="button"
-            onClick={requestSeparateProduct}
-            className="text-sm text-zinc-700 underline underline-offset-2 hover:text-zinc-900"
-          >
-            Show as separate product on website
-          </button>
-        )}
       </Section>
 
       <Section title="Pricing">
