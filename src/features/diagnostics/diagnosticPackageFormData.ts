@@ -68,6 +68,16 @@ export function resolveGroupDefaultPackageId(
   return detail.same_packages?.[0]?.diagnostic_package_id ?? detail.diagnostic_package_id;
 }
 
+export function resolveGroupDefaultPackageIdFromListRow(
+  row: DiagnosticPackageGroupListItem
+): number {
+  return resolveGroupDefaultPackageId({
+    diagnostic_package_id: row.diagnostic_package_id,
+    is_default_for_group: row.is_default_for_group,
+    same_packages: row.same_packages,
+  });
+}
+
 export function buildGroupRosterFromDetail(detail: DiagnosticPackageDetail): CatalogGroupRosterMember[] {
   const self: CatalogGroupRosterMember = {
     diagnostic_package_id: detail.diagnostic_package_id,

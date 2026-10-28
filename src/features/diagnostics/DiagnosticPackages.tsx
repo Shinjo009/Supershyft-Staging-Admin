@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { AlertTriangle, Loader2, Plus, Search } from "lucide-react";
+import { AlertTriangle, Loader2, Plus, Search, Trash2 } from "lucide-react";
 import { HeaderActionButton } from "../../layouts/PageHeaderActions";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
+import { Modal } from "../../shared/ui/Modal";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
 import {
   diagnosticPackagesApi,
@@ -15,6 +16,7 @@ import {
   type DiagnosticsCatalogTab,
 } from "./diagnosticsCatalogPaths";
 import { diagnosticProviderDisplayLabel } from "./providerParameterKeys";
+import { resolveGroupDefaultPackageIdFromListRow } from "./diagnosticPackageFormData";
 
 const LIST_LIMIT = 10;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -53,6 +55,8 @@ export function DiagnosticPackages() {
 
   const [allGroupRows, setAllGroupRows] = useState<DiagnosticPackageGroupListItem[]>([]);
   const [reordering, setReordering] = useState(false);
+  const [pendingDeleteRow, setPendingDeleteRow] = useState<DiagnosticPackageGroupListItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const listFilters = useMemo(
     () => ({
@@ -117,48 +121,47 @@ export function DiagnosticPackages() {
   }, [debouncedSearch, tagFilter, providerFilter, genderFilter, statusFilter]);
 
   const openView = (row: DiagnosticPackageGroupListItem) => {
-    navigate(`/diagnostics/packages/${row.diagnostic_package_id}`);
+    navigate(`/diagnostics/packages/${resolveGroupDefaultPackageIdFromListRow(row)}`);
   };
 
   const openEdit = (row: DiagnosticPackageGroupListItem) => {
-    navigate(`/diagnostics/packages/${row.diagnostic_package_id}/edit`);
+    navigate(`/diagnostics/packages/${resolveGroupDefaultPackageIdFromListRow(row)}/edit`);
   };
 
   const openCreate = () => {
     navigate("/diagnostics/packages/new");
   };
 
-  const handleDeletePackage = async (row: DiagnosticPackageGroupListItem) => {
-    const labCount = Object.keys(row.package_group ?? {}).length;
-    const labNote =
-      labCount > 1
-        ? " Other labs in this group will remain."
-        : "";
-    if (
-      !window.confirm(
-        `Delete "${row.package_name}"? This removes only this lab's package row.${labNote} This action cannot be undone.`
-      )
-    ) {
-      return;
-    }
-    try {
-      await diagnosticPackagesApi.delete(row.diagnostic_package_id);
-      await fetchPackages();
-    } catch (err) {
-      setError(getApiError(err));
-    }
+  const requestDeletePackage = (row: DiagnosticPackageGroupListItem) => {
+    setPendingDeleteRow(row);
   };
 
-  const handleDuplicatePackage = async (row: DiagnosticPackageGroupListItem) => {
+  const confirmDeletePackage = async () => {
+    if (!pendingDeleteRow) return;
+    const packageId = resolveGroupDefaultPackageIdFromListRow(pendingDeleteRow);
+    setDeleting(true);
+    setError(null);
     try {
-      setLoading(true);
-      await diagnosticPackagesApi.duplicate(row.diagnostic_package_id);
+      await diagnosticPackagesApi.delete(packageId);
+      setPendingDeleteRow(null);
       await fetchPackages();
       await fetchAllForReorder();
     } catch (err) {
       setError(getApiError(err));
-      setLoading(false);
+    } finally {
+      setDeleting(false);
     }
+  };
+
+  const defaultProviderLabelForRow = (row: DiagnosticPackageGroupListItem) => {
+    if (row.is_default_for_group) {
+      return diagnosticProviderDisplayLabel(row.diagnostic_provider);
+    }
+    const peerDefault = row.same_packages?.find((p) => p.is_default_for_group);
+    if (peerDefault) {
+      return diagnosticProviderDisplayLabel(peerDefault.diagnostic_provider);
+    }
+    return diagnosticProviderDisplayLabel(row.diagnostic_provider);
   };
 
   const handleReorder = async (newPageOrderKeys: (string | number)[]) => {
@@ -383,8 +386,7 @@ export function DiagnosticPackages() {
                 keyExtractor={(row) => row.package_group_id ?? row.diagnostic_package_id}
                 onView={openView}
                 onEdit={openEdit}
-                onDuplicate={handleDuplicatePackage}
-                onDelete={handleDeletePackage}
+                onDelete={requestDeletePackage}
                 onReorder={mayEditDiagnostics ? handleReorder : undefined}
                 mutationTaskKey="packages"
                 firstColumnClickableView
@@ -397,6 +399,53 @@ export function DiagnosticPackages() {
               />
             )}
           </div>
+
+          {pendingDeleteRow != null ? (
+            <Modal
+              open={pendingDeleteRow != null}
+              onClose={() => {
+                if (!deleting) setPendingDeleteRow(null);
+              }}
+              title="Delete lab package"
+            >
+              <p className="text-sm text-zinc-600 mb-4">
+                Delete {defaultProviderLabelForRow(pendingDeleteRow)} for &ldquo;{pendingDeleteRow.package_name}
+                &rdquo;? This permanently removes this package&apos;s reasons, tags, samples, preparations, filter
+                links, and test assignments.
+                {Object.keys(pendingDeleteRow.package_group ?? {}).length > 1
+                  ? " Other labs in this product will remain; the lowest-price remaining lab becomes the new default."
+                  : ""}
+              </p>
+              <div className="flex flex-col-reverse sm:flex-row gap-2">
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={() => void confirmDeletePackage()}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 text-white hover:bg-zinc-800 text-sm font-medium disabled:opacity-50"
+                >
+                  {deleting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Deleting…
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Delete
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={() => setPendingDeleteRow(null)}
+                  className="px-4 py-2 rounded-lg border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </Modal>
+          ) : null}
         </div>
     </DiagnosticsCatalogShell>
   );
