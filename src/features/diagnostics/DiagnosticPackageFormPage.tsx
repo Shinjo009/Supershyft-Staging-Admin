@@ -264,6 +264,7 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
           mode="edit"
           isDirty={formDirty}
           onSetDefaultComplete={() => void loadForEdit()}
+          onPackageDeleted={() => void loadForEdit()}
           labCount={1 + (editDetail.same_packages?.length ?? 0)}
         />
       ) : null}

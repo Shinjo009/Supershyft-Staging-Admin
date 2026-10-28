@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ChevronDown, Loader2, Plus } from "lucide-react";
+import { ChevronDown, Loader2, Plus, Trash2 } from "lucide-react";
 import {
   diagnosticPackagesApi,
   getApiError,
@@ -9,6 +9,7 @@ import {
   type DiagnosticPackagePeer,
 } from "../../lib/api";
 import { PermissionGate } from "../../contexts/PermissionContext";
+import { Modal } from "../../shared/ui/Modal";
 import { diagnosticProviderDisplayLabel } from "./providerParameterKeys";
 import { resolveGroupDefaultPackageId } from "./diagnosticPackageFormData";
 
@@ -27,6 +28,7 @@ export type PackageProviderSwitcherProps = {
   mode: "view" | "edit";
   isDirty?: boolean;
   onSetDefaultComplete?: () => void;
+  onPackageDeleted?: () => void;
   catalogProductName?: string;
   labCount?: number;
 };
@@ -56,6 +58,7 @@ export function PackageProviderSwitcher({
   mode,
   isDirty = false,
   onSetDefaultComplete,
+  onPackageDeleted,
   catalogProductName,
   labCount,
 }: PackageProviderSwitcherProps) {
@@ -63,6 +66,8 @@ export function PackageProviderSwitcher({
   const [searchParams] = useSearchParams();
   const [menuOpen, setMenuOpen] = useState(false);
   const [settingDefault, setSettingDefault] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<SwitcherPackage | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const options = useMemo(
@@ -77,12 +82,16 @@ export function PackageProviderSwitcher({
   const inMultiLabGroup = labsInProduct > 1 || (detail.same_packages?.length ?? 0) > 0;
   const showMoreActions = !selected.is_default_for_group;
 
+  const packagePath = (packageId: number) => {
+    const tab = searchParams.get("tab");
+    const suffix = mode === "edit" ? "/edit" : tab ? `?tab=${encodeURIComponent(tab)}` : "";
+    return `/diagnostics/packages/${packageId}${suffix}`;
+  };
+
   const navigateTo = (packageId: number) => {
     if (packageId === currentPackageId) return;
     if (isDirty && !window.confirm("Discard unsaved changes and switch provider?")) return;
-    const tab = searchParams.get("tab");
-    const suffix = mode === "edit" ? "/edit" : tab ? `?tab=${encodeURIComponent(tab)}` : "";
-    navigate(`/diagnostics/packages/${packageId}${suffix}`);
+    navigate(packagePath(packageId));
   };
 
   const navigateToAddPackage = () => {
@@ -105,6 +114,40 @@ export function PackageProviderSwitcher({
       setSettingDefault(false);
     }
   };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const deletedId = pendingDelete.diagnostic_package_id;
+    setDeleting(true);
+    setError(null);
+    try {
+      await diagnosticPackagesApi.delete(deletedId);
+      setPendingDelete(null);
+      const remaining = options.filter((o) => o.diagnostic_package_id !== deletedId);
+      onPackageDeleted?.();
+      if (deletedId === currentPackageId) {
+        if (remaining.length > 0) {
+          const target = remaining.find((r) => r.is_default_for_group) ?? remaining[0];
+          navigate(packagePath(target.diagnostic_package_id));
+        } else {
+          navigate("/diagnostics/packages");
+        }
+      }
+    } catch (err) {
+      setError(getApiError(err));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const deleteModalBody = pendingDelete ? (
+    <>
+      Delete {diagnosticProviderDisplayLabel(pendingDelete.diagnostic_provider)} for &ldquo;{productName}
+      &rdquo;? This permanently removes this package&apos;s reasons, tags, samples, preparations, filter links,
+      and test assignments.
+      {options.length > 1 ? " Other labs in this product will remain." : ""}
+    </>
+  ) : null;
 
   return (
     <div className="mb-5 rounded-xl border border-zinc-200 bg-white p-3 sm:p-4 space-y-3">
@@ -145,18 +188,35 @@ export function PackageProviderSwitcher({
           const active = row.diagnostic_package_id === currentPackageId;
           const inactive = (row.status ?? "").toLowerCase() !== "active";
           return (
-            <button
+            <div
               key={row.diagnostic_package_id}
-              type="button"
-              onClick={() => navigateTo(row.diagnostic_package_id)}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors ${
                 active
                   ? "bg-zinc-900 text-white border-zinc-900"
                   : "bg-white text-zinc-700 border-zinc-300 hover:border-zinc-400"
               } ${inactive && !active ? "opacity-60" : ""}`}
             >
-              <span>{diagnosticProviderDisplayLabel(row.diagnostic_provider)}</span>
-              {row.price != null ? <span className="text-xs opacity-80">₹{row.price}</span> : null}
+              <button
+                type="button"
+                onClick={() => navigateTo(row.diagnostic_package_id)}
+                className={`inline-flex items-center gap-1.5 min-w-0 ${
+                  active ? "text-white" : "text-inherit"
+                }`}
+              >
+                <span>{diagnosticProviderDisplayLabel(row.diagnostic_provider)}</span>
+              </button>
+              <PermissionGate category="diagnostics" action="edit">
+                <button
+                  type="button"
+                  aria-label={`Delete ${diagnosticProviderDisplayLabel(row.diagnostic_provider)} package`}
+                  onClick={() => setPendingDelete(row)}
+                  className={`inline-flex p-0.5 rounded shrink-0 ${
+                    active ? "text-white/80 hover:text-white" : "text-zinc-400 hover:text-red-600"
+                  }`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </PermissionGate>
               {row.is_default_for_group ? (
                 <span
                   className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded ${
@@ -166,7 +226,7 @@ export function PackageProviderSwitcher({
                   Default
                 </span>
               ) : null}
-            </button>
+            </div>
           );
         })}
       </div>
@@ -202,6 +262,46 @@ export function PackageProviderSwitcher({
             </div>
           ) : null}
         </div>
+      ) : null}
+
+      {pendingDelete != null ? (
+        <Modal
+          open={pendingDelete != null}
+          onClose={() => {
+            if (!deleting) setPendingDelete(null);
+          }}
+          title="Delete lab package"
+        >
+          <p className="text-sm text-zinc-600 mb-4">{deleteModalBody}</p>
+          <div className="flex flex-col-reverse sm:flex-row gap-2">
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={() => void confirmDelete()}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 text-white hover:bg-zinc-800 text-sm font-medium disabled:opacity-50"
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Deleting…
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4" />
+                  Delete
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={() => setPendingDelete(null)}
+              className="px-4 py-2 rounded-lg border border-zinc-200 text-zinc-700 hover:bg-zinc-50 text-sm font-medium disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </Modal>
       ) : null}
     </div>
   );
