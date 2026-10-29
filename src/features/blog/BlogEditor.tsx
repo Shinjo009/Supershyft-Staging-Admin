@@ -511,7 +511,6 @@ export function BlogEditor() {
           </DevicePreviewFrame>
         </div>
       ) : null}
-      </div>
     </div>
   );
 }

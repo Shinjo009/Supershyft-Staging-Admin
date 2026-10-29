@@ -30,12 +30,14 @@ describe("StoryRichEditor layout", () => {
       expect(container.querySelector(".simple-editor-content")).toBeTruthy();
     });
 
-    const toolbar = container.querySelector('[role="toolbar"]') as HTMLElement | null;
+    const toolbar = container.querySelector('[role="toolbar"]');
     const storyScroll = container.querySelector(".story-scroll");
 
-    expect(toolbar).toBeTruthy();
-    expect(storyScroll).toBeTruthy();
-    expect(toolbar?.style.bottom).toBe("");
-    expect(toolbar?.compareDocumentPosition(storyScroll as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(toolbar).toBeInstanceOf(HTMLElement);
+    expect(storyScroll).toBeInstanceOf(Element);
+    if (!(toolbar instanceof HTMLElement) || !(storyScroll instanceof Element)) return;
+
+    expect(toolbar.style.bottom).toBe("");
+    expect(toolbar.compareDocumentPosition(storyScroll) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
