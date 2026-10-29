@@ -1,16 +1,23 @@
 import type { TestGroupFormState } from "./diagnosticTestGroupFormData";
 import { slugifyGroupKey } from "./diagnosticTestGroupFormData";
+import { diagnosticProviderDisplayLabel } from "./providerParameterKeys";
+
+const PROVIDER_OPTIONS = ["healthians", "Healthians", "orange_health"];
 
 export function DiagnosticTestGroupFormFields({
   form,
   setForm,
   groupKeyManuallyEdited,
   setGroupKeyManuallyEdited,
+  imageUploading,
+  onImageUpload,
 }: {
   form: TestGroupFormState;
   setForm: React.Dispatch<React.SetStateAction<TestGroupFormState>>;
   groupKeyManuallyEdited: boolean;
   setGroupKeyManuallyEdited: (value: boolean) => void;
+  imageUploading?: boolean;
+  onImageUpload?: (file?: File) => void;
 }) {
   return (
     <div className="space-y-4">
@@ -47,17 +54,62 @@ export function DiagnosticTestGroupFormFields({
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-zinc-700 mb-1">Healthians group code</label>
+        <label className="block text-sm font-medium text-zinc-700 mb-1">Lab provider</label>
+        <select
+          value={form.diagnostic_provider}
+          onChange={(e) => setForm((prev) => ({ ...prev, diagnostic_provider: e.target.value }))}
+          className="w-full border border-zinc-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-zinc-900"
+        >
+          <option value="">Select</option>
+          {PROVIDER_OPTIONS.map((value) => (
+            <option key={value} value={value}>
+              {diagnosticProviderDisplayLabel(value)}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-zinc-700 mb-1">External test group code</label>
         <input
           type="text"
-          value={form.healthians_group_code}
+          value={form.external_test_group_code}
           onChange={(e) =>
-            setForm((prev) => ({ ...prev, healthians_group_code: e.target.value }))
+            setForm((prev) => ({ ...prev, external_test_group_code: e.target.value }))
           }
-          placeholder="Healthians catalog group id"
+          placeholder="Lab catalog group id"
           className="w-full border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900"
         />
       </div>
+      <div>
+        <label className="block text-sm font-medium text-zinc-700 mb-1">Test group image URL</label>
+        <input
+          type="url"
+          value={form.test_group_image}
+          onChange={(e) => setForm((prev) => ({ ...prev, test_group_image: e.target.value }))}
+          className="w-full border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900"
+          placeholder="https://"
+        />
+      </div>
+      {onImageUpload ? (
+        <div>
+          <label className="block text-sm font-medium text-zinc-700 mb-1">Upload image</label>
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={(e) => onImageUpload(e.target.files?.[0])}
+            className="w-full text-sm"
+            disabled={imageUploading}
+          />
+          {imageUploading ? <p className="mt-1 text-xs text-zinc-500">Uploading…</p> : null}
+        </div>
+      ) : null}
+      {form.test_group_image ? (
+        <img
+          src={form.test_group_image}
+          alt="Test group preview"
+          className="h-20 w-20 rounded-lg object-cover border border-zinc-200"
+        />
+      ) : null}
       <div>
         <label className="block text-sm font-medium text-zinc-700 mb-1">Order</label>
         <input

@@ -9,6 +9,8 @@ import {
 import { PermissionGate } from "../../contexts/PermissionContext";
 import { diagnosticTestGroupsApi, getApiError, type DiagnosticTestGroupStandalone } from "../../lib/api";
 import { DiagnosticTestGroupDetailContent } from "./DiagnosticTestGroupDetailContent";
+import { TestGroupProviderSwitcher } from "./TestGroupProviderSwitcher";
+import { diagnosticProviderDisplayLabel } from "./providerParameterKeys";
 
 import { DIAGNOSTICS_TEST_GROUPS_LIST } from "./diagnosticsCatalogPaths";
 
@@ -50,9 +52,11 @@ export function DiagnosticTestGroupDetailPage() {
   const headerConfig = useMemo(() => {
     if (!detail) return null;
     const subtitle = [
-      detail.group_key,
+      diagnosticProviderDisplayLabel(detail.diagnostic_provider),
       `${detail.test_count ?? 0} tests assigned`,
-    ].join(" · ");
+    ]
+      .filter(Boolean)
+      .join(" · ");
     return {
       title: detail.group_name,
       subtitle,
@@ -84,6 +88,17 @@ export function DiagnosticTestGroupDetailPage() {
             <HeaderActionButton label="Edit" icon={Pencil} onClick={openEdit} variant="secondary" />
           </PermissionGate>
         </PageHeaderActions>
+      )}
+
+      {detail && (
+        <TestGroupProviderSwitcher
+          currentGroupId={groupId}
+          detail={detail}
+          mode="view"
+          onSetDefaultComplete={() => void loadHeader()}
+          onGroupDeleted={() => void loadHeader()}
+          labCount={1 + (detail.same_test_groups?.length ?? 0)}
+        />
       )}
 
       {loading && !detail ? (

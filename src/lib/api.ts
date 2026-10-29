@@ -4446,9 +4446,15 @@ export interface DiagnosticPackageListItem {
   package_group_id?: number | null;
 }
 
+export interface DiagnosticWarning {
+  code: string;
+  message: string;
+}
+
 export interface DiagnosticPackageGroupListItem extends DiagnosticPackageListItem {
   package_group: Record<string, number>;
   has_unmapped_tests?: boolean;
+  warnings?: DiagnosticWarning[];
 }
 
 /** Minimal shape returned by GET /engagements/form-bootstrap diagnostic_packages. */
@@ -4810,19 +4816,47 @@ export interface DiagnosticTestGroupStandalone {
   group_id: number;
   group_name: string;
   group_key: string;
-  healthians_group_code?: string | null;
+  profile_group_id?: number | null;
+  test_group_image?: string | null;
+  diagnostic_provider?: string | null;
+  external_test_group_code?: string | null;
+  is_default_for_group?: boolean | null;
   display_order?: number | null;
   test_count: number;
   price?: number | null;
   discount?: string | null;
+  discount_percent?: number | null;
   original_price?: number | null;
   is_most_popular?: boolean | null;
   has_allergy_screening?: boolean | null;
   has_cancer_screening?: boolean | null;
   gender_suitability?: string | null;
   package_for?: "public" | "camp" | null;
+  forked_from_group_id?: number | null;
+  same_test_groups?: DiagnosticTestGroupPeer[];
   tests?: DiagnosticTestStandalone[];
   filter_chips?: PackageFilterChip[];
+}
+
+export interface DiagnosticTestGroupPeer {
+  group_id: number;
+  group_name: string;
+  diagnostic_provider?: string | null;
+  price?: number | null;
+  is_default_for_group?: boolean | null;
+}
+
+export interface DiagnosticTestGroupProfileListItem {
+  group_id: number;
+  group_name: string;
+  test_count: number;
+  price?: number | null;
+  discount?: string | null;
+  discount_percent?: number | null;
+  gender_suitability?: string | null;
+  profile_group_id?: number | null;
+  diagnostic_provider?: string | null;
+  profile_group: Record<string, number>;
 }
 
 export interface AssignTestsToGroupResponse {
@@ -4999,12 +5033,27 @@ export const diagnosticTestGroupsApi = {
       "/diagnostic-test-groups",
       { params }
     ),
+  listGroups: (params?: {
+    filter_chip?: string;
+    package_for?: string;
+    page?: number;
+    limit?: number;
+    search?: string;
+  }) =>
+    api.get<{
+      data: DiagnosticTestGroupProfileListItem[];
+      meta?: { page: number; limit: number; total: number };
+    }>("/diagnostic-test-groups/groups", { params }),
   get: (groupId: number) =>
     api.get<{ data: DiagnosticTestGroupStandalone }>(`/diagnostic-test-groups/${groupId}`),
   create: (payload: {
     group_name: string;
     group_key: string;
-    healthians_group_code?: string | null;
+    test_group_image?: string | null;
+    diagnostic_provider?: string | null;
+    external_test_group_code?: string | null;
+    same_as_group_id?: number | null;
+    copy_tests_from_group_id?: number | null;
     display_order?: number;
     price?: number | null;
     original_price?: number | null;
@@ -5018,8 +5067,12 @@ export const diagnosticTestGroupsApi = {
     groupId: number,
     payload: {
       group_name?: string;
-      healthians_group_code?: string | null;
       group_key?: string;
+      test_group_image?: string | null;
+      diagnostic_provider?: string | null;
+      external_test_group_code?: string | null;
+      same_as_group_id?: number | null;
+      is_default_for_group?: boolean | null;
       display_order?: number;
       price?: number | null;
       original_price?: number | null;

@@ -470,13 +470,24 @@ export function DiagnosticPackageDetailContent({
 
   const filteredAllGroups = useMemo(() => {
     const q = assignGroupsSearch.trim().toLowerCase();
-    return allGroups.filter(
-      (group) =>
+    const packageProviderKey = (detail?.diagnostic_provider ?? "").trim().toLowerCase() || null;
+    return allGroups.filter((group) => {
+      if (group.forked_from_group_id != null) return false;
+      const groupProviderKey = (group.diagnostic_provider ?? "").trim().toLowerCase() || null;
+      if (
+        packageProviderKey &&
+        groupProviderKey &&
+        packageProviderKey !== groupProviderKey
+      ) {
+        return false;
+      }
+      return (
         !q ||
         group.group_name.toLowerCase().includes(q) ||
         group.group_key.toLowerCase().includes(q)
-    );
-  }, [allGroups, assignGroupsSearch]);
+      );
+    });
+  }, [allGroups, assignGroupsSearch, detail?.diagnostic_provider]);
 
   const selectedAssignGroups = useMemo(() => {
     const map = new Map(allGroups.map((group) => [group.group_id, group]));

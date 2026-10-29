@@ -260,6 +260,26 @@ export function DiagnosticTestGroupDetailContent({ groupId, onUpdated }: Diagnos
       <div className="bg-white border border-zinc-200 rounded-xl p-4">
         <h3 className="text-sm font-medium text-zinc-900 mb-3">Overview</h3>
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          {detail.test_group_image ? (
+            <div className="sm:col-span-2">
+              <dt className="text-zinc-500 mb-1">Image</dt>
+              <dd>
+                <img
+                  src={detail.test_group_image}
+                  alt=""
+                  className="h-20 w-20 rounded-lg object-cover border border-zinc-200"
+                />
+              </dd>
+            </div>
+          ) : null}
+          <div>
+            <dt className="text-zinc-500">Provider</dt>
+            <dd className="text-zinc-900">{detail.diagnostic_provider ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-zinc-500">External group code</dt>
+            <dd className="text-zinc-900">{detail.external_test_group_code ?? "—"}</dd>
+          </div>
           <div>
             <dt className="text-zinc-500">Price</dt>
             <dd className="text-zinc-900">{detail.price != null ? `₹${detail.price}` : "—"}</dd>
@@ -291,10 +311,6 @@ export function DiagnosticTestGroupDetailContent({ groupId, onUpdated }: Diagnos
           <div>
             <dt className="text-zinc-500">Display order</dt>
             <dd className="text-zinc-900">{detail.display_order ?? "—"}</dd>
-          </div>
-          <div>
-            <dt className="text-zinc-500">Healthians group code</dt>
-            <dd className="text-zinc-900">{detail.healthians_group_code ?? "—"}</dd>
           </div>
         </dl>
       </div>

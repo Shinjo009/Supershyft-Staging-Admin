@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, Search } from "lucide-react";
+import { Loader2, Search, Trash2 } from "lucide-react";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
+import { Modal } from "../../shared/ui/Modal";
 import {
   diagnosticTestGroupsApi,
   getApiError,
-  type DiagnosticTestGroupStandalone,
+  type DiagnosticTestGroupProfileListItem,
 } from "../../lib/api";
 
 const LIST_LIMIT = 10;
@@ -13,13 +14,15 @@ const SEARCH_DEBOUNCE_MS = 300;
 
 export function DiagnosticTestGroups() {
   const navigate = useNavigate();
-  const [rows, setRows] = useState<DiagnosticTestGroupStandalone[]>([]);
+  const [rows, setRows] = useState<DiagnosticTestGroupProfileListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [pendingDeleteRow, setPendingDeleteRow] = useState<DiagnosticTestGroupProfileListItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
@@ -30,7 +33,7 @@ export function DiagnosticTestGroups() {
     setLoading(true);
     setError(null);
     try {
-      const res = await diagnosticTestGroupsApi.list({
+      const res = await diagnosticTestGroupsApi.listGroups({
         page,
         limit: LIST_LIMIT,
         search: debouncedSearch || undefined,
@@ -52,40 +55,53 @@ export function DiagnosticTestGroups() {
     setPage(1);
   }, [debouncedSearch]);
 
-  const openView = (row: DiagnosticTestGroupStandalone) => {
+  const openView = (row: DiagnosticTestGroupProfileListItem) => {
     navigate(`/diagnostics/test-groups/${row.group_id}`);
   };
 
-  const openEdit = (row: DiagnosticTestGroupStandalone) => {
+  const openEdit = (row: DiagnosticTestGroupProfileListItem) => {
     navigate(`/diagnostics/test-groups/${row.group_id}/edit`);
   };
 
-  const handleDelete = async (row: DiagnosticTestGroupStandalone) => {
-    if (!window.confirm("Deleting this group will unassign all its tests. Continue?")) return;
+  const confirmDelete = async () => {
+    if (!pendingDeleteRow) return;
+    setDeleting(true);
+    setError(null);
     try {
-      await diagnosticTestGroupsApi.delete(row.group_id);
+      await diagnosticTestGroupsApi.delete(pendingDeleteRow.group_id);
+      setPendingDeleteRow(null);
       await fetchGroups();
     } catch (err) {
       setError(getApiError(err));
+    } finally {
+      setDeleting(false);
     }
   };
 
-  const columns: Column<DiagnosticTestGroupStandalone>[] = [
+  const columns: Column<DiagnosticTestGroupProfileListItem>[] = [
     {
       key: "group_name",
       label: "Group name",
-      render: (row) => (
-        <div>
-          <span className="font-medium text-zinc-900">{row.group_name}</span>
-          <p className="text-xs text-zinc-500">{row.group_key}</p>
-        </div>
-      ),
-    },
-    {
-      key: "group_key",
-      label: "Group key",
-      render: (row) => row.group_key,
-      hideOnMobile: true,
+      render: (row) => {
+        const labCount = Object.keys(row.profile_group ?? {}).length;
+        return (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              openView(row);
+            }}
+            className="inline-flex items-center gap-1.5 font-medium text-zinc-900 hover:underline text-left"
+          >
+            {row.group_name}
+            {labCount > 1 ? (
+              <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-100 text-zinc-600">
+                {labCount} labs
+              </span>
+            ) : null}
+          </button>
+        );
+      },
     },
     {
       key: "test_count",
@@ -93,9 +109,34 @@ export function DiagnosticTestGroups() {
       render: (row) => row.test_count,
     },
     {
-      key: "display_order",
-      label: "Order",
-      render: (row) => row.display_order ?? "—",
+      key: "price",
+      label: "Price",
+      render: (row) => (row.price != null ? `₹${row.price}` : "—"),
+    },
+    {
+      key: "discount_percent",
+      label: "Discount",
+      render: (row) =>
+        row.discount_percent != null ? (
+          <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">
+            {row.discount_percent}% OFF
+          </span>
+        ) : (
+          "—"
+        ),
+      hideOnTablet: true,
+    },
+    {
+      key: "gender_suitability",
+      label: "Gender",
+      render: (row) =>
+        row.gender_suitability ? (
+          <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-zinc-100 text-zinc-600">
+            {row.gender_suitability}
+          </span>
+        ) : (
+          "—"
+        ),
       hideOnTablet: true,
     },
   ];
@@ -129,7 +170,7 @@ export function DiagnosticTestGroups() {
             keyExtractor={(row) => row.group_id}
             onView={openView}
             onEdit={openEdit}
-            onDelete={handleDelete}
+            onDelete={(row) => setPendingDeleteRow(row)}
             firstColumnClickableView
             mutationCategory="diagnostics"
             mutationTaskKey="tests_groups"
@@ -142,6 +183,37 @@ export function DiagnosticTestGroups() {
           />
         )}
       </div>
+
+      <Modal
+        open={pendingDeleteRow != null}
+        onClose={() => !deleting && setPendingDeleteRow(null)}
+        title="Delete test group variant"
+      >
+        <p className="text-sm text-zinc-600 mb-4">
+          Delete the default lab variant{" "}
+          <strong>{pendingDeleteRow?.group_name}</strong>? Other lab variants in this profile stay; the cheapest
+          remaining variant becomes the catalog default.
+        </p>
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            className="px-4 py-2 text-sm border border-zinc-300 rounded-lg"
+            onClick={() => setPendingDeleteRow(null)}
+            disabled={deleting}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg inline-flex items-center gap-2"
+            onClick={() => void confirmDelete()}
+            disabled={deleting}
+          >
+            {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+            Delete
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -9,6 +9,7 @@ import {
   diagnosticPackagesApi,
   getApiError,
   type DiagnosticPackageGroupListItem,
+  type DiagnosticWarning,
 } from "../../lib/api";
 import { DiagnosticsCatalogShell } from "./DiagnosticsCatalogShell";
 import {
@@ -22,6 +23,17 @@ const SEARCH_DEBOUNCE_MS = 300;
 const PROVIDER_FILTER_OPTIONS = ["healthians", "Healthians", "orange_health"];
 const GENDER_FILTER_OPTIONS = ["male", "female", "both"];
 const REORDER_FETCH_LIMIT = 100;
+
+function packageWarningTooltip(
+  warnings: DiagnosticWarning[] | undefined,
+  hasLegacyUnmapped: boolean
+): string {
+  const messages = (warnings ?? []).map((w) => w.message).filter(Boolean);
+  if (messages.length === 0 && hasLegacyUnmapped) {
+    return "Some tests are unmapped";
+  }
+  return messages.join("\n");
+}
 
 function rowSortKey(row: DiagnosticPackageGroupListItem): number {
   return row.package_group_id ?? row.diagnostic_package_id;
@@ -216,10 +228,10 @@ export function DiagnosticPackages() {
                 {labCount} labs
               </span>
             ) : null}
-            {row.has_unmapped_tests ? (
+            {row.has_unmapped_tests || (row.warnings?.length ?? 0) > 0 ? (
               <span
-                title="Some tests are unmapped"
-                aria-label="Some tests are unmapped"
+                title={packageWarningTooltip(row.warnings, !!row.has_unmapped_tests)}
+                aria-label={packageWarningTooltip(row.warnings, !!row.has_unmapped_tests)}
                 className="inline-flex text-amber-600"
               >
                 <AlertTriangle className="w-4 h-4 shrink-0" />
