@@ -2703,7 +2703,7 @@ export const engagementsApi = {
         engagement_types: EngagementTypeItem[];
         organizations: OrganizationListItem[];
         assessment_packages: AssessmentPackage[];
-        diagnostic_packages: DiagnosticPackageListItem[];
+        diagnostic_packages: DiagnosticPackageBootstrapOption[];
         notification_services: NotificationServiceItem[];
         expert_types: ExpertTypeItem[];
       };
@@ -4354,10 +4354,8 @@ export interface DiagnosticPackageListItem {
   package_name: string;
   package_image?: string | null;
   diagnostic_provider?: string | null;
-  external_package_code?: string | null;
   created_by_user_id?: number | null;
   no_of_tests?: number | null;
-  unmapped_test_count?: number | null;
   report_duration_hours?: number | null;
   collection_type?: string | null;
   price?: number | null;
@@ -4369,27 +4367,60 @@ export interface DiagnosticPackageListItem {
   has_cancer_screening?: boolean | null;
   complementary_consultation?: Record<string, boolean> | null;
   gender_suitability?: string | null;
-  package_for?: "public" | "camp" | null;
-  status?: string | null;
   display_order?: number | null;
   tags?: DiagnosticTag[];
   filter_chips?: PackageFilterChip[];
   package_group_id?: number | null;
-  same_packages?: DiagnosticPackagePeer[];
-  is_default_for_group?: boolean | null;
 }
 
 export interface DiagnosticPackageGroupListItem extends DiagnosticPackageListItem {
   package_group: Record<string, number>;
+  has_unmapped_tests?: boolean;
 }
 
-export interface DiagnosticPackageDetail extends DiagnosticPackageListItem {
+/** Minimal shape returned by GET /engagements/form-bootstrap diagnostic_packages. */
+export interface DiagnosticPackageBootstrapOption {
+  diagnostic_package_id: number;
+  package_name: string;
+  gender_suitability?: string | null;
+  diagnostic_provider?: string | null;
+  external_package_code?: string | null;
+  complementary_consultation?: Record<string, boolean> | null;
+}
+
+export interface DiagnosticPackageDetail {
+  diagnostic_package_id: number;
+  package_name: string;
+  package_image?: string | null;
+  diagnostic_provider?: string | null;
+  external_package_code?: string | null;
+  created_by_user_id?: number | null;
+  no_of_tests?: number | null;
+  report_duration_hours?: number | null;
+  collection_type?: string | null;
+  price?: number | null;
+  original_price?: number | null;
+  min_price?: number | null;
+  discount_percent?: number | null;
+  is_most_popular?: boolean | null;
+  is_default_for_group?: boolean | null;
+  has_allergy_screening?: boolean | null;
+  has_cancer_screening?: boolean | null;
+  complementary_consultation?: Record<string, boolean> | null;
+  gender_suitability?: string | null;
+  package_for?: "public" | "camp" | null;
+  status?: string | null;
+  display_order?: number | null;
+  package_group_id?: number | null;
+  same_packages?: DiagnosticPackagePeer[];
   health_areas_covered?: string | null;
   about_text?: string | null;
   bookings_count?: number | null;
   reasons?: DiagnosticReason[];
   samples?: DiagnosticSample[];
   preparations?: DiagnosticPreparation[];
+  tags?: DiagnosticTag[];
+  filter_chips?: PackageFilterChip[];
 }
 
 export interface DiagnosticPackageCreate {

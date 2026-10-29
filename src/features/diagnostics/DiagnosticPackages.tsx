@@ -16,7 +16,6 @@ import {
   type DiagnosticsCatalogTab,
 } from "./diagnosticsCatalogPaths";
 import { diagnosticProviderDisplayLabel } from "./providerParameterKeys";
-import { resolveGroupDefaultPackageIdFromListRow } from "./diagnosticPackageFormData";
 
 const LIST_LIMIT = 10;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -121,11 +120,11 @@ export function DiagnosticPackages() {
   }, [debouncedSearch, tagFilter, providerFilter, genderFilter, statusFilter]);
 
   const openView = (row: DiagnosticPackageGroupListItem) => {
-    navigate(`/diagnostics/packages/${resolveGroupDefaultPackageIdFromListRow(row)}`);
+    navigate(`/diagnostics/packages/${row.diagnostic_package_id}`);
   };
 
   const openEdit = (row: DiagnosticPackageGroupListItem) => {
-    navigate(`/diagnostics/packages/${resolveGroupDefaultPackageIdFromListRow(row)}/edit`);
+    navigate(`/diagnostics/packages/${row.diagnostic_package_id}/edit`);
   };
 
   const openCreate = () => {
@@ -138,7 +137,7 @@ export function DiagnosticPackages() {
 
   const confirmDeletePackage = async () => {
     if (!pendingDeleteRow) return;
-    const packageId = resolveGroupDefaultPackageIdFromListRow(pendingDeleteRow);
+    const packageId = pendingDeleteRow.diagnostic_package_id;
     setDeleting(true);
     setError(null);
     try {
@@ -153,16 +152,8 @@ export function DiagnosticPackages() {
     }
   };
 
-  const defaultProviderLabelForRow = (row: DiagnosticPackageGroupListItem) => {
-    if (row.is_default_for_group) {
-      return diagnosticProviderDisplayLabel(row.diagnostic_provider);
-    }
-    const peerDefault = row.same_packages?.find((p) => p.is_default_for_group);
-    if (peerDefault) {
-      return diagnosticProviderDisplayLabel(peerDefault.diagnostic_provider);
-    }
-    return diagnosticProviderDisplayLabel(row.diagnostic_provider);
-  };
+  const defaultProviderLabelForRow = (row: DiagnosticPackageGroupListItem) =>
+    diagnosticProviderDisplayLabel(row.diagnostic_provider);
 
   const handleReorder = async (newPageOrderKeys: (string | number)[]) => {
     if (reordering || allGroupRows.length === 0) return;
@@ -209,9 +200,6 @@ export function DiagnosticPackages() {
       key: "package_name",
       label: "Package name",
       render: (row) => {
-        const unmapped = row.unmapped_test_count ?? 0;
-        const total = row.no_of_tests ?? 0;
-        const mapped = Math.max(total - unmapped, 0);
         const labCount = Object.keys(row.package_group ?? {}).length;
         return (
           <button
@@ -228,15 +216,15 @@ export function DiagnosticPackages() {
                 {labCount} labs
               </span>
             ) : null}
-            {unmapped > 0 && (
+            {row.has_unmapped_tests ? (
               <span
-                title={`${mapped} of ${total} tests mapped`}
-                aria-label={`${mapped} of ${total} tests mapped`}
+                title="Some tests are unmapped"
+                aria-label="Some tests are unmapped"
                 className="inline-flex text-amber-600"
               >
                 <AlertTriangle className="w-4 h-4 shrink-0" />
               </span>
-            )}
+            ) : null}
           </button>
         );
       },

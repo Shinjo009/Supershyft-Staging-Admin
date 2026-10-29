@@ -2,7 +2,6 @@ import type {
   DiagnosticPackageCreate,
   DiagnosticPackageDetail,
   DiagnosticPackageGroupListItem,
-  DiagnosticPackageListItem,
 } from "../../lib/api";
 
 export type PackageLinkMode = "own" | "linked";
@@ -71,11 +70,7 @@ export function resolveGroupDefaultPackageId(
 export function resolveGroupDefaultPackageIdFromListRow(
   row: DiagnosticPackageGroupListItem
 ): number {
-  return resolveGroupDefaultPackageId({
-    diagnostic_package_id: row.diagnostic_package_id,
-    is_default_for_group: row.is_default_for_group,
-    same_packages: row.same_packages,
-  });
+  return row.diagnostic_package_id;
 }
 
 export function buildGroupRosterFromDetail(detail: DiagnosticPackageDetail): CatalogGroupRosterMember[] {
@@ -96,7 +91,7 @@ export function buildGroupRosterFromDetail(detail: DiagnosticPackageDetail): Cat
   return [self, ...peers.filter((p) => p.diagnostic_package_id !== self.diagnostic_package_id)];
 }
 
-export function listItemToForm(row: DiagnosticPackageListItem): PackageFormState {
+export function listItemToForm(row: DiagnosticPackageDetail): PackageFormState {
   const inGroup = (row.same_packages?.length ?? 0) > 0;
   return {
     package_name: row.package_name,

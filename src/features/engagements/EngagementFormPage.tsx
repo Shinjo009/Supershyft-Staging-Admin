@@ -19,7 +19,7 @@ import {
   engagementsApi,
   getApiError,
   type AssessmentPackage,
-  type DiagnosticPackageListItem,
+  type DiagnosticPackageBootstrapOption,
   type Engagement,
   type EngagementCreate,
   type NotificationServiceItem,
@@ -56,7 +56,7 @@ export function EngagementFormPage({ mode }: { mode: FormPageMode }) {
   const [formData, setFormData] = useState<EngagementCreate | null>(null);
   const [organizations, setOrganizations] = useState<OrganizationListItem[]>([]);
   const [assessmentPackages, setAssessmentPackages] = useState<AssessmentPackage[]>([]);
-  const [diagnosticPackages, setDiagnosticPackages] = useState<DiagnosticPackageListItem[]>([]);
+  const [diagnosticPackages, setDiagnosticPackages] = useState<DiagnosticPackageBootstrapOption[]>([]);
   const [notificationServices, setNotificationServices] = useState<NotificationServiceItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [campNoConfirm, setCampNoConfirm] = useState<{

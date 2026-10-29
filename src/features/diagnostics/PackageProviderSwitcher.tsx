@@ -5,7 +5,6 @@ import {
   diagnosticPackagesApi,
   getApiError,
   type DiagnosticPackageDetail,
-  type DiagnosticPackageListItem,
   type DiagnosticPackagePeer,
 } from "../../lib/api";
 import { PermissionGate } from "../../contexts/PermissionContext";
@@ -14,7 +13,7 @@ import { diagnosticProviderDisplayLabel } from "./providerParameterKeys";
 import { resolveGroupDefaultPackageId } from "./diagnosticPackageFormData";
 
 type SwitcherPackage = Pick<
-  DiagnosticPackageListItem,
+  DiagnosticPackageDetail,
   "diagnostic_package_id" | "diagnostic_provider" | "price" | "status" | "is_default_for_group"
 >;
 

@@ -9,7 +9,7 @@ import {
 import type {
   AssessmentPackage,
   ChecklistReadiness,
-  DiagnosticPackageListItem,
+  DiagnosticPackageBootstrapOption,
   Engagement,
   EngagementDataCompletenessResponse,
   EngagementNotificationItem,
@@ -37,7 +37,7 @@ type SharedProps = {
   engagement: Engagement;
   orgName: string;
   assessmentPackages: AssessmentPackage[];
-  diagnosticPackages: DiagnosticPackageListItem[];
+  diagnosticPackages: DiagnosticPackageBootstrapOption[];
   notificationServiceLabel: (serviceKey: string | null | undefined) => string;
 };
 

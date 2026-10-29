@@ -204,9 +204,7 @@ export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Pro
         ]);
         if (cancelled) return null;
         const types = typesRes.data.data ?? [];
-        const pkgs = (pkgsRes.data.data ?? []).filter(
-          (p) => (p.status || "").toLowerCase() === "active"
-        );
+        const pkgs = pkgsRes.data.data ?? [];
         const defaults = defaultsSettled?.data.data ?? null;
         setEngagementTypes(types);
         setDiagnosticPackages(pkgs);

@@ -33,7 +33,7 @@ import {
   getApiError,
   type AssessmentPackage,
   type ChecklistReadiness,
-  type DiagnosticPackageListItem,
+  type DiagnosticPackageBootstrapOption,
   type Engagement,
   type EngagementTypeItem,
   type NotificationServiceItem,
@@ -75,7 +75,7 @@ export function EngagementDetailPage() {
   const [organizations, setOrganizations] = useState<OrganizationListItem[]>([]);
   const [engagementTypes, setEngagementTypes] = useState<EngagementTypeItem[]>([]);
   const [assessmentPackages, setAssessmentPackages] = useState<AssessmentPackage[]>([]);
-  const [diagnosticPackages, setDiagnosticPackages] = useState<DiagnosticPackageListItem[]>([]);
+  const [diagnosticPackages, setDiagnosticPackages] = useState<DiagnosticPackageBootstrapOption[]>([]);
   const [notificationServices, setNotificationServices] = useState<NotificationServiceItem[]>([]);
 
   const [notifyOpen, setNotifyOpen] = useState(false);

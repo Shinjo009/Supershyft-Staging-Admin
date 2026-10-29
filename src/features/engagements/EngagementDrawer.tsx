@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Loader2, X } from "lucide-react";
 import type {
   AssessmentPackage,
-  DiagnosticPackageListItem,
+  DiagnosticPackageBootstrapOption,
   Engagement,
 } from "../../lib/api";
 import { engagementsApi, getApiError, participantsApi, type ChecklistReadiness } from "../../lib/api";
@@ -23,7 +23,7 @@ type Props = {
   onClose: () => void;
   getOrgName: (organizationId?: number | null) => string;
   assessmentPackages: AssessmentPackage[];
-  diagnosticPackages: DiagnosticPackageListItem[];
+  diagnosticPackages: DiagnosticPackageBootstrapOption[];
   notificationServiceLabel: (serviceKey: string | null | undefined) => string;
   onEdit: (engagement: Engagement) => void;
   onViewParticipants: (engagement: Engagement) => void;

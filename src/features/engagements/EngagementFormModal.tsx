@@ -3,7 +3,7 @@ import { Loader2, Info } from "lucide-react";
 import { Modal } from "../../shared/ui/Modal";
 import {
   type AssessmentPackage,
-  type DiagnosticPackageListItem,
+  type DiagnosticPackageBootstrapOption,
   type EngagementCreate,
   type EngagementKind,
   type EngagementTypeItem,
@@ -97,16 +97,16 @@ function toNumberOrNull(value: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function packageOptionLabel(pkg: DiagnosticPackageListItem): string {
+function packageOptionLabel(pkg: DiagnosticPackageBootstrapOption): string {
   const suitability = (pkg.gender_suitability || "").trim();
   return suitability ? `${pkg.package_name} (${suitability})` : pkg.package_name;
 }
 
-function hasExternalPackageCode(pkg: DiagnosticPackageListItem): boolean {
+function hasExternalPackageCode(pkg: DiagnosticPackageBootstrapOption): boolean {
   return Boolean((pkg.external_package_code ?? "").trim());
 }
 
-function diagnosticPackageOption(pkg: DiagnosticPackageListItem) {
+function diagnosticPackageOption(pkg: DiagnosticPackageBootstrapOption) {
   const selectable = hasExternalPackageCode(pkg);
   return (
     <option key={pkg.diagnostic_package_id} value={pkg.diagnostic_package_id} disabled={!selectable}>
@@ -146,7 +146,7 @@ export type EngagementFormWizardProps = {
   initialData: EngagementCreate;
   organizations: OrganizationListItem[];
   assessmentPackages: AssessmentPackage[];
-  diagnosticPackages: DiagnosticPackageListItem[];
+  diagnosticPackages: DiagnosticPackageBootstrapOption[];
   notificationServices: NotificationServiceItem[];
   submitting: boolean;
   onClose: () => void;

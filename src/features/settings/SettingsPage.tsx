@@ -244,9 +244,7 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
         ASSIGNABLE_DEFAULT_ASSISTANT_ROLES.has((e.role || "").toLowerCase())
       );
       setDefaultAssistantEmployees(staff);
-      const dPkgs = (dRes?.data.data ?? []).filter(
-        (p) => (p.status ?? "active").toLowerCase() === "active"
-      );
+      const dPkgs = dRes?.data.data ?? [];
       setDiagnosticPackages(dPkgs);
     } catch {
       // Pickers are optional until a settings control needs them.
