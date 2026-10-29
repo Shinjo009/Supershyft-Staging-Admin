@@ -1459,6 +1459,21 @@ export const organizationsApi = {
     api.get<{ data: { camp_no: number; engagement_count: number } }>(
       `/organizations/camps/${campNo}/engagement-count`
     ),
+  getCamp: (campNo: number) =>
+    api.get<{ data: CampListItem }>(`/organizations/camps/${campNo}`),
+  getCampOnboardingPayload: (campNo: number) =>
+    api.get<{ data: CampOnboardingPayloadState }>(
+      `/organizations/camps/${campNo}/onboarding-payload`
+    ),
+  initializeCampOnboardingPayload: (campNo: number) =>
+    api.post<{ data: CampOnboardingPayloadState }>(
+      `/organizations/camps/${campNo}/onboarding-payload`
+    ),
+  updateCampOnboardingPayload: (campNo: number, onboarding_payload: CampOnboardingPayloadDocument) =>
+    api.put<{ data: CampOnboardingPayloadState }>(
+      `/organizations/camps/${campNo}/onboarding-payload`,
+      { onboarding_payload }
+    ),
 };
 
 export interface CampListItem {
@@ -1480,6 +1495,63 @@ export interface CampListItem {
     cities: string[];
   };
 }
+
+export type UserOnboardingPayloadSection =
+  | "personal_information"
+  | "address"
+  | "schedule";
+
+export type UserOnboardingPayloadInputType = "number" | "text" | "json";
+
+export interface UserOnboardingPayloadFieldItem {
+  id: number;
+  payload_key: string;
+  display_name: string | null;
+  section: UserOnboardingPayloadSection;
+  input_type: UserOnboardingPayloadInputType;
+}
+
+export interface UserOnboardingPayloadFieldCreate {
+  payload_key: string;
+  display_name?: string | null;
+  section: UserOnboardingPayloadSection;
+  input_type: UserOnboardingPayloadInputType;
+}
+
+export interface UserOnboardingPayloadFieldUpdate {
+  payload_key?: string;
+  display_name?: string | null;
+  section?: UserOnboardingPayloadSection;
+  input_type?: UserOnboardingPayloadInputType;
+}
+
+export interface CampOnboardingPayloadFieldEntry {
+  input_type: UserOnboardingPayloadInputType;
+  required: boolean;
+  sub_payload: Record<string, boolean>;
+}
+
+export type CampOnboardingPayloadDocument = Record<string, CampOnboardingPayloadFieldEntry>;
+
+export interface CampOnboardingPayloadState {
+  camp_no: number;
+  initialized: boolean;
+  onboarding_payload: CampOnboardingPayloadDocument | null;
+}
+
+export const userOnboardingPayloadFieldsApi = {
+  list: (params?: { page?: number; limit?: number }) =>
+    api.get<{ data: UserOnboardingPayloadFieldItem[]; meta: { page: number; limit: number; total: number } }>(
+      "/user-onboarding-payload-fields",
+      { params }
+    ),
+  create: (payload: UserOnboardingPayloadFieldCreate) =>
+    api.post<{ data: UserOnboardingPayloadFieldItem }>("/user-onboarding-payload-fields", payload),
+  update: (id: number, payload: UserOnboardingPayloadFieldUpdate) =>
+    api.put<{ data: UserOnboardingPayloadFieldItem }>(`/user-onboarding-payload-fields/${id}`, payload),
+  delete: (id: number) =>
+    api.delete<{ data: { deleted: boolean } }>(`/user-onboarding-payload-fields/${id}`),
+};
 
 export interface CampReportSection {
   report_sections: number;

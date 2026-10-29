@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Search, Plus, Loader2, Users, X, FileBarChart, FileText, MapPin, Factory, Layers } from "lucide-react";
+import { Search, Plus, Loader2, Users, X, FileBarChart, FileText, MapPin, Factory, Layers, ListChecks } from "lucide-react";
 import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
@@ -10,6 +10,7 @@ import { ParticipantsModal } from "../../shared/ui/ParticipantsModal";
 import { OrganizationEngagementsModal } from "../../shared/ui/OrganizationEngagementsModal";
 import { OrganizationCampsModal } from "../../shared/ui/OrganizationCampsModal";
 import { ManageReportSectionsModal } from "../../shared/ui/ManageReportSectionsModal";
+import { ManageUserOnboardingPayloadFieldsModal } from "../../shared/ui/ManageUserOnboardingPayloadFieldsModal";
 import { CampEngagementsModal } from "../../shared/ui/CampEngagementsModal";
 import { CampDepartmentsModal } from "../../shared/ui/CampDepartmentsModal";
 import { CampCitiesModal } from "../../shared/ui/CampCitiesModal";
@@ -158,9 +159,8 @@ export function Organisations() {
   const [campsSortDir, setCampsSortDir] = useState<"asc" | "desc">("desc");
   const [campsLoading, setCampsLoading] = useState(false);
   const [campsError, setCampsError] = useState<string | null>(null);
-  const [selectedCamp, setSelectedCamp] = useState<CampListItem | null>(null);
-  const [campViewOpen, setCampViewOpen] = useState(false);
   const [reportSectionsOpen, setReportSectionsOpen] = useState(false);
+  const [onboardingPayloadFieldsOpen, setOnboardingPayloadFieldsOpen] = useState(false);
   const [campEngagements, setCampEngagements] = useState<{
     campNo: number;
     campName?: string;
@@ -173,14 +173,6 @@ export function Organisations() {
   const [campActionMessage, setCampActionMessage] = useState<string | null>(null);
   const [campActionError, setCampActionError] = useState<string | null>(null);
   const [campReportDeleting, setCampReportDeleting] = useState(false);
-  const [changeCampNoOpen, setChangeCampNoOpen] = useState(false);
-  const [changeCampNoValue, setChangeCampNoValue] = useState("");
-  const [changeCampNoConfirm, setChangeCampNoConfirm] = useState<{
-    newCampNo: number;
-    existingCount: number;
-  } | null>(null);
-  const [changeCampNoBusy, setChangeCampNoBusy] = useState(false);
-  const [changeCampNoError, setChangeCampNoError] = useState<string | null>(null);
 
   useEffect(() => {
     if (tabParam !== activeTab) {
@@ -261,10 +253,6 @@ export function Organisations() {
       setInitializedCampNos(
         new Set(rows.filter((c) => c.report_initialized).map((c) => c.camp_no))
       );
-      setSelectedCamp((curr) => {
-        if (!curr) return curr;
-        return rows.find((c) => c.camp_no === curr.camp_no) ?? curr;
-      });
     } catch (err) {
       setCampsError(getApiError(err));
     } finally {
@@ -657,8 +645,7 @@ export function Organisations() {
   };
 
   const openCampView = (row: CampListItem) => {
-    setSelectedCamp(row);
-    setCampViewOpen(true);
+    navigate(`/organisations/camps/${row.camp_no}`);
   };
 
   const openCampEngagements = (row: CampListItem) => {
@@ -674,53 +661,6 @@ export function Organisations() {
 
   const openCampCities = (row: CampListItem) => {
     setCampCities(row);
-  };
-
-  const openChangeCampNo = () => {
-    if (!selectedCamp) return;
-    setChangeCampNoValue(String(selectedCamp.camp_no));
-    setChangeCampNoError(null);
-    setChangeCampNoConfirm(null);
-    setChangeCampNoOpen(true);
-  };
-
-  const submitChangeCampNo = async (forceConfirm = false) => {
-    if (!selectedCamp) return;
-    const parsed = Number(changeCampNoValue.trim());
-    if (!Number.isInteger(parsed) || parsed <= 0) {
-      setChangeCampNoError("Enter a valid camp number");
-      return;
-    }
-    if (parsed === selectedCamp.camp_no) {
-      setChangeCampNoError("New camp number must be different");
-      return;
-    }
-
-    setChangeCampNoBusy(true);
-    setChangeCampNoError(null);
-    try {
-      if (!forceConfirm) {
-        const countRes = await organizationsApi.getCampEngagementCount(parsed);
-        const existingCount = countRes.data.data.engagement_count;
-        if (existingCount > 0) {
-          setChangeCampNoConfirm({ newCampNo: parsed, existingCount });
-          return;
-        }
-      }
-      await organizationsApi.remapCampNo(selectedCamp.camp_no, parsed);
-      handleCampReportFeedback(
-        `Camp number updated to ${parsed} (${selectedCamp.engagement_ids.length} engagement(s) remapped)`
-      );
-      setChangeCampNoOpen(false);
-      setChangeCampNoConfirm(null);
-      setCampViewOpen(false);
-      setSelectedCamp(null);
-      fetchCamps();
-    } catch (err) {
-      setChangeCampNoError(getApiError(err));
-    } finally {
-      setChangeCampNoBusy(false);
-    }
   };
 
   const handleCampReportFeedback = (message: string, isError = false) => {
@@ -807,13 +747,23 @@ export function Organisations() {
           </>
         )}
         {activeTab === "camps" && (
-          <PermissionGate category="reports" taskKey="report_sections" action="edit">
-            <HeaderActionButton
-              label="Manage Report Sections"
-              icon={Layers}
-              onClick={() => setReportSectionsOpen(true)}
-            />
-          </PermissionGate>
+          <>
+            <PermissionGate category="organizations" taskKey="onboarding_payload_fields" action="edit">
+              <HeaderActionButton
+                label="Manage User Onboarding Payload Fields"
+                icon={ListChecks}
+                onClick={() => setOnboardingPayloadFieldsOpen(true)}
+                variant="secondary"
+              />
+            </PermissionGate>
+            <PermissionGate category="reports" taskKey="report_sections" action="edit">
+              <HeaderActionButton
+                label="Manage Report Sections"
+                icon={Layers}
+                onClick={() => setReportSectionsOpen(true)}
+              />
+            </PermissionGate>
+          </>
         )}
       </PageHeaderActions>
 
@@ -1059,151 +1009,6 @@ export function Organisations() {
           </div>
         </div>
       )}
-
-      <Modal
-        open={campViewOpen}
-        onClose={() => {
-          setCampViewOpen(false);
-          setSelectedCamp(null);
-        }}
-        title="View Camp"
-        maxWidthClassName="max-w-md"
-      >
-        {selectedCamp && (
-          <div className="space-y-3 text-sm">
-            <div>
-              <span className="text-zinc-500">Camp No:</span> {selectedCamp.camp_no}
-            </div>
-            <div>
-              <span className="text-zinc-500">Camp name:</span> {selectedCamp.camp_name}
-            </div>
-            <div>
-              <span className="text-zinc-500">Year:</span> {selectedCamp.year}
-            </div>
-            <div>
-              <span className="text-zinc-500">No of engagements:</span>{" "}
-              {selectedCamp.engagement_ids.length}
-            </div>
-            <div>
-              <span className="text-zinc-500">No of departments:</span>{" "}
-              {selectedCamp.departments.count}
-            </div>
-            <div className="pt-2 flex flex-wrap gap-2">
-              <PermissionGate category="organizations" taskKey="camps" action="edit">
-              <button
-                type="button"
-                onClick={openChangeCampNo}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-300 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-              >
-                Change camp_no
-              </button>
-              </PermissionGate>
-              {!initializedCampNos.has(selectedCamp.camp_no) && (
-                <PermissionGate category="reports" taskKey="camp_reports" action="edit">
-                <CampReportInitMenu
-                  campNo={selectedCamp.camp_no}
-                  onFeedback={handleCampReportFeedback}
-                  onInitialized={fetchCamps}
-                  zIndexClassName="z-[60]"
-                />
-                </PermissionGate>
-              )}
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      <Modal
-        open={changeCampNoOpen}
-        onClose={() => {
-          if (changeCampNoBusy) return;
-          setChangeCampNoOpen(false);
-          setChangeCampNoConfirm(null);
-          setChangeCampNoError(null);
-        }}
-        title="Change camp_no"
-        maxWidthClassName="max-w-md"
-      >
-        <div className="space-y-3 text-sm">
-          <p className="text-zinc-600">
-            This updates camp_no on all engagements currently under camp{" "}
-            <span className="font-medium text-zinc-900">{selectedCamp?.camp_no}</span>.
-          </p>
-          <label className="block">
-            <span className="text-zinc-500">New camp_no</span>
-            <input
-              type="number"
-              value={changeCampNoValue}
-              onChange={(e) => setChangeCampNoValue(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
-              disabled={changeCampNoBusy}
-            />
-          </label>
-          {changeCampNoError && (
-            <div className="p-3 rounded-lg bg-red-50 text-red-700 text-sm">{changeCampNoError}</div>
-          )}
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              disabled={changeCampNoBusy}
-              onClick={() => {
-                setChangeCampNoOpen(false);
-                setChangeCampNoConfirm(null);
-              }}
-              className="px-3 py-2 rounded-lg border border-zinc-300 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              disabled={changeCampNoBusy}
-              onClick={() => void submitChangeCampNo(false)}
-              className="px-3 py-2 rounded-lg bg-zinc-900 text-white text-sm hover:bg-zinc-800 disabled:opacity-50"
-            >
-              {changeCampNoBusy ? "Saving…" : "Update camp_no"}
-            </button>
-          </div>
-        </div>
-      </Modal>
-
-      <Modal
-        open={!!changeCampNoConfirm}
-        onClose={() => {
-          if (changeCampNoBusy) return;
-          setChangeCampNoConfirm(null);
-        }}
-        title="Confirm shared camp_no"
-        maxWidthClassName="max-w-md"
-      >
-        {changeCampNoConfirm && (
-          <div className="space-y-3 text-sm">
-            <p className="text-zinc-600">
-              Camp number <span className="font-medium text-zinc-900">{changeCampNoConfirm.newCampNo}</span>{" "}
-              already has {changeCampNoConfirm.existingCount} engagement
-              {changeCampNoConfirm.existingCount === 1 ? "" : "s"}. They will share the same camp_no
-              and be used together when calculating camp reports.
-            </p>
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                disabled={changeCampNoBusy}
-                onClick={() => setChangeCampNoConfirm(null)}
-                className="px-3 py-2 rounded-lg border border-zinc-300 text-sm text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={changeCampNoBusy}
-                onClick={() => void submitChangeCampNo(true)}
-                className="px-3 py-2 rounded-lg bg-zinc-900 text-white text-sm hover:bg-zinc-800 disabled:opacity-50"
-              >
-                {changeCampNoBusy ? "Saving…" : "Confirm and update"}
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
 
       <Modal
         open={modalOpen}
@@ -1633,6 +1438,11 @@ export function Organisations() {
       <ManageReportSectionsModal
         open={reportSectionsOpen}
         onClose={() => setReportSectionsOpen(false)}
+      />
+
+      <ManageUserOnboardingPayloadFieldsModal
+        open={onboardingPayloadFieldsOpen}
+        onClose={() => setOnboardingPayloadFieldsOpen(false)}
       />
 
       {campEngagements && (

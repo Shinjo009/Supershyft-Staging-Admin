@@ -17,6 +17,9 @@ const Organisations = lazy(() =>
 const CampReportsPage = lazy(() =>
   import("./features/organisations/CampReportsPage").then((m) => ({ default: m.CampReportsPage }))
 );
+const CampDetailPage = lazy(() =>
+  import("./features/organisations/CampDetailPage").then((m) => ({ default: m.CampDetailPage }))
+);
 const Engagements = lazy(() =>
   import("./features/engagements/Engagements").then((m) => ({ default: m.Engagements }))
 );
@@ -348,6 +351,7 @@ function AppRoutes() {
         <Route index element={<Dashboard />} />
         <Route path="organisations" element={<Navigate to="/organisations/organizations" replace />} />
         <Route path="organisations/camps/:campNo/reports" element={<PermissionRoute category="reports"><CampReportsPage /></PermissionRoute>} />
+        <Route path="organisations/camps/:campNo" element={<PermissionRoute category="organizations"><CampDetailPage /></PermissionRoute>} />
         <Route path="organisations/:tab" element={<PermissionRoute category="organizations"><Organisations /></PermissionRoute>} />
         <Route path="engagements" element={<PermissionRoute category="engagements"><Engagements /></PermissionRoute>} />
         <Route
