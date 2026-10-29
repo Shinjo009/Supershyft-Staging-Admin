@@ -1535,6 +1535,7 @@ export type CampOnboardingPayloadDocument = Record<string, CampOnboardingPayload
 
 export interface CampOnboardingPayloadState {
   camp_no: number;
+  camp_code?: string | null;
   initialized: boolean;
   onboarding_payload: CampOnboardingPayloadDocument | null;
 }

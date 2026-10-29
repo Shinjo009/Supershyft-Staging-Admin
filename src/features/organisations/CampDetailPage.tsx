@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { Copy, Loader2 } from "lucide-react";
 import { usePageHeader } from "../../layouts/PageHeaderActions";
 import { PermissionGate } from "../../contexts/PermissionContext";
 import { Modal } from "../../shared/ui/Modal";
@@ -97,6 +97,8 @@ export function CampDetailPage() {
   const [saveBusy, setSaveBusy] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [campCode, setCampCode] = useState<string | null>(null);
+  const [campCodeCopied, setCampCodeCopied] = useState(false);
 
   const [changeCampNoOpen, setChangeCampNoOpen] = useState(false);
   const [changeCampNoValue, setChangeCampNoValue] = useState("");
@@ -131,6 +133,7 @@ export function CampDetailPage() {
       setCatalog(catalogRows);
       setExpertTypes(experts);
       setInitialized(payloadState.initialized);
+      setCampCode(payloadState.camp_code ?? null);
       const editor = buildEditorState(
         catalogRows,
         experts,
@@ -173,12 +176,24 @@ export function CampDetailPage() {
     return grouped;
   }, [catalog]);
 
+  const handleCopyCampCode = async () => {
+    if (!campCode) return;
+    try {
+      await navigator.clipboard.writeText(campCode);
+      setCampCodeCopied(true);
+      window.setTimeout(() => setCampCodeCopied(false), 2000);
+    } catch {
+      // ignore clipboard errors
+    }
+  };
+
   const handleInitialize = async () => {
     setInitBusy(true);
     setSaveError(null);
     try {
       const res = await organizationsApi.initializeCampOnboardingPayload(campNo);
       setInitialized(res.data.data.initialized);
+      setCampCode(res.data.data.camp_code ?? null);
       const editor = buildEditorState(catalog, expertTypes, res.data.data.onboarding_payload ?? {});
       setRequired(editor.required);
       setJsonExperts(editor.jsonExperts);
@@ -266,6 +281,21 @@ export function CampDetailPage() {
           <div>
             <span className="text-zinc-500">Camp No:</span> {camp.camp_no}
           </div>
+          {campCode ? (
+            <div className="sm:col-span-2">
+              <span className="text-zinc-500">Camp code:</span>{" "}
+              <span className="font-mono text-zinc-900">{campCode}</span>
+              <button
+                type="button"
+                onClick={() => void handleCopyCampCode()}
+                className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-zinc-200 bg-zinc-50 text-zinc-700 text-xs font-medium hover:bg-zinc-100 align-middle"
+                title="Copy camp code"
+              >
+                <Copy className="w-3.5 h-3.5" aria-hidden />
+                {campCodeCopied ? "Copied" : "Copy"}
+              </button>
+            </div>
+          ) : null}
           <div>
             <span className="text-zinc-500">Year:</span> {camp.year}
           </div>
