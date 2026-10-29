@@ -21,6 +21,7 @@ import {
   type DiagnosticTestGroupStandalone,
   type DiagnosticTestStandalone,
 } from "../../lib/api";
+import { diagnosticProviderDisplayLabel } from "./providerParameterKeys";
 
 interface DiagnosticTestGroupDetailContentProps {
   groupId: number;
@@ -277,7 +278,9 @@ export function DiagnosticTestGroupDetailContent({ groupId, onUpdated }: Diagnos
             <dd className="text-zinc-900">{detail.diagnostic_provider ?? "—"}</dd>
           </div>
           <div>
-            <dt className="text-zinc-500">External group code</dt>
+            <dt className="text-zinc-500">
+              {diagnosticProviderDisplayLabel(detail.diagnostic_provider)} test group code
+            </dt>
             <dd className="text-zinc-900">{detail.external_test_group_code ?? "—"}</dd>
           </div>
           <div>
@@ -307,10 +310,6 @@ export function DiagnosticTestGroupDetailContent({ groupId, onUpdated }: Diagnos
                 .filter(Boolean)
                 .join(" · ") || "—"}
             </dd>
-          </div>
-          <div>
-            <dt className="text-zinc-500">Display order</dt>
-            <dd className="text-zinc-900">{detail.display_order ?? "—"}</dd>
           </div>
         </dl>
       </div>

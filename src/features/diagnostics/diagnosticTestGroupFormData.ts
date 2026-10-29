@@ -16,6 +16,17 @@ export function toNumberOrNull(value: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** Map API enum values to form select option values (matches package form). */
+export function normalizeDiagnosticProviderForForm(provider: string | null | undefined): string {
+  const raw = (provider ?? "").trim();
+  if (!raw) return "";
+  const lower = raw.toLowerCase();
+  if (lower === "healthians") return "Healthians";
+  if (lower === "orange_health") return "orange_health";
+  if (lower === "healthlabs") return "HealthLabs";
+  return raw;
+}
+
 export type TestGroupFormState = {
   group_name: string;
   group_key: string;
@@ -85,7 +96,7 @@ export function testGroupToForm(row: {
     group_name: row.group_name,
     group_key: row.group_key ?? "",
     test_group_image: row.test_group_image ?? "",
-    diagnostic_provider: row.diagnostic_provider ?? "",
+    diagnostic_provider: normalizeDiagnosticProviderForForm(row.diagnostic_provider),
     external_test_group_code: row.external_test_group_code ?? "",
     display_order: row.display_order != null ? String(row.display_order) : "",
     price: row.price != null ? String(row.price) : "",
