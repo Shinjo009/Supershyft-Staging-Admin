@@ -1,6 +1,8 @@
 import { mergeAttributes, Node } from "@tiptap/core"
 import { Plugin, PluginKey } from "@tiptap/pm/state"
 
+import { isGradientPaint, normalizePaint } from "../../lib/storyBlocks"
+
 export const SECTION_DEFAULT_BG = "#EFF6FF"
 
 export const SECTION_BG_PRESETS = [
@@ -14,16 +16,8 @@ export const SECTION_BG_PRESETS = [
   "#F3F4F6",
 ] as const
 
-const HEX_COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
-
 export function normalizeSectionHex(value: string | null | undefined): string | null {
-  const text = String(value || "").trim()
-  if (!HEX_COLOR.test(text)) return null
-  if (text.length === 4) {
-    const [, r, g, b] = text
-    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase()
-  }
-  return text.toLowerCase()
+  return normalizePaint(value)
 }
 
 declare module "@tiptap/core" {
@@ -62,13 +56,16 @@ export const StorySection = Node.create({
       backgroundColor: {
         default: SECTION_DEFAULT_BG,
         parseHTML: (element) =>
-          normalizeSectionHex(element.getAttribute("data-background-color") || element.style.backgroundColor) ||
-          SECTION_DEFAULT_BG,
+          normalizeSectionHex(
+            element.getAttribute("data-background-color") ||
+              element.style.backgroundImage ||
+              element.style.backgroundColor,
+          ) || SECTION_DEFAULT_BG,
         renderHTML: (attributes) => {
           const color = normalizeSectionHex(attributes.backgroundColor) || SECTION_DEFAULT_BG
           return {
             "data-background-color": color,
-            style: `background-color: ${color}`,
+            style: isGradientPaint(color) ? `background-image: ${color}` : `background-color: ${color}`,
           }
         },
       },

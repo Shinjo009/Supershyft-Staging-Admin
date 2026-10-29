@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { BlogArticleBody, DevicePreviewFrame } from "./DevicePreviewFrame";
 import { readMinutesFromBlocks } from "./blogMeta";
 import { pageBackgroundStyle } from "./pageBackgroundStyle";
 import { StoryRichEditor, type StoryRichEditorHandle } from "./kit/StoryRichEditor";
-import { mediaUrl as resolveMedia, PALETTE, type StoryBlock } from "./kit/lib/storyBlocks";
+import { mediaUrl as resolveMedia, normalizePaint, type StoryBlock } from "./kit/lib/storyBlocks";
+import { PaintPicker } from "./kit/components/tiptap-ui/paint-picker/paint-picker";
 import { authStorage } from "../../lib/authStorage";
 import { usePermissions } from "../../contexts/PermissionContext";
+import { usePageHeader } from "../../layouts/PageHeaderActions";
 import { Modal } from "../../shared/ui/Modal";
 import {
   blogError,
@@ -18,24 +20,6 @@ import {
 } from "./blogApi";
 
 type StoryStatus = "draft" | "published";
-
-const HEX_COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
-
-function normalizeHex(value: string): string | null {
-  const text = value.trim();
-  if (!HEX_COLOR.test(text)) return null;
-  if (text.length === 4) {
-    const [, r, g, b] = text;
-    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
-  }
-  return text.toLowerCase();
-}
-
-function toColorInputValue(value: string | null): string {
-  if (!value) return "#ffffff";
-  const normalized = normalizeHex(value);
-  return normalized || "#ffffff";
-}
 
 function fitTextArea(element: HTMLTextAreaElement | null) {
   if (!element) return;
@@ -57,6 +41,8 @@ export function BlogEditor() {
   const navigate = useNavigate();
   const { canEditTask } = usePermissions();
   const mayEditPosts = canEditTask("blog", "posts");
+  const headerConfig = useMemo(() => ({ title: "Write post", backTo: "/blog" }), []);
+  usePageHeader(headerConfig);
   const editorRef = useRef<StoryRichEditorHandle>(null);
   const [postId, setPostId] = useState(id || "");
   const [title, setTitle] = useState("");
@@ -69,7 +55,6 @@ export function BlogEditor() {
   const [keywordDraft, setKeywordDraft] = useState("");
   const [thumbnailUrl, setThumbnailUrl] = useState("");
   const [backgroundColor, setBackgroundColor] = useState<string | null>(null);
-  const [customColorDraft, setCustomColorDraft] = useState("");
   const [backgroundImageUrl, setBackgroundImageUrl] = useState<string | null>(null);
   const [initialContent, setInitialContent] = useState<StoryBlock[]>([]);
   const [editorKey, setEditorKey] = useState("new");
@@ -83,9 +68,6 @@ export function BlogEditor() {
   const [publishedAt, setPublishedAt] = useState<string | null>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
-
-  const isCustomColor =
-    !!backgroundColor && !PALETTE.some((color) => color.toLowerCase() === backgroundColor.toLowerCase());
 
   useLayoutEffect(() => {
     fitTextArea(titleRef.current);
@@ -112,9 +94,7 @@ export function BlogEditor() {
         setKeywords(parseFocusKeywords(post.focus_keyword));
         setKeywordDraft("");
         setThumbnailUrl(post.thumbnail_url || "");
-        const bg = post.background_color || null;
-        setBackgroundColor(bg);
-        setCustomColorDraft(bg && !PALETTE.some((c) => c.toLowerCase() === bg.toLowerCase()) ? bg : "");
+        setBackgroundColor(normalizePaint(post.background_color) || post.background_color || null);
         setBackgroundImageUrl(post.background_image_url || null);
         setInitialContent(post.content || []);
         setAuthorName(post.author_name?.trim() || authStorage.getProfile()?.name || "");
@@ -164,15 +144,6 @@ export function BlogEditor() {
       setBackgroundImageUrl(await uploadBlogMedia(file));
     } catch (err) {
       setError(blogError(err));
-    }
-  }
-
-  function applyCustomColor(raw: string) {
-    const normalized = normalizeHex(raw);
-    setCustomColorDraft(raw);
-    if (normalized) {
-      setBackgroundColor(normalized);
-      setError("");
     }
   }
 
@@ -231,13 +202,17 @@ export function BlogEditor() {
   const pageBg = pageBackgroundStyle(backgroundColor, backgroundImageUrl);
 
   return (
-    <div className="-m-4 flex h-[calc(100dvh-3.5rem)] min-h-0 min-w-0 flex-col overflow-hidden sm:-m-6">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {!mayEditPosts ? (
         <p className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
           View-only access. You cannot save changes to this post.
         </p>
       ) : null}
-      <div className={mayEditPosts ? undefined : "pointer-events-none opacity-95"}>
+      <div
+        className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden ${
+          mayEditPosts ? "" : "pointer-events-none opacity-95"
+        }`}
+      >
       <StoryRichEditor
         key={editorKey}
         ref={editorRef}
@@ -328,62 +303,25 @@ export function BlogEditor() {
               <div>
                 <p className="text-sm font-medium text-zinc-700">Page background</p>
                 <p className="mt-0.5 text-xs text-zinc-500">
-                  Color and optional wallpaper applied to the whole article.
+                  Color and optional wallpaper applied only to the writing canvas that goes live.
                 </p>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
+                <div className="mt-2 space-y-2">
                   <button
                     type="button"
                     className={`h-8 rounded-full border px-3 text-xs ${
                       !backgroundColor ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-300 text-zinc-700"
                     }`}
-                    onClick={() => {
-                      setBackgroundColor(null);
-                      setCustomColorDraft("");
-                    }}
+                    onClick={() => setBackgroundColor(null)}
                   >
                     Default
                   </button>
-                  {PALETTE.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      title={color}
-                      aria-label={`Background ${color}`}
-                      className={`h-8 w-8 rounded-full border-2 ${
-                        backgroundColor?.toLowerCase() === color.toLowerCase()
-                          ? "border-zinc-900"
-                          : "border-zinc-200"
-                      }`}
-                      style={{ backgroundColor: color }}
-                      onClick={() => {
-                        setBackgroundColor(color);
-                        setCustomColorDraft("");
-                      }}
-                    />
-                  ))}
-                </div>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <label
-                    className={`inline-flex h-8 items-center gap-2 rounded-full border px-3 text-xs ${
-                      isCustomColor ? "border-zinc-900 bg-zinc-50" : "border-zinc-300"
-                    }`}
-                  >
-                    <span className="text-zinc-700">Custom</span>
-                    <input
-                      type="color"
-                      className="h-5 w-5 cursor-pointer rounded border-0 bg-transparent p-0"
-                      value={toColorInputValue(isCustomColor ? backgroundColor : customColorDraft || "#e8e8e8")}
-                      onChange={(event) => applyCustomColor(event.target.value)}
-                      aria-label="Custom background color"
-                    />
-                  </label>
-                  <input
-                    className="h-8 w-28 rounded-lg border border-zinc-300 px-2 text-xs text-zinc-800 outline-none focus:border-zinc-900"
-                    value={isCustomColor ? backgroundColor || "" : customColorDraft}
-                    placeholder="#rrggbb"
-                    maxLength={7}
-                    onChange={(event) => applyCustomColor(event.target.value)}
-                    aria-label="Custom background hex"
+                  <PaintPicker
+                    value={backgroundColor || "#f4faf8"}
+                    onChange={(paint) => {
+                      setBackgroundColor(paint);
+                      setError("");
+                    }}
+                    allowGradient={false}
                   />
                 </div>
                 <label className="mt-3 block text-sm font-medium text-zinc-700">
@@ -573,6 +511,7 @@ export function BlogEditor() {
           </DevicePreviewFrame>
         </div>
       ) : null}
+      </div>
     </div>
   );
 }

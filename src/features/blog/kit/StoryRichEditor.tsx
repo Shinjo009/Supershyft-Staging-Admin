@@ -9,7 +9,7 @@
  *   highlight, link, superscript, subscript, search and replace, and
  *   light/dark mode. On a narrow screen, highlight and link open in the toolbar.
  */
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { EditorContent, EditorContext, useEditor } from '@tiptap/react'
 import { StarterKit } from '@tiptap/starter-kit'
 import { Typography } from '@tiptap/extension-typography'
@@ -20,7 +20,7 @@ import { Subscript } from '@tiptap/extension-subscript'
 import { Superscript } from '@tiptap/extension-superscript'
 import { FindAndReplace } from '@tiptap/extension-find-and-replace'
 import { TableKit } from '@tiptap/extension-table'
-import { TextStyle, FontSize, FontFamily, Color } from '@tiptap/extension-text-style'
+import { TextStyle, FontSize, FontFamily } from '@tiptap/extension-text-style'
 import { Placeholder, Selection } from '@tiptap/extensions'
 
 import { Button } from './components/tiptap-ui-primitive/button'
@@ -40,6 +40,7 @@ import './components/tiptap-node/paragraph-node/paragraph-node.scss'
 import { HeadingDropdownMenu } from './components/tiptap-ui/heading-dropdown-menu'
 import { FontFamilyDropdown } from './components/tiptap-ui/font-family-dropdown/font-family-dropdown'
 import { FontSizeDropdown } from './components/tiptap-ui/font-size-dropdown/font-size-dropdown'
+import { FontWeightDropdown } from './components/tiptap-ui/font-weight-dropdown/font-weight-dropdown'
 import { ImageUploadButton } from './components/tiptap-ui/image-upload-button'
 import { VideoInsertButton, normalizeVideoUrl } from './components/tiptap-ui/video-insert-button/video-insert-button'
 import { DividerButton } from './components/tiptap-ui/divider-button/divider-button'
@@ -60,8 +61,6 @@ import { HighlighterIcon } from './components/tiptap-icons/highlighter-icon'
 import { LinkIcon } from './components/tiptap-icons/link-icon'
 
 import { useIsBreakpoint } from './hooks/use-is-breakpoint'
-import { useWindowSize } from './hooks/use-window-size'
-import { useCursorVisibility } from './hooks/use-cursor-visibility'
 import { ThemeToggle } from './components/tiptap-templates/simple/theme-toggle'
 
 import './styles/_variables.scss'
@@ -69,11 +68,15 @@ import './styles/_keyframe-animations.scss'
 import './components/tiptap-templates/simple/simple-editor.scss'
 import './storyRichEditor.css'
 
-import { mediaUrl, vimeoId, youtubeId, type StoryBlock } from './lib/storyBlocks'
+import { pageBackgroundStyle } from '../pageBackgroundStyle'
+import { vimeoId, youtubeId, type StoryBlock } from './lib/storyBlocks'
+import { scrollSelectionIntoStoryPane } from './lib/scrollSelectionIntoStoryPane'
 import { docToStory, storyToDoc } from './lib/tiptapStory'
 import { StoryAudio, StoryImage, StoryVideo } from './storyMediaNodes'
+import { FontWeight } from './components/tiptap-extension/font-weight-extension'
 import { NodeBackground } from './components/tiptap-extension/node-background-extension'
 import { StorySection } from './components/tiptap-extension/section-node-extension'
+import { StoryColor } from './components/tiptap-extension/story-color-extension'
 import { TableBackspace } from './components/tiptap-extension/table-backspace-extension'
 import { SectionButton } from './components/tiptap-ui/section-button/section-button'
 
@@ -124,23 +127,6 @@ function pastedVideoUrl(text: string): string | null {
   return null
 }
 
-function buildPageBgStyle(
-  color?: string | null,
-  imageUrl?: string | null,
-): CSSProperties | undefined {
-  const resolved = mediaUrl(imageUrl || '') || undefined
-  if (!resolved && !color) return undefined
-  const style: CSSProperties = {}
-  if (color) style.backgroundColor = color
-  if (resolved) {
-    style.backgroundImage = `url(${resolved})`
-    style.backgroundSize = 'cover'
-    style.backgroundPosition = 'center'
-    style.backgroundRepeat = 'no-repeat'
-  }
-  return style
-}
-
 function MainToolbarContent({
   onHighlighterClick,
   onLinkClick,
@@ -182,6 +168,7 @@ function MainToolbarContent({
       <ToolbarGroup>
         <FontFamilyDropdown modal={false} />
         <FontSizeDropdown modal={false} />
+        <FontWeightDropdown modal={false} />
       </ToolbarGroup>
       <ToolbarSeparator />
       <ToolbarGroup>
@@ -248,10 +235,8 @@ export const StoryRichEditor = forwardRef<StoryRichEditorHandle, Props>(function
   ref,
 ) {
   const isMobile = useIsBreakpoint()
-  const { height } = useWindowSize()
   const [mobileView, setMobileView] = useState<'main' | 'highlighter' | 'link'>('main')
   const [isSearchAndReplaceOpen, setIsSearchAndReplaceOpen] = useState(false)
-  const toolbarRef = useRef<HTMLDivElement>(null)
   const searchAndReplaceButtonRef = useRef<HTMLButtonElement>(null)
   const uploadVideoFile = uploadVideo || uploadImage
 
@@ -265,6 +250,7 @@ export const StoryRichEditor = forwardRef<StoryRichEditorHandle, Props>(function
         'aria-label': 'Story text',
         class: 'simple-editor',
       },
+      handleScrollToSelection: scrollSelectionIntoStoryPane,
       handlePaste: (view, event) => {
         const text = event.clipboardData?.getData('text/plain') || ''
         const videoUrl = pastedVideoUrl(text)
@@ -290,7 +276,8 @@ export const StoryRichEditor = forwardRef<StoryRichEditorHandle, Props>(function
       TextStyle,
       FontSize,
       FontFamily,
-      Color,
+      FontWeight,
+      StoryColor,
       StorySection,
       NodeBackground,
       Superscript,
@@ -317,11 +304,6 @@ export const StoryRichEditor = forwardRef<StoryRichEditorHandle, Props>(function
     ],
     content: storyToDoc(initialContent),
     onUpdate: () => onChange?.(),
-  })
-
-  const rect = useCursorVisibility({
-    editor,
-    overlayHeight: toolbarRef.current?.getBoundingClientRect().height ?? 0,
   })
 
   useEffect(() => {
@@ -358,16 +340,7 @@ export const StoryRichEditor = forwardRef<StoryRichEditorHandle, Props>(function
   return (
     <div className="simple-editor-wrapper story-rich-editor">
       <EditorContext.Provider value={{ editor }}>
-        <Toolbar
-          ref={toolbarRef}
-          style={
-            isMobile
-              ? {
-                  bottom: `calc(100% - ${height - rect.y}px)`,
-                }
-              : undefined
-          }
-        >
+        <Toolbar>
           {mobileView === 'main' ? (
             <MainToolbarContent
               onHighlighterClick={() => setMobileView('highlighter')}
@@ -393,8 +366,8 @@ export const StoryRichEditor = forwardRef<StoryRichEditorHandle, Props>(function
           scrollIntoViewOptions={SEARCH_AND_REPLACE_SCROLL_OPTIONS}
         />
 
-        <div className="story-scroll" style={buildPageBgStyle(pageBackground, pageBackgroundImage)}>
-          <div className="story-page" style={buildPageBgStyle(pageBackground, pageBackgroundImage)}>
+        <div className="story-scroll">
+          <div className="story-page" style={pageBackgroundStyle(pageBackground, pageBackgroundImage)}>
             {header ? <div className="story-page-header">{header}</div> : null}
             <EditorContent editor={editor} role="presentation" className="simple-editor-content" />
           </div>

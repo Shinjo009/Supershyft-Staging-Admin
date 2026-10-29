@@ -6,12 +6,15 @@ import {
   codeLanguage,
   fontFamilyCss,
   fontSizeCss,
+  fontWeightCss,
   headingTag,
   isTaskList,
   listTag,
   mediaAlt,
   mediaSrc,
   mediaUrl,
+  paintFillStyle,
+  paintTextStyle,
   paletteHex,
   safeHref,
   sectionBackground,
@@ -40,6 +43,7 @@ function wrapPiece(node: ReactNode, marks: Mark[], key: string): ReactNode {
       "highlight",
       "fontSize",
       "fontFamily",
+      "fontWeight",
       "color",
       "italic",
       "bold",
@@ -66,9 +70,12 @@ function wrapPiece(node: ReactNode, marks: Mark[], key: string): ReactNode {
     } else if (kind === "fontFamily") {
       const fontFamily = fontFamilyCss(mark.value);
       if (fontFamily) piece = <span key={`${key}-family`} style={{ fontFamily }}>{piece}</span>;
+    } else if (kind === "fontWeight") {
+      const fontWeight = fontWeightCss(mark.value);
+      if (fontWeight) piece = <span key={`${key}-weight`} style={{ fontWeight: Number(fontWeight) || 400 }}>{piece}</span>;
     } else if (kind === "color") {
       const color = paletteHex(mark.value);
-      if (color) piece = <span key={`${key}-color`} style={{ color }}>{piece}</span>;
+      if (color) piece = <span key={`${key}-color`} style={paintTextStyle(color)}>{piece}</span>;
     } else if (kind === "italic") piece = <em key={`${key}-em`}>{piece}</em>;
     else if (kind === "bold") piece = <strong key={`${key}-strong`}>{piece}</strong>;
     else {
@@ -157,7 +164,7 @@ export function BlockView({ block }: { block: StoryBlock }) {
     return (
       <section
         className="my-4 space-y-3 rounded-lg px-4 py-4"
-        style={{ backgroundColor: sectionBackground(block) || "#EFF6FF" }}
+        style={paintFillStyle(sectionBackground(block) || "#EFF6FF")}
       >
         {children.map((child, index) => (
           <BlockView key={index} block={child} />
@@ -229,10 +236,10 @@ export function BlockView({ block }: { block: StoryBlock }) {
       <div className="overflow-x-auto rounded-lg border border-zinc-200">
         <table className="min-w-full border-collapse text-sm text-zinc-900">
           {(block.headers || []).length ? (
-            <thead className="bg-zinc-50 text-left text-zinc-700">
+            <thead className="text-left text-zinc-900">
               <tr>
                 {(block.headers || []).map((cell, index) => (
-                  <th key={index} className="border border-zinc-300 px-3 py-2 font-semibold">
+                  <th key={index} className="border border-zinc-300 px-3 py-2 font-normal">
                     <RichCellView value={cell} />
                   </th>
                 ))}

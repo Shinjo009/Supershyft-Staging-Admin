@@ -2,19 +2,21 @@ import { forwardRef, useCallback, useEffect, useState } from "react"
 import type { Editor } from "@tiptap/react"
 
 import { useTiptapEditor } from "../../../hooks/use-tiptap-editor"
+import { isGradientPaint, normalizePaint } from "../../../lib/storyBlocks"
 import {
   SECTION_BG_PRESETS,
   SECTION_DEFAULT_BG,
   normalizeSectionHex,
 } from "../../tiptap-extension/section-node-extension"
+import { PaintPicker } from "../paint-picker/paint-picker"
 import type { ButtonProps } from "../../tiptap-ui-primitive/button"
 import { Button } from "../../tiptap-ui-primitive/button"
+import { Card, CardBody } from "../../tiptap-ui-primitive/card"
 import {
   Popover,
   PopoverTrigger,
   PopoverContent,
 } from "../../tiptap-ui-primitive/popover"
-import { Separator } from "../../tiptap-ui-primitive/separator"
 
 function sectionBackground(editor: Editor | null): string | null {
   if (!editor) return null
@@ -31,7 +33,6 @@ export const SectionButton = forwardRef<HTMLButtonElement, SectionButtonProps>(
   ({ editor: providedEditor, ...buttonProps }, ref) => {
     const { editor } = useTiptapEditor(providedEditor)
     const [open, setOpen] = useState(false)
-    const [draft, setDraft] = useState(SECTION_DEFAULT_BG)
     const [inSection, setInSection] = useState(false)
     const [activeBg, setActiveBg] = useState<string | null>(null)
 
@@ -44,7 +45,6 @@ export const SectionButton = forwardRef<HTMLButtonElement, SectionButtonProps>(
       const bg = sectionBackground(editor)
       setInSection(Boolean(bg))
       setActiveBg(bg)
-      if (bg) setDraft(bg)
     }, [editor])
 
     useEffect(() => {
@@ -61,20 +61,18 @@ export const SectionButton = forwardRef<HTMLButtonElement, SectionButtonProps>(
     const insert = useCallback(() => {
       if (!editor) return
       editor.chain().focus().insertSection(SECTION_DEFAULT_BG).run()
-      setDraft(SECTION_DEFAULT_BG)
       setOpen(true)
     }, [editor])
 
     const applyColor = useCallback(
       (raw: string) => {
         if (!editor) return
-        const color = normalizeSectionHex(raw)
+        const color = normalizePaint(raw)
         if (!color) return
-        setDraft(color)
         if (editor.isActive("section")) {
-          editor.chain().focus().setSectionBackgroundColor(color).run()
+          editor.chain().setSectionBackgroundColor(color).run()
         } else {
-          editor.chain().focus().insertSection(color).run()
+          editor.chain().insertSection(color).run()
         }
       },
       [editor],
@@ -99,10 +97,7 @@ export const SectionButton = forwardRef<HTMLButtonElement, SectionButtonProps>(
         open={open}
         onOpenChange={(next) => {
           setOpen(next)
-          if (next) {
-            syncSelection()
-            setDraft(sectionBackground(editor) || SECTION_DEFAULT_BG)
-          }
+          if (next) syncSelection()
         }}
       >
         <PopoverTrigger asChild>
@@ -132,76 +127,53 @@ export const SectionButton = forwardRef<HTMLButtonElement, SectionButtonProps>(
                   height: 12,
                   borderRadius: 2,
                   border: "1px solid #d4d4d8",
-                  backgroundColor: activeBg || SECTION_DEFAULT_BG,
+                  backgroundColor: activeBg && !isGradientPaint(activeBg) ? activeBg : undefined,
+                  backgroundImage: activeBg && isGradientPaint(activeBg) ? activeBg : undefined,
                   marginLeft: 4,
                 }}
               />
             ) : null}
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="p-3" style={{ width: 240 }}>
-          {inSection ? (
-            <>
-              <p className="mb-2 text-xs font-medium text-zinc-600">Section background</p>
-              <div className="mb-2 flex flex-wrap gap-1.5">
-                {SECTION_BG_PRESETS.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    className="h-6 w-6 rounded border border-zinc-300"
-                    style={{ backgroundColor: color }}
-                    aria-label={color}
-                    data-active-state={(activeBg || draft).toLowerCase() === color.toLowerCase() ? "on" : "off"}
-                    onClick={() => applyColor(color)}
+        <PopoverContent
+          align="start"
+          sideOffset={8}
+          style={{ zIndex: 80 }}
+          onOpenAutoFocus={(event) => event.preventDefault()}
+          onFocusOutside={(event) => event.preventDefault()}
+        >
+          <Card style={{ minWidth: 240, maxWidth: 280, alignItems: "stretch" }}>
+            <CardBody>
+              {inSection ? (
+                <div className="flex flex-col gap-2">
+                  <p className="text-sm font-semibold text-zinc-900">Section background</p>
+                  <PaintPicker
+                    value={activeBg || SECTION_DEFAULT_BG}
+                    onChange={applyColor}
+                    presets={SECTION_BG_PRESETS}
                   />
-                ))}
-              </div>
-              <div className="mb-2 flex items-center gap-2">
-                <input
-                  type="color"
-                  value={normalizeSectionHex(draft) || SECTION_DEFAULT_BG}
-                  onChange={(event) => applyColor(event.target.value)}
-                  aria-label="Custom section color"
-                  className="h-8 w-8 cursor-pointer rounded border border-zinc-300 bg-white p-0"
-                />
-                <input
-                  type="text"
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  onBlur={() => applyColor(draft)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault()
-                      applyColor(draft)
-                    }
-                  }}
-                  placeholder="#rrggbb"
-                  className="h-8 flex-1 rounded border border-zinc-300 px-2 text-xs text-zinc-800"
-                />
-              </div>
-              <Separator />
-              <div className="mt-2 flex flex-col gap-1.5">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={removeSection}
-                  style={{ justifyContent: "flex-start", width: "100%" }}
-                >
-                  Remove section (keep text)
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={deleteSection}
-                  style={{ justifyContent: "flex-start", width: "100%", color: "#b42318" }}
-                >
-                  Delete section
-                </Button>
-              </div>
-            </>
-          ) : (
-            <p className="text-xs text-zinc-500">Place the cursor in a section to edit or delete it.</p>
-          )}
+                  <div className="border-t border-zinc-200 pt-2">
+                    <button
+                      type="button"
+                      onClick={removeSection}
+                      className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-sm text-zinc-800 hover:bg-zinc-100"
+                    >
+                      Remove section, keep the text
+                    </button>
+                    <button
+                      type="button"
+                      onClick={deleteSection}
+                      className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-sm text-red-700 hover:bg-red-50"
+                    >
+                      Delete the whole section
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-zinc-600">Click inside a section to change its color or delete it.</p>
+              )}
+            </CardBody>
+          </Card>
         </PopoverContent>
       </Popover>
     )

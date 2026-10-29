@@ -1,118 +1,52 @@
-import { forwardRef, useCallback, useMemo, useRef, useState } from "react"
+import { forwardRef, useCallback, useState } from "react"
 import type { Editor } from "@tiptap/react"
 
-import { useMenuNavigation } from "../../../hooks/use-menu-navigation"
 import { useTiptapEditor } from "../../../hooks/use-tiptap-editor"
-import { PALETTE } from "../../../lib/storyBlocks"
+import { isGradientPaint, normalizePaint, PALETTE } from "../../../lib/storyBlocks"
+import { PaintPicker } from "../paint-picker/paint-picker"
 
-import { BanIcon } from "../../tiptap-icons/ban-icon"
 import type { ButtonProps } from "../../tiptap-ui-primitive/button"
 import { Button } from "../../tiptap-ui-primitive/button"
-import { ButtonGroup } from "../../tiptap-ui-primitive/button-group"
-import {
-  Card,
-  CardBody,
-  CardItemGroup,
-} from "../../tiptap-ui-primitive/card"
+import { Card, CardBody } from "../../tiptap-ui-primitive/card"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "../../tiptap-ui-primitive/popover"
-import { Separator } from "../../tiptap-ui-primitive/separator"
-import "../color-highlight-button/color-highlight-button.scss"
 
-const TEXT_COLORS = PALETTE.filter((color) => color.toLowerCase() !== "#ffffff")
+const TEXT_PRESETS = PALETTE.filter((color) => color.toLowerCase() !== "#ffffff")
 
 function currentColor(editor: Editor | null): string {
   if (!editor) return ""
   const value = editor.getAttributes("textStyle").color
-  return typeof value === "string" ? value.toLowerCase() : ""
-}
-
-function TextColorSwatch({ color }: { color: string }) {
-  return (
-    <span
-      className="tiptap-button-highlight"
-      style={{ ["--highlight-color" as string]: color, backgroundColor: color }}
-      aria-hidden="true"
-    />
-  )
+  return typeof value === "string" ? normalizePaint(value) || "" : ""
 }
 
 export function TextColorPopoverContent({ editor: providedEditor }: { editor?: Editor | null }) {
   const { editor } = useTiptapEditor(providedEditor)
-  const containerRef = useRef<HTMLDivElement>(null)
   const active = currentColor(editor)
-
-  const menuItems = useMemo(
-    () => [...TEXT_COLORS.map((color) => ({ value: color })), { value: "none" }],
-    [],
-  )
 
   const apply = useCallback(
     (color: string) => {
       if (!editor) return
-      if (color === "none") {
-        editor.chain().focus().unsetColor().run()
-      } else {
-        editor.chain().focus().setColor(color).run()
-      }
+      editor.chain().setColor(color).run()
     },
     [editor],
   )
 
-  const { selectedIndex } = useMenuNavigation({
-    containerRef,
-    items: menuItems,
-    orientation: "both",
-    onSelect: (item) => {
-      apply(item.value)
-      return true
-    },
-    autoSelectFirstItem: false,
-  })
-
   if (!editor) return null
 
   return (
-    <Card ref={containerRef} tabIndex={0}>
+    <Card style={{ minWidth: 228, maxWidth: 260, alignItems: "stretch" }}>
       <CardBody>
-        <CardItemGroup orientation="horizontal">
-          <ButtonGroup>
-            {TEXT_COLORS.map((color, index) => (
-              <Button
-                key={color}
-                type="button"
-                variant="ghost"
-                role="menuitem"
-                aria-label={`Text color ${color}`}
-                tooltip={color}
-                tabIndex={index === selectedIndex ? 0 : -1}
-                data-highlighted={selectedIndex === index}
-                data-active-state={active === color.toLowerCase() ? "on" : "off"}
-                onClick={() => apply(color)}
-              >
-                <TextColorSwatch color={color} />
-              </Button>
-            ))}
-          </ButtonGroup>
-          <Separator />
-          <ButtonGroup>
-            <Button
-              type="button"
-              variant="ghost"
-              role="menuitem"
-              aria-label="Remove text color"
-              tooltip="Remove text color"
-              tabIndex={selectedIndex === TEXT_COLORS.length ? 0 : -1}
-              data-highlighted={selectedIndex === TEXT_COLORS.length}
-              onClick={() => apply("none")}
-            >
-              <BanIcon className="tiptap-button-icon" />
-            </Button>
-          </ButtonGroup>
-        </CardItemGroup>
+        <p className="mb-2 text-sm font-semibold text-zinc-900">Text color</p>
+        <PaintPicker
+          value={active}
+          onChange={apply}
+          presets={TEXT_PRESETS}
+          allowClear
+          onClear={() => editor.chain().focus().unsetColor().run()}
+        />
       </CardBody>
     </Card>
   )
@@ -164,8 +98,11 @@ export function TextColorPopover({
             className="tiptap-button-text"
             style={{
               fontWeight: 700,
-              color: active || undefined,
-              borderBottom: `2px solid ${active || "currentColor"}`,
+              color: active && !isGradientPaint(active) ? active : undefined,
+              backgroundImage: active && isGradientPaint(active) ? active : undefined,
+              WebkitBackgroundClip: active && isGradientPaint(active) ? "text" : undefined,
+              backgroundClip: active && isGradientPaint(active) ? "text" : undefined,
+              borderBottom: `2px solid ${active && !isGradientPaint(active) ? active : "currentColor"}`,
               lineHeight: 1.1,
             }}
           >
@@ -173,7 +110,13 @@ export function TextColorPopover({
           </span>
         </TextColorPopoverButton>
       </PopoverTrigger>
-      <PopoverContent aria-label="Text colors">
+      <PopoverContent
+        aria-label="Text colors"
+        sideOffset={8}
+        style={{ zIndex: 80 }}
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        onFocusOutside={(event) => event.preventDefault()}
+      >
         <TextColorPopoverContent editor={editor} />
       </PopoverContent>
     </Popover>
