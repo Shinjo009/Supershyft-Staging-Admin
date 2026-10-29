@@ -169,6 +169,7 @@ function AdminLayoutView() {
   const pageBackTo = pageTitleOverride?.backTo;
   const isDashboard = location.pathname === "/";
   const isSettings = location.pathname.startsWith("/settings");
+  const isBlogWriter = location.pathname.startsWith("/blog/editor");
 
   const handleLogout = async () => {
     await logout();
@@ -184,9 +185,9 @@ function AdminLayoutView() {
     }`;
 
   return (
-    <div className="min-h-screen flex bg-zinc-50">
+    <div className={`flex bg-zinc-50 ${isBlogWriter ? "h-dvh overflow-hidden" : "min-h-screen"}`}>
       {/* Mobile overlay */}
-      {mobileMenuOpen && (
+      {!isBlogWriter && mobileMenuOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/40 lg:hidden"
           onClick={closeMobileMenu}
@@ -195,6 +196,7 @@ function AdminLayoutView() {
       )}
 
       {/* Sidebar: drawer on mobile, fixed on desktop */}
+      {!isBlogWriter ? (
       <aside
         className={`
           fixed lg:static inset-y-0 left-0 z-50
@@ -358,12 +360,14 @@ function AdminLayoutView() {
           )}
         </nav>
       </aside>
+      ) : null}
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className={`flex-1 flex flex-col min-w-0 ${isBlogWriter ? "min-h-0" : ""}`}>
         <header
           ref={headerRef}
           className="relative z-30 min-h-14 min-w-0 flex items-center justify-between gap-3 px-4 sm:px-6 py-2 bg-white border-b border-zinc-200 shrink-0"
         >
+          {!isBlogWriter ? (
           <button
             data-header-menu
             onClick={toggleMobileMenu}
@@ -372,6 +376,7 @@ function AdminLayoutView() {
           >
             <Menu className="w-5 h-5" />
           </button>
+          ) : null}
           <div ref={titleRef} className="flex-1 min-w-0 flex items-center gap-2 min-w-0">
             {pageBackTo ? (
               <Link
@@ -456,7 +461,13 @@ function AdminLayoutView() {
           </div>
         </header>
 
-        <main className="flex-1 min-w-0 p-4 sm:p-6 overflow-auto">
+        <main
+          className={
+            isBlogWriter
+              ? "flex-1 min-h-0 min-w-0 flex flex-col p-0 overflow-hidden"
+              : "flex-1 min-w-0 p-4 sm:p-6 overflow-auto"
+          }
+        >
           <Outlet />
         </main>
       </div>

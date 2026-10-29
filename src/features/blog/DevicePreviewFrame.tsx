@@ -45,8 +45,8 @@ export function BlogArticleBody({
   const showByline = Boolean(authorName?.trim()) || readTime != null || Boolean(dateLabel);
 
   return (
-    <div className="min-h-full p-4 sm:p-6" style={bg || { backgroundColor: "#ffffff" }}>
-      <article className="mx-auto max-w-3xl space-y-5 text-zinc-900">
+    <div className="min-h-full bg-white p-4 sm:p-6">
+      <article className="mx-auto w-full max-w-[960px] space-y-5 p-4 text-zinc-900 sm:p-6" style={bg || { backgroundColor: "#ffffff" }}>
         <h1 className="text-3xl font-semibold text-zinc-900">{title || "Untitled"}</h1>
         {showByline ? (
           <div className="space-y-1">

@@ -3,7 +3,7 @@ import type { Editor } from "@tiptap/react"
 
 import { ChevronDownIcon } from "../../tiptap-icons/chevron-down-icon"
 import { useTiptapEditor } from "../../../hooks/use-tiptap-editor"
-import { FONT_FAMILIES } from "../../../lib/storyBlocks"
+import { FONT_FAMILIES, fontFamilyCss } from "../../../lib/storyBlocks"
 import type { ButtonProps } from "../../tiptap-ui-primitive/button"
 import { Button } from "../../tiptap-ui-primitive/button"
 import {
@@ -25,6 +25,11 @@ const FONT_LABELS: Record<(typeof FONT_FAMILIES)[number], string> = {
   Arial: "Arial",
   Georgia: "Georgia",
   "Times New Roman": "Times",
+  Montserrat: "Montserrat",
+  Poppins: "Poppins",
+  "DM Sans": "DM Sans",
+  Lato: "Lato",
+  Sora: "Sora",
 }
 
 export interface FontFamilyDropdownProps extends Omit<ButtonProps, "type"> {
@@ -85,11 +90,11 @@ export const FontFamilyDropdown = forwardRef<HTMLButtonElement, FontFamilyDropdo
                 <span
                   className="tiptap-button-text"
                   style={{
-                    fontFamily: active || undefined,
+                    fontFamily: fontFamilyCss(active) || undefined,
                     whiteSpace: "nowrap",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
-                    maxWidth: 64,
+                    maxWidth: 88,
                   }}
                 >
                   {label}
@@ -108,7 +113,7 @@ export const FontFamilyDropdown = forwardRef<HTMLButtonElement, FontFamilyDropdo
                   variant="ghost"
                   data-active-state={active === family ? "on" : "off"}
                   onClick={() => apply(family)}
-                  style={{ fontFamily: family, justifyContent: "flex-start", width: "100%" }}
+                  style={{ fontFamily: fontFamilyCss(family), justifyContent: "flex-start", width: "100%" }}
                 >
                   {family}
                 </Button>

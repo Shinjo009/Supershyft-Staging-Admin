@@ -1,6 +1,15 @@
 export const PALETTE = ['#cc203b', '#8fd4c8', '#ffffff', '#f4faf8', '#ffd166', '#9ecbff'] as const
 
-export const FONT_FAMILIES = ['Arial', 'Georgia', 'Times New Roman'] as const
+export const FONT_FAMILIES = [
+  'Arial',
+  'Georgia',
+  'Times New Roman',
+  'Montserrat',
+  'Poppins',
+  'DM Sans',
+  'Lato',
+  'Sora',
+] as const
 
 /** Pixel sizes the stepper can set. Stored on the story as "16px". */
 export const FONT_SIZE_MIN = 8
@@ -22,6 +31,11 @@ const FONT_FAMILY_CSS: Record<(typeof FONT_FAMILIES)[number], string> = {
   Arial: 'Arial, Helvetica, sans-serif',
   Georgia: 'Georgia, serif',
   'Times New Roman': '"Times New Roman", Times, serif',
+  Montserrat: '"Montserrat", Arial, sans-serif',
+  Poppins: '"Poppins", Arial, sans-serif',
+  'DM Sans': '"DM Sans", Arial, sans-serif',
+  Lato: '"Lato", Arial, sans-serif',
+  Sora: '"Sora", Arial, sans-serif',
 }
 
 export function fontFamilyCss(value: string | undefined): string {
@@ -31,6 +45,164 @@ export function fontFamilyCss(value: string | undefined): string {
 export function fontSizeCss(value: string | undefined): string {
   const size = fontSizePx(value)
   return size == null ? '' : `${size}px`
+}
+
+export const FONT_WEIGHTS = ['light', 'regular', 'medium', 'semibold', 'bold'] as const
+export type FontWeightName = (typeof FONT_WEIGHTS)[number]
+
+const FONT_WEIGHT_CSS: Record<FontWeightName, string> = {
+  light: '300',
+  regular: '400',
+  medium: '500',
+  semibold: '600',
+  bold: '700',
+}
+
+const FONT_WEIGHT_LABEL: Record<FontWeightName, string> = {
+  light: 'Light',
+  regular: 'Regular',
+  medium: 'Medium',
+  semibold: 'Semibold',
+  bold: 'Bold',
+}
+
+const FONT_WEIGHT_ALIASES: Record<string, FontWeightName> = {
+  light: 'light',
+  '300': 'light',
+  regular: 'regular',
+  normal: 'regular',
+  '400': 'regular',
+  medium: 'medium',
+  '500': 'medium',
+  semibold: 'semibold',
+  'semi-bold': 'semibold',
+  '600': 'semibold',
+  bold: 'bold',
+  '700': 'bold',
+}
+
+export function fontWeightName(value: string | undefined): FontWeightName | '' {
+  const key = String(value || '').trim().toLowerCase()
+  return FONT_WEIGHT_ALIASES[key] || ''
+}
+
+export function fontWeightCss(value: string | undefined): string {
+  const name = fontWeightName(value)
+  return name ? FONT_WEIGHT_CSS[name] : ''
+}
+
+export function fontWeightLabel(value: string | undefined): string {
+  const name = fontWeightName(value)
+  return name ? FONT_WEIGHT_LABEL[name] : 'Weight'
+}
+
+const HEX_COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
+const PAINT_MAX = 300
+const LINEAR_GRADIENT = /^linear-gradient\(\s*(-?\d+(?:\.\d+)?)deg\s*,\s*(.+)\)$/i
+const GRADIENT_STOP = /^(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6})(?:\s+(\d{1,3}%))?$/
+
+export function normalizeHex(value: string | null | undefined): string | null {
+  const text = String(value || '').trim()
+  if (!HEX_COLOR.test(text)) return null
+  if (text.length === 4) {
+    const [, r, g, b] = text
+    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase()
+  }
+  return text.toLowerCase()
+}
+
+export function isGradientPaint(value: string | null | undefined): boolean {
+  return /^linear-gradient\(/i.test(String(value || '').trim())
+}
+
+function clampAngle(value: number): number | null {
+  if (!Number.isFinite(value)) return null
+  const angle = Math.round(value)
+  if (angle < 0 || angle > 360) return null
+  return angle
+}
+
+function normalizeLinearGradient(value: string): string | null {
+  const text = value.trim().replace(/\s+/g, ' ')
+  if (text.length > PAINT_MAX) return null
+  if (/url\s*\(|javascript:|expression\s*\(/i.test(text)) return null
+  const match = text.match(LINEAR_GRADIENT)
+  if (!match) return null
+  const angle = clampAngle(Number(match[1]))
+  if (angle == null) return null
+  const stops = match[2].split(',').map((part) => part.trim()).filter(Boolean)
+  if (stops.length < 2 || stops.length > 4) return null
+  const cleaned: string[] = []
+  for (const stop of stops) {
+    const stopMatch = stop.match(GRADIENT_STOP)
+    if (!stopMatch) return null
+    const hex = normalizeHex(stopMatch[1])
+    if (!hex) return null
+    cleaned.push(stopMatch[2] ? `${hex} ${stopMatch[2]}` : hex)
+  }
+  return `linear-gradient(${angle}deg, ${cleaned.join(', ')})`
+}
+
+function hexFromRgb(value: string): string | null {
+  const rgb = value.match(/rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/i)
+  if (!rgb) return null
+  const parts = [rgb[1], rgb[2], rgb[3]].map((part) => Number(part))
+  if (parts.some((part) => part < 0 || part > 255)) return null
+  return `#${parts.map((part) => part.toString(16).padStart(2, '0')).join('')}`
+}
+
+/** Hex or sanitized linear-gradient. Unknown / unsafe CSS is dropped. */
+export function normalizePaint(value: string | null | undefined): string | null {
+  const text = String(value || '').trim()
+  if (!text || text.length > PAINT_MAX) return null
+  return normalizeHex(text) || hexFromRgb(text) || normalizeLinearGradient(text)
+}
+
+export function parseLinearGradient(value: string | null | undefined): { angle: number; stops: string[] } | null {
+  const paint = normalizePaint(value)
+  if (!paint || !isGradientPaint(paint)) return null
+  const match = paint.match(LINEAR_GRADIENT)
+  if (!match) return null
+  return {
+    angle: Number(match[1]),
+    stops: match[2].split(',').map((part) => part.trim().split(/\s+/)[0]),
+  }
+}
+
+export function buildLinearGradient(angle: number, stops: string[]): string | null {
+  const hexes = stops.map((stop) => normalizeHex(stop)).filter((stop): stop is string => Boolean(stop))
+  if (hexes.length < 2) return null
+  return normalizeLinearGradient(`linear-gradient(${Math.round(angle)}deg, ${hexes.join(', ')})`)
+}
+
+export function paintFillStyle(value: string | null | undefined): { backgroundColor?: string; backgroundImage?: string } {
+  const paint = normalizePaint(value)
+  if (!paint) return {}
+  if (isGradientPaint(paint)) return { backgroundImage: paint }
+  return { backgroundColor: paint }
+}
+
+export function paintTextStyle(value: string | null | undefined): Record<string, string> {
+  const paint = normalizePaint(value)
+  if (!paint) return {}
+  if (isGradientPaint(paint)) {
+    return {
+      backgroundImage: paint,
+      WebkitBackgroundClip: 'text',
+      backgroundClip: 'text',
+      color: 'transparent',
+    }
+  }
+  return { color: paint }
+}
+
+export function paintTextCss(value: string | null | undefined): string {
+  const paint = normalizePaint(value)
+  if (!paint) return ''
+  if (isGradientPaint(paint)) {
+    return `background-image: ${paint}; -webkit-background-clip: text; background-clip: text; color: transparent`
+  }
+  return `color: ${paint}`
 }
 
 export const CODE_LANGUAGES = ['text', 'python', 'javascript', 'html', 'css', 'sql', 'bash', 'json'] as const
@@ -64,6 +236,7 @@ export type Mark = {
     | 'highlight'
     | 'fontFamily'
     | 'fontSize'
+    | 'fontWeight'
   start: number
   end: number
   href?: string
@@ -214,7 +387,7 @@ export function richToHtml(value: RichCell | string | undefined, marks?: Mark[])
 
 function wrapMarks(chunk: string, marks: Mark[]): string {
   let piece = textToHtml(chunk)
-  ;(['code', 'subscript', 'superscript', 'strike', 'underline', 'highlight', 'fontSize', 'fontFamily', 'color', 'italic', 'bold', 'link'] as const).forEach((kind) => {
+  ;(['code', 'subscript', 'superscript', 'strike', 'underline', 'highlight', 'fontSize', 'fontFamily', 'fontWeight', 'color', 'italic', 'bold', 'link'] as const).forEach((kind) => {
     const mark = marks.find((item) => item.type === kind)
     if (!mark) return
     if (kind === 'code') piece = `<code>${piece}</code>`
@@ -229,7 +402,17 @@ function wrapMarks(chunk: string, marks: Mark[]): string {
     } else if (kind === 'fontFamily') {
       const family = fontFamilyCss(mark.value)
       if (family) piece = `<span style="font-family:${family}">${piece}</span>`
-    } else if (kind === 'color') piece = `<span style="color:${mark.value}">${piece}</span>`
+    } else if (kind === 'fontWeight') {
+      const weight = fontWeightCss(mark.value)
+      if (weight) piece = `<span style="font-weight:${weight}">${piece}</span>`
+    } else if (kind === 'color') {
+      const paint = normalizePaint(mark.value)
+      if (paint && isGradientPaint(paint)) {
+        piece = `<span data-text-paint="${paint}" style="${paintTextCss(paint)}">${piece}</span>`
+      } else if (paint) {
+        piece = `<span style="color:${paint}">${piece}</span>`
+      }
+    }
     else if (kind === 'italic') piece = `<em>${piece}</em>`
     else if (kind === 'bold') piece = `<strong>${piece}</strong>`
     else piece = `<a href="${escapeHtml(mark.href || '')}">${piece}</a>`
@@ -330,17 +513,7 @@ function plainText(node: Node): string {
 }
 
 function paletteColor(value: string): string {
-  const text = String(value || '').trim().toLowerCase()
-  const direct = PALETTE.find((color) => color === text)
-  if (direct) return direct
-  const rgb = text.match(/rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/i)
-  if (!rgb) return ''
-  const hex =
-    '#' +
-    [rgb[1], rgb[2], rgb[3]]
-      .map((part) => Number(part).toString(16).padStart(2, '0'))
-      .join('')
-  return PALETTE.find((color) => color === hex) || ''
+  return normalizePaint(value) || ''
 }
 
 function firstFontName(value: string): string {
@@ -361,6 +534,11 @@ function fontSizeFromStyle(style: string): string {
   return fontSizeCss(raw)
 }
 
+function fontWeightFromStyle(style: string): string {
+  const raw = ((style.match(/(?:^|;)\s*font-weight\s*:\s*([^;]+)/i) || [])[1] || '').trim()
+  return fontWeightName(raw)
+}
+
 function openMark(node: Element): Array<Partial<Mark> & { type: Mark['type'] }> {
   const tag = node.tagName.toLowerCase()
   if (tag === 'strong' || tag === 'b') return [{ type: 'bold' }]
@@ -372,18 +550,22 @@ function openMark(node: Element): Array<Partial<Mark> & { type: Mark['type'] }> 
   }
   if (tag === 'span' || tag === 'font') {
     const found: Array<Partial<Mark> & { type: Mark['type'] }> = []
+    const style = node.getAttribute('style') || ''
     const source =
       tag === 'font'
         ? node.getAttribute('color') || ''
-        : ((node.getAttribute('style') || '').match(/(?:^|;)\s*color\s*:\s*([^;]+)/i) || [])[1]
+        : node.getAttribute('data-text-paint') ||
+          ((style.match(/(?:^|;)\s*background-image\s*:\s*([^;]+)/i) || [])[1] || '') ||
+          ((style.match(/(?:^|;)\s*color\s*:\s*([^;]+)/i) || [])[1] || '')
     const color = paletteColor(source || '')
     if (color) found.push({ type: 'color', value: color })
     if (tag === 'span') {
-      const style = node.getAttribute('style') || ''
       const family = fontFamilyFromStyle(style)
       const size = fontSizeFromStyle(style)
+      const weight = fontWeightFromStyle(style)
       if (family) found.push({ type: 'fontFamily', value: family })
       if (size) found.push({ type: 'fontSize', value: size })
+      if (weight) found.push({ type: 'fontWeight', value: weight })
     }
     return found
   }
@@ -540,9 +722,10 @@ export function htmlToBlocks(html: string): StoryBlock[] {
 export function blockToHtml(block: StoryBlock): string {
   const tag = (block.tag || '').trim().toLowerCase()
   if (tag === 'section') {
-    const bg = sectionBackground(block) || '#EFF6FF'
+    const bg = normalizePaint(sectionBackground(block)) || '#EFF6FF'
     const inner = sectionChildren(block).map((child) => blockToHtml(child)).join('')
-    return `<div data-type="section" style="background-color:${bg}">${inner}</div>`
+    const style = isGradientPaint(bg) ? `background-image:${bg}` : `background-color:${bg}`
+    return `<div data-type="section" data-background-color="${bg}" style="${style}">${inner}</div>`
   }
   if (tag === 'p') return `<p>${richToHtml(blockText(block), block.marks)}</p>`
   if (/^h[1-6]$/.test(tag)) {
@@ -623,8 +806,7 @@ export function safeHref(href: string | undefined): string | null {
 }
 
 export function paletteHex(value: string | undefined): string | null {
-  const color = paletteColor(value || '')
-  return color || null
+  return normalizePaint(value) || null
 }
 
 export function youtubeId(url: string): string | null {

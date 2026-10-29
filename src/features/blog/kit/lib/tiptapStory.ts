@@ -9,8 +9,9 @@ import {
   CODE_LANGUAGES,
   FONT_FAMILIES,
   fontSizeCss,
+  fontWeightName,
   HIGHLIGHTS,
-  PALETTE,
+  normalizePaint,
   blockAlign,
   blockText,
   codeLanguage,
@@ -34,7 +35,6 @@ import { normalizeSectionHex, SECTION_DEFAULT_BG } from '../components/tiptap-ex
 type InlineMark = { type: string; attrs?: Record<string, unknown> }
 
 const LANGUAGES = new Set<string>(CODE_LANGUAGES)
-const PALETTE_SET = new Set<string>(PALETTE)
 const FONT_FAMILY_SET = new Set<string>(FONT_FAMILIES)
 const SIMPLE_MARKS = new Set(['bold', 'italic', 'code', 'underline', 'strike', 'subscript', 'superscript'])
 const ALIGNS = new Set(['center', 'right', 'justify'])
@@ -100,12 +100,18 @@ function toTiptapMark(mark: Mark): InlineMark | null {
     return name ? { type: 'highlight', attrs: { color: highlightVar(name) } } : null
   }
   if (mark.type === 'link' && mark.href) return { type: 'link', attrs: { href: mark.href } }
-  if (mark.type === 'color' && mark.value) return { type: 'textStyle', attrs: { color: mark.value } }
+  if (mark.type === 'color') {
+    const paint = normalizePaint(mark.value)
+    return paint ? { type: 'textStyle', attrs: { color: paint } } : null
+  }
   if (mark.type === 'fontFamily' && mark.value && FONT_FAMILY_SET.has(mark.value)) {
     return { type: 'textStyle', attrs: { fontFamily: mark.value } }
   }
   if (mark.type === 'fontSize' && fontSizeCss(mark.value)) {
     return { type: 'textStyle', attrs: { fontSize: fontSizeCss(mark.value) } }
+  }
+  if (mark.type === 'fontWeight' && fontWeightName(mark.value)) {
+    return { type: 'textStyle', attrs: { fontWeight: fontWeightName(mark.value) } }
   }
   return null
 }
@@ -280,12 +286,14 @@ function fromTiptapMarks(mark: InlineMark, start: number, end: number): Mark[] {
     return one ? [one] : []
   }
   const out: Mark[] = []
-  const color = String(mark.attrs?.color || '').toLowerCase()
-  if (PALETTE_SET.has(color)) out.push({ type: 'color', start, end, value: color })
+  const color = normalizePaint(String(mark.attrs?.color || ''))
+  if (color) out.push({ type: 'color', start, end, value: color })
   const family = String(mark.attrs?.fontFamily || '')
   if (FONT_FAMILY_SET.has(family)) out.push({ type: 'fontFamily', start, end, value: family })
   const size = fontSizeCss(String(mark.attrs?.fontSize || ''))
   if (size) out.push({ type: 'fontSize', start, end, value: size })
+  const weight = fontWeightName(String(mark.attrs?.fontWeight || ''))
+  if (weight) out.push({ type: 'fontWeight', start, end, value: weight })
   return out
 }
 

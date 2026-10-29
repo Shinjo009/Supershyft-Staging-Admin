@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { docToStory, storyToDoc } from './tiptapStory'
-import type { StoryBlock } from './storyBlocks'
+import {
+  FONT_FAMILIES,
+  FONT_WEIGHTS,
+  isGradientPaint,
+  normalizePaint,
+  paintFillStyle,
+  paintTextStyle,
+  type StoryBlock,
+} from './storyBlocks'
 
 function assertUniformCells(blocks: StoryBlock[]) {
   for (const block of blocks) {
@@ -178,5 +186,104 @@ describe('tiptapStory tag-only roundtrip', () => {
     expect(again[0]).toEqual({ tag: 'h2', text: 'Introduction', marks: [] })
     expect(again[1]).toEqual({ tag: 'p', text: 'Hello world', marks: [] })
     expect(again[0]).not.toHaveProperty('content')
+  })
+
+  it('roundtrips new fonts, any hex, and linear-gradient paints', () => {
+    const gradient = 'linear-gradient(90deg, #cc203b, #8fd4c8)'
+    const story: StoryBlock[] = [
+      {
+        tag: 'p',
+        text: 'Poppins painted',
+        marks: [
+          { type: 'fontFamily', start: 0, end: 7, value: 'Poppins' },
+          { type: 'fontWeight', start: 0, end: 7, value: 'semibold' },
+          { type: 'color', start: 8, end: 15, value: '#123456' },
+        ],
+      },
+      {
+        tag: 'p',
+        text: 'Gradient text',
+        marks: [{ type: 'color', start: 0, end: 13, value: gradient }],
+      },
+      {
+        tag: 'section',
+        attributes: { style: { backgroundColor: gradient } },
+        content: [
+          {
+            tag: 'p',
+            text: 'Sora inside',
+            marks: [{ type: 'fontFamily', start: 0, end: 4, value: 'Sora' }],
+          },
+        ],
+      },
+      {
+        tag: 'table',
+        headers: [{ text: 'A', marks: [] }, { text: 'B', marks: [] }, { text: 'C', marks: [] }],
+        rows: [
+          [
+            { text: '1', marks: [] },
+            { text: '2', marks: [] },
+            { text: '3', marks: [{ type: 'fontFamily', start: 0, end: 1, value: 'Montserrat' }] },
+          ],
+          [{ text: '4', marks: [] }, { text: '5', marks: [] }, { text: '6', marks: [] }],
+        ],
+      },
+    ]
+
+    const again = docToStory(storyToDoc(story))
+    expect(again[0].marks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'fontFamily', value: 'Poppins' }),
+      expect.objectContaining({ type: 'fontWeight', value: 'semibold' }),
+      expect.objectContaining({ type: 'color', value: '#123456' }),
+    ]))
+    expect(again[1].marks).toEqual([
+      expect.objectContaining({ type: 'color', value: gradient }),
+    ])
+    expect(again[2].attributes?.style?.backgroundColor).toBe(gradient)
+    expect(again[2].content?.[0]).toEqual(expect.objectContaining({
+      tag: 'p',
+      text: 'Sora inside',
+    }))
+    expect((again[2].content as StoryBlock[])[0].marks).toEqual([
+      expect.objectContaining({ type: 'fontFamily', value: 'Sora' }),
+    ])
+    expect(again[3].headers).toHaveLength(3)
+    expect(again[3].rows).toHaveLength(2)
+    expect(again[3].rows?.[0][2].marks).toEqual([
+      expect.objectContaining({ type: 'fontFamily', value: 'Montserrat' }),
+    ])
+  })
+})
+
+describe('story paint helpers', () => {
+  it('includes the new webfonts', () => {
+    expect(FONT_FAMILIES).toEqual(expect.arrayContaining([
+      'Montserrat',
+      'Poppins',
+      'DM Sans',
+      'Lato',
+      'Sora',
+    ]))
+  })
+
+  it('includes the named font weights', () => {
+    expect(FONT_WEIGHTS).toEqual(['light', 'regular', 'medium', 'semibold', 'bold'])
+  })
+
+  it('accepts hex and linear-gradient and rejects unsafe CSS', () => {
+    expect(normalizePaint('#123')).toBe('#112233')
+    expect(normalizePaint('#123456')).toBe('#123456')
+    expect(normalizePaint('linear-gradient(90deg, #cc203b, #8fd4c8)')).toBe(
+      'linear-gradient(90deg, #cc203b, #8fd4c8)',
+    )
+    expect(normalizePaint('url(javascript:alert(1))')).toBeNull()
+    expect(normalizePaint('linear-gradient(90deg, url(https://evil.example), #fff)')).toBeNull()
+    expect(isGradientPaint('linear-gradient(45deg, #000000, #ffffff)')).toBe(true)
+    expect(paintFillStyle('#eff6ff')).toEqual({ backgroundColor: '#eff6ff' })
+    expect(paintFillStyle('linear-gradient(90deg, #cc203b, #8fd4c8)')).toEqual({
+      backgroundImage: 'linear-gradient(90deg, #cc203b, #8fd4c8)',
+    })
+    expect(paintTextStyle('#123456')).toEqual({ color: '#123456' })
+    expect(paintTextStyle('linear-gradient(90deg, #cc203b, #8fd4c8)').color).toBe('transparent')
   })
 })
