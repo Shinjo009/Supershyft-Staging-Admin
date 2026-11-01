@@ -12,7 +12,7 @@ import type {
   DiagnosticPackageBootstrapOption,
   Engagement,
   EngagementDataCompletenessResponse,
-  EngagementNotificationItem,
+  EffectiveEngagementNotificationItem,
   EngagementTypeItem,
 } from "../../lib/api";
 import { normalizeNotificationServiceConfigs } from "../../shared/ui/NotificationEventServicesInput";
@@ -428,7 +428,7 @@ export function EngagementNotificationsTab({
   const [loading, setLoading] = useState(true);
   const [engagementTypes, setEngagementTypes] = useState<EngagementTypeItem[]>([]);
   const [configuredNotifications, setConfiguredNotifications] = useState<
-    EngagementNotificationItem[]
+    EffectiveEngagementNotificationItem[]
   >([]);
 
   const engagementTypeId = useMemo((): number | null => {
@@ -448,24 +448,15 @@ export function EngagementNotificationsTab({
       .catch(() => setEngagementTypes([]));
   }, []);
 
-  const embeddedNotifications = (
-    engagement as Engagement & { notifications?: EngagementNotificationItem[] }
-  ).notifications;
-
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
       setLoading(true);
       try {
-        const hasEmbedded =
-          Array.isArray(embeddedNotifications) && embeddedNotifications.length > 0;
-
-        const [configRes] = await Promise.all([
-          hasEmbedded
-            ? Promise.resolve({ data: { data: embeddedNotifications } })
-            : engagementNotificationsApi.getForEngagement(engagement.engagement_id),
-        ]);
+        const configRes = await engagementNotificationsApi.getEffectiveForEngagement(
+          engagement.engagement_id
+        );
 
         if (cancelled) return;
 
@@ -485,7 +476,7 @@ export function EngagementNotificationsTab({
     return () => {
       cancelled = true;
     };
-  }, [engagement.engagement_id, engagementTypeId, embeddedNotifications]);
+  }, [engagement.engagement_id, engagementTypeId]);
 
   const rows = useMemo(
     () =>
@@ -494,6 +485,7 @@ export function EngagementNotificationsTab({
         label:
           item.event_display_name ??
           `${item.event_code} (${item.recipient_type})`,
+        source: item.source,
         services: normalizeNotificationServiceConfigs(item.notification_services),
       })),
     [configuredNotifications]
@@ -518,11 +510,30 @@ export function EngagementNotificationsTab({
           <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
         </div>
       ) : rows.length === 0 ? (
-        <p className="text-sm text-zinc-500">No notification configuration found for this engagement.</p>
+        <p className="text-sm text-zinc-500">
+          No effective notification bindings for this engagement. Configure global defaults under
+          Settings → Notifications.
+        </p>
       ) : (
         <div className="grid grid-cols-1 gap-3">
           {rows.map((row) => (
-            <Field key={row.key} label={row.label}>
+            <Field
+              key={row.key}
+              label={
+                <span className="inline-flex flex-wrap items-center gap-2">
+                  <span>{row.label}</span>
+                  <span
+                    className={
+                      row.source === "engagement"
+                        ? "text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-900"
+                        : "text-xs font-medium px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-700"
+                    }
+                  >
+                    {row.source === "engagement" ? "Engagement override" : "Global default"}
+                  </span>
+                </span>
+              }
+            >
               {formatServices(row.services)}
             </Field>
           ))}

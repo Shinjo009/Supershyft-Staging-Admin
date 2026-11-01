@@ -5931,10 +5931,24 @@ export interface EngagementNotificationItem {
   event_display_name?: string;
 }
 
+export interface EffectiveEngagementNotificationItem {
+  engagement_id: number;
+  event_code: string;
+  recipient_type: string;
+  notification_services: NotificationServiceConfigItem[];
+  source: "engagement" | "global";
+  event_display_name?: string;
+  engagement_notification_id?: number | null;
+}
+
 export const engagementNotificationsApi = {
   getForEngagement: (engagementId: number) =>
     api.get<{ data: EngagementNotificationItem[]; meta: Record<string, unknown> }>(
       `/engagements/${engagementId}/notifications`
+    ),
+  getEffectiveForEngagement: (engagementId: number) =>
+    api.get<{ data: EffectiveEngagementNotificationItem[]; meta: Record<string, unknown> }>(
+      `/engagements/${engagementId}/notifications/effective`
     ),
   upsertForEngagement: (
     engagementId: number,

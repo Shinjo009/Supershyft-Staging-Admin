@@ -7,7 +7,7 @@ export function formatEngagementStatusLabel(status?: string | null): string {
   return status ?? "—";
 }
 
-export function Field({ label, children }: { label: string; children: ReactNode }) {
+export function Field({ label, children }: { label: ReactNode; children: ReactNode }) {
   return (
     <div className="text-sm">
       <div className="text-xs font-medium text-zinc-500 mb-0.5">{label}</div>
