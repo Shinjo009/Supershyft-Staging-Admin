@@ -29,9 +29,6 @@ import {
   assessmentPackagesApi,
   diagnosticPackagesApi,
   employeesApi,
-  engagementNotificationsApi,
-  engagementTypesApi,
-  notificationEventsApi,
   notificationsApi,
   platformSettingsApi,
   type AssessmentPackage,
@@ -44,20 +41,12 @@ import {
   type EngagementsSyncStats,
   type MetsightsProfilesImportPageResult,
   type MetsightsProfilesStats,
-  type NotificationEventItem,
-  type NotificationDefaultItem,
-  type NotificationServiceConfigItem,
   type NotificationServiceItem,
   type SupportQueryNotification,
   type GeocodingProvider,
   getApiError,
 } from "../../lib/api";
 import { NotificationServiceChipInput } from "../../shared/ui/NotificationServiceChipInput";
-import {
-  NotificationEventServicesInput,
-  normalizeNotificationServiceConfigs,
-  validateNotificationServiceConfigs,
-} from "../../shared/ui/NotificationEventServicesInput";
 import { fetchAllPages } from "../../lib/fetchAllPages";
 
 const SYNC_STORAGE_KEY = "metsights-sync-v1";
@@ -126,7 +115,6 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
   const mayViewDiagnostics = canViewTask("diagnostics", "packages");
   const mayViewEmployees = canViewTask("employees", "directory");
   const mayViewNotifications = canViewTask("notifications", "defaults");
-  const mayEditNotifications = canEditTask("notifications", "defaults");
   const mayEditUsers = canEditTask("users", "profiles");
   const mayViewIntegrations = canViewTask("assessments", "integrations");
   const mayViewSystemMonitoring = canViewTask("system_monitoring", "audit_logs");
@@ -152,18 +140,6 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
   );
 
   const [notificationServices, setNotificationServices] = useState<NotificationServiceItem[]>([]);
-
-  const [notifTypes, setNotifTypes] = useState<EngagementTypeItem[]>([]);
-  const [activeNotifType, setActiveNotifType] = useState<number | null>(null);
-  const [notifEvents, setNotifEvents] = useState<NotificationEventItem[]>([]);
-  const [notifEventsLoading, setNotifEventsLoading] = useState(false);
-  const [notifDefaults, setNotifDefaults] = useState<Record<number, NotificationServiceConfigItem[]>>({});
-  const [, setNotifDefaultsOriginal] = useState<Record<number, NotificationServiceConfigItem[]>>({});
-  const [notifSaving, setNotifSaving] = useState(false);
-  const [notifError, setNotifError] = useState<string | null>(null);
-  const [notifSuccess, setNotifSuccess] = useState(false);
-  const notifDraftsRef = useRef<Record<number, Record<number, NotificationServiceConfigItem[]>>>({});
-  const notifOriginalsRef = useRef<Record<number, Record<number, NotificationServiceConfigItem[]>>>({});
 
   const [defaultAssistantEmployees, setDefaultAssistantEmployees] = useState<EmployeeListItem[]>([]);
   const [selectedDefaultAssistantIds, setSelectedDefaultAssistantIds] = useState<Set<number>>(new Set());
@@ -561,131 +537,6 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
       );
     });
   }, [defaultAssistantEmployees, defaultAssistantSearch]);
-
-  useEffect(() => {
-    engagementTypesApi.list({ is_active: true }).then((res) => {
-      const types = res.data.data ?? [];
-      setNotifTypes(types);
-      if (types.length > 0) setActiveNotifType(types[0].id);
-    }).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (activeNotifType === null || !mayViewNotifications) return;
-    let cancelled = false;
-    setNotifEvents([]);
-    setNotifEventsLoading(true);
-    setNotifError(null);
-    setNotifSuccess(false);
-
-    const cached = notifDraftsRef.current[activeNotifType];
-    if (cached) {
-      setNotifDefaults(cached);
-      setNotifDefaultsOriginal(notifOriginalsRef.current[activeNotifType] ?? cached);
-      notificationEventsApi
-        .list({ engagement_type_id: activeNotifType })
-        .then((res) => {
-          if (cancelled) return;
-          setNotifEvents(res.data.data ?? []);
-        })
-        .catch((err) => {
-          if (cancelled) return;
-          setNotifError(getApiError(err));
-        })
-        .finally(() => {
-          if (!cancelled) setNotifEventsLoading(false);
-        });
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    Promise.all([
-      notificationEventsApi.list({ engagement_type_id: activeNotifType }),
-      engagementNotificationsApi.getDefaults(activeNotifType),
-    ])
-      .then(([eventsRes, defaultsRes]) => {
-        if (cancelled) return;
-        const events = Array.isArray(eventsRes.data.data) ? eventsRes.data.data : [];
-        setNotifEvents(events);
-        const defaults: Record<number, NotificationServiceConfigItem[]> = {};
-        for (const ev of events) defaults[ev.notification_event_id] = [];
-        const defaultsList = Array.isArray(defaultsRes.data.data)
-          ? (defaultsRes.data.data as NotificationDefaultItem[])
-          : [];
-        for (const d of defaultsList) {
-          defaults[d.notification_event_id] = normalizeNotificationServiceConfigs(
-            d.notification_services
-          );
-        }
-        setNotifDefaults(defaults);
-        setNotifDefaultsOriginal({ ...defaults });
-        notifDraftsRef.current[activeNotifType] = { ...defaults };
-        notifOriginalsRef.current[activeNotifType] = { ...defaults };
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setNotifError(getApiError(err));
-      })
-      .finally(() => {
-        if (!cancelled) setNotifEventsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeNotifType, mayViewNotifications]);
-
-  function isNotifTypeDirty(typeId: number): boolean {
-    const draft = notifDraftsRef.current[typeId];
-    const original = notifOriginalsRef.current[typeId];
-    if (!draft || !original) return false;
-    return JSON.stringify(draft) !== JSON.stringify(original);
-  }
-
-  function updateNotifDefault(eventId: number, value: NotificationServiceConfigItem[]) {
-    setNotifDefaults((prev) => {
-      const next = { ...prev, [eventId]: value };
-      if (activeNotifType !== null) notifDraftsRef.current[activeNotifType] = next;
-      return next;
-    });
-  }
-
-  async function handleSaveNotifDefaults(e: React.FormEvent) {
-    e.preventDefault();
-    if (activeNotifType === null) return;
-    setNotifSaving(true);
-    setNotifError(null);
-    setNotifSuccess(false);
-    try {
-      const payload = Object.entries(notifDefaults)
-        .map(([eventId, services]) => ({
-          notification_event_id: Number(eventId),
-          notification_services: services.filter((item) => item.service_key.trim()),
-        }))
-        .filter((item) => item.notification_services.length > 0);
-
-      for (const item of payload) {
-        const validationError = validateNotificationServiceConfigs(
-          item.notification_services,
-          notificationServices
-        );
-        if (validationError) {
-          setNotifError(validationError);
-          return;
-        }
-      }
-
-      await engagementNotificationsApi.upsertDefaults(activeNotifType, payload);
-      setNotifDefaultsOriginal({ ...notifDefaults });
-      notifOriginalsRef.current[activeNotifType] = { ...notifDefaults };
-      setNotifSuccess(true);
-    } catch (err) {
-      setNotifError(getApiError(err));
-    } finally {
-      setNotifSaving(false);
-    }
-  }
 
   function applyPageResult(result: MetsightsProfilesImportPageResult) {
     if (result.metsights_total > 0) {
@@ -1490,21 +1341,12 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
         </form>
       ) : null}
 
-      {!loading ? (
-        <form
-          onSubmit={(e) => void handleSaveNotifDefaults(e)}
-          onSubmitCapture={mayEditNotifications ? undefined : (event) => event.preventDefault()}
-          onChangeCapture={mayEditNotifications ? undefined : (event) => event.stopPropagation()}
-          className={`bg-white border border-zinc-200 rounded-xl p-5 space-y-4 ${
-            mayEditNotifications
-              ? ""
-              : "[&_button]:hidden [&_input]:pointer-events-none [&_select]:pointer-events-none"
-          }`}
-        >
-          <h2 className="text-sm font-semibold text-zinc-900">Engagement notification defaults</h2>
-          <p className="text-xs text-zinc-500 -mt-2">
-            Configure default notification services for each engagement type. These are auto-applied
-            when creating new engagements. For global event bindings (catalog), use{" "}
+      {mayViewNotifications && !loading ? (
+        <div className="bg-white border border-zinc-200 rounded-xl p-5 space-y-3">
+          <h2 className="text-sm font-semibold text-zinc-900">Engagement notifications</h2>
+          <p className="text-xs text-zinc-500">
+            Per–engagement-type notification defaults were removed at cutover. Configure global event
+            bindings and services under{" "}
             <button
               type="button"
               onClick={() => navigate("/notifications/notifications")}
@@ -1512,79 +1354,9 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
             >
               Notifications → Notifications
             </button>
-            .
+            , then set overrides per engagement in the engagement wizard.
           </p>
-
-          {notifTypes.length > 0 ? (
-            <div className="flex flex-wrap gap-1 border-b border-zinc-200 pb-2">
-              {notifTypes.map((t) => {
-                const active = activeNotifType === t.id;
-                const dirty = isNotifTypeDirty(t.id);
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setActiveNotifType(t.id)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                      active
-                        ? "bg-zinc-900 text-white"
-                        : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
-                    }`}
-                  >
-                    {t.display_name}
-                    {dirty ? <span className="ml-1 opacity-70">•</span> : null}
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-xs text-zinc-400">Loading engagement types…</p>
-          )}
-
-          {activeNotifType !== null && notifEventsLoading ? (
-            <div className="flex items-center gap-2 text-zinc-500 text-sm py-2">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Loading events…
-            </div>
-          ) : activeNotifType !== null && notifEvents.length > 0 ? (
-            <div className="space-y-4">
-              {notifEvents.map((ev) => (
-                <NotificationEventServicesInput
-                  key={ev.notification_event_id}
-                  label={ev.display_name}
-                  value={notifDefaults[ev.notification_event_id] ?? []}
-                  onChange={(next) => updateNotifDefault(ev.notification_event_id, next)}
-                  services={notificationServices}
-                />
-              ))}
-            </div>
-          ) : activeNotifType !== null ? (
-            <p className="text-sm text-zinc-500 py-2">
-              No notification events are linked to this engagement type. Add or update events under
-              Library → Notifications → Events, then return here to set defaults.
-            </p>
-          ) : null}
-
-          {notifError ? (
-            <p className="text-sm text-red-600" role="alert">
-              {notifError}
-            </p>
-          ) : null}
-          {notifSuccess ? (
-            <p className="text-sm text-emerald-700">
-              Saved. New engagements will use these notification defaults.
-            </p>
-          ) : null}
-
-          <button
-            type="submit"
-            disabled={notifSaving || notifEventsLoading || activeNotifType === null || notifEvents.length === 0}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-50 disabled:pointer-events-none"
-          >
-            {notifSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Save notification defaults
-          </button>
-        </form>
+        </div>
       ) : null}
         </div>
       )}

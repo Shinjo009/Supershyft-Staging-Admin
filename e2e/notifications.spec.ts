@@ -63,23 +63,42 @@ test.describe("notifications admin (Prompt 5)", () => {
   });
 
   test("engagement notifications step shows Set up notification", async ({ page }) => {
-    await page.route("**/*notification-events*", async (route) => {
+    await page.route("**/notification-events/catalog*", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          data: [
-            {
-              notification_event_id: 9001,
-              event_code: "auth.otp.sent",
-              display_name: "OTP sent",
-              description: null,
-              engagement_type_ids: [1],
-              engagement_types: [],
-            },
-          ],
+          data: {
+            groups: [
+              {
+                prefix: "auth",
+                events: [
+                  {
+                    event_code: "auth.otp.sent",
+                    display_name: "OTP sent",
+                    trigger_description: "OTP",
+                    recipient_types: ["participant"],
+                    variable_bags: [],
+                    extra_variables: [],
+                    nested_under: null,
+                    legacy_event_code: null,
+                    legacy_service_keys: null,
+                  },
+                ],
+              },
+            ],
+            shared_variable_bags: {},
+            legacy_event_code_map: {},
+          },
           meta: {},
         }),
+      });
+    });
+    await page.route("**/notification-events/bindings*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: [], meta: {} }),
       });
     });
     await page.goto("/engagements/new?step=notifications", { waitUntil: "networkidle" });

@@ -388,16 +388,6 @@ export const platformSettingsApi = {
       "/platform-settings/b2c-onboarding",
       payload
     ),
-  getEngagementNotificationDefaults: (engagementTypeId: number) =>
-    api.get<{ data: NotificationDefaultItem[]; meta: Record<string, unknown> }>(
-      "/platform-settings/engagement-notification-defaults",
-      { params: { engagement_type_id: engagementTypeId } }
-    ),
-  patchEngagementNotificationDefaults: (engagementTypeId: number, defaults: { notification_event_id: number; notification_services: NotificationServiceConfigItem[] }[]) =>
-    api.put<{ data: NotificationDefaultItem[]; meta: Record<string, unknown> }>(
-      "/platform-settings/engagement-notification-defaults",
-      { engagement_type_id: engagementTypeId, defaults }
-    ),
   getDefaultOnboardingAssistants: () =>
     api.get<{ data: DefaultOnboardingAssistants; meta: Record<string, unknown> }>(
       "/platform-settings/default-onboarding-assistants"
@@ -2563,9 +2553,8 @@ export interface Engagement {
   /** @deprecated Use notifications array instead */
   notify_users_for_consultation?: string | null;
   notifications?: {
-    notification_event_id: number;
-    event_code?: string | null;
-    event_display_name?: string | null;
+    event_code: string;
+    recipient_type?: string;
     notification_services: NotificationServiceConfigItem[];
   }[];
 }
@@ -2687,7 +2676,7 @@ export interface EngagementCreate {
   bioai_report_notification?: string | null;
   /** @deprecated Use notifications array instead */
   notify_users_for_consultation?: string | null;
-  notifications?: { notification_event_id: number; notification_services: NotificationServiceConfigItem[] }[];
+  notifications?: { event_code: string; recipient_type?: string; notification_services: NotificationServiceConfigItem[] }[];
 }
 
 export interface GeocodeSuggestion extends EngagementLocationFields {
@@ -5931,39 +5920,14 @@ export const notificationEventBindingsApi = {
     ),
 };
 
-// --- Notification Events (legacy auto_notification_events CRUD — Prompt 6 removal) ---
-
-export interface NotificationEventItem {
-  notification_event_id: number;
-  engagement_type_ids: number[];
-  engagement_types: { engagement_type_id: number; display_name: string }[];
-  event_code: string;
-  display_name: string;
-  description: string | null;
-  created_at?: string | null;
-}
-
-export const notificationEventsApi = {
-  list: (params?: { engagement_type_id?: number }) =>
-    api.get<{ data: NotificationEventItem[]; meta: Record<string, unknown> }>("/notification-events", { params }),
-  get: (id: number) =>
-    api.get<{ data: NotificationEventItem; meta: Record<string, unknown> }>(`/notification-events/${id}`),
-  create: (payload: { engagement_type_ids: number[]; event_code: string; display_name: string; description?: string }) =>
-    api.post<{ data: NotificationEventItem; meta: Record<string, unknown> }>("/notification-events", payload),
-  update: (id: number, payload: { engagement_type_ids?: number[]; display_name?: string; description?: string }) =>
-    api.put<{ data: NotificationEventItem; meta: Record<string, unknown> }>(`/notification-events/${id}`, payload),
-  delete: (id: number) =>
-    api.delete<{ data: { deleted: boolean }; meta: Record<string, unknown> }>(`/notification-events/${id}`),
-};
-
 // --- Engagement Notifications ---
 
 export interface EngagementNotificationItem {
   id: number;
   engagement_id: number;
-  notification_event_id: number;
+  event_code: string;
+  recipient_type: string;
   notification_services: NotificationServiceConfigItem[];
-  event_code?: string;
   event_display_name?: string;
 }
 
@@ -5975,8 +5939,7 @@ export const engagementNotificationsApi = {
   upsertForEngagement: (
     engagementId: number,
     notifications: {
-      notification_event_id?: number;
-      event_code?: string;
+      event_code: string;
       recipient_type?: string;
       notification_services: NotificationServiceConfigItem[];
     }[]
@@ -5984,16 +5947,6 @@ export const engagementNotificationsApi = {
     api.put<{ data: EngagementNotificationItem[]; meta: Record<string, unknown> }>(
       `/engagements/${engagementId}/notifications`,
       { notifications }
-    ),
-  getDefaults: (engagementTypeId: number) =>
-    api.get<{ data: NotificationDefaultItem[]; meta: Record<string, unknown> }>(
-      "/platform-settings/engagement-notification-defaults",
-      { params: { engagement_type_id: engagementTypeId } }
-    ),
-  upsertDefaults: (engagementTypeId: number, defaults: { notification_event_id: number; notification_services: NotificationServiceConfigItem[] }[]) =>
-    api.put<{ data: NotificationDefaultItem[]; meta: Record<string, unknown> }>(
-      "/platform-settings/engagement-notification-defaults",
-      { engagement_type_id: engagementTypeId, defaults }
     ),
 };
 

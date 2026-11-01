@@ -14,7 +14,6 @@ import type {
   EngagementDataCompletenessResponse,
   EngagementNotificationItem,
   EngagementTypeItem,
-  NotificationEventItem,
 } from "../../lib/api";
 import { normalizeNotificationServiceConfigs } from "../../shared/ui/NotificationEventServicesInput";
 import {
@@ -22,7 +21,6 @@ import {
   engagementNotificationsApi,
   engagementTypesApi,
   getApiError,
-  notificationEventsApi,
 } from "../../lib/api";
 import { ConsoleUrlActions } from "./consoleUrlActions";
 import { EngagementBookingSummaryCards } from "./EngagementBookingSummary";
@@ -429,7 +427,6 @@ export function EngagementNotificationsTab({
 }: Pick<SharedProps, "engagement" | "notificationServiceLabel">) {
   const [loading, setLoading] = useState(true);
   const [engagementTypes, setEngagementTypes] = useState<EngagementTypeItem[]>([]);
-  const [notificationEvents, setNotificationEvents] = useState<NotificationEventItem[]>([]);
   const [configuredNotifications, setConfiguredNotifications] = useState<
     EngagementNotificationItem[]
   >([]);
@@ -464,10 +461,7 @@ export function EngagementNotificationsTab({
         const hasEmbedded =
           Array.isArray(embeddedNotifications) && embeddedNotifications.length > 0;
 
-        const [eventsRes, configRes] = await Promise.all([
-          engagementTypeId
-            ? notificationEventsApi.list({ engagement_type_id: engagementTypeId })
-            : Promise.resolve({ data: { data: [] as NotificationEventItem[] } }),
+        const [configRes] = await Promise.all([
           hasEmbedded
             ? Promise.resolve({ data: { data: embeddedNotifications } })
             : engagementNotificationsApi.getForEngagement(engagement.engagement_id),
@@ -475,15 +469,11 @@ export function EngagementNotificationsTab({
 
         if (cancelled) return;
 
-        setNotificationEvents(
-          Array.isArray(eventsRes.data.data) ? eventsRes.data.data : []
-        );
         setConfiguredNotifications(
           Array.isArray(configRes.data.data) ? configRes.data.data : []
         );
       } catch {
         if (!cancelled) {
-          setNotificationEvents([]);
           setConfiguredNotifications([]);
         }
       } finally {
@@ -497,16 +487,17 @@ export function EngagementNotificationsTab({
     };
   }, [engagement.engagement_id, engagementTypeId, embeddedNotifications]);
 
-  const servicesByEventId = useMemo(() => {
-    const map = new Map<number, ReturnType<typeof normalizeNotificationServiceConfigs>>();
-    for (const item of configuredNotifications) {
-      map.set(
-        item.notification_event_id,
-        normalizeNotificationServiceConfigs(item.notification_services)
-      );
-    }
-    return map;
-  }, [configuredNotifications]);
+  const rows = useMemo(
+    () =>
+      configuredNotifications.map((item) => ({
+        key: `${item.event_code}::${item.recipient_type}`,
+        label:
+          item.event_display_name ??
+          `${item.event_code} (${item.recipient_type})`,
+        services: normalizeNotificationServiceConfigs(item.notification_services),
+      })),
+    [configuredNotifications]
+  );
 
   const formatServices = (
     services: ReturnType<typeof normalizeNotificationServiceConfigs>
@@ -520,21 +511,6 @@ export function EngagementNotificationsTab({
           .join(", ")
       : "—";
 
-  const rows = useMemo(() => {
-    if (notificationEvents.length > 0) {
-      return notificationEvents.map((event) => ({
-        key: event.notification_event_id,
-        label: event.display_name,
-        services: servicesByEventId.get(event.notification_event_id) ?? [],
-      }));
-    }
-    return configuredNotifications.map((item) => ({
-      key: item.notification_event_id,
-      label: item.event_display_name ?? `Event #${item.notification_event_id}`,
-      services: normalizeNotificationServiceConfigs(item.notification_services),
-    }));
-  }, [configuredNotifications, notificationEvents, servicesByEventId]);
-
   return (
     <div className="bg-white border border-zinc-200 rounded-xl p-4">
       {loading ? (
@@ -542,11 +518,7 @@ export function EngagementNotificationsTab({
           <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
         </div>
       ) : rows.length === 0 ? (
-        <p className="text-sm text-zinc-500">
-          {engagementTypeId
-            ? "No notification events configured for this engagement type."
-            : "No notification configuration found for this engagement."}
-        </p>
+        <p className="text-sm text-zinc-500">No notification configuration found for this engagement.</p>
       ) : (
         <div className="grid grid-cols-1 gap-3">
           {rows.map((row) => (

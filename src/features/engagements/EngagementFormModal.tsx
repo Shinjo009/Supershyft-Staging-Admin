@@ -9,7 +9,10 @@ import {
   type EngagementTypeItem,
   type ExpertTypeItem,
   type GeocodeSuggestion,
-  type NotificationEventItem,
+  type CatalogEventItem,
+  type NotificationEventBindingItem,
+  notificationEventBindingsApi,
+  notificationEventsCatalogApi,
   type NotificationServiceConfigItem,
   type NotificationServiceItem,
   type OrganizationListItem,
@@ -20,7 +23,6 @@ import {
   engagementTypesApi,
   expertTypesApi,
   getApiError,
-  notificationEventsApi,
   questionnaireCategoriesApi,
   type QuestionnaireCategory,
 } from "../../lib/api";
@@ -90,6 +92,53 @@ function shouldIncludeNotificationsInSave(step: StepKey): boolean {
 
 function shouldIncludeSlotDetailInSave(step: StepKey): boolean {
   return step === "schedule" || step === "notifications";
+}
+
+type CatalogNotifEvent = Pick<CatalogEventItem, "event_code" | "event_name" | "recipient_types">;
+
+function notifConfigKey(eventCode: string, recipientType: string): string {
+  return `${eventCode}::${recipientType}`;
+}
+
+function flattenCatalogEvents(catalog: { groups: { events: CatalogEventItem[] }[] }): CatalogNotifEvent[] {
+  const out: CatalogNotifEvent[] = [];
+  for (const group of catalog.groups ?? []) {
+    for (const event of group.events ?? []) {
+      out.push({
+        event_code: event.event_code,
+        event_name: event.event_name,
+        recipient_types: event.recipient_types ?? [],
+      });
+    }
+  }
+  return out;
+}
+
+function bindingsToConfig(
+  bindings: NotificationEventBindingItem[]
+): Record<string, NotificationServiceConfigItem[]> {
+  const config: Record<string, NotificationServiceConfigItem[]> = {};
+  for (const binding of bindings) {
+    if (!binding.is_active) continue;
+    const key = notifConfigKey(binding.event_code, binding.recipient_type);
+    config[key] = binding.notification_services.map((serviceKey) => ({ service_key: serviceKey }));
+  }
+  return config;
+}
+
+function engagementItemsToConfig(
+  items: {
+    event_code: string;
+    recipient_type: string;
+    notification_services: NotificationServiceConfigItem[];
+  }[]
+): Record<string, NotificationServiceConfigItem[]> {
+  const config: Record<string, NotificationServiceConfigItem[]> = {};
+  for (const item of items) {
+    const key = notifConfigKey(item.event_code, item.recipient_type);
+    config[key] = normalizeNotificationServiceConfigs(item.notification_services);
+  }
+  return config;
 }
 
 const inputClass =
@@ -200,10 +249,11 @@ export function EngagementFormWizard({
   const [packageMode, setPackageMode] = useState<"single" | "split">("single");
 
   const [engagementTypes, setEngagementTypes] = useState<EngagementTypeItem[]>([]);
-  const [notificationEvents, setNotificationEvents] = useState<NotificationEventItem[]>([]);
-  const [notificationConfig, setNotificationConfig] = useState<Record<number, NotificationServiceConfigItem[]>>({});
-  const [notifRecipientByEventId, setNotifRecipientByEventId] = useState<Record<number, string>>({});
-  const [bindingWizardEvent, setBindingWizardEvent] = useState<NotificationEventItem | null>(null);
+  const [notificationEvents, setNotificationEvents] = useState<CatalogNotifEvent[]>([]);
+  const [notificationConfig, setNotificationConfig] = useState<
+    Record<string, NotificationServiceConfigItem[]>
+  >({});
+  const [bindingWizardEvent, setBindingWizardEvent] = useState<CatalogNotifEvent | null>(null);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [questionnaireCategories, setQuestionnaireCategories] = useState<QuestionnaireCategory[]>([]);
   const editConfigLoaded = useRef(false);
@@ -816,46 +866,30 @@ export function EngagementFormWizard({
 
     (async () => {
       try {
-        const eventsRes = await notificationEventsApi.list({
-          engagement_type_id: selectedTypeId,
-        });
+        const [catalogRes, bindingsRes] = await Promise.all([
+          notificationEventsCatalogApi.getCatalog(),
+          notificationEventBindingsApi.list(),
+        ]);
         if (cancelled) return;
-        const events = Array.isArray(eventsRes.data.data) ? eventsRes.data.data : [];
+        const events = flattenCatalogEvents(catalogRes.data.data ?? { groups: [] });
         setNotificationEvents(events);
 
-        const config: Record<number, NotificationServiceConfigItem[]> = {};
+        let config: Record<string, NotificationServiceConfigItem[]> = {};
 
         if (mode === "edit" && engagementId && !editConfigLoaded.current) {
           editConfigLoaded.current = true;
           try {
-            const configRes =
-              await engagementNotificationsApi.getForEngagement(engagementId);
+            const configRes = await engagementNotificationsApi.getForEngagement(engagementId);
             if (!cancelled) {
               const items = Array.isArray(configRes.data.data) ? configRes.data.data : [];
-              for (const item of items) {
-                config[item.notification_event_id] = normalizeNotificationServiceConfigs(
-                  item.notification_services
-                );
-              }
+              config = engagementItemsToConfig(items);
             }
           } catch {
             // fall through with empty config
           }
-        } else {
-          try {
-            const defaultsRes =
-              await engagementNotificationsApi.getDefaults(selectedTypeId);
-            if (!cancelled) {
-              const items = Array.isArray(defaultsRes.data.data) ? defaultsRes.data.data : [];
-              for (const item of items) {
-                config[item.notification_event_id] = normalizeNotificationServiceConfigs(
-                  item.notification_services
-                );
-              }
-            }
-          } catch {
-            // keep empty config
-          }
+        } else if (mode === "add") {
+          const bindings = Array.isArray(bindingsRes.data.data) ? bindingsRes.data.data : [];
+          config = bindingsToConfig(bindings);
         }
 
         if (!cancelled) setNotificationConfig(config);
@@ -878,19 +912,18 @@ export function EngagementFormWizard({
 
   const buildNotificationsPayload = () =>
     Object.entries(notificationConfig)
-      .map(([eventId, services]) => {
-        const id = Number(eventId);
-        const event = notificationEvents.find((e) => e.notification_event_id === id);
+      .map(([key, services]) => {
+        const [event_code, recipient_type] = key.split("::");
+        if (!event_code?.trim()) return null;
+        const filtered = services.filter((item) => item.service_key.trim());
+        if (filtered.length === 0) return null;
         return {
-          notification_event_id: id,
-          notification_services: services.filter((item) => item.service_key.trim()),
-          ...(event?.event_code ? { event_code: event.event_code } : {}),
-          ...(notifRecipientByEventId[id]
-            ? { recipient_type: notifRecipientByEventId[id] }
-            : {}),
+          event_code: event_code.trim(),
+          recipient_type: (recipient_type || "participant").trim(),
+          notification_services: filtered,
         };
       })
-      .filter((item) => item.notification_services.length > 0);
+      .filter((item): item is NonNullable<typeof item> => item !== null);
 
   const validateNotificationsStep = () => {
     const notifications = buildNotificationsPayload();
@@ -1996,21 +2029,25 @@ export function EngagementFormWizard({
               </p>
             ) : (
               notificationEvents.map((event) => {
-                const configured = (notificationConfig[event.notification_event_id] ?? []).length > 0;
+                const configuredKeys = Object.keys(notificationConfig).filter((key) =>
+                  key.startsWith(`${event.event_code}::`)
+                );
+                const configured = configuredKeys.some(
+                  (key) => (notificationConfig[key] ?? []).length > 0
+                );
+                const serviceLabels = configuredKeys.flatMap((key) =>
+                  (notificationConfig[key] ?? []).map((s) => s.service_key)
+                );
                 return (
                   <div
-                    key={event.notification_event_id}
+                    key={event.event_code}
                     className="rounded-xl border border-zinc-200 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
                   >
                     <div>
-                      <p className="font-medium text-zinc-900">{event.display_name}</p>
+                      <p className="font-medium text-zinc-900">{event.event_name}</p>
                       <p className="text-xs font-mono text-zinc-500">{event.event_code}</p>
                       {configured ? (
-                        <p className="text-xs text-zinc-600 mt-1">
-                          {(notificationConfig[event.notification_event_id] ?? [])
-                            .map((s) => s.service_key)
-                            .join(", ")}
-                        </p>
+                        <p className="text-xs text-zinc-600 mt-1">{serviceLabels.join(", ")}</p>
                       ) : null}
                     </div>
                     <button
@@ -2033,7 +2070,7 @@ export function EngagementFormWizard({
         <Modal
           open
           onClose={() => setBindingWizardEvent(null)}
-          title={`${bindingWizardEvent.display_name} notification`}
+          title={`${bindingWizardEvent.event_name} notification`}
         >
           <NotificationBindingWizard
             mode="engagement"
@@ -2041,13 +2078,10 @@ export function EngagementFormWizard({
             initialEventCode={bindingWizardEvent.event_code}
             onCancel={() => setBindingWizardEvent(null)}
             onComplete={(payload: BindingWizardCompletePayload) => {
+              const key = notifConfigKey(bindingWizardEvent.event_code, payload.recipient_type);
               setNotificationConfig((prev) => ({
                 ...prev,
-                [bindingWizardEvent.notification_event_id]: payload.notification_services,
-              }));
-              setNotifRecipientByEventId((prev) => ({
-                ...prev,
-                [bindingWizardEvent.notification_event_id]: payload.recipient_type,
+                [key]: payload.notification_services,
               }));
               setBindingWizardEvent(null);
             }}
