@@ -319,7 +319,7 @@ export function OperationsDashboard({
           setViewAllKind(null);
           const userId = notificationUserId(row);
           if (userId != null) navigate(`/users/${userId}/journey`);
-          else navigate("/notifications/notifications");
+          else navigate("/notifications/logs");
         }}
         matchesSearch={(row, q) =>
           `${recipientLabel(row)} ${row.service_display_name ?? ""} ${row.message ?? ""}`.toLowerCase().includes(q)

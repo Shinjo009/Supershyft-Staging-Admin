@@ -135,6 +135,11 @@ const ExpertCampConsultationParticipantsPage = lazy(() =>
 const Notifications = lazy(() =>
   import("./features/notifications/Notifications").then((m) => ({ default: m.Notifications }))
 );
+const NotificationBindingWizardPage = lazy(() =>
+  import("./features/notifications/wizard/NotificationBindingWizardPage").then((m) => ({
+    default: m.NotificationBindingWizardPage,
+  }))
+);
 const SuperClub = lazy(() =>
   import("./features/superclub/SuperClub").then((m) => ({ default: m.SuperClub }))
 );
@@ -506,7 +511,23 @@ function AppRoutes() {
         <Route path="payments/bookings" element={<PermissionRoute category="payments_bookings"><Bookings /></PermissionRoute>} />
         <Route path="checklists" element={<PermissionRoute category="checklists_tasks"><ChecklistTemplates /></PermissionRoute>} />
         <Route path="library/health-metrics" element={<PermissionRoute category="diagnostics"><HealthMetrics /></PermissionRoute>} />
-        <Route path="notifications" element={<Navigate to="/notifications/notifications" replace />} />
+        <Route path="notifications" element={<Navigate to="/notifications/logs" replace />} />
+        <Route
+          path="notifications/notifications/new"
+          element={
+            <PermissionRoute category="notifications">
+              <NotificationBindingWizardPage />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="notifications/notifications/:bindingId/edit"
+          element={
+            <PermissionRoute category="notifications">
+              <NotificationBindingWizardPage />
+            </PermissionRoute>
+          }
+        />
         <Route path="notifications/:tab" element={<PermissionRoute category="notifications"><Notifications /></PermissionRoute>} />
         <Route
           path="admin/library/health-metrics"

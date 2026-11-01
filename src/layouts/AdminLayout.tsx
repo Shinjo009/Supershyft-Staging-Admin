@@ -42,7 +42,7 @@ const primaryNavItems = [
   { to: "/experts", icon: Stethoscope, label: "Experts", category: "experts" },
   { to: "/organisations", icon: Building2, label: "Organisations", category: "organizations" },
   { to: "/diagnostics/packages", icon: FlaskConical, label: "Diagnostics", category: "diagnostics" },
-  { to: "/notifications/notifications", icon: Bell, label: "Notifications", category: "notifications" },
+  { to: "/notifications/logs", icon: Bell, label: "Notifications", category: "notifications" },
   { to: "/engagements", icon: CalendarCheck, label: "Engagements", category: "engagements" },
   { to: "/support", icon: LifeBuoy, label: "Support", category: "support" },
   { to: "/server", icon: Server, label: "Server", category: "system_monitoring" },
@@ -103,6 +103,8 @@ function pageTitleForPath(pathname: string): string {
     "/payments/bookings": "Payments",
     "/checklists": "Checklist Templates",
     "/library/health-metrics": "Health Metrics",
+    "/notifications/logs": "Logs",
+    "/notifications/services": "Services",
     "/notifications/notifications": "Notifications",
     "/superclub": "Super Club",
   };

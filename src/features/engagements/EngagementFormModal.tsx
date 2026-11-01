@@ -29,7 +29,11 @@ import {
   DEFAULT_LOAD_PREV_QUESTIONNAIRE_CATEGORY_KEYS,
   effectiveLoadPrevCategoryKeys,
 } from "./loadPrevQuestionnaireDefaults";
-import { NotificationEventServicesInput, normalizeNotificationServiceConfigs, validateNotificationServiceConfigs } from "../../shared/ui/NotificationEventServicesInput";
+import { normalizeNotificationServiceConfigs, validateNotificationServiceConfigs } from "../../shared/ui/NotificationEventServicesInput";
+import {
+  NotificationBindingWizard,
+  type BindingWizardCompletePayload,
+} from "../notifications/wizard/NotificationBindingWizardPage";
 import { AddressAutocomplete } from "./AddressAutocomplete";
 import { EngagementScheduleStep } from "./EngagementScheduleStep";
 import {
@@ -198,6 +202,8 @@ export function EngagementFormWizard({
   const [engagementTypes, setEngagementTypes] = useState<EngagementTypeItem[]>([]);
   const [notificationEvents, setNotificationEvents] = useState<NotificationEventItem[]>([]);
   const [notificationConfig, setNotificationConfig] = useState<Record<number, NotificationServiceConfigItem[]>>({});
+  const [notifRecipientByEventId, setNotifRecipientByEventId] = useState<Record<number, string>>({});
+  const [bindingWizardEvent, setBindingWizardEvent] = useState<NotificationEventItem | null>(null);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [questionnaireCategories, setQuestionnaireCategories] = useState<QuestionnaireCategory[]>([]);
   const editConfigLoaded = useRef(false);
@@ -872,10 +878,18 @@ export function EngagementFormWizard({
 
   const buildNotificationsPayload = () =>
     Object.entries(notificationConfig)
-      .map(([eventId, services]) => ({
-        notification_event_id: Number(eventId),
-        notification_services: services.filter((item) => item.service_key.trim()),
-      }))
+      .map(([eventId, services]) => {
+        const id = Number(eventId);
+        const event = notificationEvents.find((e) => e.notification_event_id === id);
+        return {
+          notification_event_id: id,
+          notification_services: services.filter((item) => item.service_key.trim()),
+          ...(event?.event_code ? { event_code: event.event_code } : {}),
+          ...(notifRecipientByEventId[id]
+            ? { recipient_type: notifRecipientByEventId[id] }
+            : {}),
+        };
+      })
       .filter((item) => item.notification_services.length > 0);
 
   const validateNotificationsStep = () => {
@@ -1960,26 +1974,65 @@ export function EngagementFormWizard({
                   : "Select an engagement type in Type & basics first."}
               </p>
             ) : (
-              notificationEvents.map((event) => (
-                <NotificationEventServicesInput
-                  key={event.notification_event_id}
-                  label={event.display_name}
-                  value={notificationConfig[event.notification_event_id] ?? []}
-                  onChange={(next) =>
-                    setNotificationConfig((prev) => ({
-                      ...prev,
-                      [event.notification_event_id]: next,
-                    }))
-                  }
-                  services={notificationServices}
-                />
-              ))
+              notificationEvents.map((event) => {
+                const configured = (notificationConfig[event.notification_event_id] ?? []).length > 0;
+                return (
+                  <div
+                    key={event.notification_event_id}
+                    className="rounded-xl border border-zinc-200 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+                  >
+                    <div>
+                      <p className="font-medium text-zinc-900">{event.display_name}</p>
+                      <p className="text-xs font-mono text-zinc-500">{event.event_code}</p>
+                      {configured ? (
+                        <p className="text-xs text-zinc-600 mt-1">
+                          {(notificationConfig[event.notification_event_id] ?? [])
+                            .map((s) => s.service_key)
+                            .join(", ")}
+                        </p>
+                      ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setBindingWizardEvent(event)}
+                      className="px-3 py-2 rounded-lg border border-zinc-300 text-sm font-medium hover:bg-zinc-50"
+                    >
+                      {configured ? "Edit notification" : "Set up notification"}
+                    </button>
+                  </div>
+                );
+              })
             )}
           </div>
         )}
 
       </form>
       </div>
+      {bindingWizardEvent ? (
+        <Modal
+          open
+          onClose={() => setBindingWizardEvent(null)}
+          title={`${bindingWizardEvent.display_name} notification`}
+        >
+          <NotificationBindingWizard
+            mode="engagement"
+            engagementId={mode === "edit" ? engagementId ?? null : null}
+            initialEventCode={bindingWizardEvent.event_code}
+            onCancel={() => setBindingWizardEvent(null)}
+            onComplete={(payload: BindingWizardCompletePayload) => {
+              setNotificationConfig((prev) => ({
+                ...prev,
+                [bindingWizardEvent.notification_event_id]: payload.notification_services,
+              }));
+              setNotifRecipientByEventId((prev) => ({
+                ...prev,
+                [bindingWizardEvent.notification_event_id]: payload.recipient_type,
+              }));
+              setBindingWizardEvent(null);
+            }}
+          />
+        </Modal>
+      ) : null}
       <div className={footerClass}>
         <button
           type="button"

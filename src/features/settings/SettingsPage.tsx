@@ -1504,7 +1504,15 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
           <h2 className="text-sm font-semibold text-zinc-900">Engagement notification defaults</h2>
           <p className="text-xs text-zinc-500 -mt-2">
             Configure default notification services for each engagement type. These are auto-applied
-            when creating new engagements.
+            when creating new engagements. For global event bindings (catalog), use{" "}
+            <button
+              type="button"
+              onClick={() => navigate("/notifications/notifications")}
+              className="text-zinc-900 underline font-medium"
+            >
+              Notifications → Notifications
+            </button>
+            .
           </p>
 
           {notifTypes.length > 0 ? (
