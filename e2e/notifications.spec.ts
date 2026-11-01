@@ -20,7 +20,7 @@ test.describe("notifications admin (Prompt 5)", () => {
 
   test("logs tab shows dispatch table", async ({ page }) => {
     await page.goto("/notifications/logs", { waitUntil: "networkidle" });
-    await expect(page.getByRole("button", { name: "Logs" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Logs", exact: true })).toBeVisible();
     await expect(page.getByText("Service").first()).toBeVisible();
     await expect(page.getByText("Status").first()).toBeVisible();
   });
@@ -28,6 +28,7 @@ test.describe("notifications admin (Prompt 5)", () => {
   test("services add modal has template fields without webhook path", async ({ page }) => {
     await page.goto("/notifications/services", { waitUntil: "networkidle" });
     await page.getByRole("button", { name: "Add Service" }).click();
+    await page.locator('select').first().selectOption("whatsapp");
     await expect(page.getByText("Template name")).toBeVisible();
     await expect(page.getByText("Webhook Path")).toHaveCount(0);
   });
@@ -56,18 +57,33 @@ test.describe("notifications admin (Prompt 5)", () => {
     await page.getByText("auth.otp.sent").first().click();
     await page.getByRole("button", { name: "Next" }).click();
     await expect(page.getByText("Recipient")).toBeVisible();
-    await page.getByRole("button", { name: "user" }).click();
+    await page.getByRole("button", { name: "participant", exact: true }).click();
     await page.getByRole("button", { name: "Next" }).click();
     await expect(page.getByText("Content")).toBeVisible();
   });
 
-  test("engagement create notifications step shows Set up notification", async ({ page }) => {
-    await page.goto("/engagements/new", { waitUntil: "networkidle" });
-    await expect(page.getByText(/notifications/i).first()).toBeVisible({ timeout: 30_000 });
-    const notifTab = page.getByRole("button", { name: /^notifications$/i });
-    if (await notifTab.isVisible()) {
-      await notifTab.click();
-    }
+  test("engagement notifications step shows Set up notification", async ({ page }) => {
+    await page.route("**/*notification-events*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [
+            {
+              notification_event_id: 9001,
+              event_code: "auth.otp.sent",
+              display_name: "OTP sent",
+              description: null,
+              engagement_type_ids: [1],
+              engagement_types: [],
+            },
+          ],
+          meta: {},
+        }),
+      });
+    });
+    await page.goto("/engagements/new?step=notifications", { waitUntil: "networkidle" });
+    await page.locator("select").first().selectOption({ index: 1 });
     await expect(page.getByText("Set up notification").first()).toBeVisible({ timeout: 30_000 });
   });
 });

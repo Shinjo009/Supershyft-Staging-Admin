@@ -1963,6 +1963,27 @@ export function EngagementFormWizard({
 
         {currentStepKey === "notifications" && (
           <div className="grid grid-cols-1 gap-4">
+            {!selectedTypeId ? (
+              <div className="max-w-md">
+                <label className="block text-sm font-medium text-zinc-700 mb-1">Engagement Type *</label>
+                <select
+                  value={selectedTypeId ?? ""}
+                  onChange={(e) => handleTypeChange(Number(e.target.value))}
+                  className={inputClass}
+                >
+                  <option value="" disabled>
+                    Select type
+                  </option>
+                  {engagementTypes
+                    .filter((t) => t.is_active)
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.display_name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            ) : null}
             {notificationsLoading ? (
               <div className="py-8 flex justify-center">
                 <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
