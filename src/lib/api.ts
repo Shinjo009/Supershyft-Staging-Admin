@@ -3309,6 +3309,7 @@ export interface Participant {
   city?: string | null;
   state?: string | null;
   country?: string | null;
+  landmark?: string | null;
   blood_bookings?: ParticipantBloodBooking[];
 }
 

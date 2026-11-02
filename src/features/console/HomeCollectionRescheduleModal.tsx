@@ -55,7 +55,7 @@ export function HomeCollectionRescheduleModal({
   const [step, setStep] = useState<Step>(1);
 
   const [addressLine, setAddressLine] = useState(participant.address ?? "");
-  const [landmark, setLandmark] = useState("");
+  const [landmark, setLandmark] = useState(participant.landmark ?? "");
   const [city, setCity] = useState(participant.city ?? "");
   const [pincode, setPincode] = useState(participant.pin_code ?? "");
   const [step1Loading, setStep1Loading] = useState(false);

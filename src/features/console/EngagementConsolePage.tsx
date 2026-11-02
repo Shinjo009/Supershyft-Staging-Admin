@@ -985,6 +985,7 @@ export function EngagementConsolePage() {
 
       {selectedParticipant && (
         <HomeCollectionBookingModal
+          key={`book-hc-${selectedParticipant.user_id}-${modalMode}`}
           open={modalMode === "book_home_collection"}
           onClose={closeModal}
           engagementId={engId}
@@ -1010,7 +1011,7 @@ export function EngagementConsolePage() {
 
       {selectedParticipant && (
         <HomeCollectionRescheduleModal
-          key={`reschedule-${selectedParticipant.user_id}-${selectedParticipant.booking_id ?? "none"}`}
+          key={`reschedule-${selectedParticipant.user_id}-${selectedParticipant.booking_id ?? "none"}-${modalMode}`}
           open={modalMode === "reschedule_home_collection"}
           onClose={closeModal}
           engagementId={engId}
