@@ -13,12 +13,12 @@ import {
   buildDefaultsByType,
   formatCount,
   labelAssessment,
-  labelDiagnostic,
   shortProfileId,
   totalPagesFromCount,
   type B2cDefaultsByType,
   emptyTypeDefaults,
 } from "./settingsUtils";
+import { DiagnosticPackageGroupProviderSelect } from "../diagnostics/DiagnosticPackageGroupProviderSelect";
 import { getTypeConfig, getTypeHint } from "../engagements/engagementTypeConfig";
 import {
   DEFAULT_LOAD_PREV_QUESTIONNAIRE_CATEGORY_KEYS,
@@ -29,6 +29,7 @@ import {
   assessmentPackagesApi,
   diagnosticPackagesApi,
   employeesApi,
+  engagementsApi,
   engagementNotificationsApi,
   engagementTypesApi,
   notificationEventsApi,
@@ -36,7 +37,8 @@ import {
   platformSettingsApi,
   type AssessmentPackage,
   type B2cOnboardingTypeDefaults,
-  type DiagnosticPackageListItem,
+  type DiagnosticPackageBootstrapOption,
+  type DiagnosticPackageGroupListItem,
   type EmployeeListItem,
   type EngagementTypeItem,
   type BloodCollectionType,
@@ -142,7 +144,10 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
   const [saveOk, setSaveOk] = useState<string | null>(null);
 
   const [assessmentPackages, setAssessmentPackages] = useState<AssessmentPackage[]>([]);
-  const [diagnosticPackages, setDiagnosticPackages] = useState<DiagnosticPackageListItem[]>([]);
+  const [diagnosticPackageGroups, setDiagnosticPackageGroups] = useState<DiagnosticPackageGroupListItem[]>([]);
+  const [diagnosticBootstrapOptions, setDiagnosticBootstrapOptions] = useState<
+    DiagnosticPackageBootstrapOption[]
+  >([]);
 
   const [b2cEngagementTypes, setB2cEngagementTypes] = useState<EngagementTypeItem[]>([]);
   const [activeEngagementType, setActiveEngagementType] = useState<string>("bio_ai");
@@ -229,7 +234,12 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
               assessmentPackagesApi.list({ page, limit, status: "active" })
             )
           : Promise.resolve([]),
-        mayViewDiagnostics ? diagnosticPackagesApi.list() : Promise.resolve(null),
+        mayViewDiagnostics
+          ? Promise.all([
+              diagnosticPackagesApi.listGroups({ type: "public_package", package_for: "public" }),
+              engagementsApi.formBootstrap().catch(() => null),
+            ])
+          : Promise.resolve(null),
         mayViewEmployees
           ? fetchAllPages<EmployeeListItem>((page, limit) =>
               employeesApi.list({ status: "active", page, limit })
@@ -244,8 +254,11 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
         ASSIGNABLE_DEFAULT_ASSISTANT_ROLES.has((e.role || "").toLowerCase())
       );
       setDefaultAssistantEmployees(staff);
-      const dPkgs = dRes?.data.data ?? [];
-      setDiagnosticPackages(dPkgs);
+      if (dRes) {
+        const [groupsRes, bootstrapRes] = dRes;
+        setDiagnosticPackageGroups(groupsRes.data.data ?? []);
+        setDiagnosticBootstrapOptions(bootstrapRes?.data?.data?.diagnostic_packages ?? []);
+      }
     } catch {
       // Pickers are optional until a settings control needs them.
     }
@@ -448,6 +461,11 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
   const diagnosticSplitMode =
     (activeDefaults.diagnostic_package_id_male ?? 0) > 0 ||
     (activeDefaults.diagnostic_package_id_female ?? 0) > 0;
+
+  const diagnosticBootstrapById = useMemo(
+    () => new Map(diagnosticBootstrapOptions.map((p) => [p.diagnostic_package_id, p])),
+    [diagnosticBootstrapOptions]
+  );
 
   const loadPrevCategoriesByGroup = useMemo(() => {
     const metsights: QuestionnaireCategory[] = [];
@@ -1076,67 +1094,52 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
                         </label>
                       </div>
                       {!diagnosticSplitMode ? (
-                        <select
-                          className={inputClass}
-                          value={activeDefaults.diagnostic_package_id ?? ""}
-                          onChange={(ev) =>
+                        <DiagnosticPackageGroupProviderSelect
+                          groups={diagnosticPackageGroups}
+                          value={activeDefaults.diagnostic_package_id}
+                          onChange={(id) =>
                             updateActiveDefaults({
-                              diagnostic_package_id: ev.target.value ? Number(ev.target.value) : null,
+                              diagnostic_package_id: id,
                             })
                           }
+                          bootstrapById={diagnosticBootstrapById}
                           disabled={!mayEditSettings}
-                        >
-                          <option value="">None</option>
-                          {diagnosticPackages.map((pkg) => (
-                            <option key={pkg.diagnostic_package_id} value={pkg.diagnostic_package_id}>
-                              {labelDiagnostic(pkg)}
-                            </option>
-                          ))}
-                        </select>
+                          groupLabel="Default diagnostic package"
+                          emptyGroupLabel="None"
+                          emptyProviderLabel="Select provider"
+                        />
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-zinc-700 mb-1">Male package</label>
-                            <select
-                              className={inputClass}
-                              value={activeDefaults.diagnostic_package_id_male ?? ""}
-                              onChange={(ev) =>
-                                updateActiveDefaults({
-                                  diagnostic_package_id: null,
-                                  diagnostic_package_id_male: ev.target.value ? Number(ev.target.value) : null,
-                                })
-                              }
-                              disabled={!mayEditSettings}
-                            >
-                              <option value="">None</option>
-                              {diagnosticPackages.map((pkg) => (
-                                <option key={pkg.diagnostic_package_id} value={pkg.diagnostic_package_id}>
-                                  {labelDiagnostic(pkg)}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-zinc-700 mb-1">Female package</label>
-                            <select
-                              className={inputClass}
-                              value={activeDefaults.diagnostic_package_id_female ?? ""}
-                              onChange={(ev) =>
-                                updateActiveDefaults({
-                                  diagnostic_package_id: null,
-                                  diagnostic_package_id_female: ev.target.value ? Number(ev.target.value) : null,
-                                })
-                              }
-                              disabled={!mayEditSettings}
-                            >
-                              <option value="">None</option>
-                              {diagnosticPackages.map((pkg) => (
-                                <option key={pkg.diagnostic_package_id} value={pkg.diagnostic_package_id}>
-                                  {labelDiagnostic(pkg)}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
+                          <DiagnosticPackageGroupProviderSelect
+                            groups={diagnosticPackageGroups}
+                            value={activeDefaults.diagnostic_package_id_male}
+                            onChange={(id) =>
+                              updateActiveDefaults({
+                                diagnostic_package_id: null,
+                                diagnostic_package_id_male: id,
+                              })
+                            }
+                            bootstrapById={diagnosticBootstrapById}
+                            genderFilter="male"
+                            disabled={!mayEditSettings}
+                            groupLabel="Male package"
+                            emptyGroupLabel="None"
+                          />
+                          <DiagnosticPackageGroupProviderSelect
+                            groups={diagnosticPackageGroups}
+                            value={activeDefaults.diagnostic_package_id_female}
+                            onChange={(id) =>
+                              updateActiveDefaults({
+                                diagnostic_package_id: null,
+                                diagnostic_package_id_female: id,
+                              })
+                            }
+                            bootstrapById={diagnosticBootstrapById}
+                            genderFilter="female"
+                            disabled={!mayEditSettings}
+                            groupLabel="Female package"
+                            emptyGroupLabel="None"
+                          />
                         </div>
                       )}
                     </div>

@@ -20,11 +20,13 @@ import {
   getApiError,
   type AssessmentPackage,
   type DiagnosticPackageBootstrapOption,
+  type DiagnosticPackageGroupListItem,
   type Engagement,
   type EngagementCreate,
   type NotificationServiceItem,
   type OrganizationListItem,
 } from "../../lib/api";
+import { loadEngagementDiagnosticGroups } from "../diagnostics/diagnosticPackageGroupPicker";
 
 const STEP_KEYS: EngagementFormStepKey[] = [
   "basics",
@@ -57,6 +59,7 @@ export function EngagementFormPage({ mode }: { mode: FormPageMode }) {
   const [organizations, setOrganizations] = useState<OrganizationListItem[]>([]);
   const [assessmentPackages, setAssessmentPackages] = useState<AssessmentPackage[]>([]);
   const [diagnosticPackages, setDiagnosticPackages] = useState<DiagnosticPackageBootstrapOption[]>([]);
+  const [diagnosticPackageGroups, setDiagnosticPackageGroups] = useState<DiagnosticPackageGroupListItem[]>([]);
   const [notificationServices, setNotificationServices] = useState<NotificationServiceItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [campNoConfirm, setCampNoConfirm] = useState<{
@@ -92,11 +95,15 @@ export function EngagementFormPage({ mode }: { mode: FormPageMode }) {
     setLoading(true);
     setError(null);
     try {
-      const bootstrapRes = await engagementsApi.formBootstrap();
+      const [bootstrapRes, groups] = await Promise.all([
+        engagementsApi.formBootstrap(),
+        loadEngagementDiagnosticGroups().catch(() => [] as DiagnosticPackageGroupListItem[]),
+      ]);
       const bootstrap = bootstrapRes.data.data;
       setOrganizations(bootstrap.organizations ?? []);
       setAssessmentPackages(bootstrap.assessment_packages ?? []);
       setDiagnosticPackages(bootstrap.diagnostic_packages ?? []);
+      setDiagnosticPackageGroups(groups);
       setNotificationServices(bootstrap.notification_services ?? []);
 
       if (mode === "add") {
@@ -296,6 +303,7 @@ export function EngagementFormPage({ mode }: { mode: FormPageMode }) {
         organizations={organizations}
         assessmentPackages={assessmentPackages}
         diagnosticPackages={diagnosticPackages}
+        diagnosticPackageGroups={diagnosticPackageGroups}
         notificationServices={notificationServices}
         submitting={submitting}
         onClose={() => navigate(backTo)}

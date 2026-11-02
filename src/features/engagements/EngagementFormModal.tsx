@@ -4,6 +4,7 @@ import { Modal } from "../../shared/ui/Modal";
 import {
   type AssessmentPackage,
   type DiagnosticPackageBootstrapOption,
+  type DiagnosticPackageGroupListItem,
   type EngagementCreate,
   type EngagementKind,
   type EngagementTypeItem,
@@ -29,6 +30,7 @@ import {
   DEFAULT_LOAD_PREV_QUESTIONNAIRE_CATEGORY_KEYS,
   effectiveLoadPrevCategoryKeys,
 } from "./loadPrevQuestionnaireDefaults";
+import { DiagnosticPackageGroupProviderSelect } from "../diagnostics/DiagnosticPackageGroupProviderSelect";
 import { NotificationEventServicesInput, normalizeNotificationServiceConfigs, validateNotificationServiceConfigs } from "../../shared/ui/NotificationEventServicesInput";
 import { AddressAutocomplete } from "./AddressAutocomplete";
 import { EngagementScheduleStep } from "./EngagementScheduleStep";
@@ -97,25 +99,6 @@ function toNumberOrNull(value: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function packageOptionLabel(pkg: DiagnosticPackageBootstrapOption): string {
-  const suitability = (pkg.gender_suitability || "").trim();
-  return suitability ? `${pkg.package_name} (${suitability})` : pkg.package_name;
-}
-
-function hasExternalPackageCode(pkg: DiagnosticPackageBootstrapOption): boolean {
-  return Boolean((pkg.external_package_code ?? "").trim());
-}
-
-function diagnosticPackageOption(pkg: DiagnosticPackageBootstrapOption) {
-  const selectable = hasExternalPackageCode(pkg);
-  return (
-    <option key={pkg.diagnostic_package_id} value={pkg.diagnostic_package_id} disabled={!selectable}>
-      {packageOptionLabel(pkg)}
-      {selectable ? "" : " (no external package code)"}
-    </option>
-  );
-}
-
 function buildSteps(
   kind: EngagementKind | null,
   bloodMode: string | null | undefined,
@@ -147,6 +130,7 @@ export type EngagementFormWizardProps = {
   organizations: OrganizationListItem[];
   assessmentPackages: AssessmentPackage[];
   diagnosticPackages: DiagnosticPackageBootstrapOption[];
+  diagnosticPackageGroups: DiagnosticPackageGroupListItem[];
   notificationServices: NotificationServiceItem[];
   submitting: boolean;
   onClose: () => void;
@@ -169,6 +153,7 @@ export function EngagementFormWizard({
   organizations,
   assessmentPackages,
   diagnosticPackages,
+  diagnosticPackageGroups,
   notificationServices,
   submitting,
   onClose,
@@ -194,6 +179,11 @@ export function EngagementFormWizard({
   const [zoneMessage, setZoneMessage] = useState<string | null>(null);
   const [zoneMessageTone, setZoneMessageTone] = useState<"info" | "success" | "error">("info");
   const [packageMode, setPackageMode] = useState<"single" | "split">("single");
+
+  const diagnosticBootstrapById = useMemo(
+    () => new Map(diagnosticPackages.map((p) => [p.diagnostic_package_id, p])),
+    [diagnosticPackages]
+  );
 
   const [engagementTypes, setEngagementTypes] = useState<EngagementTypeItem[]>([]);
   const [notificationEvents, setNotificationEvents] = useState<NotificationEventItem[]>([]);
@@ -397,6 +387,50 @@ export function EngagementFormWizard({
       }
     },
     [diagnosticPackages]
+  );
+
+  const onDiagnosticPackageResolved = useCallback(
+    (
+      packageId: number | null,
+      target: "single" | "male" | "female",
+    ) => {
+      const nextId = packageId != null && packageId > 0 ? packageId : undefined;
+      setFormData((prev) => {
+        if (target === "single") {
+          return {
+            ...prev,
+            diagnostic_package_id: nextId,
+            diagnostic_package_id_male: undefined,
+            diagnostic_package_id_female: undefined,
+          };
+        }
+        if (target === "male") {
+          return {
+            ...prev,
+            diagnostic_package_id: undefined,
+            diagnostic_package_id_male: nextId,
+          };
+        }
+        return {
+          ...prev,
+          diagnostic_package_id: undefined,
+          diagnostic_package_id_female: nextId,
+        };
+      });
+      if (target !== "female") {
+        void checkZoneId(nextId, formData.latitude, formData.longitude, formData.pincode);
+      }
+      if (nextId) {
+        applyDiagPkgConsultationDefaults(nextId);
+      }
+    },
+    [
+      applyDiagPkgConsultationDefaults,
+      checkZoneId,
+      formData.latitude,
+      formData.longitude,
+      formData.pincode,
+    ]
   );
 
   const selectedTypeId = useMemo((): number | null => {
@@ -1357,81 +1391,34 @@ export function EngagementFormWizard({
                   </div>
                 </div>
                 {packageMode === "single" ? (
-                  <div>
-                    <label className="block text-sm font-medium text-zinc-700 mb-1">Package</label>
-                    <select
-                      value={formData.diagnostic_package_id ?? 0}
-                      onChange={(e) => {
-                        const next = Number(e.target.value);
-                        setFormData({
-                          ...formData,
-                          diagnostic_package_id: next > 0 ? next : undefined,
-                          diagnostic_package_id_male: undefined,
-                          diagnostic_package_id_female: undefined,
-                        });
-                        void checkZoneId(
-                          next > 0 ? next : undefined,
-                          formData.latitude,
-                          formData.longitude,
-                          formData.pincode
-                        );
-                        if (next > 0) {
-                          applyDiagPkgConsultationDefaults(next);
-                        }
-                      }}
-                      className={inputClass}
-                    >
-                      <option value={0}>Select package</option>
-                      {diagnosticPackages.map(diagnosticPackageOption)}
-                    </select>
-                  </div>
+                  <DiagnosticPackageGroupProviderSelect
+                    groups={diagnosticPackageGroups}
+                    value={formData.diagnostic_package_id ?? null}
+                    onChange={(id) => onDiagnosticPackageResolved(id, "single")}
+                    bootstrapById={diagnosticBootstrapById}
+                    groupLabel="Package"
+                    emptyGroupLabel="Select package"
+                  />
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-zinc-700 mb-1">Male package</label>
-                      <select
-                        value={formData.diagnostic_package_id_male ?? 0}
-                        onChange={(e) => {
-                          const next = Number(e.target.value);
-                          setFormData({
-                            ...formData,
-                            diagnostic_package_id: undefined,
-                            diagnostic_package_id_male: next > 0 ? next : undefined,
-                          });
-                          void checkZoneId(
-                            next > 0 ? next : undefined,
-                            formData.latitude,
-                            formData.longitude,
-                            formData.pincode
-                          );
-                          if (next > 0) {
-                            applyDiagPkgConsultationDefaults(next);
-                          }
-                        }}
-                        className={inputClass}
-                      >
-                        <option value={0}>Select male package</option>
-                        {diagnosticPackages.map(diagnosticPackageOption)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-zinc-700 mb-1">Female package</label>
-                      <select
-                        value={formData.diagnostic_package_id_female ?? 0}
-                        onChange={(e) => {
-                          const next = Number(e.target.value);
-                          setFormData({
-                            ...formData,
-                            diagnostic_package_id: undefined,
-                            diagnostic_package_id_female: next > 0 ? next : undefined,
-                          });
-                        }}
-                        className={inputClass}
-                      >
-                        <option value={0}>Select female package</option>
-                        {diagnosticPackages.map(diagnosticPackageOption)}
-                      </select>
-                    </div>
+                    <DiagnosticPackageGroupProviderSelect
+                      groups={diagnosticPackageGroups}
+                      value={formData.diagnostic_package_id_male ?? null}
+                      onChange={(id) => onDiagnosticPackageResolved(id, "male")}
+                      bootstrapById={diagnosticBootstrapById}
+                      genderFilter="male"
+                      groupLabel="Male package"
+                      emptyGroupLabel="Select male package"
+                    />
+                    <DiagnosticPackageGroupProviderSelect
+                      groups={diagnosticPackageGroups}
+                      value={formData.diagnostic_package_id_female ?? null}
+                      onChange={(id) => onDiagnosticPackageResolved(id, "female")}
+                      bootstrapById={diagnosticBootstrapById}
+                      genderFilter="female"
+                      groupLabel="Female package"
+                      emptyGroupLabel="Select female package"
+                    />
                   </div>
                 )}
               </div>
