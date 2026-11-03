@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { Loader2, Plus, Search, Trash2, UserCog, X } from "lucide-react";
 import {
   employeesApi,
+  expertsApi,
   getApiError,
   onboardingAssistantsApi,
   partnersApi,
   type EmployeeListItem,
+  type ExpertListItem,
   type OnboardingAssistant,
   type PartnerListItem,
 } from "../../lib/api";
@@ -87,6 +89,24 @@ function matchesListSearch(a: OnboardingAssistant, query: string): boolean {
 const ASSIGNABLE_EMPLOYEE_ROLES = new Set(["admin", "inferior_admin"]);
 
 type AddAssigneeMode = "phlebo" | "expert" | "employee";
+type ExpertAssigneeScope = "offline" | "others";
+
+function expertRowsToPartnerCandidates(experts: ExpertListItem[]): PartnerListItem[] {
+  const seen = new Set<number>();
+  const out: PartnerListItem[] = [];
+  for (const row of experts) {
+    const partnerId = row.partner_id;
+    if (partnerId == null || partnerId <= 0 || seen.has(partnerId)) continue;
+    seen.add(partnerId);
+    out.push({
+      partner_id: partnerId,
+      name: row.name?.trim() || row.specialization?.trim() || `Expert #${row.expert_id}`,
+      role: "expert",
+      status: "active",
+    });
+  }
+  return out;
+}
 
 function formatStaffRoleLabel(role: string | null | undefined): string {
   if (!role) return "";
@@ -240,6 +260,7 @@ export function EngagementOnboardingAssistantsPanel({
   const [assigningAssistants, setAssigningAssistants] = useState(false);
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [createPhleboModalOpen, setCreatePhleboModalOpen] = useState(false);
+  const [expertAssigneeScope, setExpertAssigneeScope] = useState<ExpertAssigneeScope>("offline");
 
   const fetchAssistants = useCallback(async () => {
     setAssistantsLoading(true);
@@ -351,6 +372,38 @@ export function EngagementOnboardingAssistantsPanel({
     }
   };
 
+  const loadAddCandidates = useCallback(
+    async (mode: AddAssigneeMode, expertScope: ExpertAssigneeScope) => {
+      setAddCandidatesLoading(true);
+      try {
+        if (mode === "employee") {
+          const res = await employeesApi.list({ status: "active", limit: 100 });
+          setAddCandidateEmployees(
+            res.data.data.filter((e) => ASSIGNABLE_EMPLOYEE_ROLES.has((e.role || "").toLowerCase())),
+          );
+          setAddCandidatePartners([]);
+        } else if (mode === "expert") {
+          const res = await expertsApi.list({
+            status: "active",
+            limit: 100,
+            consultation_mode: expertScope === "offline" ? "offline" : "all",
+          });
+          setAddCandidatePartners(expertRowsToPartnerCandidates(res.data.data));
+          setAddCandidateEmployees([]);
+        } else {
+          const res = await partnersApi.list({ status: "active", role: mode, limit: 100 });
+          setAddCandidatePartners(res.data.data);
+          setAddCandidateEmployees([]);
+        }
+      } catch (err) {
+        setAssistantsError(getApiError(err));
+      } finally {
+        setAddCandidatesLoading(false);
+      }
+    },
+    [],
+  );
+
   const openAddAssistants = async (mode: AddAssigneeMode) => {
     setAddAssigneeMode(mode);
     setAddAssistantsOpen(true);
@@ -359,22 +412,15 @@ export function EngagementOnboardingAssistantsPanel({
     setEmployeeSearch("");
     setAddCandidatePartners([]);
     setAddCandidateEmployees([]);
-    setAddCandidatesLoading(true);
-    try {
-      if (mode === "employee") {
-        const res = await employeesApi.list({ status: "active", limit: 100 });
-        setAddCandidateEmployees(
-          res.data.data.filter((e) => ASSIGNABLE_EMPLOYEE_ROLES.has((e.role || "").toLowerCase())),
-        );
-      } else {
-        const res = await partnersApi.list({ status: "active", role: mode, limit: 100 });
-        setAddCandidatePartners(res.data.data);
-      }
-    } catch (err) {
-      setAssistantsError(getApiError(err));
-    } finally {
-      setAddCandidatesLoading(false);
+    if (mode === "expert") {
+      setExpertAssigneeScope("offline");
     }
+    await loadAddCandidates(mode, mode === "expert" ? "offline" : expertAssigneeScope);
+  };
+
+  const setExpertScope = (scope: ExpertAssigneeScope) => {
+    setExpertAssigneeScope(scope);
+    void loadAddCandidates("expert", scope);
   };
 
   const togglePartnerSelection = (id: number) => {
@@ -567,6 +613,33 @@ export function EngagementOnboardingAssistantsPanel({
               className="w-full pl-9 pr-4 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent"
             />
           </div>
+
+          {addAssigneeMode === "expert" ? (
+            <div className="flex gap-1 border border-zinc-200 rounded-lg p-0.5 w-fit">
+              <button
+                type="button"
+                onClick={() => setExpertScope("offline")}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md ${
+                  expertAssigneeScope === "offline"
+                    ? "bg-zinc-900 text-white"
+                    : "text-zinc-600 hover:bg-zinc-50"
+                }`}
+              >
+                Offline
+              </button>
+              <button
+                type="button"
+                onClick={() => setExpertScope("others")}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md ${
+                  expertAssigneeScope === "others"
+                    ? "bg-zinc-900 text-white"
+                    : "text-zinc-600 hover:bg-zinc-50"
+                }`}
+              >
+                Others
+              </button>
+            </div>
+          ) : null}
 
           {addCandidatesLoading ? (
             <div className="py-8 flex justify-center">

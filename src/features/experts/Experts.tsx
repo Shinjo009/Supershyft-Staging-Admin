@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Plus, Search, Trash2 } from "lucide-react";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
@@ -19,7 +19,7 @@ import {
 } from "../../lib/api";
 import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 
-const MODES: ExpertConsultationMode[] = ["video", "voice", "chat"];
+const MODES: ExpertConsultationMode[] = ["offline", "online"];
 
 function formatPartnerLabel(p: PartnerListItem): string {
   const bits = [p.name?.trim() || `Partner #${p.partner_id}`];
@@ -274,9 +274,8 @@ function ExpertsListTab({
   const [selected, setSelected] = useState<ExpertDetail | null>(null);
   const [formData, setFormData] = useState<ExpertPayload>(emptyPayload());
   const [languagesText, setLanguagesText] = useState("");
-  const [modeVideo, setModeVideo] = useState(false);
-  const [modeVoice, setModeVoice] = useState(false);
-  const [modeChat, setModeChat] = useState(false);
+  const [modeOffline, setModeOffline] = useState(false);
+  const [modeOnline, setModeOnline] = useState(false);
   const [tags, setTags] = useState<ExpertTag[]>([]);
   const [newTagName, setNewTagName] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -284,19 +283,27 @@ function ExpertsListTab({
   const [viewPartner, setViewPartner] = useState<PartnerListItem | null>(null);
   const [expertPartners, setExpertPartners] = useState<PartnerListItem[]>([]);
   const [partnersLoading, setPartnersLoading] = useState(false);
+  const [partnerSearch, setPartnerSearch] = useState("");
+  const [partnerPickerOpen, setPartnerPickerOpen] = useState(false);
+  const [creatingPartner, setCreatingPartner] = useState(false);
+  const [newPartnerName, setNewPartnerName] = useState("");
+  const [newPartnerPhone, setNewPartnerPhone] = useState("");
+  const [newPartnerEmail, setNewPartnerEmail] = useState("");
+  const [selectedPartnerLabel, setSelectedPartnerLabel] = useState("");
+  const partnerPickerRef = useRef<HTMLDivElement | null>(null);
 
   const syncModesFromPayload = (modes: ExpertConsultationMode[] | string[] | null | undefined) => {
     const set = new Set((modes ?? []).map((m) => String(m).toLowerCase()));
-    setModeVideo(set.has("video"));
-    setModeVoice(set.has("voice"));
-    setModeChat(set.has("chat"));
+    setModeOffline(set.has("offline"));
+    setModeOnline(
+      set.has("online") || set.has("video") || set.has("voice") || set.has("chat"),
+    );
   };
 
   const modesFromCheckboxes = (): ExpertConsultationMode[] | null => {
     const out: ExpertConsultationMode[] = [];
-    if (modeVideo) out.push("video");
-    if (modeVoice) out.push("voice");
-    if (modeChat) out.push("chat");
+    if (modeOffline) out.push("offline");
+    if (modeOnline) out.push("online");
     return out.length ? out : null;
   };
 
@@ -320,6 +327,7 @@ function ExpertsListTab({
         search: search.trim() || undefined,
         sort_by: sortKey,
         sort_dir: sortDir,
+        consultation_mode: "all",
       });
       setData(res.data.data);
       setTotal(res.data.meta.total);
@@ -341,10 +349,15 @@ function ExpertsListTab({
     setPage(1);
   }, [search, expertTypeFilter, statusFilter]);
 
-  const loadExpertPartners = useCallback(async () => {
+  const searchExpertPartners = useCallback(async (query: string) => {
     setPartnersLoading(true);
     try {
-      const res = await partnersApi.list({ role: "expert", status: "active", limit: 100 });
+      const res = await partnersApi.list({
+        role: "expert",
+        status: "active",
+        search: query.trim() || undefined,
+        limit: 100,
+      });
       setExpertPartners(res.data.data);
     } catch (err) {
       setError(getApiError(err));
@@ -352,6 +365,43 @@ function ExpertsListTab({
       setPartnersLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (!modalOpen || modalMode === "view" || creatingPartner) return;
+    const timer = window.setTimeout(() => {
+      void searchExpertPartners(partnerSearch);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [modalOpen, modalMode, partnerSearch, creatingPartner, searchExpertPartners]);
+
+  useEffect(() => {
+    if (!partnerPickerOpen) return;
+    const onDocClick = (event: MouseEvent) => {
+      if (!partnerPickerRef.current?.contains(event.target as Node)) {
+        setPartnerPickerOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [partnerPickerOpen]);
+
+  const resetPartnerPickerState = () => {
+    setPartnerSearch("");
+    setPartnerPickerOpen(false);
+    setCreatingPartner(false);
+    setNewPartnerName("");
+    setNewPartnerPhone("");
+    setNewPartnerEmail("");
+    setSelectedPartnerLabel("");
+    setExpertPartners([]);
+  };
+
+  const selectPartner = (partner: PartnerListItem) => {
+    setFormData((p) => ({ ...p, partner_id: partner.partner_id }));
+    setSelectedPartnerLabel(formatPartnerLabel(partner));
+    setPartnerPickerOpen(false);
+    setCreatingPartner(false);
+  };
 
   useEffect(() => {
     const partnerId = selected?.partner_id;
@@ -395,9 +445,10 @@ function ExpertsListTab({
     syncModesFromPayload([]);
     setTags([]);
     setNewTagName("");
+    resetPartnerPickerState();
     setModalMode("add");
     setModalOpen(true);
-    void loadExpertPartners();
+    void searchExpertPartners("");
   };
 
   const openEdit = (row: ExpertListItem) => {
@@ -428,9 +479,17 @@ function ExpertsListTab({
         syncModesFromPayload(e.consultation_modes as ExpertConsultationMode[] | null);
         setTags(e.expertise_tags ?? []);
         setNewTagName("");
+        resetPartnerPickerState();
         setModalMode("edit");
         setModalOpen(true);
-        void loadExpertPartners();
+        if (e.partner_id && e.partner_id > 0) {
+          void partnersApi.get(e.partner_id).then((res) => {
+            setSelectedPartnerLabel(formatPartnerLabel(res.data.data));
+          }).catch(() => {
+            setSelectedPartnerLabel(`Partner #${e.partner_id}`);
+          });
+        }
+        void searchExpertPartners("");
       })
       .catch((err) => setError(getApiError(err)));
   };
@@ -461,19 +520,61 @@ function ExpertsListTab({
 
   const handleSubmit = async () => {
     if (!formData.specialization.trim()) return;
-    if (!formData.partner_id || formData.partner_id <= 0) {
+    if (!formData.expert_type.trim()) {
+      setError("Expert type is required");
+      return;
+    }
+    if (!creatingPartner && (!formData.partner_id || formData.partner_id <= 0)) {
       setError("Partner is required");
       return;
     }
+    if (creatingPartner) {
+      const name = newPartnerName.trim();
+      const phone = newPartnerPhone.trim();
+      const email = newPartnerEmail.trim();
+      if (!name) {
+        setError("Partner name is required");
+        return;
+      }
+      if (!phone && !email) {
+        setError("Provide partner phone or email");
+        return;
+      }
+    }
     setSubmitting(true);
+    setError(null);
     try {
+      let partnerId = formData.partner_id;
+      let stubExpertId: number | undefined;
+
+      if (creatingPartner && modalMode === "add") {
+        const partnerRes = await partnersApi.create({
+          name: newPartnerName.trim(),
+          phone: newPartnerPhone.trim() || null,
+          email: newPartnerEmail.trim() || null,
+          role: "expert",
+          status: "active",
+          expert_profile: {
+            expert_type: formData.expert_type,
+            specialization: formData.specialization.trim(),
+          },
+        });
+        partnerId = partnerRes.data.data.partner_id;
+        stubExpertId = partnerRes.data.data.expert_id;
+      }
+
       const payload: ExpertPayload = {
         ...formData,
+        partner_id: partnerId,
         consultation_modes: modesFromCheckboxes(),
         languages: parseLanguages(),
       };
       if (modalMode === "add") {
-        await expertsApi.create(payload);
+        if (stubExpertId) {
+          await expertsApi.update(stubExpertId, payload);
+        } else {
+          await expertsApi.create(payload);
+        }
       } else if (selected) {
         await expertsApi.update(selected.expert_id, payload);
       }
@@ -814,27 +915,111 @@ function ExpertsListTab({
         ) : (
           <div className="space-y-4 text-sm">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label className="block sm:col-span-2">
+              <div className="block sm:col-span-2" ref={partnerPickerRef}>
                 <span className="text-zinc-600 text-xs">Partner (expert) *</span>
-                <select
-                  className="mt-1 w-full px-3 py-2 rounded-lg border border-zinc-300"
-                  value={formData.partner_id}
-                  onChange={(e) =>
-                    setFormData((p) => ({ ...p, partner_id: Number(e.target.value) }))
-                  }
-                  required
-                  disabled={partnersLoading}
-                >
-                  <option value={0}>
-                    {partnersLoading ? "Loading partners…" : "Select partner"}
-                  </option>
-                  {expertPartners.map((p) => (
-                    <option key={p.partner_id} value={p.partner_id}>
-                      {formatPartnerLabel(p)}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                {creatingPartner ? (
+                  <div className="mt-2 space-y-2 rounded-lg border border-zinc-200 p-3 bg-zinc-50">
+                    <label className="block">
+                      <span className="text-zinc-600 text-xs">Name *</span>
+                      <input
+                        className="mt-1 w-full px-3 py-2 rounded-lg border border-zinc-300 bg-white"
+                        value={newPartnerName}
+                        onChange={(e) => setNewPartnerName(e.target.value)}
+                      />
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <label className="block">
+                        <span className="text-zinc-600 text-xs">Phone</span>
+                        <input
+                          className="mt-1 w-full px-3 py-2 rounded-lg border border-zinc-300 bg-white"
+                          value={newPartnerPhone}
+                          onChange={(e) => setNewPartnerPhone(e.target.value)}
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-zinc-600 text-xs">Email</span>
+                        <input
+                          type="email"
+                          className="mt-1 w-full px-3 py-2 rounded-lg border border-zinc-300 bg-white"
+                          value={newPartnerEmail}
+                          onChange={(e) => setNewPartnerEmail(e.target.value)}
+                        />
+                      </label>
+                    </div>
+                    <p className="text-xs text-zinc-500">Provide at least one of phone or email.</p>
+                    <button
+                      type="button"
+                      className="text-xs text-zinc-700 underline"
+                      onClick={() => {
+                        setCreatingPartner(false);
+                        setNewPartnerName("");
+                        setNewPartnerPhone("");
+                        setNewPartnerEmail("");
+                      }}
+                    >
+                      Search existing partner instead
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-1 relative">
+                    <input
+                      type="search"
+                      className="w-full px-3 py-2 rounded-lg border border-zinc-300"
+                      placeholder={
+                        selectedPartnerLabel || "Search partner by name, phone, or email…"
+                      }
+                      value={partnerSearch}
+                      onChange={(e) => {
+                        setPartnerSearch(e.target.value);
+                        setPartnerPickerOpen(true);
+                      }}
+                      onFocus={() => setPartnerPickerOpen(true)}
+                    />
+                    {formData.partner_id > 0 && selectedPartnerLabel ? (
+                      <p className="text-xs text-zinc-600 mt-1">
+                        Selected: {selectedPartnerLabel}
+                      </p>
+                    ) : null}
+                    {partnerPickerOpen ? (
+                      <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto rounded-lg border border-zinc-200 bg-white shadow-lg">
+                        {partnersLoading ? (
+                          <div className="p-3 text-xs text-zinc-500">Searching…</div>
+                        ) : expertPartners.length === 0 ? (
+                          <div className="p-3 text-xs text-zinc-500">No partners found.</div>
+                        ) : (
+                          <ul className="divide-y divide-zinc-100">
+                            {expertPartners.map((p) => (
+                              <li key={p.partner_id}>
+                                <button
+                                  type="button"
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-50"
+                                  onClick={() => selectPartner(p)}
+                                >
+                                  {formatPartnerLabel(p)}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    ) : null}
+                    {modalMode === "add" ? (
+                      <button
+                        type="button"
+                        className="mt-2 text-xs font-medium text-zinc-800 underline"
+                        onClick={() => {
+                          setCreatingPartner(true);
+                          setPartnerPickerOpen(false);
+                          setFormData((p) => ({ ...p, partner_id: 0 }));
+                          setSelectedPartnerLabel("");
+                        }}
+                      >
+                        Create new partner
+                      </button>
+                    ) : null}
+                  </div>
+                )}
+              </div>
               <label className="block">
                 <span className="text-zinc-600 text-xs">Specialization *</span>
                 <input
@@ -883,11 +1068,10 @@ function ExpertsListTab({
                   <label key={m} className="inline-flex items-center gap-2 capitalize">
                     <input
                       type="checkbox"
-                      checked={m === "video" ? modeVideo : m === "voice" ? modeVoice : modeChat}
+                      checked={m === "offline" ? modeOffline : modeOnline}
                       onChange={(e) => {
-                        if (m === "video") setModeVideo(e.target.checked);
-                        else if (m === "voice") setModeVoice(e.target.checked);
-                        else setModeChat(e.target.checked);
+                        if (m === "offline") setModeOffline(e.target.checked);
+                        else setModeOnline(e.target.checked);
                       }}
                     />
                     {m}

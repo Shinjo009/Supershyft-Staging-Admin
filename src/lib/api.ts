@@ -1815,7 +1815,8 @@ export const expertTypesApi = {
 
 // Experts (doctors & nutritionists)
 export type ExpertType = string;
-export type ExpertConsultationMode = "video" | "voice" | "chat";
+export type ExpertConsultationMode = "offline" | "online";
+export type ExpertListConsultationModeFilter = "online" | "offline" | "all";
 
 export interface ExpertTag {
   tag_id: number;
@@ -1912,6 +1913,7 @@ export const expertsApi = {
     search?: string;
     sort_by?: string;
     sort_dir?: "asc" | "desc";
+    consultation_mode?: ExpertListConsultationModeFilter;
   }) =>
     api.get<{
       data: ExpertListItem[];
