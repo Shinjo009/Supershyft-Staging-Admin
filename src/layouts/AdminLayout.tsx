@@ -468,7 +468,7 @@ function AdminLayoutView() {
               : "flex-1 min-w-0 p-4 sm:p-6 overflow-auto"
           }
         >
-          <Outlet />
+          <Outlet key={location.pathname} />
         </main>
       </div>
     </div>

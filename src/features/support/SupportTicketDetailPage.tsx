@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, ExternalLink, Loader2 } from "lucide-react";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
 import { usePageHeader } from "../../layouts/PageHeaderActions";
@@ -47,7 +47,10 @@ function userDisplayName(user: UserDetail | null) {
 export function SupportTicketDetailPage() {
   const { ticketId: ticketIdParam } = useParams<{ ticketId: string }>();
   const ticketId = parseTicketId(ticketIdParam);
+  const location = useLocation();
   const navigate = useNavigate();
+  const onThisTicketRoute =
+    ticketId != null && location.pathname === `/support/${ticketId}`;
   const { canEdit } = usePermissions();
   const mayEditSupport = canEdit("support");
 
@@ -103,19 +106,28 @@ export function SupportTicketDetailPage() {
   }, [ticketId]);
 
   useEffect(() => {
+    if (!onThisTicketRoute || !ticketId) return;
     void loadTicket();
-  }, [loadTicket]);
+  }, [loadTicket, onThisTicketRoute, ticketId]);
 
   const headerSubtitle = useMemo(() => {
     if (!ticket) return undefined;
     return `${ticket.status} · ${ticket.contact_input} · ${formatDate(ticket.created_at)}`;
   }, [ticket]);
 
-  usePageHeader({
-    title: ticket ? `Ticket #${ticket.ticket_id}` : "Ticket",
-    subtitle: headerSubtitle,
-    backTo: "/support",
-  });
+  const pageHeader = useMemo(
+    () =>
+      onThisTicketRoute
+        ? {
+            title: ticket ? `Ticket #${ticket.ticket_id}` : "Ticket",
+            subtitle: headerSubtitle,
+            backTo: "/support",
+          }
+        : null,
+    [onThisTicketRoute, ticket, headerSubtitle]
+  );
+
+  usePageHeader(pageHeader);
 
   const markResolved = async () => {
     if (!ticket || ticket.status === "resolved") return;
@@ -149,6 +161,10 @@ export function SupportTicketDetailPage() {
       setSubmitting(false);
     }
   };
+
+  if (!onThisTicketRoute) {
+    return null;
+  }
 
   if (!ticketId) {
     return (

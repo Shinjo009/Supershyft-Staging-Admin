@@ -334,9 +334,10 @@ function PermissionRoute({
 }
 
 function AppRoutes() {
+  const location = useLocation();
   return (
     <Suspense fallback={<RouteFallback />}>
-    <Routes>
+    <Routes key={location.pathname}>
       <Route path="/login" element={<Login />} />
       <Route path="/serviceability" element={<PublicServiceabilityPage />} />
       <Route

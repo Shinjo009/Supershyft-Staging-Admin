@@ -141,13 +141,13 @@ export function usePageHeader(config: PageHeaderTitleConfig | null) {
 
   useEffect(() => {
     if (!setOverride) return;
-    if (!config) {
+    if (!config || !title) {
       setOverride(null);
       return;
     }
-    setOverride(config);
+    setOverride({ title, subtitle, backTo });
     return () => setOverride(null);
-  }, [setOverride, title, subtitle, backTo, config]);
+  }, [setOverride, title, subtitle, backTo]);
 }
 
 export function usePageHeaderCompact() {
