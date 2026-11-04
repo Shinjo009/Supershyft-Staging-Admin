@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Loader2, Plus, Search } from "lucide-react";
 import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
-import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
+import { PermissionGate } from "../../contexts/PermissionContext";
 import { Modal } from "../../shared/ui/Modal";
 import { UserSearchPicker } from "../../shared/ui/UserSearchPicker";
 import {
@@ -14,13 +14,11 @@ import {
   type SupportTicketStatus,
 } from "../../lib/api";
 
-const STATUS_OPTIONS: SupportTicketStatus[] = ["open", "resolved", "closed"];
+const STATUS_OPTIONS: SupportTicketStatus[] = ["open", "resolved"];
 
 export function SupportTickets() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { canEdit } = usePermissions();
-  const mayEditSupport = canEdit("support");
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,10 +26,7 @@ export function SupportTickets() {
   const [statusFilter, setStatusFilter] = useState<"" | SupportTicketStatus>("");
   const [sortKey, setSortKey] = useState<"ticket_id" | "status" | "created_at">("created_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [selected, setSelected] = useState<SupportTicket | null>(null);
-  const [detailsOpen, setDetailsOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [updatingStatus, setUpdatingStatus] = useState(false);
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [createForm, setCreateForm] = useState<SupportTicketCreate>({
     user_id: 0,
@@ -88,22 +83,14 @@ export function SupportTickets() {
     return sorted;
   }, [search, sortDir, sortKey, tickets]);
 
-  const openDetails = async (ticket: SupportTicket) => {
-    setError(null);
-    try {
-      const response = await supportApi.getTicket(ticket.ticket_id);
-      setSelected(response.data.data);
-      setDetailsOpen(true);
-    } catch (err) {
-      setError(getApiError(err));
-    }
+  const openDetails = (ticket: SupportTicket) => {
+    navigate(`/support/${ticket.ticket_id}`);
   };
 
   useEffect(() => {
     const ticketId = (location.state as { viewTicketId?: number } | null)?.viewTicketId;
     if (!ticketId) return;
-    void openDetails({ ticket_id: ticketId } as SupportTicket);
-    navigate("/support", { replace: true, state: null });
+    navigate(`/support/${ticketId}`, { replace: true, state: null });
   }, [location.state, navigate]);
 
   const handleSort = (key: string) => {
@@ -125,8 +112,7 @@ export function SupportTickets() {
 
   const statusPillClass = (status: SupportTicketStatus) => {
     if (status === "open") return "bg-amber-50 text-amber-700 border-amber-200";
-    if (status === "resolved") return "bg-emerald-50 text-emerald-700 border-emerald-200";
-    return "bg-zinc-100 text-zinc-700 border-zinc-300";
+    return "bg-emerald-50 text-emerald-700 border-emerald-200";
   };
 
   const columns: Column<SupportTicket>[] = [
@@ -195,27 +181,6 @@ export function SupportTickets() {
     }
   };
 
-  const updateSelectedStatus = async (nextStatus: SupportTicketStatus) => {
-    if (!selected) return;
-    if (selected.status === nextStatus) return;
-
-    setUpdatingStatus(true);
-    setError(null);
-    try {
-      await supportApi.updateTicketStatus(selected.ticket_id, nextStatus);
-      setSelected({ ...selected, status: nextStatus });
-      setTickets((prev) =>
-        prev.map((ticket) =>
-          ticket.ticket_id === selected.ticket_id ? { ...ticket, status: nextStatus } : ticket
-        )
-      );
-    } catch (err) {
-      setError(getApiError(err));
-    } finally {
-      setUpdatingStatus(false);
-    }
-  };
-
   return (
     <div>
       <PageHeaderActions>
@@ -276,65 +241,6 @@ export function SupportTickets() {
           />
         )}
       </div>
-
-      <Modal
-        open={detailsOpen}
-        onClose={() => setDetailsOpen(false)}
-        title={selected ? `Ticket #${selected.ticket_id}` : "Ticket Details"}
-        maxWidthClassName="max-w-2xl"
-      >
-        {selected && (
-          <div className="space-y-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-zinc-500 text-xs uppercase tracking-wide">User ID</span>
-                <p className="text-zinc-900 mt-0.5">{selected.user_id ?? "Guest / Unlinked"}</p>
-              </div>
-              <div>
-                <span className="text-zinc-500 text-xs uppercase tracking-wide">Created</span>
-                <p className="text-zinc-900 mt-0.5">{formatDate(selected.created_at)}</p>
-              </div>
-              <div className="sm:col-span-2">
-                <span className="text-zinc-500 text-xs uppercase tracking-wide">Contact</span>
-                <p className="text-zinc-900 mt-0.5 break-words">{selected.contact_input}</p>
-              </div>
-              <div className="sm:col-span-2">
-                <span className="text-zinc-500 text-xs uppercase tracking-wide">Query</span>
-                <p className="text-zinc-900 mt-0.5 whitespace-pre-wrap break-words">
-                  {selected.query_text}
-                </p>
-              </div>
-            </div>
-
-            <div className="border-t border-zinc-100 pt-4">
-              <label className="block text-sm font-medium text-zinc-700 mb-2">
-                Update status
-              </label>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <select
-                  value={selected.status}
-                  onChange={(event) =>
-                    updateSelectedStatus(event.target.value as SupportTicketStatus)
-                  }
-                  disabled={updatingStatus || !mayEditSupport}
-                  className="w-full sm:w-56 px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
-                >
-                  {STATUS_OPTIONS.map((status) => (
-                    <option key={status} value={status}>
-                      {status}
-                    </option>
-                  ))}
-                </select>
-                {updatingStatus && (
-                  <div className="inline-flex items-center text-sm text-zinc-500">
-                    Saving status...
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </Modal>
 
       <Modal
         open={createOpen}

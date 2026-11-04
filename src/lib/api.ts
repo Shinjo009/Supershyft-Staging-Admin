@@ -242,7 +242,7 @@ export function getApiErrorDetails(
 }
 
 // Support tickets
-export type SupportTicketStatus = "open" | "resolved" | "closed";
+export type SupportTicketStatus = "open" | "resolved";
 
 export interface SupportTicket {
   ticket_id: number;
@@ -251,11 +251,20 @@ export interface SupportTicket {
   query_text: string;
   status: SupportTicketStatus;
   created_at: string;
+  resolved_by_employee_id?: number | null;
+  resolved_at?: string | null;
+  resolution_notes?: string | null;
+  resolved_by_employee_name?: string | null;
 }
 
 export interface SupportTicketCreate {
   user_id: number;
   query_text: string;
+}
+
+export interface SupportTicketStatusUpdatePayload {
+  status: SupportTicketStatus;
+  resolution_notes?: string | null;
 }
 
 export const supportApi = {
@@ -265,10 +274,10 @@ export const supportApi = {
     api.get<{ data: SupportTicket[]; meta: Record<string, unknown> }>("/support/tickets", { params }),
   getTicket: (ticketId: number) =>
     api.get<{ data: SupportTicket; meta: Record<string, unknown> }>(`/support/tickets/${ticketId}`),
-  updateTicketStatus: (ticketId: number, status: SupportTicketStatus) =>
-    api.patch<{ data: { ticket_id: number; status: SupportTicketStatus }; meta: Record<string, unknown> }>(
+  updateTicketStatus: (ticketId: number, payload: SupportTicketStatusUpdatePayload) =>
+    api.patch<{ data: SupportTicket; meta: Record<string, unknown> }>(
       `/support/tickets/${ticketId}/status`,
-      { status }
+      payload
     ),
 };
 
@@ -976,6 +985,25 @@ export const participantJourneyApi = {
     api.get<{ data: ParticipantJourneyDetail }>(
       `/users/${userId}/participant-journey/${assessmentInstanceId}`
     ),
+  overview: (userId: number) =>
+    api.get<{
+      data: {
+        engagements: {
+          engagement_id: number;
+          engagement_name?: string | null;
+          engagement_code?: string | null;
+        }[];
+        account: {
+          tickets: {
+            ticket_id: number;
+            status: string;
+            contact_input: string;
+            query_text: string;
+            created_at: string;
+          }[];
+        };
+      };
+    }>(`/users/${userId}/participant-journey/overview`),
   copyQuestionnaires: (
     userId: number,
     destAssessmentInstanceId: number,
@@ -5944,7 +5972,7 @@ export interface DashboardOverviewKpisPayload {
   };
   engagement_participants_total: number;
   payment_status_totals: { pending: number; confirmed: number; cancelled: number };
-  ticket_counts: { open: number; resolved: number; closed: number };
+  ticket_counts: { open: number; resolved: number };
   failed_notifications_count: number;
   generated_at: string;
 }

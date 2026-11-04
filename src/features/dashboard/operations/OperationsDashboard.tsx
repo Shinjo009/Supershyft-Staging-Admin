@@ -335,9 +335,9 @@ export function OperationsDashboard({
         rows={ticketRows}
         columns={ticketColumns}
         rowKey={(row) => row.ticket_id}
-        onRowClick={() => {
+        onRowClick={(row) => {
           setViewAllKind(null);
-          navigate("/support");
+          navigate(`/support/${row.ticket_id}`);
         }}
         matchesSearch={(row, q) =>
           `${row.ticket_id} ${row.contact_input ?? ""} ${row.query_text ?? ""}`.toLowerCase().includes(q)

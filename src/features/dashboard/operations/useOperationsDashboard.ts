@@ -101,7 +101,7 @@ function mapKpisToSnapshot(
     showTickets: boolean;
   }
 ): Pick<OperationsSnapshot, "paymentStatusTotals" | "tickets"> {
-  const ticketCounts = data.ticket_counts ?? { open: 0, resolved: 0, closed: 0 };
+  const ticketCounts = data.ticket_counts ?? { open: 0, resolved: 0 };
 
   const paymentStatusTotals: SectionState<PaymentStatusTotals> = flags.showPayments
     ? {
@@ -121,7 +121,6 @@ function mapKpisToSnapshot(
           open: [],
           openCount: ticketCounts.open ?? 0,
           resolvedCount: ticketCounts.resolved ?? 0,
-          closedCount: ticketCounts.closed ?? 0,
         },
       }
     : { status: "idle" };
@@ -144,7 +143,7 @@ function mapOperationsToSnapshot(
   OperationsSnapshot,
   "engagements" | "participants" | "payments" | "notifications" | "tickets" | "bookingIssues"
 > {
-  const ticketCounts = kpis.ticket_counts ?? { open: 0, resolved: 0, closed: 0 };
+  const ticketCounts = kpis.ticket_counts ?? { open: 0, resolved: 0 };
 
   const engagements: SectionState<EngagementBuckets> = flags.showEngagements
     ? {
@@ -189,7 +188,6 @@ function mapOperationsToSnapshot(
           open: ops.tickets.open,
           openCount: ticketCounts.open ?? 0,
           resolvedCount: ticketCounts.resolved ?? 0,
-          closedCount: ticketCounts.closed ?? 0,
         },
       }
     : { status: "idle" };

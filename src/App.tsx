@@ -89,6 +89,11 @@ const Discounts = lazy(() =>
 const SupportTickets = lazy(() =>
   import("./features/support/SupportTickets").then((m) => ({ default: m.SupportTickets }))
 );
+const SupportTicketDetailPage = lazy(() =>
+  import("./features/support/SupportTicketDetailPage").then((m) => ({
+    default: m.SupportTicketDetailPage,
+  }))
+);
 const ChecklistTemplates = lazy(() =>
   import("./features/checklists/ChecklistTemplates").then((m) => ({ default: m.ChecklistTemplates }))
 );
@@ -513,6 +518,7 @@ function AppRoutes() {
           element={<Navigate to="/library/health-metrics" replace />}
         />
         <Route path="my-tasks" element={<MyTasks />} />
+        <Route path="support/:ticketId" element={<PermissionRoute category="support"><SupportTicketDetailPage /></PermissionRoute>} />
         <Route path="support" element={<PermissionRoute category="support"><SupportTickets /></PermissionRoute>} />
         <Route path="server" element={<PermissionRoute category="system_monitoring"><ServerHealth /></PermissionRoute>} />
         <Route

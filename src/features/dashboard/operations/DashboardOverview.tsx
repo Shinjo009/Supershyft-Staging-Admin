@@ -408,8 +408,7 @@ export function DashboardOverview({
   const ticketError = tickets.status === "error" ? tickets.message : null;
   const openTicketCount = ticketReady ? tickets.data.openCount : 0;
   const resolvedTicketCount = ticketReady ? tickets.data.resolvedCount : 0;
-  const closedTicketCount = ticketReady ? tickets.data.closedCount : 0;
-  const ticketTotal = openTicketCount + resolvedTicketCount + closedTicketCount;
+  const ticketTotal = openTicketCount + resolvedTicketCount;
 
   const bookingLoading = bookingIssues.status === "loading";
   const bookingReady = bookingIssues.status === "ready";
@@ -530,7 +529,6 @@ export function DashboardOverview({
               slices={pieSlices([
                 { key: "open", label: "Open", value: openTicketCount, color: "#f59e0b" },
                 { key: "resolved", label: "Resolved", value: resolvedTicketCount, color: "#10b981" },
-                { key: "closed", label: "Closed", value: closedTicketCount, color: "#a1a1aa" },
               ])}
             />
           )}

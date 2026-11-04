@@ -53,7 +53,6 @@ export interface TicketBuckets {
   open: SupportTicket[];
   openCount: number;
   resolvedCount: number;
-  closedCount: number;
 }
 
 /** Booking status totals for overview pie (Cancelled = failed + released). */
