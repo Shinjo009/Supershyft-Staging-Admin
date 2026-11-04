@@ -107,6 +107,7 @@ function pageTitleForPath(pathname: string): string {
     "/superclub": "Super Club",
   };
   if (exact[pathname]) return exact[pathname];
+  if (pathname.startsWith("/dashboard/")) return "Dashboard";
 
   if (pathname.startsWith("/users/")) return "Users";
   if (pathname.startsWith("/experts/")) return "Experts";
@@ -167,7 +168,11 @@ function AdminLayoutView() {
   );
   const pageSubtitle = pageTitleOverride?.subtitle;
   const pageBackTo = pageTitleOverride?.backTo;
-  const isDashboard = location.pathname === "/";
+  const isOverviewDashboard = location.pathname === "/";
+  const isDashboardBranch =
+    isOverviewDashboard ||
+    location.pathname === "/dashboard/b2b" ||
+    location.pathname === "/dashboard/b2c";
   const isSettings = location.pathname.startsWith("/settings");
   const isBlogWriter = location.pathname.startsWith("/blog/editor");
 
@@ -185,7 +190,7 @@ function AdminLayoutView() {
     }`;
 
   return (
-    <div className={`flex bg-zinc-50 ${isBlogWriter ? "h-dvh overflow-hidden" : "min-h-screen"}`}>
+    <div className={`flex bg-zinc-50 ${isBlogWriter || isDashboardBranch ? "h-dvh overflow-hidden" : "min-h-screen"}`}>
       {/* Mobile overlay */}
       {!isBlogWriter && mobileMenuOpen && (
         <div
@@ -273,9 +278,12 @@ function AdminLayoutView() {
               to={to}
               end={end ?? false}
               onClick={closeMobileMenu}
-              className={({ isActive }) =>
-                `${navLinkClass({ isActive })} ${sidebarCollapsed ? "justify-center" : ""}`
-              }
+              className={({ isActive }) => {
+                const dashboardActive =
+                  to === "/" &&
+                  (location.pathname === "/" || location.pathname.startsWith("/dashboard/"));
+                return `${navLinkClass({ isActive: isActive || dashboardActive })} ${sidebarCollapsed ? "justify-center" : ""}`;
+              }}
             >
               <Icon className="w-5 h-5 shrink-0" />
               {!sidebarCollapsed && <span>{label}</span>}
@@ -391,7 +399,7 @@ function AdminLayoutView() {
               <h1 className="text-sm sm:text-base font-semibold text-zinc-900 truncate">{pageTitle}</h1>
               {pageSubtitle ? (
                 <p className="text-[11px] text-zinc-500 truncate leading-tight">{pageSubtitle}</p>
-              ) : isDashboard ? (
+              ) : isDashboardBranch ? (
                 <p className="text-[11px] text-zinc-500 truncate leading-tight">
                   Overview of your admin panel
                 </p>
@@ -403,7 +411,7 @@ function AdminLayoutView() {
             </div>
           </div>
           <div ref={rightRef} className="flex items-center gap-1 sm:gap-2 shrink-0">
-            {isDashboard ? (
+            {isDashboardBranch ? (
               <button
                 type="button"
                 onClick={() => runDashboardRefresh()}
@@ -465,7 +473,11 @@ function AdminLayoutView() {
           className={
             isBlogWriter
               ? "flex-1 min-h-0 min-w-0 flex flex-col p-0 overflow-hidden"
-              : "flex-1 min-w-0 p-4 sm:p-6 overflow-auto"
+              : isOverviewDashboard
+                ? "flex-1 min-h-0 min-w-0 flex flex-col p-4 sm:p-6 overflow-hidden"
+                : isDashboardBranch
+                  ? "flex-1 min-h-0 min-w-0 flex flex-col p-4 sm:p-6 overflow-auto"
+                  : "flex-1 min-w-0 p-4 sm:p-6 overflow-auto"
           }
         >
           <Outlet />

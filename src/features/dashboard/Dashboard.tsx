@@ -1,19 +1,19 @@
 import { useCallback, useEffect, useRef } from "react";
 import { usePermissions } from "../../contexts/PermissionContext";
 import { AccessDenied } from "../../pages/AccessDenied";
+import { CommandDashboard } from "./command/CommandDashboard";
 import { registerDashboardRefresh } from "./dashboardRefreshRegistry";
-import { OperationsDashboard } from "./operations/OperationsDashboard";
 
 export function Dashboard() {
   const { hasAnyAccess } = usePermissions();
-  const operationsRefetch = useRef<() => void>(() => undefined);
-  const registerOperationsRefetch = useCallback((refetch: () => void) => {
-    operationsRefetch.current = refetch;
+  const commandRefetch = useRef<() => void>(() => undefined);
+  const registerCommandRefetch = useCallback((refetch: () => void) => {
+    commandRefetch.current = refetch;
   }, []);
 
   useEffect(() => {
     registerDashboardRefresh(() => {
-      operationsRefetch.current();
+      commandRefetch.current();
     });
     return () => registerDashboardRefresh(null);
   }, []);
@@ -29,8 +29,8 @@ export function Dashboard() {
   }
 
   return (
-    <div className="min-w-0 space-y-4">
-      <OperationsDashboard registerRefetch={registerOperationsRefetch} />
+    <div className="min-w-0">
+      <CommandDashboard registerRefetch={registerCommandRefetch} />
     </div>
   );
 }
