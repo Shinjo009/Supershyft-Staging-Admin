@@ -24,6 +24,8 @@ export function SettingsFormCard({
   saving,
   readOnly,
   saveLabel = "Save",
+  saveDisabled = false,
+  saveDisabledReason,
   onSubmit,
   onDiscard,
 }: {
@@ -36,6 +38,8 @@ export function SettingsFormCard({
   saving?: boolean;
   readOnly?: boolean;
   saveLabel?: string;
+  saveDisabled?: boolean;
+  saveDisabledReason?: string | null;
   onSubmit: FormEventHandler<HTMLFormElement>;
   onDiscard?: () => void;
 }) {
@@ -58,7 +62,11 @@ export function SettingsFormCard({
         {success ? <p className="text-sm text-emerald-700">{success}</p> : null}
       </div>
       {!readOnly ? (
-        <div className="flex items-center justify-end gap-2 border-t border-zinc-100 px-5 py-3">
+        <div className="flex flex-col items-end gap-1 border-t border-zinc-100 px-5 py-3">
+          {saveDisabled && saveDisabledReason ? (
+            <p className="text-xs text-amber-800 text-right max-w-md">{saveDisabledReason}</p>
+          ) : null}
+          <div className="flex items-center justify-end gap-2 w-full">
           {onDiscard ? (
             <button
               type="button"
@@ -71,12 +79,13 @@ export function SettingsFormCard({
           ) : null}
           <button
             type="submit"
-            disabled={!dirty || saving}
+            disabled={!dirty || saving || saveDisabled}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-50 disabled:pointer-events-none"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             {saveLabel}
           </button>
+          </div>
         </div>
       ) : null}
     </form>

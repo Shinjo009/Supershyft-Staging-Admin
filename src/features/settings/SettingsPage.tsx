@@ -24,10 +24,9 @@ import {
   DEFAULT_LOAD_PREV_QUESTIONNAIRE_CATEGORY_KEYS,
   effectiveLoadPrevCategoryKeys,
 } from "../engagements/loadPrevQuestionnaireDefaults";
-import {
-  METSIGHTS_PRO_PACKAGE_CODE,
-  useMetsightsProGateState,
-} from "../engagements/metsightsProGate";
+import { METSIGHTS_PRO_PACKAGE_CODE } from "../engagements/metsightsProGate";
+import { useB2cOnboardingProGateStatuses } from "./b2cMetsightsProGate";
+import { MetsightsProOnboardingCallout } from "./MetsightsProOnboardingCallout";
 import { questionnaireCategoriesApi, type QuestionnaireCategory } from "../../lib/api";
 import {
   assessmentPackagesApi,
@@ -409,8 +408,85 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
     }
   }, [engSyncPhase, engNextPage, engProcessedUsers, engUsersTotal, engSyncTotals]);
 
+  function updateActiveDefaults(patch: Partial<B2cOnboardingTypeDefaults>) {
+    setDefaultsByType((prev) => ({
+      ...prev,
+      [activeEngagementType]: { ...(prev[activeEngagementType] ?? emptyTypeDefaults()), ...patch },
+    }));
+  }
+
+  const activeDefaults = defaultsByType[activeEngagementType] ?? emptyTypeDefaults();
+  const isTypeDirty = (kind: string) =>
+    JSON.stringify(defaultsByType[kind]) !== JSON.stringify(savedDefaultsByType[kind]);
+
+  const onboardingDefaultsDirty =
+    JSON.stringify(defaultsByType) !== JSON.stringify(savedDefaultsByType) ||
+    defaultEngagementTypeCode !== savedDefaultEngagementTypeCode;
+
+  const activeTypeConfig = getTypeConfig(activeEngagementType);
+  const activeTypeHint = getTypeHint(activeEngagementType);
+  const diagnosticSplitMode =
+    (activeDefaults.diagnostic_package_id_male ?? 0) > 0 ||
+    (activeDefaults.diagnostic_package_id_female ?? 0) > 0;
+
+  const applySettingsProGate =
+    activeTypeConfig.needsMetsights && activeTypeConfig.needsDiagnostic;
+  const settingsMetsightsProPackageId = useMemo(() => {
+    const row = assessmentPackages.find(
+      (p) => (p.package_code ?? "").trim() === METSIGHTS_PRO_PACKAGE_CODE
+    );
+    return row?.package_id ?? null;
+  }, [assessmentPackages]);
+
+  const diagnosticBootstrapById = useMemo(
+    () => new Map(diagnosticBootstrapOptions.map((p) => [p.diagnostic_package_id, p])),
+    [diagnosticBootstrapOptions]
+  );
+
+  const {
+    blockedTypes: proGateBlockedTypes,
+    firstBlockedTypeCode: proGateFirstBlockedTypeCode,
+    anyBlocked: proGateAnyBlocked,
+    anyLoading: proGateAnyLoading,
+    activeStatus: proGateActiveStatus,
+    keysByPackageId: proGateKeysByPackageId,
+  } = useB2cOnboardingProGateStatuses({
+    engagementTypes: b2cEngagementTypes,
+    defaultsByType,
+    metsightsProPackageId: settingsMetsightsProPackageId,
+    diagnosticBootstrapById,
+  });
+
+  const activeProGate = proGateActiveStatus(activeEngagementType);
+  const activeProParameterKeys = useMemo(() => {
+    const id = activeProGate?.proGatePackageId;
+    if (!id) return new Set<string>();
+    return proGateKeysByPackageId.get(id) ?? new Set<string>();
+  }, [activeProGate?.proGatePackageId, proGateKeysByPackageId]);
+
+  const proGateSaveBlocked = proGateAnyBlocked || proGateAnyLoading;
+  const proGateSaveDisabledReason = proGateAnyLoading
+    ? "Waiting for diagnostic hormone checks…"
+    : proGateAnyBlocked
+      ? "Resolve Metsights Pro and diagnostic package mismatches on all Bio AI types before saving."
+      : null;
+
+  const blockedTypeCodes = useMemo(
+    () => new Set(proGateBlockedTypes.map((b) => b.typeCode)),
+    [proGateBlockedTypes]
+  );
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    if (proGateAnyBlocked && proGateFirstBlockedTypeCode) {
+      setActiveEngagementType(proGateFirstBlockedTypeCode);
+      setError(
+        proGateBlockedTypes.length === 1
+          ? `${proGateBlockedTypes[0].displayName}: Metsights Pro needs LH, FSH, and total testosterone on the configured diagnostic package.`
+          : `Fix Metsights Pro on: ${proGateBlockedTypes.map((b) => b.displayName).join(", ")}.`
+      );
+      return;
+    }
     const invalidType = b2cEngagementTypes.find((option) => {
       const entry = defaultsByType[option.code];
       return entry?.enroll_for_fitprint_full && !entry.create_profile_on_metsights;
@@ -444,69 +520,6 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
       setSaving(false);
     }
   }
-
-  function updateActiveDefaults(patch: Partial<B2cOnboardingTypeDefaults>) {
-    setDefaultsByType((prev) => ({
-      ...prev,
-      [activeEngagementType]: { ...(prev[activeEngagementType] ?? emptyTypeDefaults()), ...patch },
-    }));
-  }
-
-  const activeDefaults = defaultsByType[activeEngagementType] ?? emptyTypeDefaults();
-  const isTypeDirty = (kind: string) =>
-    JSON.stringify(defaultsByType[kind]) !== JSON.stringify(savedDefaultsByType[kind]);
-
-  const onboardingDefaultsDirty =
-    JSON.stringify(defaultsByType) !== JSON.stringify(savedDefaultsByType) ||
-    defaultEngagementTypeCode !== savedDefaultEngagementTypeCode;
-
-  const activeTypeConfig = getTypeConfig(activeEngagementType);
-  const activeTypeHint = getTypeHint(activeEngagementType);
-  const diagnosticSplitMode =
-    (activeDefaults.diagnostic_package_id_male ?? 0) > 0 ||
-    (activeDefaults.diagnostic_package_id_female ?? 0) > 0;
-
-  const applySettingsProGate =
-    activeTypeConfig.needsMetsights && activeTypeConfig.needsDiagnostic;
-  const settingsDiagnosticPackageMode = diagnosticSplitMode ? "split" : "single";
-  const {
-    proGateLoading: settingsProGateLoading,
-    proGateResolved: settingsProGateResolved,
-    metsightsProAllowed: settingsMetsightsProAllowed,
-    metsightsProMissingLabels: settingsMetsightsProMissingLabels,
-    proGatePackageId: settingsProGatePackageId,
-  } = useMetsightsProGateState({
-    enabled: applySettingsProGate,
-    packageMode: settingsDiagnosticPackageMode,
-    diagnosticPackageId: activeDefaults.diagnostic_package_id,
-    diagnosticPackageIdFemale: activeDefaults.diagnostic_package_id_female,
-  });
-  const settingsMetsightsProPackageId = useMemo(() => {
-    const row = assessmentPackages.find(
-      (p) => (p.package_code ?? "").trim() === METSIGHTS_PRO_PACKAGE_CODE
-    );
-    return row?.package_id ?? null;
-  }, [assessmentPackages]);
-
-  useEffect(() => {
-    if (!applySettingsProGate || !settingsProGateResolved) return;
-    if (!settingsMetsightsProPackageId) return;
-    if (activeDefaults.assessment_package_id !== settingsMetsightsProPackageId) return;
-    if (settingsMetsightsProAllowed) return;
-    updateActiveDefaults({ assessment_package_id: 0 });
-  }, [
-    applySettingsProGate,
-    settingsProGateResolved,
-    settingsMetsightsProAllowed,
-    settingsMetsightsProPackageId,
-    activeDefaults.assessment_package_id,
-    activeEngagementType,
-  ]);
-
-  const diagnosticBootstrapById = useMemo(
-    () => new Map(diagnosticBootstrapOptions.map((p) => [p.diagnostic_package_id, p])),
-    [diagnosticBootstrapOptions]
-  );
 
   const loadPrevCategoriesByGroup = useMemo(() => {
     const metsights: QuestionnaireCategory[] = [];
@@ -1035,6 +1048,8 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
                 saving={saving}
                 readOnly={!mayEditSettings}
                 saveLabel="Save defaults"
+                saveDisabled={proGateSaveBlocked}
+                saveDisabledReason={proGateSaveDisabledReason}
                 onSubmit={handleSave}
                 onDiscard={discardOnboardingDefaults}
               >
@@ -1058,6 +1073,7 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
                   {b2cEngagementTypes.map((option) => {
                     const active = activeEngagementType === option.code;
                     const dirty = isTypeDirty(option.code);
+                    const proBlocked = blockedTypeCodes.has(option.code);
                     return (
                       <button
                         key={option.code}
@@ -1066,10 +1082,13 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
                         className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap ${
                           active
                             ? "border-zinc-900 text-zinc-900"
-                            : "border-transparent text-zinc-500 hover:text-zinc-700"
+                            : proBlocked
+                              ? "border-red-300 text-red-700"
+                              : "border-transparent text-zinc-500 hover:text-zinc-700"
                         }`}
                       >
                         {option.display_name}
+                        {proBlocked ? <span className="ml-1 text-red-500" aria-label="Metsights Pro blocked">!</span> : null}
                         {dirty ? <span className="ml-1 opacity-70">•</span> : null}
                       </button>
                     );
@@ -1189,8 +1208,8 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
                           const disabled =
                             applySettingsProGate &&
                             isPro &&
-                            settingsProGateResolved &&
-                            !settingsMetsightsProAllowed;
+                            activeProGate?.resolved &&
+                            !activeProGate.allowed;
                           return (
                             <option key={pkg.package_id} value={pkg.package_id} disabled={disabled}>
                               {labelAssessment(pkg)}
@@ -1201,23 +1220,12 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
                           );
                         })}
                       </select>
-                      {applySettingsProGate && settingsMetsightsProPackageId != null ? (
-                        <p className="text-xs text-zinc-500 mt-1">
-                          {settingsProGateLoading
-                            ? "Checking diagnostic package for Metsights Pro hormones…"
-                            : !settingsProGatePackageId
-                              ? settingsDiagnosticPackageMode === "split"
-                                ? "Select the female diagnostic package before choosing Metsights Pro."
-                                : "Select a diagnostic package before choosing Metsights Pro."
-                              : settingsMetsightsProMissingLabels.length > 0
-                                ? `Metsights Pro needs LH, FSH, and total testosterone on ${
-                                    settingsDiagnosticPackageMode === "split"
-                                      ? "the female diagnostic package"
-                                      : "this diagnostic package"
-                                  }. Missing: ${settingsMetsightsProMissingLabels.join(", ")}.`
-                                : "This diagnostic package includes the hormones required for Metsights Pro."}
-                        </p>
-                      ) : null}
+                      <MetsightsProOnboardingCallout
+                        activeStatus={activeProGate}
+                        blockedTypes={proGateBlockedTypes}
+                        parameterKeys={activeProParameterKeys}
+                        onSelectType={setActiveEngagementType}
+                      />
                     </div>
                   ) : null}
 
