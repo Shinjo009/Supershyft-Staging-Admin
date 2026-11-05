@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { Modal } from "../../shared/ui/Modal";
@@ -14,6 +14,8 @@ import {
 import {
   buildEngagementCreatePayload,
   buildEngagementUpdatePayload,
+  buildEngagementUpdatePayloadForWizardStep,
+  type EngagementWizardSaveStep,
 } from "./engagementFormSubmit";
 import {
   engagementsApi,
@@ -27,6 +29,7 @@ import {
   type OrganizationListItem,
 } from "../../lib/api";
 import { loadEngagementDiagnosticGroups } from "../diagnostics/diagnosticPackageGroupPicker";
+import { scrollElementIntoView } from "../../shared/hooks/useFormDirtyGuard";
 
 const STEP_KEYS: EngagementFormStepKey[] = [
   "basics",
@@ -69,6 +72,11 @@ export function EngagementFormPage({ mode }: { mode: FormPageMode }) {
     engagementCode: string;
     onDeferredSuccess?: () => void;
   } | null>(null);
+  const pageErrorRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (error) scrollElementIntoView(pageErrorRef.current);
+  }, [error]);
 
   const backTo = useMemo(() => {
     if (mode === "edit" && engagementCode) {
@@ -143,7 +151,7 @@ export function EngagementFormPage({ mode }: { mode: FormPageMode }) {
     engagementId: number,
     payload: Record<string, unknown>,
     code: string,
-    options?: { navigateAway?: boolean },
+    options?: { navigateAway?: boolean; reloadForm?: boolean },
   ) => {
     await engagementsApi.update(engagementId, payload as never);
     setCampNoConfirm(null);
@@ -151,10 +159,14 @@ export function EngagementFormPage({ mode }: { mode: FormPageMode }) {
       navigate(`/engagements/${encodeURIComponent(code)}`);
       return;
     }
-    if (mode === "edit") {
+    const reloadForm = options?.reloadForm !== false;
+    if (mode === "edit" && reloadForm) {
       const engRes = await engagementsApi.getByCode(code);
       setEngagement(engRes.data.data);
       setFormData(engagementToFormData(engRes.data.data));
+    } else if (mode === "edit") {
+      const engRes = await engagementsApi.getByCode(code);
+      setEngagement(engRes.data.data);
     }
   };
 
@@ -200,7 +212,7 @@ export function EngagementFormPage({ mode }: { mode: FormPageMode }) {
 
   const handleSaveAndContinue = async (
     data: EngagementCreate,
-    helpers: { onDeferredSuccess: () => void },
+    helpers: { onDeferredSuccess: () => void; step: EngagementWizardSaveStep },
   ): Promise<boolean> => {
     setSubmitting(true);
     setError(null);
@@ -219,10 +231,15 @@ export function EngagementFormPage({ mode }: { mode: FormPageMode }) {
       }
 
       if (!engagement) return false;
-      const { payload, nextCampNo } = buildEngagementUpdatePayload(data);
+      const { payload, nextCampNo } = buildEngagementUpdatePayloadForWizardStep(data, helpers.step);
       const currentCampNo = engagement.camp_no ?? null;
       const code = (engagement.engagement_code ?? engagementCode ?? "").trim();
-      if (payload.organization_id && nextCampNo != null && currentCampNo !== nextCampNo) {
+      if (
+        helpers.step === "basics" &&
+        payload.organization_id &&
+        nextCampNo != null &&
+        currentCampNo !== nextCampNo
+      ) {
         setCampNoConfirm({
           payload,
           currentCampNo,
@@ -232,9 +249,12 @@ export function EngagementFormPage({ mode }: { mode: FormPageMode }) {
         });
         return false;
       }
-      await performUpdate(engagement.engagement_id, { ...payload, camp_no: nextCampNo }, code, {
-        navigateAway: false,
-      });
+      await performUpdate(
+        engagement.engagement_id,
+        { ...payload, camp_no: nextCampNo },
+        code,
+        { navigateAway: false, reloadForm: false },
+      );
       return true;
     } catch (err) {
       setError(getApiError(err));
@@ -288,7 +308,10 @@ export function EngagementFormPage({ mode }: { mode: FormPageMode }) {
   return (
     <div className="min-w-0 overflow-x-hidden">
       {error ? (
-        <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+        <div
+          ref={pageErrorRef}
+          className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm"
+        >
           {error}
         </div>
       ) : null}

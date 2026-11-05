@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import { Loader2 } from "lucide-react";
@@ -22,6 +22,7 @@ import {
 import { DIAGNOSTICS_TEST_GROUPS_LIST } from "./diagnosticsCatalogPaths";
 import { TestGroupProviderSwitcher } from "./TestGroupProviderSwitcher";
 import { diagnosticProviderDisplayLabel } from "./providerParameterKeys";
+import { useFormDirtyGuard, scrollElementIntoView } from "../../shared/hooks/useFormDirtyGuard";
 
 type FormPageMode = "add" | "edit";
 
@@ -62,6 +63,9 @@ export function DiagnosticTestGroupFormPage({ mode }: { mode: FormPageMode }) {
   const [copyTestsChoiceOpen, setCopyTestsChoiceOpen] = useState(false);
   const [editDetail, setEditDetail] = useState<DiagnosticTestGroupStandalone | null>(null);
   const [formDirty, setFormDirty] = useState(false);
+  const formErrorRef = useRef<HTMLDivElement | null>(null);
+
+  useFormDirtyGuard(formDirty);
 
   const backTo = useMemo(() => {
     if (mode === "add" && joinDefaultId) return `/diagnostics/test-groups/${joinDefaultId}`;
@@ -198,6 +202,7 @@ export function DiagnosticTestGroupFormPage({ mode }: { mode: FormPageMode }) {
   const handleSubmit = async () => {
     if (!form.group_name.trim()) {
       setFormError("Group name is required.");
+      scrollElementIntoView(formErrorRef.current);
       return;
     }
     if (mode === "add" && joinDefaultId) {
@@ -207,6 +212,7 @@ export function DiagnosticTestGroupFormPage({ mode }: { mode: FormPageMode }) {
     const payload = buildTestGroupPayload(form, mode);
     if (!payload.group_key) {
       setFormError("Group key is required.");
+      scrollElementIntoView(formErrorRef.current);
       return;
     }
     setSubmitting(true);
@@ -230,6 +236,7 @@ export function DiagnosticTestGroupFormPage({ mode }: { mode: FormPageMode }) {
       } else {
         setFormError(getApiError(err));
       }
+      scrollElementIntoView(formErrorRef.current);
     } finally {
       setSubmitting(false);
     }
@@ -282,7 +289,12 @@ export function DiagnosticTestGroupFormPage({ mode }: { mode: FormPageMode }) {
         className="space-y-4"
       >
         {formError && (
-          <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{formError}</div>
+          <div
+            ref={formErrorRef}
+            className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm"
+          >
+            {formError}
+          </div>
         )}
         {mode === "add" && joinDefaultId && joinParentName ? (
           <div className="text-sm text-zinc-700 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 space-y-2">

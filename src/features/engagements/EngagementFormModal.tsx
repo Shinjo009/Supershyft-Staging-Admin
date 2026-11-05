@@ -54,9 +54,9 @@ import {
 } from "./slotDetailUtils";
 import {
   METSIGHTS_PRO_PACKAGE_CODE,
-  shouldResetDisallowedMetsightsPro,
   useMetsightsProGateState,
 } from "./metsightsProGate";
+import { useFormDirtyGuard, confirmDiscardUnsavedChanges, scrollElementIntoView } from "../../shared/hooks/useFormDirtyGuard";
 
 const BLOOD_COLLECTION_TYPE_OPTIONS = [
   { value: "", label: "Select mode" },
@@ -134,7 +134,7 @@ export type EngagementFormWizardProps = {
   onSubmit: (data: EngagementCreate) => void;
   onSaveAndContinue?: (
     data: EngagementCreate,
-    helpers: { onDeferredSuccess: () => void },
+    helpers: { onDeferredSuccess: () => void; step: EngagementFormStepKey },
   ) => Promise<boolean>;
   /** When false (legacy engagements), Metsights Pro is not gated in the UI. Defaults to mode === "add". */
   enforceMetsightsProGate?: boolean;
@@ -192,6 +192,8 @@ export function EngagementFormWizard({
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [questionnaireCategories, setQuestionnaireCategories] = useState<QuestionnaireCategory[]>([]);
   const editConfigLoaded = useRef(false);
+  const stepErrorRef = useRef<HTMLParagraphElement | null>(null);
+  const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -477,26 +479,18 @@ export function EngagementFormWizard({
     diagnosticPackageIdFemale: formData.diagnostic_package_id_female,
   });
 
-  useEffect(() => {
-    if (
-      !shouldResetDisallowedMetsightsPro({
-        applyGate: applyMetsightsProGate,
-        gateResolved: proGateResolved,
-        selectedPackageId: formData.assessment_package_id,
-        metsightsProPackageId,
-        allowed: metsightsProAllowed,
-      })
-    ) {
-      return;
+  const formDirty = useMemo(() => {
+    try {
+      const baseChanged = JSON.stringify(formData) !== JSON.stringify(initialData);
+      const initialSlot = normalizeSlotDetail(initialData.slot_detail);
+      const slotChanged = JSON.stringify(slotDetail) !== JSON.stringify(initialSlot);
+      return baseChanged || slotChanged;
+    } catch {
+      return true;
     }
-    setFormData((prev) => ({ ...prev, assessment_package_id: 0 }));
-  }, [
-    applyMetsightsProGate,
-    proGateResolved,
-    metsightsProAllowed,
-    metsightsProPackageId,
-    formData.assessment_package_id,
-  ]);
+  }, [formData, initialData, slotDetail]);
+
+  useFormDirtyGuard(formDirty && open);
 
   const steps = useMemo(
     () =>
@@ -795,9 +789,16 @@ export function EngagementFormWizard({
   };
 
   const validateCurrentStep = () => {
-    if (currentStepKey === "basics") return validateBasics();
-    if (currentStepKey === "offerings") return validateOfferings();
-    return true;
+    const ok =
+      currentStepKey === "basics"
+        ? validateBasics()
+        : currentStepKey === "offerings"
+          ? validateOfferings()
+          : true;
+    if (!ok) {
+      scrollElementIntoView(stepErrorRef.current);
+    }
+    return ok;
   };
 
   const goToStep = (index: number) => {
@@ -1018,10 +1019,30 @@ export function EngagementFormWizard({
     onSubmit(buildWizardPayload({ forStep: "notifications" }));
   };
 
+  const scheduleHasData = useMemo(() => {
+    const pruned = slotDetailForSubmit(slotDetail);
+    return pruned != null;
+  }, [slotDetail]);
+
   const handleSaveAndNext = async () => {
     if (submitting) return;
+    setSaveSuccessMessage(null);
+
+    if (
+      currentStepKey === "schedule" &&
+      !scheduleHasData &&
+      collectionDates.length === 0 &&
+      !isLastStep
+    ) {
+      goNext();
+      return;
+    }
+
     if (!validateCurrentStep()) return;
-    if (currentStepKey === "notifications" && !validateNotificationsStep()) return;
+    if (currentStepKey === "notifications" && !validateNotificationsStep()) {
+      scrollElementIntoView(stepErrorRef.current);
+      return;
+    }
 
     if (isLastStep) {
       handleFinalSubmit();
@@ -1030,16 +1051,23 @@ export function EngagementFormWizard({
 
     const payload = buildWizardPayload({ forStep: currentStepKey });
     if (onSaveAndContinue) {
-      const advanced = await onSaveAndContinue(payload, { onDeferredSuccess: goNext });
-      if (advanced) goNext();
+      const advanced = await onSaveAndContinue(payload, {
+        onDeferredSuccess: goNext,
+        step: currentStepKey,
+      });
+      if (advanced) {
+        setSaveSuccessMessage("Saved");
+        window.setTimeout(() => setSaveSuccessMessage(null), 2500);
+        goNext();
+      }
       return;
     }
     goNext();
   };
 
-  const handleNextWithoutSave = () => {
-    if (submitting) return;
-    goNext();
+  const handleCancel = () => {
+    if (formDirty && !confirmDiscardUnsavedChanges()) return;
+    onClose();
   };
 
   const submitLabel = (() => {
@@ -1053,27 +1081,18 @@ export function EngagementFormWizard({
   const typeHint = getTypeHint(selectedTypeCode);
   const showOfferingsEmpty = selectedTypeCode && !hasOfferingsFields(selectedTypeCode);
 
-  const scheduleHasData = useMemo(() => {
-    const pruned = slotDetailForSubmit(slotDetail);
-    return pruned != null;
-  }, [slotDetail]);
-
-  const nextButtonLabel = (() => {
-    if (currentStepKey === "offerings" && needsScheduleStep(
-      selectedTypeCode,
-      formData.blood_collection_type,
-      formData.consultation_mode,
-      scheduleIntent
-    )) {
-      return "Next: Set up schedule";
-    }
-    if (currentStepKey === "schedule" && !scheduleHasData && collectionDates.length === 0) {
+  const saveAndNextLabel = (() => {
+    if (submitting) return "Saving...";
+    if (
+      currentStepKey === "schedule" &&
+      !scheduleHasData &&
+      collectionDates.length === 0 &&
+      !isLastStep
+    ) {
       return "Skip";
     }
-    return "Next";
+    return isLastStep ? submitLabel : "Save and Next";
   })();
-
-  const saveAndNextLabel = submitting ? "Saving..." : "Save and Next";
 
   if (variant === "modal" && !open) return null;
 
@@ -1131,7 +1150,14 @@ export function EngagementFormWizard({
           })}
         </div>
 
-        {stepError && <p className="text-sm text-red-600">{stepError}</p>}
+        {stepError && (
+          <p ref={stepErrorRef} className="text-sm text-red-600">
+            {stepError}
+          </p>
+        )}
+        {saveSuccessMessage ? (
+          <p className="text-sm text-emerald-700">{saveSuccessMessage}</p>
+        ) : null}
 
         {currentStepKey === "basics" && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1957,29 +1983,19 @@ export function EngagementFormWizard({
       <div className={footerClass}>
         <button
           type="button"
-          onClick={onClose}
+          onClick={handleCancel}
           disabled={submitting}
           className="w-full sm:w-auto px-4 py-2 rounded-lg border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50"
         >
           Cancel
         </button>
-        {!isLastStep ? (
-          <button
-            type="button"
-            onClick={() => void handleNextWithoutSave()}
-            disabled={submitting}
-            className="w-full sm:w-auto px-4 py-2 rounded-lg border border-zinc-300 text-zinc-800 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50"
-          >
-            {nextButtonLabel}
-          </button>
-        ) : null}
         <button
           type="button"
           onClick={() => void handleSaveAndNext()}
           disabled={submitting}
           className="w-full sm:w-auto px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 disabled:opacity-50"
         >
-          {isLastStep ? (submitting ? "Saving..." : submitLabel) : saveAndNextLabel}
+          {saveAndNextLabel}
         </button>
       </div>
     </div>

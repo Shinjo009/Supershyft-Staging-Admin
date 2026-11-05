@@ -10,8 +10,11 @@ import {
 } from "../engagements/metsightsProGate";
 import { diagnosticPackagesApi } from "../../lib/api";
 import type { B2cDefaultsByType } from "./settingsUtils";
+import { emptyTypeDefaults } from "./settingsUtils";
 
 export { METSIGHTS_PRO_PACKAGE_CODE };
+
+export const METSIGHTS_ESSENTIALS_PACKAGE_CODE = "METSIGHTS_ESSENTIALS";
 
 export const METSIGHTS_PRO_HORMONE_ROWS = [
   { label: "LH", keys: ["lh", "lh_value"] },
@@ -63,6 +66,29 @@ function diagnosticLabel(
   return name ? `${name} (#${packageId})` : `Diagnostic package #${packageId}`;
 }
 
+export function resolveB2cTypeDefaults(
+  defaultsByType: B2cDefaultsByType,
+  typeCode: string
+): B2cOnboardingTypeDefaults {
+  return defaultsByType[typeCode] ?? emptyTypeDefaults();
+}
+
+export function applyEssentialsToAllBioAiTypes(
+  defaultsByType: B2cDefaultsByType,
+  typeCodes: string[],
+  essentialsPackageId: number
+): B2cDefaultsByType {
+  const next = { ...defaultsByType };
+  for (const code of typeCodes) {
+    if (!b2cTypeNeedsProGate(code)) continue;
+    next[code] = {
+      ...(next[code] ?? emptyTypeDefaults()),
+      assessment_package_id: essentialsPackageId,
+    };
+  }
+  return next;
+}
+
 export function evaluateB2cTypeProGateStatus(options: {
   typeCode: string;
   displayName: string;
@@ -93,7 +119,7 @@ export function evaluateB2cTypeProGateStatus(options: {
       })
     : undefined;
 
-  const loading = Boolean(proGatePackageId && loadingPackageIds.has(proGatePackageId));
+  const loading = Boolean(isProSelected && proGatePackageId && loadingPackageIds.has(proGatePackageId));
 
   let gateResolved = true;
   if (needsGate && isProSelected && proGatePackageId) {
@@ -150,7 +176,7 @@ export function useB2cOnboardingProGateStatuses(options: {
     const ids = new Set<number>();
     for (const t of engagementTypes) {
       if (!b2cTypeNeedsProGate(t.code)) continue;
-      const defaults = defaultsByType[t.code];
+      const defaults = resolveB2cTypeDefaults(defaultsByType, t.code);
       if (!defaults || metsightsProPackageId == null) continue;
       if (defaults.assessment_package_id !== metsightsProPackageId) continue;
       const mode = b2cDefaultsDiagnosticMode(defaults);
@@ -205,7 +231,7 @@ export function useB2cOnboardingProGateStatuses(options: {
         evaluateB2cTypeProGateStatus({
           typeCode: t.code,
           displayName: t.display_name,
-          defaults: defaultsByType[t.code] ?? ({} as B2cOnboardingTypeDefaults),
+          defaults: resolveB2cTypeDefaults(defaultsByType, t.code),
           metsightsProPackageId,
           keysByPackageId,
           loadingPackageIds,
@@ -224,7 +250,7 @@ export function useB2cOnboardingProGateStatuses(options: {
   const blockedTypes = statuses.filter((s) => s.blocked);
   const firstBlockedTypeCode = blockedTypes[0]?.typeCode ?? null;
   const anyBlocked = blockedTypes.length > 0;
-  const anyLoading = statuses.some((s) => s.loading);
+  const anyLoading = statuses.some((s) => s.isProSelected && s.loading);
 
   const activeStatus = (typeCode: string) => statuses.find((s) => s.typeCode === typeCode);
 

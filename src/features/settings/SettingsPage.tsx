@@ -25,7 +25,8 @@ import {
   effectiveLoadPrevCategoryKeys,
 } from "../engagements/loadPrevQuestionnaireDefaults";
 import { METSIGHTS_PRO_PACKAGE_CODE } from "../engagements/metsightsProGate";
-import { useB2cOnboardingProGateStatuses } from "./b2cMetsightsProGate";
+import { useB2cOnboardingProGateStatuses, applyEssentialsToAllBioAiTypes, METSIGHTS_ESSENTIALS_PACKAGE_CODE, b2cTypeNeedsProGate } from "./b2cMetsightsProGate";
+import { B2cOnboardingProGateSummary } from "./B2cOnboardingProGateSummary";
 import { MetsightsProOnboardingCallout } from "./MetsightsProOnboardingCallout";
 import { questionnaireCategoriesApi, type QuestionnaireCategory } from "../../lib/api";
 import {
@@ -450,6 +451,7 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
     anyLoading: proGateAnyLoading,
     activeStatus: proGateActiveStatus,
     keysByPackageId: proGateKeysByPackageId,
+    statuses: proGateStatuses,
   } = useB2cOnboardingProGateStatuses({
     engagementTypes: b2cEngagementTypes,
     defaultsByType,
@@ -466,10 +468,26 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
 
   const proGateSaveBlocked = proGateAnyBlocked || proGateAnyLoading;
   const proGateSaveDisabledReason = proGateAnyLoading
-    ? "Waiting for diagnostic hormone checks…"
+    ? "Waiting for Metsights Pro hormone checks on tabs that still use Pro…"
     : proGateAnyBlocked
-      ? "Resolve Metsights Pro and diagnostic package mismatches on all Bio AI types before saving."
+      ? proGateBlockedTypes.length === 1
+        ? `Fix ${proGateBlockedTypes[0].displayName}: use MetSights Essentials or a diagnostic package with LH, FSH, and total testosterone.`
+        : `Fix ${proGateBlockedTypes.map((b) => b.displayName).join(" and ")} (see checklist above), or use MetSights Essentials on all Bio AI types.`
       : null;
+
+  const essentialsPackageId = useMemo(() => {
+    const row = assessmentPackages.find(
+      (p) => (p.package_code ?? "").trim() === METSIGHTS_ESSENTIALS_PACKAGE_CODE
+    );
+    return row?.package_id ?? null;
+  }, [assessmentPackages]);
+
+  function applyEssentialsOnAllBioAiTypes() {
+    if (!essentialsPackageId) return;
+    const codes = b2cEngagementTypes.map((t) => t.code).filter((code) => b2cTypeNeedsProGate(code));
+    setDefaultsByType((prev) => applyEssentialsToAllBioAiTypes(prev, codes, essentialsPackageId));
+    setError(null);
+  }
 
   const blockedTypeCodes = useMemo(
     () => new Set(proGateBlockedTypes.map((b) => b.typeCode)),
@@ -1098,6 +1116,17 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <SettingsSectionHeading>Packages</SettingsSectionHeading>
+
+                  {proGateStatuses.length > 0 ? (
+                    <B2cOnboardingProGateSummary
+                      statuses={proGateStatuses}
+                      activeTypeCode={activeEngagementType}
+                      onSelectType={setActiveEngagementType}
+                      onApplyEssentialsToAll={applyEssentialsOnAllBioAiTypes}
+                      essentialsAvailable={essentialsPackageId != null}
+                      readOnly={!mayEditSettings}
+                    />
+                  ) : null}
 
                   {activeTypeConfig.needsDiagnostic ? (
                     <div className="sm:col-span-2 space-y-3">

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { usePageHeader } from "../../layouts/PageHeaderActions";
@@ -23,6 +23,7 @@ import {
 } from "./diagnosticPackageFormData";
 import { PackageProviderSwitcher } from "./PackageProviderSwitcher";
 import { diagnosticProviderDisplayLabel } from "./providerParameterKeys";
+import { useFormDirtyGuard, scrollElementIntoView } from "../../shared/hooks/useFormDirtyGuard";
 
 type FormPageMode = "add" | "edit";
 
@@ -97,6 +98,9 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
   const [testGroupChoiceOpen, setTestGroupChoiceOpen] = useState(false);
   const [editDetail, setEditDetail] = useState<DiagnosticPackageDetail | null>(null);
   const [formDirty, setFormDirty] = useState(false);
+  const formErrorRef = useRef<HTMLDivElement | null>(null);
+
+  useFormDirtyGuard(formDirty);
 
   const backTo = useMemo(() => {
     if (mode === "add" && joinDefaultId) return `/diagnostics/packages/${joinDefaultId}`;
@@ -200,6 +204,7 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
       setForm((prev) => ({ ...prev, package_image: res.data.data.url }));
     } catch (err) {
       setFormError(getApiError(err));
+      scrollElementIntoView(formErrorRef.current);
     } finally {
       setImageUploading(false);
     }
@@ -222,6 +227,7 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
       navigate(`/diagnostics/packages/${id}`);
     } catch (err) {
       setFormError(getApiError(err));
+      scrollElementIntoView(formErrorRef.current);
     } finally {
       setSubmitting(false);
     }
@@ -231,6 +237,7 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
     const validation = validatePackageForm(form);
     if (validation) {
       setFormError(validation);
+      scrollElementIntoView(formErrorRef.current);
       return;
     }
     if (mode === "add" && joinDefaultId) {
@@ -250,6 +257,7 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
       navigate(`/diagnostics/packages/${packageId}`);
     } catch (err) {
       setFormError(getApiError(err));
+      scrollElementIntoView(formErrorRef.current);
     } finally {
       setSubmitting(false);
     }
@@ -302,7 +310,12 @@ export function DiagnosticPackageFormPage({ mode }: { mode: FormPageMode }) {
         className="space-y-4"
       >
         {formError && (
-          <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{formError}</div>
+          <div
+            ref={formErrorRef}
+            className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm"
+          >
+            {formError}
+          </div>
         )}
         {mode === "add" && joinDefaultId && joinParentName ? (
           <div className="text-sm text-zinc-700 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 space-y-2">

@@ -16,14 +16,19 @@ export function MetsightsProOnboardingCallout({
 }: Props) {
   if (!activeStatus?.isProSelected) {
     if (blockedTypes.length === 0) return null;
+    const othersOnly = blockedTypes.filter((b) => b.typeCode !== activeStatus?.typeCode);
     return (
       <div
         className="sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
         role="status"
       >
-        <p className="font-medium">Metsights Pro is blocked on other engagement types</p>
+        <p className="font-medium">This tab is OK — other Bio AI types still block save</p>
+        <p className="text-xs mt-1 text-amber-900/90">
+          Assessment here is not Metsights Pro. Fix the tabs below (or use &quot;Use MetSights Essentials on all Bio AI
+          types&quot; above), then save once.
+        </p>
         <ul className="mt-2 list-disc pl-5 space-y-1">
-          {blockedTypes.map((row) => (
+          {(othersOnly.length > 0 ? othersOnly : blockedTypes).map((row) => (
             <li key={row.typeCode}>
               <button
                 type="button"
