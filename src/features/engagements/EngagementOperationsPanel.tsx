@@ -47,6 +47,10 @@ import {
   fetchInstancesForPush,
   runPushQuestionnairesBatch,
 } from "./pushQuestionnairesBatch";
+import {
+  METSIGHTS_PRO_PACKAGE_CODE,
+  useMetsightsProGateState,
+} from "./metsightsProGate";
 
 import { OpsLegend } from "./engagementOpsQuestionnaireUi";
 
@@ -124,6 +128,45 @@ export function EngagementOperationsPanel({ engagement, active, onEngagementUpda
   const [assessmentConnectError, setAssessmentConnectError] = useState<string | null>(null);
   const [engagementAssignPackageCode, setSelectedAssignPackageCode] = useState("");
   const [allActivePackages, setAllActivePackages] = useState<AssessmentPackage[]>([]);
+
+  const applyAssignProGate = Boolean(engagement.enforce_metsights_pro_gate);
+  const assignDiagnosticPackageMode = useMemo((): "single" | "split" => {
+    const hasMale = (engagement.diagnostic_package_id_male ?? 0) > 0;
+    const hasFemale = (engagement.diagnostic_package_id_female ?? 0) > 0;
+    return hasMale && hasFemale ? "split" : "single";
+  }, [
+    engagement.diagnostic_package_id_male,
+    engagement.diagnostic_package_id_female,
+  ]);
+  const {
+    proGateLoading: assignProGateLoading,
+    metsightsProAllowed: assignMetsightsProAllowed,
+    metsightsProMissingLabels: assignMetsightsProMissingLabels,
+    proGatePackageId: assignProGatePackageId,
+  } = useMetsightsProGateState({
+    enabled: applyAssignProGate && assessmentAssignOpen,
+    packageMode: assignDiagnosticPackageMode,
+    diagnosticPackageId: engagement.diagnostic_package_id,
+    diagnosticPackageIdFemale: engagement.diagnostic_package_id_female,
+  });
+
+  useEffect(() => {
+    if (!applyAssignProGate || !assessmentAssignOpen) return;
+    if (assignMetsightsProAllowed) return;
+    if (engagementAssignPackageCode.trim() !== METSIGHTS_PRO_PACKAGE_CODE) return;
+    setSelectedAssignPackageCode("");
+  }, [
+    applyAssignProGate,
+    assessmentAssignOpen,
+    assignMetsightsProAllowed,
+    engagementAssignPackageCode,
+  ]);
+
+  const assignProSelectionBlocked =
+    applyAssignProGate &&
+    engagementAssignPackageCode.trim() === METSIGHTS_PRO_PACKAGE_CODE &&
+    !assignMetsightsProAllowed;
+
   const [pushConfirmPkg, setPushConfirmPkg] = useState<EngagementAssessmentPackageSummary | null>(null);
   const [pushSelectedCategories, setPushSelectedCategories] = useState<string[]>([]);
   const [pushing, setPushing] = useState(false);
@@ -1099,12 +1142,38 @@ export function EngagementOperationsPanel({ engagement, active, onEngagementUpda
             <option value="">Select a package…</option>
             {allActivePackages
               .filter((p) => p.package_code)
-              .map((p) => (
-                <option key={p.package_id} value={p.package_code!}>
-                  {p.display_name ?? p.package_code} ({p.package_code})
-                </option>
-              ))}
+              .map((p) => {
+                const isPro =
+                  (p.package_code ?? "").trim() === METSIGHTS_PRO_PACKAGE_CODE;
+                const disabled = applyAssignProGate && isPro && !assignMetsightsProAllowed;
+                const label = p.display_name ?? p.package_code ?? String(p.package_id);
+                return (
+                  <option key={p.package_id} value={p.package_code!} disabled={disabled}>
+                    {label}
+                    {disabled
+                      ? " (needs LH, FSH, total testosterone on diagnostic package)"
+                      : ""}
+                  </option>
+                );
+              })}
           </select>
+          {applyAssignProGate && (
+            <p className="text-xs text-zinc-500">
+              {assignProGateLoading
+                ? "Checking diagnostic package for Metsights Pro hormones…"
+                : !assignProGatePackageId
+                  ? assignDiagnosticPackageMode === "split"
+                    ? "Select the female diagnostic package on this engagement before assigning Metsights Pro."
+                    : "This engagement needs a diagnostic package before assigning Metsights Pro."
+                  : assignMetsightsProMissingLabels.length > 0
+                    ? `Metsights Pro needs LH, FSH, and total testosterone on ${
+                        assignDiagnosticPackageMode === "split"
+                          ? "the female diagnostic package"
+                          : "this diagnostic package"
+                      }. Missing: ${assignMetsightsProMissingLabels.join(", ")}.`
+                    : "This diagnostic package includes the hormones required for Metsights Pro."}
+            </p>
+          )}
 
           {assessmentAssignResult && (
             <div className="rounded-lg bg-zinc-50 border border-zinc-200 p-3 text-xs space-y-1">
@@ -1120,7 +1189,7 @@ export function EngagementOperationsPanel({ engagement, active, onEngagementUpda
             <button
               type="button"
               onClick={handleAssessmentAssign}
-              disabled={!engagementAssignPackageCode || assessmentAssigning}
+              disabled={!engagementAssignPackageCode || assessmentAssigning || assignProSelectionBlocked}
               className="w-full sm:w-auto px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 disabled:opacity-50"
             >
               {assessmentAssigning ? "Assigning…" : "Assign to All Participants"}

@@ -306,6 +306,9 @@ export function EngagementFormPage({ mode }: { mode: FormPageMode }) {
         diagnosticPackageGroups={diagnosticPackageGroups}
         notificationServices={notificationServices}
         submitting={submitting}
+        enforceMetsightsProGate={
+          mode === "add" || Boolean(engagement?.enforce_metsights_pro_gate)
+        }
         onClose={() => navigate(backTo)}
         onSubmit={(data) => void handleSubmit(data)}
         onSaveAndContinue={handleSaveAndContinue}

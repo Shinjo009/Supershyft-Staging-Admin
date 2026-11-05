@@ -2578,6 +2578,7 @@ export interface Engagement {
   enroll_for_fitprint_full?: boolean | null;
   load_prev_assessment_questionnaires?: boolean | null;
   load_prev_questionnaire_category_keys?: string[] | null;
+  enforce_metsights_pro_gate?: boolean | null;
   /** @deprecated Use notifications array instead */
   onboarding_notification?: string | null;
   /** @deprecated Use notifications array instead */

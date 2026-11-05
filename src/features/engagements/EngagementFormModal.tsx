@@ -139,6 +139,8 @@ export type EngagementFormWizardProps = {
     data: EngagementCreate,
     helpers: { onDeferredSuccess: () => void },
   ) => Promise<boolean>;
+  /** When false (legacy engagements), Metsights Pro is not gated in the UI. Defaults to mode === "add". */
+  enforceMetsightsProGate?: boolean;
 };
 
 type Props = EngagementFormWizardProps;
@@ -159,7 +161,9 @@ export function EngagementFormWizard({
   onClose,
   onSubmit,
   onSaveAndContinue,
+  enforceMetsightsProGate,
 }: Props) {
+  const applyMetsightsProGate = enforceMetsightsProGate ?? mode === "add";
   const [stepIndex, setStepIndex] = useState(0);
   const [formData, setFormData] = useState<EngagementCreate>(initialData);
   const [slotDetail, setSlotDetail] = useState<SlotDetail>(() =>
@@ -472,7 +476,7 @@ export function EngagementFormWizard({
   const [proGateLoading, setProGateLoading] = useState(false);
 
   useEffect(() => {
-    if (!open || !typeConfig.needsAssessment) {
+    if (!open || !typeConfig.needsAssessment || !applyMetsightsProGate) {
       setProGateParameterKeys(new Set());
       return;
     }
@@ -497,7 +501,7 @@ export function EngagementFormWizard({
     return () => {
       cancelled = true;
     };
-  }, [open, proGatePackageId, typeConfig.needsAssessment]);
+  }, [open, proGatePackageId, typeConfig.needsAssessment, applyMetsightsProGate]);
 
   const metsightsProAllowed = useMemo(
     () => isMetsightsProAllowed(proGateParameterKeys, proGatePackageId),
@@ -510,10 +514,11 @@ export function EngagementFormWizard({
   }, [proGateParameterKeys, proGatePackageId]);
 
   useEffect(() => {
+    if (!applyMetsightsProGate) return;
     if (!metsightsProPackageId || formData.assessment_package_id !== metsightsProPackageId) return;
     if (metsightsProAllowed) return;
     setFormData((prev) => ({ ...prev, assessment_package_id: 0 }));
-  }, [metsightsProAllowed, metsightsProPackageId, formData.assessment_package_id]);
+  }, [applyMetsightsProGate, metsightsProAllowed, metsightsProPackageId, formData.assessment_package_id]);
 
   const steps = useMemo(
     () =>
@@ -767,6 +772,7 @@ export function EngagementFormWizard({
     }
 
     if (
+      applyMetsightsProGate &&
       metsightsProPackageId &&
       formData.assessment_package_id === metsightsProPackageId &&
       !metsightsProAllowed
@@ -1440,7 +1446,8 @@ export function EngagementFormWizard({
                   {assessmentPackages.map((p) => {
                     const isPro =
                       (p.package_code ?? "").trim() === METSIGHTS_PRO_PACKAGE_CODE;
-                    const disabled = isPro && !metsightsProAllowed;
+                    const disabled =
+                      applyMetsightsProGate && isPro && !metsightsProAllowed;
                     const label = p.display_name ?? p.package_code ?? String(p.package_id);
                     return (
                       <option key={p.package_id} value={p.package_id} disabled={disabled}>
@@ -1452,7 +1459,9 @@ export function EngagementFormWizard({
                     );
                   })}
                 </select>
-                {typeConfig.needsDiagnostic && metsightsProPackageId != null && (
+                {applyMetsightsProGate &&
+                  typeConfig.needsDiagnostic &&
+                  metsightsProPackageId != null && (
                   <p className="text-xs text-zinc-500 mt-1">
                     {proGateLoading
                       ? "Checking diagnostic package for Metsights Pro hormones…"

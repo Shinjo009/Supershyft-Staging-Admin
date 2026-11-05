@@ -1,4 +1,6 @@
 import type { EngagementCreate, PackageTestsResponse } from "../../lib/api";
+import { useEffect, useMemo, useState } from "react";
+import { diagnosticPackagesApi } from "../../lib/api";
 
 export const METSIGHTS_PRO_PACKAGE_CODE = "METSIGHTS_PRO";
 
@@ -50,4 +52,69 @@ export function isMetsightsProAllowed(
 ): boolean {
   if (!proGatePackageId || proGatePackageId <= 0) return false;
   return missingMetsightsProHormones(parameterKeys).length === 0;
+}
+
+export function useMetsightsProGateState(options: {
+  enabled: boolean;
+  packageMode: "single" | "split";
+  diagnosticPackageId: number | null | undefined;
+  diagnosticPackageIdFemale: number | null | undefined;
+}) {
+  const { enabled, packageMode, diagnosticPackageId, diagnosticPackageIdFemale } = options;
+
+  const proGatePackageId = useMemo(() => {
+    if (!enabled) return undefined;
+    return diagnosticPackageIdForProGate(packageMode, {
+      diagnostic_package_id: diagnosticPackageId ?? undefined,
+      diagnostic_package_id_female: diagnosticPackageIdFemale ?? undefined,
+    });
+  }, [enabled, packageMode, diagnosticPackageId, diagnosticPackageIdFemale]);
+
+  const [proGateParameterKeys, setProGateParameterKeys] = useState<Set<string>>(() => new Set());
+  const [proGateLoading, setProGateLoading] = useState(false);
+
+  useEffect(() => {
+    if (!enabled) {
+      setProGateParameterKeys(new Set());
+      return;
+    }
+    if (!proGatePackageId) {
+      setProGateParameterKeys(new Set());
+      return;
+    }
+    let cancelled = false;
+    setProGateLoading(true);
+    diagnosticPackagesApi
+      .getTests(proGatePackageId)
+      .then((res) => {
+        if (cancelled) return;
+        setProGateParameterKeys(collectParameterKeysFromTests(res.data.data));
+      })
+      .catch(() => {
+        if (!cancelled) setProGateParameterKeys(new Set());
+      })
+      .finally(() => {
+        if (!cancelled) setProGateLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, proGatePackageId]);
+
+  const metsightsProAllowed = useMemo(() => {
+    if (!enabled) return true;
+    return isMetsightsProAllowed(proGateParameterKeys, proGatePackageId);
+  }, [enabled, proGateParameterKeys, proGatePackageId]);
+
+  const metsightsProMissingLabels = useMemo(() => {
+    if (!enabled || !proGatePackageId) return [];
+    return missingMetsightsProHormones(proGateParameterKeys);
+  }, [enabled, proGateParameterKeys, proGatePackageId]);
+
+  return {
+    proGatePackageId,
+    proGateLoading,
+    metsightsProAllowed,
+    metsightsProMissingLabels,
+  };
 }

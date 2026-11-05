@@ -24,6 +24,10 @@ import {
   DEFAULT_LOAD_PREV_QUESTIONNAIRE_CATEGORY_KEYS,
   effectiveLoadPrevCategoryKeys,
 } from "../engagements/loadPrevQuestionnaireDefaults";
+import {
+  METSIGHTS_PRO_PACKAGE_CODE,
+  useMetsightsProGateState,
+} from "../engagements/metsightsProGate";
 import { questionnaireCategoriesApi, type QuestionnaireCategory } from "../../lib/api";
 import {
   assessmentPackagesApi,
@@ -461,6 +465,41 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
   const diagnosticSplitMode =
     (activeDefaults.diagnostic_package_id_male ?? 0) > 0 ||
     (activeDefaults.diagnostic_package_id_female ?? 0) > 0;
+
+  const applySettingsProGate =
+    activeTypeConfig.needsMetsights && activeTypeConfig.needsDiagnostic;
+  const settingsDiagnosticPackageMode = diagnosticSplitMode ? "split" : "single";
+  const {
+    proGateLoading: settingsProGateLoading,
+    metsightsProAllowed: settingsMetsightsProAllowed,
+    metsightsProMissingLabels: settingsMetsightsProMissingLabels,
+    proGatePackageId: settingsProGatePackageId,
+  } = useMetsightsProGateState({
+    enabled: applySettingsProGate,
+    packageMode: settingsDiagnosticPackageMode,
+    diagnosticPackageId: activeDefaults.diagnostic_package_id,
+    diagnosticPackageIdFemale: activeDefaults.diagnostic_package_id_female,
+  });
+  const settingsMetsightsProPackageId = useMemo(() => {
+    const row = assessmentPackages.find(
+      (p) => (p.package_code ?? "").trim() === METSIGHTS_PRO_PACKAGE_CODE
+    );
+    return row?.package_id ?? null;
+  }, [assessmentPackages]);
+
+  useEffect(() => {
+    if (!applySettingsProGate) return;
+    if (!settingsMetsightsProPackageId) return;
+    if (activeDefaults.assessment_package_id !== settingsMetsightsProPackageId) return;
+    if (settingsMetsightsProAllowed) return;
+    updateActiveDefaults({ assessment_package_id: 0 });
+  }, [
+    applySettingsProGate,
+    settingsMetsightsProAllowed,
+    settingsMetsightsProPackageId,
+    activeDefaults.assessment_package_id,
+    activeEngagementType,
+  ]);
 
   const diagnosticBootstrapById = useMemo(
     () => new Map(diagnosticBootstrapOptions.map((p) => [p.diagnostic_package_id, p])),
@@ -1038,24 +1077,6 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <SettingsSectionHeading>Packages</SettingsSectionHeading>
-                  {activeTypeConfig.needsAssessment ? (
-                    <div className="sm:col-span-2">
-                      <label htmlFor="b2c-assessment" className="block text-sm font-medium text-zinc-700 mb-1">
-                        Default assessment package
-                      </label>
-                      <select
-                        id="b2c-assessment"
-                        className={inputClass}
-                        value={activeDefaults.assessment_package_id}
-                        onChange={(ev) => updateActiveDefaults({ assessment_package_id: Number(ev.target.value) })}
-                        disabled={!mayEditSettings}
-                      >
-                        {assessmentPackages.map((pkg) => (
-                          <option key={pkg.package_id} value={pkg.package_id}>{labelAssessment(pkg)}</option>
-                        ))}
-                      </select>
-                    </div>
-                  ) : null}
 
                   {activeTypeConfig.needsDiagnostic ? (
                     <div className="sm:col-span-2 space-y-3">
@@ -1142,6 +1163,56 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
                           />
                         </div>
                       )}
+                    </div>
+                  ) : null}
+
+                  {activeTypeConfig.needsAssessment ? (
+                    <div className="sm:col-span-2">
+                      <label htmlFor="b2c-assessment" className="block text-sm font-medium text-zinc-700 mb-1">
+                        Default assessment package
+                      </label>
+                      <select
+                        id="b2c-assessment"
+                        className={inputClass}
+                        value={activeDefaults.assessment_package_id || 0}
+                        onChange={(ev) =>
+                          updateActiveDefaults({ assessment_package_id: Number(ev.target.value) })
+                        }
+                        disabled={!mayEditSettings}
+                      >
+                        <option value={0}>Select package</option>
+                        {assessmentPackages.map((pkg) => {
+                          const isPro =
+                            (pkg.package_code ?? "").trim() === METSIGHTS_PRO_PACKAGE_CODE;
+                          const disabled =
+                            applySettingsProGate && isPro && !settingsMetsightsProAllowed;
+                          return (
+                            <option key={pkg.package_id} value={pkg.package_id} disabled={disabled}>
+                              {labelAssessment(pkg)}
+                              {disabled
+                                ? " (needs LH, FSH, total testosterone on diagnostic package)"
+                                : ""}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      {applySettingsProGate && settingsMetsightsProPackageId != null ? (
+                        <p className="text-xs text-zinc-500 mt-1">
+                          {settingsProGateLoading
+                            ? "Checking diagnostic package for Metsights Pro hormones…"
+                            : !settingsProGatePackageId
+                              ? settingsDiagnosticPackageMode === "split"
+                                ? "Select the female diagnostic package before choosing Metsights Pro."
+                                : "Select a diagnostic package before choosing Metsights Pro."
+                              : settingsMetsightsProMissingLabels.length > 0
+                                ? `Metsights Pro needs LH, FSH, and total testosterone on ${
+                                    settingsDiagnosticPackageMode === "split"
+                                      ? "the female diagnostic package"
+                                      : "this diagnostic package"
+                                  }. Missing: ${settingsMetsightsProMissingLabels.join(", ")}.`
+                                : "This diagnostic package includes the hormones required for Metsights Pro."}
+                        </p>
+                      ) : null}
                     </div>
                   ) : null}
 
