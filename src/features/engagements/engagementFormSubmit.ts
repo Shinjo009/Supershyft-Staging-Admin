@@ -84,11 +84,9 @@ export function buildEngagementUpdatePayload(data: EngagementCreate) {
   const payload: Record<string, unknown> = {
     engagement_name: data.engagement_name,
     ...engagementUpdateIdentityFields(data),
-    metsights_engagement_id: data.metsights_engagement_id?.trim() || null,
     organization_id: orgId,
     ...engagementOfferingsFields(data),
     ...locationFields,
-    healthians_zone_id: data.healthians_zone_id?.trim() || null,
   };
   if (data.notifications !== undefined) {
     payload.notifications = data.notifications;
