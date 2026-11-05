@@ -25,3 +25,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local E2E session (tokens)
+.e2e-session.json
+.e2e-inject.js

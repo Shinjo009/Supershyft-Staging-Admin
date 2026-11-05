@@ -981,8 +981,6 @@ export const participantJourneyApi = {
       `/users/${userId}/participant-journey`,
       { params }
     ),
-  overview: (userId: number) =>
-    api.get<{ data: Record<string, unknown> }>(`/users/${userId}/participant-journey/overview`),
   detail: (userId: number, assessmentInstanceId: number) =>
     api.get<{ data: ParticipantJourneyDetail }>(
       `/users/${userId}/participant-journey/${assessmentInstanceId}`
