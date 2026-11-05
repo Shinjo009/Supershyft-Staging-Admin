@@ -241,7 +241,13 @@ export function EngagementDetailPage() {
             label="Console"
             icon={Monitor}
             iconOnly
-            onClick={() => navigate(`/engagements/console?engagement=${engagement.engagement_id}`)}
+            onClick={() =>
+              window.open(
+                `/engagements/console?engagement=${engagement.engagement_id}`,
+                "_blank",
+                "noopener,noreferrer",
+              )
+            }
             variant="secondary"
           />
           <HeaderActionButton

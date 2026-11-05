@@ -355,6 +355,8 @@ function AppRoutes() {
         }
       >
         <Route index element={<Dashboard />} />
+        <Route path="dashboard/b2b" element={<Dashboard />} />
+        <Route path="dashboard/b2c" element={<Dashboard />} />
         <Route path="organisations" element={<Navigate to="/organisations/organizations" replace />} />
         <Route path="organisations/camps/:campNo/reports" element={<PermissionRoute category="reports"><CampReportsPage /></PermissionRoute>} />
         <Route path="organisations/camps/:campNo" element={<PermissionRoute category="organizations"><CampDetailPage /></PermissionRoute>} />

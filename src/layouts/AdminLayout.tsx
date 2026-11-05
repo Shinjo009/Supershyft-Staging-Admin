@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, NavLink, useNavigate, useLocation, Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import {
@@ -107,6 +107,7 @@ function pageTitleForPath(pathname: string): string {
     "/superclub": "Super Club",
   };
   if (exact[pathname]) return exact[pathname];
+  if (pathname.startsWith("/dashboard/")) return "Dashboard";
 
   if (pathname.startsWith("/users/")) return "Users";
   if (pathname.startsWith("/experts/")) return "Experts";
@@ -167,11 +168,40 @@ function AdminLayoutView() {
   );
   const pageSubtitle = pageTitleOverride?.subtitle;
   const pageBackTo = pageTitleOverride?.backTo;
-  const isDashboard = location.pathname === "/";
+  const isOverviewDashboard = location.pathname === "/";
+  const isDashboardBranch =
+    isOverviewDashboard ||
+    location.pathname === "/dashboard/b2b" ||
+    location.pathname === "/dashboard/b2c";
   const isSettings = location.pathname.startsWith("/settings");
   const isBlogWriter = location.pathname.startsWith("/blog/editor");
 
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
+  const profileLabel = String(
+    displayName ||
+      (userProfile?.first_name || userProfile?.last_name
+        ? `${userProfile?.first_name ?? ""} ${userProfile?.last_name ?? ""}`.trim()
+        : userId ?? "Account"),
+  );
+  const profileInitials = profileLabel
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("") || "A";
+
+  useEffect(() => {
+    if (!profileOpen) return;
+    const onPointer = (event: MouseEvent) => {
+      if (!profileRef.current?.contains(event.target as Node)) setProfileOpen(false);
+    };
+    document.addEventListener("mousedown", onPointer);
+    return () => document.removeEventListener("mousedown", onPointer);
+  }, [profileOpen]);
+
   const handleLogout = async () => {
+    setProfileOpen(false);
     await logout();
     navigate("/login", { replace: true });
   };
@@ -185,7 +215,7 @@ function AdminLayoutView() {
     }`;
 
   return (
-    <div className={`flex bg-zinc-50 ${isBlogWriter ? "h-dvh overflow-hidden" : "min-h-screen"}`}>
+    <div className={`flex bg-zinc-50 ${isBlogWriter || isDashboardBranch ? "h-dvh overflow-hidden" : "min-h-screen"}`}>
       {/* Mobile overlay */}
       {!isBlogWriter && mobileMenuOpen && (
         <div
@@ -273,9 +303,12 @@ function AdminLayoutView() {
               to={to}
               end={end ?? false}
               onClick={closeMobileMenu}
-              className={({ isActive }) =>
-                `${navLinkClass({ isActive })} ${sidebarCollapsed ? "justify-center" : ""}`
-              }
+              className={({ isActive }) => {
+                const dashboardActive =
+                  to === "/" &&
+                  (location.pathname === "/" || location.pathname.startsWith("/dashboard/"));
+                return `${navLinkClass({ isActive: isActive || dashboardActive })} ${sidebarCollapsed ? "justify-center" : ""}`;
+              }}
             >
               <Icon className="w-5 h-5 shrink-0" />
               {!sidebarCollapsed && <span>{label}</span>}
@@ -391,7 +424,7 @@ function AdminLayoutView() {
               <h1 className="text-sm sm:text-base font-semibold text-zinc-900 truncate">{pageTitle}</h1>
               {pageSubtitle ? (
                 <p className="text-[11px] text-zinc-500 truncate leading-tight">{pageSubtitle}</p>
-              ) : isDashboard ? (
+              ) : isDashboardBranch ? (
                 <p className="text-[11px] text-zinc-500 truncate leading-tight">
                   Overview of your admin panel
                 </p>
@@ -403,7 +436,7 @@ function AdminLayoutView() {
             </div>
           </div>
           <div ref={rightRef} className="flex items-center gap-1 sm:gap-2 shrink-0">
-            {isDashboard ? (
+            {isDashboardBranch ? (
               <button
                 type="button"
                 onClick={() => runDashboardRefresh()}
@@ -442,21 +475,37 @@ function AdminLayoutView() {
                 ) : null}
               </NavLink>
             )}
-            <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-              <span className="text-sm text-zinc-600 truncate max-w-[120px] sm:max-w-none">
-                {displayName ||
-                  (userProfile?.first_name || userProfile?.last_name
-                    ? `${userProfile?.first_name ?? ""} ${userProfile?.last_name ?? ""}`.trim()
-                    : userId ?? "—")}
-              </span>
+            <div className="relative min-w-0" ref={profileRef}>
               <button
-                onClick={handleLogout}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 shrink-0"
-                aria-label="Logout"
+                type="button"
+                onClick={() => setProfileOpen((open) => !open)}
+                className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                aria-haspopup="menu"
+                aria-expanded={profileOpen}
+                aria-label="Profile"
               >
-                <LogOut className="w-4 h-4" />
-                <span className="hidden sm:inline">Logout</span>
+                <span className="grid size-7 shrink-0 place-items-center rounded-full bg-zinc-900 text-[11px] font-semibold text-white">
+                  {profileInitials}
+                </span>
+                <span className="hidden max-w-[140px] truncate sm:inline">{profileLabel}</span>
               </button>
+              {profileOpen ? (
+                <div
+                  role="menu"
+                  className="absolute right-0 z-50 mt-1 w-56 rounded-lg border border-zinc-200 bg-white py-1 shadow-lg"
+                >
+                  <div className="truncate px-3 py-2 text-sm font-medium text-zinc-900">{profileLabel}</div>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => void handleLogout()}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Logout
+                  </button>
+                </div>
+              ) : null}
             </div>
           </div>
         </header>
@@ -465,7 +514,9 @@ function AdminLayoutView() {
           className={
             isBlogWriter
               ? "flex-1 min-h-0 min-w-0 flex flex-col p-0 overflow-hidden"
-              : "flex-1 min-w-0 p-4 sm:p-6 overflow-auto"
+              : isDashboardBranch
+                ? "flex-1 min-h-0 min-w-0 flex flex-col p-4 sm:p-6 overflow-auto"
+                  : "flex-1 min-w-0 p-4 sm:p-6 overflow-auto"
           }
         >
           <Outlet key={location.pathname} />
