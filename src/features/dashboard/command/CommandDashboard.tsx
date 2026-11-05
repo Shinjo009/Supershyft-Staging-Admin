@@ -58,11 +58,11 @@ export function CommandDashboard({
   const fillFold = !ops.drill && ops.campId == null && ops.tab === "overview";
 
   return (
-    <div className={cn("dashboard-command min-w-0", fillFold ? "overflow-hidden" : "overflow-auto")}>
+    <div className="dashboard-command min-w-0">
       <div
         className={cn(
           "mx-auto max-w-[1400px]",
-          fillFold ? "flex h-[calc(100dvh-7.5rem)] min-h-0 flex-col gap-3 overflow-auto" : "space-y-3",
+          fillFold ? "flex flex-col gap-3" : "space-y-3",
         )}
       >
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
@@ -114,7 +114,7 @@ export function CommandDashboard({
         {ops.loading && !ops.data ? (
           <div className="p-10 text-sm text-muted-foreground">Loading operations…</div>
         ) : (
-          <div className={cn(fillFold && "min-h-0 flex-1")}>
+          <div>
             {ops.drill ? (
               <DrillView ops={ops} />
             ) : ops.selectedCamp ? (

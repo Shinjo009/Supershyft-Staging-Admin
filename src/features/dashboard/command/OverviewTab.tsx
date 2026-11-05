@@ -197,22 +197,19 @@ export function OverviewTab({ ops }: { ops: CommandDashboardState }) {
   };
 
   return (
-    <div className="grid min-h-full grid-rows-[minmax(12.5rem,1.15fr)_minmax(19rem,2fr)] gap-3">
-      <div className="h-full min-h-[12.5rem]">
-        <FixedWidgetGrid
-          data={data}
-          className="h-full"
-          onNavigate={(t) => {
-            if (t.type === "failed_notifications") {
-              ops.openDrill({ drill: "failed_notifications", title: "Failed notifications" });
-            } else if (t.type === "booking_issues") {
-              ops.openDrill({ drill: "booking_issues", title: "Booking issues" });
-            }
-          }}
-        />
-      </div>
-      <div className="grid h-full min-h-[19rem] grid-cols-1 gap-3 lg:grid-cols-5">
-        <div className="grid min-h-0 grid-cols-1 grid-rows-2 gap-3 sm:grid-cols-3 lg:col-span-3">
+    <div className="flex flex-col gap-3">
+      <FixedWidgetGrid
+        data={data}
+        onNavigate={(t) => {
+          if (t.type === "failed_notifications") {
+            ops.openDrill({ drill: "failed_notifications", title: "Failed notifications" });
+          } else if (t.type === "booking_issues") {
+            ops.openDrill({ drill: "booking_issues", title: "Booking issues" });
+          }
+        }}
+      />
+      <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-5">
+        <div className="grid grid-cols-1 content-start gap-3 sm:grid-cols-3 lg:col-span-3">
           {cards.map((card) => {
             const kpi = data.overview_kpis[card.key];
             const value = "total" in kpi ? kpi.total : 0;
@@ -244,8 +241,8 @@ export function OverviewTab({ ops }: { ops: CommandDashboardState }) {
             );
           })}
         </div>
-        <div className="flex min-h-0 flex-col gap-3 lg:col-span-2">
-          <div className="h-[calc((100%-0.75rem)/3)] min-h-[5.5rem]">
+        <div className="flex flex-col gap-3 lg:col-span-2">
+          <div>
             <TicketsOverview
               data={data}
               onOpen={(status) =>
@@ -256,7 +253,7 @@ export function OverviewTab({ ops }: { ops: CommandDashboardState }) {
               }
             />
           </div>
-          <div className="min-h-[12.25rem] flex-1">
+          <div>
             <ActionCenterMini
               data={data}
               onDrill={(drill, title) => ops.openDrill({ drill, title, audience: "all" })}

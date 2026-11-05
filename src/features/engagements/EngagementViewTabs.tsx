@@ -57,6 +57,7 @@ export function EngagementOverviewTab({
   notificationServiceLabel,
 }: OverviewProps) {
   const b2b = isB2BEngagement(engagement.organization_id);
+  const campCollection = engagement.blood_collection_type === "camp_collection";
   const [completeness, setCompleteness] = useState<EngagementDataCompletenessResponse | null>(null);
   const [completenessLoading, setCompletenessLoading] = useState(false);
   const [completenessError, setCompletenessError] = useState<string | null>(null);
@@ -121,11 +122,12 @@ export function EngagementOverviewTab({
         </div>
       </div>
 
-      {b2b ? (
+      {b2b && campCollection ? (
         <CampOverviewSection engagement={engagement} />
       ) : (
         <>
           <EngagementBookingSummaryCards engagementId={engagement.engagement_id} />
+          {!b2b ? (
           <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-4">
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <span className="inline-flex px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-700 font-medium">
@@ -164,6 +166,7 @@ export function EngagementOverviewTab({
               <ConsoleUrlActions engagementId={engagement.engagement_id} />
             </div>
           </div>
+          ) : null}
         </>
       )}
 
@@ -182,6 +185,12 @@ export function EngagementOverviewTab({
           ) : (
             <p className="text-xs text-zinc-400">No participants enrolled yet.</p>
           )}
+          {!campCollection ? (
+            <div className="mt-4">
+              <div className="text-xs font-medium text-zinc-500 mb-1">Console</div>
+              <ConsoleUrlActions engagementId={engagement.engagement_id} />
+            </div>
+          ) : null}
         </div>
       ) : null}
 

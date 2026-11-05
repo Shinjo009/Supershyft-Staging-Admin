@@ -19,9 +19,9 @@ function MiniStat({
   warn?: boolean;
 }) {
   return (
-    <div className={cn("flex h-full min-h-0 flex-col justify-center rounded-lg border px-2.5 py-2", warn && "border-warning/30")}>
-      <div className="text-[11px] text-muted-foreground">{label}</div>
-      <div className={cn("text-lg font-semibold tabular-nums", warn && "text-warning")}>{value}</div>
+    <div className={cn("rounded-lg border px-3 py-2.5", warn && "border-warning/30")}>
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className={cn("mt-1 text-2xl font-semibold tabular-nums leading-none", warn && "text-warning")}>{value}</div>
     </div>
   );
 }
@@ -111,7 +111,7 @@ function WidgetShell({
   onClick?: () => void;
 }) {
   return (
-    <div className="flex h-full flex-col rounded-xl border bg-card shadow-[0_1px_2px_oklch(0_0_0/0.04)]">
+    <div className="flex h-full min-h-full flex-col rounded-xl border bg-card shadow-[0_1px_2px_oklch(0_0_0/0.04)]">
       <div className="flex items-start justify-between gap-2 border-b px-3 py-2">
         <button type="button" className="min-w-0 flex-1 text-left" onClick={onClick} disabled={!onClick}>
           <div className="flex items-center gap-1.5 text-sm font-semibold">
@@ -120,7 +120,7 @@ function WidgetShell({
           </div>
         </button>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3">{children}</div>
+      <div className="p-3">{children}</div>
     </div>
   );
 }
@@ -141,11 +141,11 @@ export function FixedWidgetGrid({
   const bi = data.booking_issues;
 
   return (
-    <div className={cn("grid h-full min-h-0 grid-cols-1 items-stretch gap-3 md:grid-cols-3", className)}>
+    <div className={cn("grid grid-cols-1 items-stretch gap-3 md:grid-cols-3", className)}>
       <WidgetShell title="Server load" icon={Cpu} onClick={() => onNavigate({ type: "server" })}>
         <button
           type="button"
-          className="grid h-full min-h-0 w-full grid-cols-3 items-stretch gap-2 text-left"
+          className="grid w-full grid-cols-3 items-start gap-2 text-left"
           onClick={() => onNavigate({ type: "server" })}
         >
           <MiniStat label="CPU" value={`${cpu}%`} warn={cpu > 70} />

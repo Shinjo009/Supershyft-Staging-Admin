@@ -210,7 +210,7 @@ export function CampOverviewSection({
               <ClipboardList className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
               <h3 className="truncate text-sm font-semibold text-zinc-900">Day-wise summary</h3>
             </div>
-            <div className="grid grid-cols-5 gap-0.5">
+            <div className="flex flex-wrap gap-0.5">
               {data.days.map((d) => (
                 <button
                   key={d.date}
