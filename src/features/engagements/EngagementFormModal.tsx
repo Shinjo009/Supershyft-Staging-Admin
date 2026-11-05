@@ -15,7 +15,6 @@ import {
   type NotificationServiceItem,
   type OrganizationListItem,
   type SlotDetail,
-  diagnosticPackagesApi,
   engagementsApi,
   engagementNotificationsApi,
   engagementTypesApi,
@@ -55,10 +54,8 @@ import {
 } from "./slotDetailUtils";
 import {
   METSIGHTS_PRO_PACKAGE_CODE,
-  collectParameterKeysFromTests,
-  diagnosticPackageIdForProGate,
-  isMetsightsProAllowed,
-  missingMetsightsProHormones,
+  shouldResetDisallowedMetsightsPro,
+  useMetsightsProGateState,
 } from "./metsightsProGate";
 
 const BLOOD_COLLECTION_TYPE_OPTIONS = [
@@ -467,58 +464,39 @@ export function EngagementFormWizard({
     return row?.package_id ?? null;
   }, [assessmentPackages]);
 
-  const proGatePackageId = useMemo(
-    () => diagnosticPackageIdForProGate(packageMode, formData),
-    [packageMode, formData.diagnostic_package_id, formData.diagnostic_package_id_female]
-  );
-
-  const [proGateParameterKeys, setProGateParameterKeys] = useState<Set<string>>(() => new Set());
-  const [proGateLoading, setProGateLoading] = useState(false);
-
-  useEffect(() => {
-    if (!open || !typeConfig.needsAssessment || !applyMetsightsProGate) {
-      setProGateParameterKeys(new Set());
-      return;
-    }
-    if (!proGatePackageId) {
-      setProGateParameterKeys(new Set());
-      return;
-    }
-    let cancelled = false;
-    setProGateLoading(true);
-    diagnosticPackagesApi
-      .getTests(proGatePackageId)
-      .then((res) => {
-        if (cancelled) return;
-        setProGateParameterKeys(collectParameterKeysFromTests(res.data.data));
-      })
-      .catch(() => {
-        if (!cancelled) setProGateParameterKeys(new Set());
-      })
-      .finally(() => {
-        if (!cancelled) setProGateLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [open, proGatePackageId, typeConfig.needsAssessment, applyMetsightsProGate]);
-
-  const metsightsProAllowed = useMemo(
-    () => isMetsightsProAllowed(proGateParameterKeys, proGatePackageId),
-    [proGateParameterKeys, proGatePackageId]
-  );
-
-  const metsightsProMissingLabels = useMemo(() => {
-    if (!proGatePackageId) return [];
-    return missingMetsightsProHormones(proGateParameterKeys);
-  }, [proGateParameterKeys, proGatePackageId]);
+  const {
+    proGatePackageId,
+    proGateLoading,
+    proGateResolved,
+    metsightsProAllowed,
+    metsightsProMissingLabels,
+  } = useMetsightsProGateState({
+    enabled: open && typeConfig.needsAssessment && applyMetsightsProGate,
+    packageMode,
+    diagnosticPackageId: formData.diagnostic_package_id,
+    diagnosticPackageIdFemale: formData.diagnostic_package_id_female,
+  });
 
   useEffect(() => {
-    if (!applyMetsightsProGate) return;
-    if (!metsightsProPackageId || formData.assessment_package_id !== metsightsProPackageId) return;
-    if (metsightsProAllowed) return;
+    if (
+      !shouldResetDisallowedMetsightsPro({
+        applyGate: applyMetsightsProGate,
+        gateResolved: proGateResolved,
+        selectedPackageId: formData.assessment_package_id,
+        metsightsProPackageId,
+        allowed: metsightsProAllowed,
+      })
+    ) {
+      return;
+    }
     setFormData((prev) => ({ ...prev, assessment_package_id: 0 }));
-  }, [applyMetsightsProGate, metsightsProAllowed, metsightsProPackageId, formData.assessment_package_id]);
+  }, [
+    applyMetsightsProGate,
+    proGateResolved,
+    metsightsProAllowed,
+    metsightsProPackageId,
+    formData.assessment_package_id,
+  ]);
 
   const steps = useMemo(
     () =>
@@ -1447,7 +1425,7 @@ export function EngagementFormWizard({
                     const isPro =
                       (p.package_code ?? "").trim() === METSIGHTS_PRO_PACKAGE_CODE;
                     const disabled =
-                      applyMetsightsProGate && isPro && !metsightsProAllowed;
+                      applyMetsightsProGate && isPro && proGateResolved && !metsightsProAllowed;
                     const label = p.display_name ?? p.package_code ?? String(p.package_id);
                     return (
                       <option key={p.package_id} value={p.package_id} disabled={disabled}>

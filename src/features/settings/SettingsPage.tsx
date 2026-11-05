@@ -471,6 +471,7 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
   const settingsDiagnosticPackageMode = diagnosticSplitMode ? "split" : "single";
   const {
     proGateLoading: settingsProGateLoading,
+    proGateResolved: settingsProGateResolved,
     metsightsProAllowed: settingsMetsightsProAllowed,
     metsightsProMissingLabels: settingsMetsightsProMissingLabels,
     proGatePackageId: settingsProGatePackageId,
@@ -488,13 +489,14 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
   }, [assessmentPackages]);
 
   useEffect(() => {
-    if (!applySettingsProGate) return;
+    if (!applySettingsProGate || !settingsProGateResolved) return;
     if (!settingsMetsightsProPackageId) return;
     if (activeDefaults.assessment_package_id !== settingsMetsightsProPackageId) return;
     if (settingsMetsightsProAllowed) return;
     updateActiveDefaults({ assessment_package_id: 0 });
   }, [
     applySettingsProGate,
+    settingsProGateResolved,
     settingsMetsightsProAllowed,
     settingsMetsightsProPackageId,
     activeDefaults.assessment_package_id,
@@ -1185,7 +1187,10 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
                           const isPro =
                             (pkg.package_code ?? "").trim() === METSIGHTS_PRO_PACKAGE_CODE;
                           const disabled =
-                            applySettingsProGate && isPro && !settingsMetsightsProAllowed;
+                            applySettingsProGate &&
+                            isPro &&
+                            settingsProGateResolved &&
+                            !settingsMetsightsProAllowed;
                           return (
                             <option key={pkg.package_id} value={pkg.package_id} disabled={disabled}>
                               {labelAssessment(pkg)}

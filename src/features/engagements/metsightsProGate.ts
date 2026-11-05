@@ -54,6 +54,36 @@ export function isMetsightsProAllowed(
   return missingMetsightsProHormones(parameterKeys).length === 0;
 }
 
+/** True once the hormone lookup for the current diagnostic package has finished. */
+export function isMetsightsProGateResolved(
+  enabled: boolean,
+  proGatePackageId: number | undefined,
+  checkedPackageId: number | null
+): boolean {
+  if (!enabled) return true;
+  if (!proGatePackageId) return true;
+  return checkedPackageId === proGatePackageId;
+}
+
+/**
+ * Drop a saved Metsights Pro selection only after the diagnostic hormone check
+ * has finished and the package is still missing required hormones.
+ * While the check is in flight, an empty key set looks disallowed and would
+ * wipe a value that was already saved on the engagement.
+ */
+export function shouldResetDisallowedMetsightsPro(options: {
+  applyGate: boolean;
+  gateResolved: boolean;
+  selectedPackageId: number | null | undefined;
+  metsightsProPackageId: number | null;
+  allowed: boolean;
+}): boolean {
+  if (!options.applyGate || !options.gateResolved) return false;
+  if (options.metsightsProPackageId == null) return false;
+  if (options.selectedPackageId !== options.metsightsProPackageId) return false;
+  return !options.allowed;
+}
+
 export function useMetsightsProGateState(options: {
   enabled: boolean;
   packageMode: "single" | "split";
@@ -72,18 +102,18 @@ export function useMetsightsProGateState(options: {
 
   const [proGateParameterKeys, setProGateParameterKeys] = useState<Set<string>>(() => new Set());
   const [proGateLoading, setProGateLoading] = useState(false);
+  const [proGateCheckedPackageId, setProGateCheckedPackageId] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || !proGatePackageId) {
       setProGateParameterKeys(new Set());
-      return;
-    }
-    if (!proGatePackageId) {
-      setProGateParameterKeys(new Set());
+      setProGateCheckedPackageId(null);
+      setProGateLoading(false);
       return;
     }
     let cancelled = false;
     setProGateLoading(true);
+    setProGateCheckedPackageId(null);
     diagnosticPackagesApi
       .getTests(proGatePackageId)
       .then((res) => {
@@ -94,12 +124,21 @@ export function useMetsightsProGateState(options: {
         if (!cancelled) setProGateParameterKeys(new Set());
       })
       .finally(() => {
-        if (!cancelled) setProGateLoading(false);
+        if (!cancelled) {
+          setProGateLoading(false);
+          setProGateCheckedPackageId(proGatePackageId);
+        }
       });
     return () => {
       cancelled = true;
     };
   }, [enabled, proGatePackageId]);
+
+  const proGateResolved = isMetsightsProGateResolved(
+    enabled,
+    proGatePackageId,
+    proGateCheckedPackageId
+  );
 
   const metsightsProAllowed = useMemo(() => {
     if (!enabled) return true;
@@ -114,6 +153,7 @@ export function useMetsightsProGateState(options: {
   return {
     proGatePackageId,
     proGateLoading,
+    proGateResolved,
     metsightsProAllowed,
     metsightsProMissingLabels,
   };

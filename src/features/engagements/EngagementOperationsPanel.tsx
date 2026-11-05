@@ -140,6 +140,7 @@ export function EngagementOperationsPanel({ engagement, active, onEngagementUpda
   ]);
   const {
     proGateLoading: assignProGateLoading,
+    proGateResolved: assignProGateResolved,
     metsightsProAllowed: assignMetsightsProAllowed,
     metsightsProMissingLabels: assignMetsightsProMissingLabels,
     proGatePackageId: assignProGatePackageId,
@@ -151,13 +152,14 @@ export function EngagementOperationsPanel({ engagement, active, onEngagementUpda
   });
 
   useEffect(() => {
-    if (!applyAssignProGate || !assessmentAssignOpen) return;
+    if (!applyAssignProGate || !assessmentAssignOpen || !assignProGateResolved) return;
     if (assignMetsightsProAllowed) return;
     if (engagementAssignPackageCode.trim() !== METSIGHTS_PRO_PACKAGE_CODE) return;
     setSelectedAssignPackageCode("");
   }, [
     applyAssignProGate,
     assessmentAssignOpen,
+    assignProGateResolved,
     assignMetsightsProAllowed,
     engagementAssignPackageCode,
   ]);
@@ -165,6 +167,7 @@ export function EngagementOperationsPanel({ engagement, active, onEngagementUpda
   const assignProSelectionBlocked =
     applyAssignProGate &&
     engagementAssignPackageCode.trim() === METSIGHTS_PRO_PACKAGE_CODE &&
+    assignProGateResolved &&
     !assignMetsightsProAllowed;
 
   const [pushConfirmPkg, setPushConfirmPkg] = useState<EngagementAssessmentPackageSummary | null>(null);
@@ -1145,7 +1148,8 @@ export function EngagementOperationsPanel({ engagement, active, onEngagementUpda
               .map((p) => {
                 const isPro =
                   (p.package_code ?? "").trim() === METSIGHTS_PRO_PACKAGE_CODE;
-                const disabled = applyAssignProGate && isPro && !assignMetsightsProAllowed;
+                const disabled =
+                  applyAssignProGate && isPro && assignProGateResolved && !assignMetsightsProAllowed;
                 const label = p.display_name ?? p.package_code ?? String(p.package_id);
                 return (
                   <option key={p.package_id} value={p.package_code!} disabled={disabled}>
