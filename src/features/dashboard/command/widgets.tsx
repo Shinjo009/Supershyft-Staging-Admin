@@ -2,6 +2,7 @@ import { Bell, CircleAlert, Cpu } from "lucide-react";
 import type { ReactNode } from "react";
 import type { DashboardCommandBootstrap } from "../../../lib/api";
 import { cn } from "./cn";
+import { compactCount } from "./dates";
 
 export type WidgetNav =
   | { type: "failed_notifications" }
@@ -18,7 +19,7 @@ function MiniStat({
   warn?: boolean;
 }) {
   return (
-    <div className={cn("rounded-lg border px-3 py-2.5", warn && "border-warning/30")}>
+    <div className={cn("flex h-full min-h-0 flex-col justify-center rounded-lg border px-2.5 py-2", warn && "border-warning/30")}>
       <div className="text-[11px] text-muted-foreground">{label}</div>
       <div className={cn("text-lg font-semibold tabular-nums", warn && "text-warning")}>{value}</div>
     </div>
@@ -28,62 +29,69 @@ function MiniStat({
 function MiniDonut({
   slices,
   center,
-  compact,
+  large,
 }: {
   slices: { label: string; value: number; color: string }[];
   center?: string;
-  compact?: boolean;
+  large?: boolean;
 }) {
-  const total = slices.reduce((a, s) => a + s.value, 0) || 1;
-  const size = compact ? 72 : 88;
-  const r = compact ? 26 : 32;
+  const total = slices.reduce((a, s) => a + Math.max(0, s.value), 0);
+  const r = large ? 16 : 18;
   const c = 2 * Math.PI * r;
   let offset = 0;
+  const safe =
+    total === 0
+      ? [{ label: "None", value: 1, color: "var(--border)" }]
+      : slices.filter((s) => s.value > 0);
+  const safeTotal = safe.reduce((n, s) => n + s.value, 0) || 1;
+  const centerLabel = center != null && Number.isFinite(Number(center)) ? compactCount(Number(center)) : center;
   return (
-    <div className="flex items-center gap-3">
-      <div className="relative shrink-0" style={{ width: size, height: size }}>
-        <svg viewBox={`0 0 ${size} ${size}`} className="size-full -rotate-90">
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={r}
-            fill="none"
-            stroke="currentColor"
-            className="text-muted"
-            strokeWidth={compact ? 8 : 10}
-          />
-          {slices.map((s) => {
-            const len = (s.value / total) * c;
-            const el = (
-              <circle
-                key={s.label}
-                cx={size / 2}
-                cy={size / 2}
-                r={r}
-                fill="none"
-                stroke={s.color}
-                strokeWidth={compact ? 8 : 10}
-                strokeDasharray={`${len} ${c - len}`}
-                strokeDashoffset={-offset}
-                strokeLinecap="butt"
-              />
-            );
-            offset += len;
-            return el;
-          })}
-        </svg>
-        {center != null && (
-          <div className="absolute inset-0 grid place-items-center text-sm font-semibold tabular-nums">
-            {center}
-          </div>
+    <div className={cn("flex h-full min-h-0 w-full items-center", large ? "gap-4" : "gap-3")}>
+      <svg viewBox="0 0 48 48" className={cn("aspect-square h-full w-auto shrink min-h-0", large ? "max-h-32" : "max-h-24")}>
+        {safe.map((s) => {
+          const len = (s.value / safeTotal) * c;
+          const el = (
+            <circle
+              key={s.label}
+              cx="24"
+              cy="24"
+              r={r}
+              fill="none"
+              stroke={s.color}
+              strokeWidth={large ? 6 : 7}
+              strokeDasharray={`${len} ${c - len}`}
+              strokeDashoffset={-offset}
+              transform="rotate(-90 24 24)"
+            />
+          );
+          offset += len;
+          return el;
+        })}
+        {centerLabel != null && (
+          <text
+            x="24"
+            y="26"
+            textAnchor="middle"
+            className={cn(
+              "fill-foreground font-semibold",
+              String(centerLabel).length > 5 ? "text-[8px]" : large ? "text-[11px]" : "text-[10px]",
+            )}
+          >
+            {centerLabel}
+          </text>
         )}
-      </div>
-      <ul className="min-w-0 space-y-1">
+      </svg>
+      <ul className="min-w-0 flex-1 space-y-1.5">
         {slices.map((s) => (
           <li key={s.label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className="size-2 shrink-0 rounded-full" style={{ background: s.color }} />
-            <span className="truncate">{s.label}</span>
-            <span className="ml-auto font-medium tabular-nums text-foreground">{s.value}</span>
+            <span className="min-w-0 truncate">{s.label}</span>
+            <span className="ml-auto shrink-0 font-medium tabular-nums text-foreground">
+              {compactCount(s.value)}
+              {total ? (
+                <span className="font-normal text-muted-foreground"> · {Math.round((s.value / total) * 100)}%</span>
+              ) : null}
+            </span>
           </li>
         ))}
       </ul>
@@ -112,7 +120,7 @@ function WidgetShell({
           </div>
         </button>
       </div>
-      <div className="min-h-0 flex-1 p-3">{children}</div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3">{children}</div>
     </div>
   );
 }
@@ -137,7 +145,7 @@ export function FixedWidgetGrid({
       <WidgetShell title="Server load" icon={Cpu} onClick={() => onNavigate({ type: "server" })}>
         <button
           type="button"
-          className="grid w-full grid-cols-3 gap-2 text-left"
+          className="grid h-full min-h-0 w-full grid-cols-3 items-stretch gap-2 text-left"
           onClick={() => onNavigate({ type: "server" })}
         >
           <MiniStat label="CPU" value={`${cpu}%`} warn={cpu > 70} />
@@ -153,11 +161,11 @@ export function FixedWidgetGrid({
       >
         <button
           type="button"
-          className="w-full text-left"
+          className="flex h-full w-full text-left"
           onClick={() => onNavigate({ type: "failed_notifications" })}
         >
           <MiniDonut
-            compact
+            large
             center={String(nh.total)}
             slices={[
               { label: "Sent", value: nh.sent, color: "oklch(0.56 0.13 155)" },
@@ -173,9 +181,13 @@ export function FixedWidgetGrid({
         icon={CircleAlert}
         onClick={() => onNavigate({ type: "booking_issues" })}
       >
-        <button type="button" className="w-full text-left" onClick={() => onNavigate({ type: "booking_issues" })}>
+        <button
+          type="button"
+          className="flex h-full w-full text-left"
+          onClick={() => onNavigate({ type: "booking_issues" })}
+        >
           <MiniDonut
-            compact
+            large
             center={String(bi.total)}
             slices={[
               { label: "Unserviceable", value: bi.unserviceable, color: "oklch(0.66 0.15 65)" },

@@ -1,5 +1,4 @@
 import { ArrowLeft, ExternalLink } from "lucide-react";
-import { Link } from "react-router-dom";
 import { EmptyState, Section, StatusBadge } from "./bits";
 import { fmtDay } from "./dates";
 import type { CommandDashboardState } from "./useCommandDashboard";
@@ -50,12 +49,19 @@ export function CampDetailPanel({ ops }: { ops: CommandDashboardState }) {
           </h1>
           <p className="text-sm text-muted-foreground">{camp.organization_name}</p>
         </div>
-        <Link
-          to={`/engagements/${camp.engagement_id}/console`}
+        <button
+          type="button"
+          onClick={() =>
+            window.open(
+              `/engagements/${camp.engagement_id}/console`,
+              "_blank",
+              "noopener,noreferrer",
+            )
+          }
           className="inline-flex items-center gap-1.5 rounded-lg border bg-card px-3 py-2 text-sm font-medium shadow-[0_1px_2px_oklch(0_0_0/0.04)] hover:border-foreground/20"
         >
           Open Console <ExternalLink className="size-3.5" />
-        </Link>
+        </button>
       </div>
 
       <Section title="Camp details">
@@ -74,12 +80,19 @@ export function CampDetailPanel({ ops }: { ops: CommandDashboardState }) {
         description="Full participant ops, slots, and reports live in Engagement Console."
       >
         <div className="flex flex-wrap gap-2 p-4">
-          <Link
-            to={`/engagements/${camp.engagement_id}/console`}
+          <button
+            type="button"
+            onClick={() =>
+              window.open(
+                `/engagements/${camp.engagement_id}/console`,
+                "_blank",
+                "noopener,noreferrer",
+              )
+            }
             className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
           >
             Manage participants
-          </Link>
+          </button>
           <button
             type="button"
             className="rounded-md border px-3 py-2 text-sm"

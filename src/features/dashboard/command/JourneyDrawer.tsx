@@ -1,7 +1,6 @@
 import { X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router-dom";
 import { getApiError, participantJourneyApi } from "../../../lib/api";
 import { StatusBadge } from "./bits";
 
@@ -34,7 +33,6 @@ export function JourneyDrawer({
   engagementId?: number | null;
   onClose: () => void;
 }) {
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<Record<string, unknown> | null>(null);
@@ -203,7 +201,11 @@ export function JourneyDrawer({
                       type="button"
                       className="rounded-md bg-zinc-900 px-2.5 py-1.5 text-xs font-medium text-white"
                       onClick={() => {
-                        navigate(`/engagements/${engId}/console`);
+                        window.open(
+                          `/engagements/${engId}/console`,
+                          "_blank",
+                          "noopener,noreferrer",
+                        );
                       }}
                     >
                       Assign slot

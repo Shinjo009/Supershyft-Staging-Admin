@@ -82,7 +82,17 @@ export function B2BTab({ ops }: { ops: CommandDashboardState }) {
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search camps, org, city…"
+            aria-label="Search camps"
+            className="h-8 w-64 rounded-lg border bg-card pl-8 pr-3 text-xs outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
         <div className="flex flex-wrap gap-1 rounded-lg border bg-card p-0.5">
           {pills.map((p) => (
             <button
@@ -97,15 +107,6 @@ export function B2BTab({ ops }: { ops: CommandDashboardState }) {
               {p.label}
             </button>
           ))}
-        </div>
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search camps, org, city…"
-            className="h-8 w-64 rounded-lg border bg-card pl-8 pr-3 text-xs outline-none focus:ring-2 focus:ring-ring"
-          />
         </div>
       </div>
 

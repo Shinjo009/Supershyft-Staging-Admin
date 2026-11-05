@@ -11,6 +11,7 @@ import {
 import type { DashboardCommandBootstrap } from "../../../lib/api";
 import { EmptyState, KpiCard, Section } from "./bits";
 import { cn } from "./cn";
+import { compactCount } from "./dates";
 import type { CommandDashboardState } from "./useCommandDashboard";
 import { FixedWidgetGrid } from "./widgets";
 
@@ -149,8 +150,8 @@ function ActionCenterMini({
   } as const;
 
   return (
-    <Section title="Action Center" compact icon={ListTodo} bodyClassName="overflow-hidden">
-      <div className="grid h-full min-h-0 grid-cols-3 grid-rows-2 gap-2.5 p-3">
+    <Section title="Action Center" compact icon={ListTodo} bodyClassName="min-h-0">
+      <div className="grid h-full min-h-[11rem] grid-cols-3 grid-rows-2 gap-2 p-2.5">
         {tiles.map((tile) => (
           <button
             key={tile.key}
@@ -158,12 +159,12 @@ function ActionCenterMini({
             title={tile.title}
             onClick={() => onDrill(tile.drill, tile.title)}
             className={cn(
-              "flex min-h-0 flex-col justify-center gap-1.5 overflow-hidden rounded-lg border px-3 py-2 text-left transition hover:border-foreground/20 hover:shadow-sm",
+              "flex h-full min-h-[5rem] flex-col justify-between gap-1 rounded-lg border px-2.5 py-2 text-left transition hover:border-foreground/20 hover:shadow-sm",
               tileTone[tile.tone],
             )}
           >
-            <span className="text-xs leading-tight text-muted-foreground">{tile.label}</span>
-            <span className="text-2xl font-semibold tabular-nums leading-none">{tile.value}</span>
+            <span className="line-clamp-2 text-xs leading-snug text-muted-foreground">{tile.label}</span>
+            <span className="text-2xl font-semibold tabular-nums leading-none">{compactCount(tile.value)}</span>
           </button>
         ))}
       </div>
@@ -196,8 +197,8 @@ export function OverviewTab({ ops }: { ops: CommandDashboardState }) {
   };
 
   return (
-    <div className="grid h-full min-h-0 overflow-hidden grid-rows-[minmax(0,1.2fr)_minmax(0,2fr)] gap-3">
-      <div className="min-h-0 overflow-hidden">
+    <div className="grid min-h-full grid-rows-[minmax(12.5rem,1.15fr)_minmax(19rem,2fr)] gap-3">
+      <div className="h-full min-h-[12.5rem]">
         <FixedWidgetGrid
           data={data}
           className="h-full"
@@ -210,8 +211,8 @@ export function OverviewTab({ ops }: { ops: CommandDashboardState }) {
           }}
         />
       </div>
-      <div className="grid min-h-0 overflow-hidden grid-cols-1 gap-3 lg:grid-cols-5">
-        <div className="grid min-h-0 grid-cols-1 grid-rows-2 gap-3 overflow-hidden sm:grid-cols-3 lg:col-span-3">
+      <div className="grid h-full min-h-[19rem] grid-cols-1 gap-3 lg:grid-cols-5">
+        <div className="grid min-h-0 grid-cols-1 grid-rows-2 gap-3 sm:grid-cols-3 lg:col-span-3">
           {cards.map((card) => {
             const kpi = data.overview_kpis[card.key];
             const value = "total" in kpi ? kpi.total : 0;
@@ -243,8 +244,8 @@ export function OverviewTab({ ops }: { ops: CommandDashboardState }) {
             );
           })}
         </div>
-        <div className="flex min-h-0 flex-col gap-3 overflow-hidden lg:col-span-2">
-          <div className="h-[calc((100%-0.75rem)/3)] min-h-0 overflow-hidden">
+        <div className="flex min-h-0 flex-col gap-3 lg:col-span-2">
+          <div className="h-[calc((100%-0.75rem)/3)] min-h-[5.5rem]">
             <TicketsOverview
               data={data}
               onOpen={(status) =>
@@ -255,7 +256,7 @@ export function OverviewTab({ ops }: { ops: CommandDashboardState }) {
               }
             />
           </div>
-          <div className="min-h-0 flex-1 overflow-hidden">
+          <div className="min-h-[12.25rem] flex-1">
             <ActionCenterMini
               data={data}
               onDrill={(drill, title) => ops.openDrill({ drill, title, audience: "all" })}

@@ -205,12 +205,12 @@ export function CampOverviewSection({
         </section>
 
         <section className="flex min-h-0 flex-col rounded-xl border border-zinc-200 bg-white">
-          <header className="flex flex-nowrap items-center justify-between gap-2 border-b border-zinc-200 px-3 py-2.5">
+          <header className="flex flex-col gap-2 border-b border-zinc-200 px-3 py-2.5">
             <div className="flex min-w-0 items-center gap-1.5">
               <ClipboardList className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
               <h3 className="truncate text-sm font-semibold text-zinc-900">Day-wise summary</h3>
             </div>
-            <div className="flex shrink-0 flex-nowrap justify-end gap-0.5">
+            <div className="grid grid-cols-5 gap-0.5">
               {data.days.map((d) => (
                 <button
                   key={d.date}

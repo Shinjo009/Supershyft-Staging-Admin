@@ -34,6 +34,19 @@ export function todayKey(): string {
   return toKey(new Date());
 }
 
+/** 81763 → "81.763k". Counts under 1000 stay as-is. */
+export function compactCount(value: number): string {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "0";
+  const sign = n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+  if (abs < 1000) return `${sign}${Math.round(abs)}`;
+  const scaled = abs >= 1_000_000 ? abs / 1_000_000 : abs / 1000;
+  const suffix = abs >= 1_000_000 ? "m" : "k";
+  const text = scaled.toFixed(3).replace(/\.?0+$/, "");
+  return `${sign}${text}${suffix}`;
+}
+
 function startOfWeek(d: Date): Date {
   const x = new Date(d);
   const day = (x.getDay() + 6) % 7; // Monday=0

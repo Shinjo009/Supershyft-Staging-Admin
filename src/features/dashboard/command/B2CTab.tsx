@@ -3,6 +3,7 @@ import {
   Droplets,
   FileText,
   Package,
+  Search,
   Stethoscope,
   Ticket,
   Users,
@@ -294,15 +295,19 @@ export function B2CTab({ ops }: { ops: CommandDashboardState }) {
         </div>
       ) : (
         <div className="space-y-3">
-          <input
-            value={q}
-            onChange={(e) => {
-              setUsersPage(1);
-              setQ(e.target.value);
-            }}
-            placeholder="Search name, phone, email…"
-            className="h-9 w-full max-w-md rounded-lg border bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-          />
+          <div className="relative w-full max-w-md">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={q}
+              onChange={(e) => {
+                setUsersPage(1);
+                setQ(e.target.value);
+              }}
+              placeholder="Search name, phone, email…"
+              aria-label="Search users"
+              className="h-9 w-full rounded-lg border bg-card pl-8 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
           <Section
             title="Users"
             description={
@@ -318,7 +323,8 @@ export function B2CTab({ ops }: { ops: CommandDashboardState }) {
                 <table className="w-full min-w-[900px] text-left text-sm">
                   <thead className="border-b bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
                     <tr>
-                      <th className="px-3 py-2 font-medium">Customer</th>
+                      <th className="px-3 py-2 font-medium">User</th>
+                      <th className="px-3 py-2 font-medium">Source</th>
                       <th className="px-3 py-2 font-medium">Package</th>
                       <th className="px-3 py-2 font-medium">Mode / location</th>
                       <th className="px-3 py-2 font-medium">Collection</th>
@@ -359,6 +365,11 @@ export function B2CTab({ ops }: { ops: CommandDashboardState }) {
                               </div>
                             ) : null}
                             <div className="text-xs text-muted-foreground">{str(r.phone)}</div>
+                          </td>
+                          <td className="px-3 py-2.5 text-xs">
+                            {str(r.engagement_name) !== "—"
+                              ? str(r.engagement_name)
+                              : str(r.engagement_code)}
                           </td>
                           <td className="px-3 py-2.5 text-xs">
                             {str(r.package_name ?? r.entity_name)}

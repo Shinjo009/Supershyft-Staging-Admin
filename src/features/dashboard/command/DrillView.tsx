@@ -1,6 +1,7 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import type { DashboardAudience } from "../../../lib/api";
 import { EmptyState, Section, StatusBadge } from "./bits";
 import { fmtDay, inr } from "./dates";
 import { JourneyDrawer } from "./JourneyDrawer";
@@ -37,7 +38,7 @@ function collectionWhen(r: Record<string, unknown>) {
 /** Design JourneyTable (mixed) — Person, Type, Source, Package, Collection, Blood, Q, Lab, Bio-AI, Consult */
 function mixedJourneyCols(): Col[] {
   return [
-    { key: "name", header: "Person", cell: personCell },
+    { key: "name", header: "User", cell: personCell },
     {
       key: "type",
       header: "Type",
@@ -60,22 +61,11 @@ function mixedJourneyCols(): Col[] {
     {
       key: "src",
       header: "Source",
-      cell: (r) =>
-        String(r.audience).toLowerCase() === "b2b" ? (
-          <div>
-            <div className="text-xs">{str(r.organization_name ?? r.engagement_name)}</div>
-            <div className="truncate text-xs text-muted-foreground">{str(r.engagement_name)}</div>
-          </div>
-        ) : (
-          <div>
-            <div className="text-xs">{str(r.city)}</div>
-            {r.collection_location ? (
-              <div className="max-w-[160px] truncate text-xs text-muted-foreground" title={str(r.collection_location)}>
-                {str(r.collection_location)}
-              </div>
-            ) : null}
-          </div>
-        ),
+      cell: (r) => {
+        const name = str(r.engagement_name);
+        const code = str(r.engagement_code);
+        return <span className="text-xs">{name !== "—" ? name : code}</span>;
+      },
     },
     {
       key: "pkg",
@@ -120,7 +110,7 @@ function b2cJourneyCols(): Col[] {
   return [
     {
       key: "name",
-      header: "Customer",
+      header: "User",
       cell: (r) => (
         <div className="min-w-0">
           <div className="truncate font-medium">{str(r.user_name)}</div>
@@ -128,6 +118,15 @@ function b2cJourneyCols(): Col[] {
           <div className="whitespace-nowrap text-xs text-muted-foreground">{str(r.phone)}</div>
         </div>
       ),
+    },
+    {
+      key: "src",
+      header: "Source",
+      cell: (r) => {
+        const name = str(r.engagement_name);
+        const code = str(r.engagement_code);
+        return <span className="text-xs">{name !== "—" ? name : code}</span>;
+      },
     },
     {
       key: "pkg",
@@ -231,7 +230,7 @@ function colsForDrill(drill: string, audience?: string): Col[] {
 
   if (drill === "people_registered") {
     return [
-      { key: "person", header: "Person", cell: personCell },
+      { key: "person", header: "User", cell: personCell },
       { key: "email", header: "Email", cell: (r) => <span className="text-xs">{str(r.email)}</span> },
       { key: "city", header: "City", cell: (r) => str(r.city) },
       {
@@ -266,18 +265,27 @@ function colsForDrill(drill: string, audience?: string): Col[] {
   if (drill === "failed_notifications") {
     return [
       {
-        key: "id",
-        header: "Notification",
-        cell: (r) => <span className="font-mono text-xs">{str(r.notification_id)}</span>,
+        key: "recipient",
+        header: "Recipient",
+        cell: (r) => <span className="text-sm">{str(r.recipient_name)}</span>,
       },
-      { key: "svc", header: "Service", cell: (r) => str(r.service_key) },
-      { key: "ch", header: "Channel", cell: (r) => str(r.channel) },
-      { key: "status", header: "Status", cell: (r) => <StatusBadge status={str(r.status)} /> },
       {
-        key: "when",
-        header: "Dispatched",
-        cell: (r) =>
-          fmtDay(typeof r.dispatched_at === "string" ? r.dispatched_at.slice(0, 10) : null),
+        key: "engagement",
+        header: "Engagement",
+        cell: (r) => {
+          const name = str(r.engagement_name);
+          const code = str(r.engagement_code);
+          return <span className="text-xs">{name !== "—" ? name : code}</span>;
+        },
+      },
+      {
+        key: "message",
+        header: "Message",
+        cell: (r) => (
+          <span className="block max-w-xs truncate text-xs" title={str(r.message)}>
+            {str(r.message)}
+          </span>
+        ),
       },
     ];
   }
@@ -351,7 +359,7 @@ function colsForDrill(drill: string, audience?: string): Col[] {
   return [
     {
       key: "primary",
-      header: "Person",
+      header: "User",
       cell: (r) => str(r.user_name ?? r.engagement_name ?? r.package_name ?? r.code ?? r.ticket_id),
     },
     {
@@ -380,6 +388,20 @@ function isCampRow(row: Record<string, unknown>) {
   );
 }
 
+function userListFilters(drill: string) {
+  if (
+    drill === "failed_notifications" ||
+    drill === "b2b_camps" ||
+    drill === "open_engagements" ||
+    drill === "package_performance" ||
+    drill === "coupon_usage" ||
+    drill.startsWith("tickets")
+  ) {
+    return false;
+  }
+  return true;
+}
+
 export function DrillView({ ops }: { ops: CommandDashboardState }) {
   const navigate = useNavigate();
   const d = ops.drill!;
@@ -388,10 +410,13 @@ export function DrillView({ ops }: { ops: CommandDashboardState }) {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
+  const [city, setCity] = useState("");
+  const [audienceFilter, setAudienceFilter] = useState<DashboardAudience>(d.audience ?? "all");
   const [drawerUserId, setDrawerUserId] = useState<number | null>(null);
   const [drawerEngagementId, setDrawerEngagementId] = useState<number | null>(null);
   const limit = 25;
-  const cols = useMemo(() => colsForDrill(d.drill, d.audience), [d.drill, d.audience]);
+  const showUserFilters = userListFilters(d.drill);
+  const cols = useMemo(() => colsForDrill(d.drill, audienceFilter), [d.drill, audienceFilter]);
 
   const loadDrill = ops.loadDrill;
   useEffect(() => {
@@ -399,10 +424,11 @@ export function DrillView({ ops }: { ops: CommandDashboardState }) {
     setLoading(true);
     void loadDrill({
       drill: d.drill,
-      audience: d.audience,
+      audience: showUserFilters ? audienceFilter : d.audience,
       page,
       limit,
       q: q || undefined,
+      city: showUserFilters && city.trim() ? city.trim() : undefined,
     })
       .then((payload) => {
         if (cancelled) return;
@@ -415,7 +441,7 @@ export function DrillView({ ops }: { ops: CommandDashboardState }) {
     return () => {
       cancelled = true;
     };
-  }, [d.drill, d.audience, page, q, loadDrill]);
+  }, [d.drill, d.audience, audienceFilter, city, page, q, loadDrill, showUserFilters]);
 
   const pages = Math.max(1, Math.ceil(total / limit));
 
@@ -432,18 +458,63 @@ export function DrillView({ ops }: { ops: CommandDashboardState }) {
       <Section
         title={d.title}
         description={loading ? "Loading…" : `${total} result${total === 1 ? "" : "s"}`}
-        actions={
-          <input
-            value={q}
-            onChange={(e) => {
-              setPage(1);
-              setQ(e.target.value);
-            }}
-            placeholder="Search…"
-            className="h-8 w-52 rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring"
-          />
-        }
       >
+        <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
+          <div className="relative w-full max-w-xs">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={q}
+              onChange={(e) => {
+                setPage(1);
+                setQ(e.target.value);
+              }}
+              placeholder={
+                d.drill === "failed_notifications" ? "Search message…" : "Search name, phone, email…"
+              }
+              aria-label="Search records"
+              className="h-8 w-full rounded-md border bg-background pl-8 pr-3 text-xs outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          {showUserFilters && d.drill !== "people_registered" ? (
+            <div className="flex rounded-md border p-0.5" role="group" aria-label="Audience">
+              {(
+                [
+                  ["all", "All"],
+                  ["b2b", "B2B"],
+                  ["b2c", "B2C"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => {
+                    setPage(1);
+                    setAudienceFilter(id);
+                  }}
+                  className={
+                    audienceFilter === id
+                      ? "rounded px-2 py-0.5 text-xs font-medium bg-muted"
+                      : "rounded px-2 py-0.5 text-xs text-muted-foreground"
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {showUserFilters ? (
+            <input
+              value={city}
+              onChange={(e) => {
+                setPage(1);
+                setCity(e.target.value);
+              }}
+              placeholder="City"
+              aria-label="Filter by city"
+              className="h-8 w-36 rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-ring"
+            />
+          ) : null}
+        </div>
         {loading ? (
           <div className="p-6 text-sm text-muted-foreground">Loading…</div>
         ) : items.length === 0 ? (
