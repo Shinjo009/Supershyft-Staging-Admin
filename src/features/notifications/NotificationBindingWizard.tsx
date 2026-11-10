@@ -170,6 +170,11 @@ export function NotificationBindingWizard() {
     if (selectedEvent) setDisplayName(selectedEvent.name);
   }, [selectedEvent]);
 
+  const goToStep = useCallback((next: Step) => {
+    setError(null);
+    setStep(next);
+  }, []);
+
   const pickEvent = useCallback(
     (ev: CatalogEventItem) => {
       setSelectedEvent(ev);
@@ -177,22 +182,33 @@ export function NotificationBindingWizard() {
       const firstKey = ev.user_recipient_context_fields?.[0]?.key ?? "user_id";
       setUserContextKey(firstKey);
       setDisplayName(ev.name);
-      setStep(2);
+      goToStep(2);
     },
-    []
+    [goToStep]
   );
 
   const loadInitial = useCallback(async () => {
     setLoading(true);
     setError(null);
+    let catalog: CatalogEventItem[] = [];
+    let svcList: NotificationServiceItem[] = [];
     try {
-      const [evRes, svcRes] = await Promise.all([
-        notificationsCatalogApi.getEvents(),
-        notificationsApi.listServices(),
-      ]);
-      const catalog = evRes.data.data;
-      setEvents(catalog);
-      setServices(svcRes.data.data);
+      try {
+        const evRes = await notificationsCatalogApi.getEvents();
+        catalog = evRes.data.data;
+        setEvents(catalog);
+      } catch (err) {
+        setError(getApiError(err));
+        return;
+      }
+      try {
+        const svcRes = await notificationsApi.listServices();
+        svcList = svcRes.data.data;
+        setServices(svcList);
+      } catch (err) {
+        setError(getApiError(err));
+        return;
+      }
 
       if (bindingId) {
         const row = await notificationBindingsApi.getForWizard(Number(bindingId));
@@ -207,7 +223,7 @@ export function NotificationBindingWizard() {
           savedKey || ctxFields[0]?.key || "user_id"
         );
         const sk = row.service_key ?? row.notification_services[0]?.service_key;
-        const svc = sk ? svcRes.data.data.find((s) => s.service_key === sk) : undefined;
+        const svc = sk ? svcList.find((s) => s.service_key === sk) : undefined;
         if (svc) {
           applyServiceFromItem(svc, serviceHandlers);
           setServiceMode("create");
@@ -537,14 +553,14 @@ export function NotificationBindingWizard() {
             <div className="flex flex-wrap gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => setStep(1)}
+                onClick={() => goToStep(1)}
                 className="px-4 py-2 border border-zinc-300 rounded-lg text-sm hover:bg-zinc-50"
               >
                 Back
               </button>
               <button
                 type="button"
-                onClick={() => setStep(3)}
+                onClick={() => goToStep(3)}
                 disabled={!recipientType && mode === "global"}
                 className="px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm disabled:opacity-50"
               >
@@ -785,7 +801,7 @@ export function NotificationBindingWizard() {
             <div className="flex flex-wrap gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => setStep(mode === "engagement" ? 1 : 2)}
+                onClick={() => goToStep(mode === "engagement" ? 1 : 2)}
                 className="px-4 py-2 border border-zinc-300 rounded-lg text-sm hover:bg-zinc-50"
               >
                 Back
