@@ -17,17 +17,44 @@ export const TIME_PRESETS: { key: TimePreset; label: string }[] = [
   { key: "custom", label: "Custom" },
 ];
 
-export function StatusBadge({ status }: { status: string }) {
+export function formatNotificationStatusLabel(
+  status: string,
+  queueId?: string | null,
+  message?: string | null
+): string {
+  const hasQueue = queueId != null && String(queueId).trim() !== "";
+  if (status === "pending" && hasQueue) return "Queued at provider";
+  if (status === "failed" && hasQueue) return "Delivery failed";
+  if (status === "failed" && !hasQueue) return "Failed";
+  if (status === "sent") return "Sent";
+  if (status === "pending") return "Pending";
+  return status;
+}
+
+export function StatusBadge({
+  status,
+  queueId,
+  message,
+}: {
+  status: string;
+  queueId?: string | null;
+  message?: string | null;
+}) {
   const colors: Record<string, string> = {
     pending: "bg-amber-50 text-amber-700 border-amber-200",
     sent: "bg-emerald-50 text-emerald-700 border-emerald-200",
     failed: "bg-red-50 text-red-700 border-red-200",
   };
+  const label = formatNotificationStatusLabel(status, queueId, message);
+  const title =
+    (message && String(message).trim()) ||
+    (queueId ? `Queue: ${queueId}` : undefined);
   return (
     <span
       className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${colors[status] ?? "bg-zinc-50 text-zinc-700 border-zinc-200"}`}
+      title={title}
     >
-      {status}
+      {label}
     </span>
   );
 }

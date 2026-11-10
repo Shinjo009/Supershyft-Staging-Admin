@@ -325,7 +325,9 @@ export function NotificationLogsTab() {
       key: "status",
       label: "Status",
       sortable: false,
-      render: (r) => <StatusBadge status={r.status} />,
+      render: (r) => (
+        <StatusBadge status={r.status} queueId={r.queue_id} message={r.message} />
+      ),
     },
     {
       key: "recipients",
