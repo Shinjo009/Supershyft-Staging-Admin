@@ -98,7 +98,6 @@ export function NotificationBindingWizard() {
   const [recipientType, setRecipientType] = useState("");
   const [customPhones, setCustomPhones] = useState("");
   const [customEmails, setCustomEmails] = useState("");
-  const [userContextKey, setUserContextKey] = useState("");
 
   const [channel, setChannel] = useState<"whatsapp" | "email">("whatsapp");
   const [displayName, setDisplayName] = useState("");
@@ -170,45 +169,27 @@ export function NotificationBindingWizard() {
     if (selectedEvent) setDisplayName(selectedEvent.name);
   }, [selectedEvent]);
 
-  const goToStep = useCallback((next: Step) => {
-    setError(null);
-    setStep(next);
-  }, []);
-
   const pickEvent = useCallback(
     (ev: CatalogEventItem) => {
       setSelectedEvent(ev);
       setRecipientType(defaultRecipientForWizard(ev));
-      const firstKey = ev.user_recipient_context_fields?.[0]?.key ?? "user_id";
-      setUserContextKey(firstKey);
       setDisplayName(ev.name);
-      goToStep(2);
+      setStep(2);
     },
-    [goToStep]
+    []
   );
 
   const loadInitial = useCallback(async () => {
     setLoading(true);
     setError(null);
-    let catalog: CatalogEventItem[] = [];
-    let svcList: NotificationServiceItem[] = [];
     try {
-      try {
-        const evRes = await notificationsCatalogApi.getEvents();
-        catalog = evRes.data.data;
-        setEvents(catalog);
-      } catch (err) {
-        setError(getApiError(err));
-        return;
-      }
-      try {
-        const svcRes = await notificationsApi.listServices();
-        svcList = svcRes.data.data;
-        setServices(svcList);
-      } catch (err) {
-        setError(getApiError(err));
-        return;
-      }
+      const [evRes, svcRes] = await Promise.all([
+        notificationsCatalogApi.getEvents(),
+        notificationsApi.listServices(),
+      ]);
+      const catalog = evRes.data.data;
+      setEvents(catalog);
+      setServices(svcRes.data.data);
 
       if (bindingId) {
         const row = await notificationBindingsApi.getForWizard(Number(bindingId));
@@ -217,13 +198,8 @@ export function NotificationBindingWizard() {
         setRecipientType(row.recipient_type === "booker" ? "user" : row.recipient_type);
         setCustomPhones((row.recipient_config?.phones ?? []).join("\n"));
         setCustomEmails((row.recipient_config?.emails ?? []).join("\n"));
-        const ctxFields = ev?.user_recipient_context_fields ?? [];
-        const savedKey = row.recipient_config?.user_context_key ?? "";
-        setUserContextKey(
-          savedKey || ctxFields[0]?.key || "user_id"
-        );
         const sk = row.service_key ?? row.notification_services[0]?.service_key;
-        const svc = sk ? svcList.find((s) => s.service_key === sk) : undefined;
+        const svc = sk ? svcRes.data.data.find((s) => s.service_key === sk) : undefined;
         if (svc) {
           applyServiceFromItem(svc, serviceHandlers);
           setServiceMode("create");
@@ -234,7 +210,6 @@ export function NotificationBindingWizard() {
         setSelectedEvent(ev);
         if (ev) {
           setRecipientType(defaultRecipientForWizard(ev));
-          setUserContextKey(ev.user_recipient_context_fields?.[0]?.key ?? "user_id");
           setDisplayName(ev.name);
         }
       }
@@ -303,10 +278,6 @@ export function NotificationBindingWizard() {
       body.recipient_config = {
         phones: customPhones.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean),
         emails: customEmails.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean),
-      };
-    } else if (recipientType === "user" && mode === "global") {
-      body.recipient_config = {
-        user_context_key: userContextKey || selectedEvent.user_recipient_context_fields?.[0]?.key || "user_id",
       };
     }
     return body;
@@ -486,50 +457,6 @@ export function NotificationBindingWizard() {
                 })}
               </div>
             )}
-            {recipientType === "user" && mode === "global" && (() => {
-              const participantFields = selectedEvent.user_recipient_context_fields ?? [];
-              if (participantFields.length === 0) return null;
-              const triggerApi =
-                participantFields.find((f) => f.trigger_api)?.trigger_api ??
-                selectedEvent.trigger_notes?.split(",")[0]?.trim();
-              const fromTrigger = participantFields.some((f) => f.source === "trigger");
-              return (
-                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 space-y-3">
-                  <p className="text-sm font-medium text-zinc-900">
-                    {fromTrigger ? "Request JSON body" : "Participant identifier on emit"}
-                  </p>
-                  <p className="text-xs text-zinc-600">
-                    {fromTrigger && triggerApi
-                      ? `Choose which field from ${triggerApi} identifies who receives this notification.`
-                      : "Choose which value on the emit payload identifies the participant user."}
-                  </p>
-                  <ul className="space-y-2">
-                    {participantFields.map((field) => {
-                      const selected = userContextKey === field.key;
-                      return (
-                        <li key={field.key}>
-                          <button
-                            type="button"
-                            onClick={() => setUserContextKey(field.key)}
-                            className={selectableRowClass(selected)}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="text-left min-w-0">
-                                <p className="text-sm font-medium text-zinc-900 font-mono">{field.label}</p>
-                                {field.description ? (
-                                  <p className="text-xs text-zinc-600 mt-1 leading-snug">{field.description}</p>
-                                ) : null}
-                              </div>
-                              {selected ? <Check className="w-4 h-4 text-zinc-900 shrink-0 mt-0.5" /> : null}
-                            </div>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              );
-            })()}
             {recipientType === "custom" && mode === "global" && (
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="block text-sm text-zinc-800">
@@ -553,14 +480,14 @@ export function NotificationBindingWizard() {
             <div className="flex flex-wrap gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => goToStep(1)}
+                onClick={() => setStep(1)}
                 className="px-4 py-2 border border-zinc-300 rounded-lg text-sm hover:bg-zinc-50"
               >
                 Back
               </button>
               <button
                 type="button"
-                onClick={() => goToStep(3)}
+                onClick={() => setStep(3)}
                 disabled={!recipientType && mode === "global"}
                 className="px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm disabled:opacity-50"
               >
@@ -801,7 +728,7 @@ export function NotificationBindingWizard() {
             <div className="flex flex-wrap gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => goToStep(mode === "engagement" ? 1 : 2)}
+                onClick={() => setStep(mode === "engagement" ? 1 : 2)}
                 className="px-4 py-2 border border-zinc-300 rounded-lg text-sm hover:bg-zinc-50"
               >
                 Back
