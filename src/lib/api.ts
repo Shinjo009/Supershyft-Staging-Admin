@@ -5614,6 +5614,7 @@ export interface NotificationBindingItem {
   event_code: string;
   event_name: string;
   recipient_type: string;
+  delivery_channel: string;
   notification_services: NotificationServiceConfigItem[];
   engagement_type_id: number | null;
   recipient_config?: { phones?: string[]; emails?: string[] } | null;

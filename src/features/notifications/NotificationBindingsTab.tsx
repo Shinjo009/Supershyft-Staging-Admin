@@ -112,8 +112,23 @@ export function NotificationBindingsTab() {
       ),
     },
     {
+      key: "delivery_channel",
+      label: "Channel",
+      sortable: false,
+      hideOnMobile: true,
+      render: (r) => (
+        <span className="text-sm text-zinc-800">
+          {r.delivery_channel === "whatsapp"
+            ? "WhatsApp"
+            : r.delivery_channel === "email"
+              ? "Email"
+              : r.delivery_channel ?? "—"}
+        </span>
+      ),
+    },
+    {
       key: "notification_services",
-      label: "Services",
+      label: "Service",
       sortable: false,
       hideOnMobile: true,
       render: (r) => <ServiceChips services={r.notification_services} />,

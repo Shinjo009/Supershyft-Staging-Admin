@@ -124,8 +124,16 @@ export function NotificationEventDetailPage() {
     });
   };
 
+  const channelLabel = (ch: string) =>
+    ch === "whatsapp" ? "WhatsApp" : ch === "email" ? "Email" : ch;
+
   const handleDelete = async (row: NotificationBindingItem) => {
-    if (!window.confirm(`Delete this binding for recipient “${row.recipient_type}”?`)) return;
+    if (
+      !window.confirm(
+        `Delete this ${channelLabel(row.delivery_channel)} binding for recipient “${row.recipient_type}”?`
+      )
+    )
+      return;
     try {
       await notificationBindingsApi.delete(row.id);
       await load();
@@ -149,8 +157,16 @@ export function NotificationEventDetailPage() {
       ),
     },
     {
+      key: "delivery_channel",
+      label: "Channel",
+      sortable: false,
+      render: (r) => (
+        <span className="text-sm font-medium text-zinc-900">{channelLabel(r.delivery_channel)}</span>
+      ),
+    },
+    {
       key: "notification_services",
-      label: "Services",
+      label: "Service",
       sortable: false,
       render: (r) => <ServiceSummary services={r.notification_services} />,
     },
@@ -238,10 +254,9 @@ export function NotificationEventDetailPage() {
           <section className="space-y-3">
             <h3 className="text-sm font-medium text-zinc-900">Who gets which message</h3>
             <p className="text-sm text-zinc-600">
-              Each row is one recipient group for this event. When the event fires, matching bindings
-              send through every linked notification service on that row (for example WhatsApp and email
-              together). Use <span className="font-medium">Add binding</span> again with the same
-              recipient to attach another channel — it is merged onto the existing row.
+              Each row is one recipient and delivery channel (WhatsApp or email). When the event fires,
+              every matching row dispatches. Use <span className="font-medium">Add binding</span> again
+              with the same recipient to add the other channel as a separate row you can edit on its own.
             </p>
 
             <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden">
