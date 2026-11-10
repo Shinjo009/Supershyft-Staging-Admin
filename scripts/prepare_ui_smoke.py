@@ -26,7 +26,7 @@ ADMIN_ROUTES = [
     "/checklists",
     "/my-tasks",
     "/library/health-metrics",
-    "/notifications/notifications",
+    "/notifications/logs",
     "/support",
     "/server",
     "/settings/onboarding",

@@ -5562,6 +5562,7 @@ export interface NotificationItem {
   engagement_code?: string | null;
   assessment_instance_id: number | null;
   message: string | null;
+  queue_id: number | null;
   triggered_by_user_id: number | null;
   dispatched_at: string | null;
   completed_at: string | null;
@@ -5585,7 +5586,31 @@ export interface NotificationServiceItem {
   require_otp: boolean;
   require_session_details: boolean;
   require_external_link: boolean;
+  template_name: string | null;
+  template_variables: Record<string, unknown> | unknown[] | null;
+  email_subject: string | null;
+  email_body: string | null;
+  email_html: string | null;
   created_at: string | null;
+}
+
+export interface CatalogEventItem {
+  code: string;
+  name: string;
+  status: string;
+  variable_groups: string[];
+  default_recipients: string[];
+  trigger_notes: string;
+  legacy_event_code: string | null;
+}
+
+export interface NotificationBindingItem {
+  id: number;
+  event_code: string;
+  event_name: string;
+  recipient_type: string;
+  notification_services: NotificationServiceConfigItem[];
+  engagement_type_id: number | null;
 }
 
 export interface SessionDetailsPayload {
@@ -5657,6 +5682,11 @@ export const notificationsApi = {
     require_otp?: boolean;
     require_session_details?: boolean;
     require_external_link?: boolean;
+    template_name?: string | null;
+    template_variables?: Record<string, unknown> | unknown[] | null;
+    email_subject?: string | null;
+    email_body?: string | null;
+    email_html?: string | null;
   }) =>
     api.post<{ data: NotificationServiceItem; meta: Record<string, unknown> }>("/notifications/services", body),
   updateService: (
@@ -5672,6 +5702,11 @@ export const notificationsApi = {
       require_otp?: boolean;
       require_session_details?: boolean;
       require_external_link?: boolean;
+      template_name?: string | null;
+      template_variables?: Record<string, unknown> | unknown[] | null;
+      email_subject?: string | null;
+      email_body?: string | null;
+      email_html?: string | null;
     }
   ) =>
     api.put<{ data: NotificationServiceItem; meta: Record<string, unknown> }>(
@@ -5896,6 +5931,43 @@ export const engagementTypesApi = {
     api.put<{ data: EngagementTypeItem; meta: Record<string, unknown> }>(`/engagement-types/${id}`, payload),
   delete: (id: number) =>
     api.delete<{ data: { deleted: boolean }; meta: Record<string, unknown> }>(`/engagement-types/${id}`),
+};
+
+export const notificationsCatalogApi = {
+  getEvents: () =>
+    api.get<{ data: CatalogEventItem[]; meta: Record<string, unknown> }>("/notifications/catalog/events"),
+};
+
+export const notificationBindingsApi = {
+  list: (params?: { event_code?: string }) =>
+    api.get<{ data: NotificationBindingItem[]; meta: Record<string, unknown> }>("/notifications/bindings", {
+      params,
+    }),
+  create: (body: {
+    event_code: string;
+    event_name: string;
+    recipient_type: string;
+    notification_services?: NotificationServiceConfigItem[];
+    engagement_type_id?: number | null;
+  }) =>
+    api.post<{ data: NotificationBindingItem; meta: Record<string, unknown> }>("/notifications/bindings", body),
+  update: (
+    id: number,
+    body: {
+      event_name?: string;
+      recipient_type?: string;
+      notification_services?: NotificationServiceConfigItem[];
+      engagement_type_id?: number | null;
+    }
+  ) =>
+    api.put<{ data: NotificationBindingItem; meta: Record<string, unknown> }>(
+      `/notifications/bindings/${id}`,
+      body
+    ),
+  delete: (id: number) =>
+    api.delete<{ data: { id: number; deleted: boolean }; meta: Record<string, unknown> }>(
+      `/notifications/bindings/${id}`
+    ),
 };
 
 // --- Notification Events ---
