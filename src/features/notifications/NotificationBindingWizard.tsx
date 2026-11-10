@@ -98,6 +98,7 @@ export function NotificationBindingWizard() {
   const [recipientType, setRecipientType] = useState("");
   const [customPhones, setCustomPhones] = useState("");
   const [customEmails, setCustomEmails] = useState("");
+  const [userContextKey, setUserContextKey] = useState("");
 
   const [channel, setChannel] = useState<"whatsapp" | "email">("whatsapp");
   const [displayName, setDisplayName] = useState("");
@@ -173,6 +174,8 @@ export function NotificationBindingWizard() {
     (ev: CatalogEventItem) => {
       setSelectedEvent(ev);
       setRecipientType(defaultRecipientForWizard(ev));
+      const firstKey = ev.user_recipient_context_fields?.[0]?.key ?? "user_id";
+      setUserContextKey(firstKey);
       setDisplayName(ev.name);
       setStep(2);
     },
@@ -198,6 +201,11 @@ export function NotificationBindingWizard() {
         setRecipientType(row.recipient_type === "booker" ? "user" : row.recipient_type);
         setCustomPhones((row.recipient_config?.phones ?? []).join("\n"));
         setCustomEmails((row.recipient_config?.emails ?? []).join("\n"));
+        const ctxFields = ev?.user_recipient_context_fields ?? [];
+        const savedKey = row.recipient_config?.user_context_key ?? "";
+        setUserContextKey(
+          savedKey || ctxFields[0]?.key || "user_id"
+        );
         const sk = row.service_key ?? row.notification_services[0]?.service_key;
         const svc = sk ? svcRes.data.data.find((s) => s.service_key === sk) : undefined;
         if (svc) {
@@ -210,6 +218,7 @@ export function NotificationBindingWizard() {
         setSelectedEvent(ev);
         if (ev) {
           setRecipientType(defaultRecipientForWizard(ev));
+          setUserContextKey(ev.user_recipient_context_fields?.[0]?.key ?? "user_id");
           setDisplayName(ev.name);
         }
       }
@@ -278,6 +287,10 @@ export function NotificationBindingWizard() {
       body.recipient_config = {
         phones: customPhones.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean),
         emails: customEmails.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean),
+      };
+    } else if (recipientType === "user" && mode === "global") {
+      body.recipient_config = {
+        user_context_key: userContextKey || selectedEvent.user_recipient_context_fields?.[0]?.key || "user_id",
       };
     }
     return body;
@@ -455,6 +468,42 @@ export function NotificationBindingWizard() {
                     </button>
                   );
                 })}
+              </div>
+            )}
+            {recipientType === "user" && mode === "global" && (
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 space-y-3">
+                <p className="text-sm font-medium text-zinc-900">Emit context for this event</p>
+                <p className="text-xs text-zinc-600">
+                  Choose which field on the notification emit payload identifies the participant user.
+                </p>
+                {(selectedEvent.user_recipient_context_fields ?? []).length === 0 ? (
+                  <p className="text-sm text-zinc-500 font-mono">user_id · participant_user_id · user_ids</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {(selectedEvent.user_recipient_context_fields ?? []).map((field) => {
+                      const selected = userContextKey === field.key;
+                      return (
+                        <li key={field.key}>
+                          <button
+                            type="button"
+                            onClick={() => setUserContextKey(field.key)}
+                            className={selectableRowClass(selected)}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="text-left min-w-0">
+                                <p className="text-sm font-medium text-zinc-900 font-mono">{field.label}</p>
+                                {field.description ? (
+                                  <p className="text-xs text-zinc-600 mt-1 leading-snug">{field.description}</p>
+                                ) : null}
+                              </div>
+                              {selected ? <Check className="w-4 h-4 text-zinc-900 shrink-0 mt-0.5" /> : null}
+                            </div>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </div>
             )}
             {recipientType === "custom" && mode === "global" && (

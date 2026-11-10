@@ -38,6 +38,10 @@ export const WIZARD_RECIPIENT_TYPES = [
 export function participantPayloadHintForEvent(
   event: CatalogEventItem | null | undefined
 ): string {
+  const fields = event?.user_recipient_context_fields ?? [];
+  if (fields.length > 0) {
+    return fields.map((f) => f.key).join(" · ");
+  }
   if (!event) return "user_id or participant_user_id";
   const hints = event.recipient_payload_hints ?? {};
   if (event.code === "family.gift_sent") {
@@ -86,6 +90,7 @@ export function catalogEventForBinding(
     trigger_notes: "",
     legacy_event_code: null,
     recipient_payload_hints: {},
+    user_recipient_context_fields: [],
   };
 }
 

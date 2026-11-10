@@ -5595,6 +5595,7 @@ export interface CatalogEventItem {
   trigger_notes: string;
   legacy_event_code: string | null;
   recipient_payload_hints?: Record<string, string>;
+  user_recipient_context_fields?: { key: string; label: string; description: string }[];
 }
 
 export interface WhatsappTemplateMeta {
@@ -5616,7 +5617,11 @@ export interface NotificationBindingItem {
   recipient_type: string;
   notification_services: NotificationServiceConfigItem[];
   engagement_type_id: number | null;
-  recipient_config?: { phones?: string[]; emails?: string[] } | null;
+  recipient_config?: {
+    phones?: string[];
+    emails?: string[];
+    user_context_key?: string | null;
+  } | null;
   service_key?: string | null;
 }
 
@@ -5637,7 +5642,11 @@ export interface WizardServicePayload {
 export interface WizardBindingPayload {
   event_code: string;
   recipient_type: string;
-  recipient_config?: { phones: string[]; emails: string[] };
+  recipient_config?: {
+    phones?: string[];
+    emails?: string[];
+    user_context_key?: string | null;
+  };
   engagement_type_id?: number | null;
   service: WizardServicePayload;
 }
