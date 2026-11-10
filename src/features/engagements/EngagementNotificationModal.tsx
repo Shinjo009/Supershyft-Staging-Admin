@@ -278,8 +278,8 @@ export function EngagementNotificationModal({
     const svc = selectedService;
     if (!svc) return;
 
-    if (svc.require_external_link) {
-      const link = externalLink.trim();
+    const link = externalLink.trim();
+    if (svc.require_external_link || link) {
       if (!link) {
         setError("This service requires an external link.");
         return;
@@ -341,7 +341,7 @@ export function EngagementNotificationModal({
                 ? participantDetailsFromRow(participant)
                 : undefined,
             session_details: sessionDetails,
-            external_link: svc.require_external_link ? externalLink.trim() : undefined,
+            external_link: link || undefined,
           });
           sentCount += 1;
           setNotifiedIds((prev) => {
@@ -520,9 +520,12 @@ export function EngagementNotificationModal({
           )}
         </div>
 
-        {selectedService?.require_external_link && (
+        {selectedService &&
+          (selectedService.require_external_link || selectedService.channel === "email") && (
           <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-1">External link</label>
+            <label className="block text-sm font-medium text-zinc-700 mb-1">
+              External link{selectedService.require_external_link ? "" : " (optional)"}
+            </label>
             <input
               type="url"
               value={externalLink}

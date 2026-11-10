@@ -10,7 +10,6 @@ import {
   type EngagementTypeItem,
   type ExpertTypeItem,
   type GeocodeSuggestion,
-  type NotificationEventItem,
   type NotificationServiceConfigItem,
   type NotificationServiceItem,
   type OrganizationListItem,
@@ -20,7 +19,7 @@ import {
   engagementTypesApi,
   expertTypesApi,
   getApiError,
-  notificationEventsApi,
+  notificationsCatalogApi,
   questionnaireCategoriesApi,
   type QuestionnaireCategory,
 } from "../../lib/api";
@@ -187,8 +186,12 @@ export function EngagementFormWizard({
   );
 
   const [engagementTypes, setEngagementTypes] = useState<EngagementTypeItem[]>([]);
-  const [notificationEvents, setNotificationEvents] = useState<NotificationEventItem[]>([]);
-  const [notificationConfig, setNotificationConfig] = useState<Record<number, NotificationServiceConfigItem[]>>({});
+  const [notificationEvents, setNotificationEvents] = useState<
+    { event_code: string; display_name: string }[]
+  >([]);
+  const [notificationConfig, setNotificationConfig] = useState<
+    Record<string, NotificationServiceConfigItem[]>
+  >({});
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [questionnaireCategories, setQuestionnaireCategories] = useState<QuestionnaireCategory[]>([]);
   const editConfigLoaded = useRef(false);
@@ -829,14 +832,23 @@ export function EngagementFormWizard({
 
     (async () => {
       try {
-        const eventsRes = await notificationEventsApi.list({
-          engagement_type_id: selectedTypeId,
-        });
+        const [defaultsRes, catalogRes] = await Promise.all([
+          engagementNotificationsApi.getDefaults(selectedTypeId),
+          notificationsCatalogApi.getEvents(),
+        ]);
         if (cancelled) return;
-        const events = Array.isArray(eventsRes.data.data) ? eventsRes.data.data : [];
-        setNotificationEvents(events);
+        const catalog = Array.isArray(catalogRes.data.data) ? catalogRes.data.data : [];
+        const defaults = Array.isArray(defaultsRes.data.data) ? defaultsRes.data.data : [];
+        const eventRows = defaults.map((d) => ({
+          event_code: d.event_code,
+          display_name:
+            d.event_display_name ??
+            catalog.find((c) => c.code === d.event_code)?.name ??
+            d.event_code,
+        }));
+        setNotificationEvents(eventRows);
 
-        const config: Record<number, NotificationServiceConfigItem[]> = {};
+        const config: Record<string, NotificationServiceConfigItem[]> = {};
 
         if (mode === "edit" && engagementId && !editConfigLoaded.current) {
           editConfigLoaded.current = true;
@@ -846,28 +858,19 @@ export function EngagementFormWizard({
             if (!cancelled) {
               const items = Array.isArray(configRes.data.data) ? configRes.data.data : [];
               for (const item of items) {
-                config[item.notification_event_id] = normalizeNotificationServiceConfigs(
-                  item.notification_services
-                );
+                if (item.event_code) {
+                  config[item.event_code] = normalizeNotificationServiceConfigs(
+                    item.notification_services
+                  );
+                }
               }
             }
           } catch {
             // fall through with empty config
           }
         } else {
-          try {
-            const defaultsRes =
-              await engagementNotificationsApi.getDefaults(selectedTypeId);
-            if (!cancelled) {
-              const items = Array.isArray(defaultsRes.data.data) ? defaultsRes.data.data : [];
-              for (const item of items) {
-                config[item.notification_event_id] = normalizeNotificationServiceConfigs(
-                  item.notification_services
-                );
-              }
-            }
-          } catch {
-            // keep empty config
+          for (const item of defaults) {
+            config[item.event_code] = normalizeNotificationServiceConfigs(item.notification_services);
           }
         }
 
@@ -891,8 +894,8 @@ export function EngagementFormWizard({
 
   const buildNotificationsPayload = () =>
     Object.entries(notificationConfig)
-      .map(([eventId, services]) => ({
-        notification_event_id: Number(eventId),
+      .map(([eventCode, services]) => ({
+        event_code: eventCode,
         notification_services: services.filter((item) => item.service_key.trim()),
       }))
       .filter((item) => item.notification_services.length > 0);
@@ -1961,18 +1964,27 @@ export function EngagementFormWizard({
               </p>
             ) : (
               notificationEvents.map((event) => (
-                <NotificationEventServicesInput
-                  key={event.notification_event_id}
-                  label={event.display_name}
-                  value={notificationConfig[event.notification_event_id] ?? []}
-                  onChange={(next) =>
-                    setNotificationConfig((prev) => ({
-                      ...prev,
-                      [event.notification_event_id]: next,
-                    }))
-                  }
-                  services={notificationServices}
-                />
+                <div key={event.event_code} className="space-y-2">
+                  <NotificationEventServicesInput
+                    label={event.display_name}
+                    value={notificationConfig[event.event_code] ?? []}
+                    onChange={(next) =>
+                      setNotificationConfig((prev) => ({
+                        ...prev,
+                        [event.event_code]: next,
+                      }))
+                    }
+                    services={notificationServices}
+                  />
+                  {mode === "edit" && engagementId ? (
+                    <a
+                      href={`/notifications/notifications/new?mode=engagement&event_code=${encodeURIComponent(event.event_code)}&engagementId=${engagementId}`}
+                      className="text-xs font-medium text-zinc-600 hover:text-zinc-900"
+                    >
+                      Set up notification (wizard)
+                    </a>
+                  ) : null}
+                </div>
               ))
             )}
           </div>

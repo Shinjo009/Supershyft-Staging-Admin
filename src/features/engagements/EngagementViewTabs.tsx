@@ -14,7 +14,6 @@ import type {
   EngagementDataCompletenessResponse,
   EngagementNotificationItem,
   EngagementTypeItem,
-  NotificationEventItem,
 } from "../../lib/api";
 import { normalizeNotificationServiceConfigs } from "../../shared/ui/NotificationEventServicesInput";
 import {
@@ -22,7 +21,7 @@ import {
   engagementNotificationsApi,
   engagementTypesApi,
   getApiError,
-  notificationEventsApi,
+  notificationsCatalogApi,
 } from "../../lib/api";
 import { CampOverviewSection } from "./CampOverviewSection";
 import { ConsoleUrlActions } from "./consoleUrlActions";
@@ -456,7 +455,9 @@ export function EngagementNotificationsTab({
 }: Pick<SharedProps, "engagement" | "notificationServiceLabel">) {
   const [loading, setLoading] = useState(true);
   const [engagementTypes, setEngagementTypes] = useState<EngagementTypeItem[]>([]);
-  const [notificationEvents, setNotificationEvents] = useState<NotificationEventItem[]>([]);
+  const [defaultEventRows, setDefaultEventRows] = useState<
+    { event_code: string; display_name: string }[]
+  >([]);
   const [configuredNotifications, setConfiguredNotifications] = useState<
     EngagementNotificationItem[]
   >([]);
@@ -491,10 +492,10 @@ export function EngagementNotificationsTab({
         const hasEmbedded =
           Array.isArray(embeddedNotifications) && embeddedNotifications.length > 0;
 
-        const [eventsRes, configRes] = await Promise.all([
+        const [defaultsRes, configRes] = await Promise.all([
           engagementTypeId
-            ? notificationEventsApi.list({ engagement_type_id: engagementTypeId })
-            : Promise.resolve({ data: { data: [] as NotificationEventItem[] } }),
+            ? engagementNotificationsApi.getDefaults(engagementTypeId)
+            : Promise.resolve({ data: { data: [] } }),
           hasEmbedded
             ? Promise.resolve({ data: { data: embeddedNotifications } })
             : engagementNotificationsApi.getForEngagement(engagement.engagement_id),
@@ -502,15 +503,24 @@ export function EngagementNotificationsTab({
 
         if (cancelled) return;
 
-        setNotificationEvents(
-          Array.isArray(eventsRes.data.data) ? eventsRes.data.data : []
+        const catalogRes = await notificationsCatalogApi.getEvents();
+        const catalog = catalogRes.data.data ?? [];
+        const defaults = Array.isArray(defaultsRes.data.data) ? defaultsRes.data.data : [];
+        setDefaultEventRows(
+          defaults.map((d) => ({
+            event_code: d.event_code,
+            display_name:
+              d.event_display_name ??
+              catalog.find((c) => c.code === d.event_code)?.name ??
+              d.event_code,
+          }))
         );
         setConfiguredNotifications(
           Array.isArray(configRes.data.data) ? configRes.data.data : []
         );
       } catch {
         if (!cancelled) {
-          setNotificationEvents([]);
+          setDefaultEventRows([]);
           setConfiguredNotifications([]);
         }
       } finally {
@@ -524,13 +534,12 @@ export function EngagementNotificationsTab({
     };
   }, [engagement.engagement_id, engagementTypeId, embeddedNotifications]);
 
-  const servicesByEventId = useMemo(() => {
-    const map = new Map<number, ReturnType<typeof normalizeNotificationServiceConfigs>>();
+  const servicesByEventCode = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof normalizeNotificationServiceConfigs>>();
     for (const item of configuredNotifications) {
-      map.set(
-        item.notification_event_id,
-        normalizeNotificationServiceConfigs(item.notification_services)
-      );
+      if (item.event_code) {
+        map.set(item.event_code, normalizeNotificationServiceConfigs(item.notification_services));
+      }
     }
     return map;
   }, [configuredNotifications]);
@@ -548,19 +557,19 @@ export function EngagementNotificationsTab({
       : "—";
 
   const rows = useMemo(() => {
-    if (notificationEvents.length > 0) {
-      return notificationEvents.map((event) => ({
-        key: event.notification_event_id,
+    if (defaultEventRows.length > 0) {
+      return defaultEventRows.map((event) => ({
+        key: event.event_code,
         label: event.display_name,
-        services: servicesByEventId.get(event.notification_event_id) ?? [],
+        services: servicesByEventCode.get(event.event_code) ?? [],
       }));
     }
     return configuredNotifications.map((item) => ({
-      key: item.notification_event_id,
-      label: item.event_display_name ?? `Event #${item.notification_event_id}`,
+      key: item.event_code,
+      label: item.event_display_name ?? item.event_code,
       services: normalizeNotificationServiceConfigs(item.notification_services),
     }));
-  }, [configuredNotifications, notificationEvents, servicesByEventId]);
+  }, [configuredNotifications, defaultEventRows, servicesByEventCode]);
 
   return (
     <div className="bg-white border border-zinc-200 rounded-xl p-4">

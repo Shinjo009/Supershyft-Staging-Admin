@@ -140,9 +140,9 @@ const ExpertCampConsultationParticipantsPage = lazy(() =>
 const Notifications = lazy(() =>
   import("./features/notifications/Notifications").then((m) => ({ default: m.Notifications }))
 );
-const NotificationBindingWizardStub = lazy(() =>
-  import("./features/notifications/NotificationBindingWizardStub").then((m) => ({
-    default: m.NotificationBindingWizardStub,
+const NotificationBindingWizard = lazy(() =>
+  import("./features/notifications/NotificationBindingWizard").then((m) => ({
+    default: m.NotificationBindingWizard,
   }))
 );
 const SuperClub = lazy(() =>
@@ -524,7 +524,15 @@ function AppRoutes() {
           path="notifications/notifications/new"
           element={
             <PermissionRoute category="notifications">
-              <NotificationBindingWizardStub />
+              <NotificationBindingWizard />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="notifications/notifications/:bindingId/edit"
+          element={
+            <PermissionRoute category="notifications">
+              <NotificationBindingWizard />
             </PermissionRoute>
           }
         />

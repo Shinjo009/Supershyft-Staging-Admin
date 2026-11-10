@@ -36,7 +36,7 @@ import {
   engagementsApi,
   engagementNotificationsApi,
   engagementTypesApi,
-  notificationEventsApi,
+  notificationsCatalogApi,
   notificationsApi,
   platformSettingsApi,
   type AssessmentPackage,
@@ -50,7 +50,6 @@ import {
   type EngagementsSyncStats,
   type MetsightsProfilesImportPageResult,
   type MetsightsProfilesStats,
-  type NotificationEventItem,
   type NotificationDefaultItem,
   type NotificationServiceConfigItem,
   type NotificationServiceItem,
@@ -164,15 +163,15 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
 
   const [notifTypes, setNotifTypes] = useState<EngagementTypeItem[]>([]);
   const [activeNotifType, setActiveNotifType] = useState<number | null>(null);
-  const [notifEvents, setNotifEvents] = useState<NotificationEventItem[]>([]);
+  const [notifEvents, setNotifEvents] = useState<{ event_code: string; display_name: string }[]>([]);
   const [notifEventsLoading, setNotifEventsLoading] = useState(false);
-  const [notifDefaults, setNotifDefaults] = useState<Record<number, NotificationServiceConfigItem[]>>({});
+  const [notifDefaults, setNotifDefaults] = useState<Record<string, NotificationServiceConfigItem[]>>({});
   const [, setNotifDefaultsOriginal] = useState<Record<number, NotificationServiceConfigItem[]>>({});
   const [notifSaving, setNotifSaving] = useState(false);
   const [notifError, setNotifError] = useState<string | null>(null);
   const [notifSuccess, setNotifSuccess] = useState(false);
-  const notifDraftsRef = useRef<Record<number, Record<number, NotificationServiceConfigItem[]>>>({});
-  const notifOriginalsRef = useRef<Record<number, Record<number, NotificationServiceConfigItem[]>>>({});
+  const notifDraftsRef = useRef<Record<number, Record<string, NotificationServiceConfigItem[]>>>({});
+  const notifOriginalsRef = useRef<Record<number, Record<string, NotificationServiceConfigItem[]>>>({});
 
   const [defaultAssistantEmployees, setDefaultAssistantEmployees] = useState<EmployeeListItem[]>([]);
   const [selectedDefaultAssistantIds, setSelectedDefaultAssistantIds] = useState<Set<number>>(new Set());
@@ -672,11 +671,22 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
     if (cached) {
       setNotifDefaults(cached);
       setNotifDefaultsOriginal(notifOriginalsRef.current[activeNotifType] ?? cached);
-      notificationEventsApi
-        .list({ engagement_type_id: activeNotifType })
-        .then((res) => {
+      engagementNotificationsApi
+        .getDefaults(activeNotifType)
+        .then(async (defaultsRes) => {
           if (cancelled) return;
-          setNotifEvents(res.data.data ?? []);
+          const catalogRes = await notificationsCatalogApi.getEvents();
+          const catalog = catalogRes.data.data ?? [];
+          const defaults = defaultsRes.data.data ?? [];
+          setNotifEvents(
+            defaults.map((d) => ({
+              event_code: d.event_code,
+              display_name:
+                d.event_display_name ??
+                catalog.find((c) => c.code === d.event_code)?.name ??
+                d.event_code,
+            }))
+          );
         })
         .catch((err) => {
           if (cancelled) return;
@@ -691,22 +701,27 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
     }
 
     Promise.all([
-      notificationEventsApi.list({ engagement_type_id: activeNotifType }),
+      notificationsCatalogApi.getEvents(),
       engagementNotificationsApi.getDefaults(activeNotifType),
     ])
-      .then(([eventsRes, defaultsRes]) => {
+      .then(([catalogRes, defaultsRes]) => {
         if (cancelled) return;
-        const events = Array.isArray(eventsRes.data.data) ? eventsRes.data.data : [];
-        setNotifEvents(events);
-        const defaults: Record<number, NotificationServiceConfigItem[]> = {};
-        for (const ev of events) defaults[ev.notification_event_id] = [];
+        const catalog = Array.isArray(catalogRes.data.data) ? catalogRes.data.data : [];
         const defaultsList = Array.isArray(defaultsRes.data.data)
           ? (defaultsRes.data.data as NotificationDefaultItem[])
           : [];
+        setNotifEvents(
+          defaultsList.map((d) => ({
+            event_code: d.event_code,
+            display_name:
+              d.event_display_name ??
+              catalog.find((c) => c.code === d.event_code)?.name ??
+              d.event_code,
+          }))
+        );
+        const defaults: Record<string, NotificationServiceConfigItem[]> = {};
         for (const d of defaultsList) {
-          defaults[d.notification_event_id] = normalizeNotificationServiceConfigs(
-            d.notification_services
-          );
+          defaults[d.event_code] = normalizeNotificationServiceConfigs(d.notification_services);
         }
         setNotifDefaults(defaults);
         setNotifDefaultsOriginal({ ...defaults });
@@ -733,9 +748,9 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
     return JSON.stringify(draft) !== JSON.stringify(original);
   }
 
-  function updateNotifDefault(eventId: number, value: NotificationServiceConfigItem[]) {
+  function updateNotifDefault(eventCode: string, value: NotificationServiceConfigItem[]) {
     setNotifDefaults((prev) => {
-      const next = { ...prev, [eventId]: value };
+      const next = { ...prev, [eventCode]: value };
       if (activeNotifType !== null) notifDraftsRef.current[activeNotifType] = next;
       return next;
     });
@@ -749,8 +764,8 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
     setNotifSuccess(false);
     try {
       const payload = Object.entries(notifDefaults)
-        .map(([eventId, services]) => ({
-          notification_event_id: Number(eventId),
+        .map(([eventCode, services]) => ({
+          event_code: eventCode,
           notification_services: services.filter((item) => item.service_key.trim()),
         }))
         .filter((item) => item.notification_services.length > 0);
@@ -1657,19 +1672,26 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
           ) : activeNotifType !== null && notifEvents.length > 0 ? (
             <div className="space-y-4">
               {notifEvents.map((ev) => (
-                <NotificationEventServicesInput
-                  key={ev.notification_event_id}
-                  label={ev.display_name}
-                  value={notifDefaults[ev.notification_event_id] ?? []}
-                  onChange={(next) => updateNotifDefault(ev.notification_event_id, next)}
-                  services={notificationServices}
-                />
+                <div key={ev.event_code} className="space-y-1">
+                  <NotificationEventServicesInput
+                    label={ev.display_name}
+                    value={notifDefaults[ev.event_code] ?? []}
+                    onChange={(next) => updateNotifDefault(ev.event_code, next)}
+                    services={notificationServices}
+                  />
+                  <a
+                    href={`/notifications/notifications/new?event_code=${encodeURIComponent(ev.event_code)}&engagementTypeId=${activeNotifType}`}
+                    className="text-xs text-zinc-600 hover:text-zinc-900"
+                  >
+                    Configure with wizard
+                  </a>
+                </div>
               ))}
             </div>
           ) : activeNotifType !== null ? (
             <p className="text-sm text-zinc-500 py-2">
-              No notification events are linked to this engagement type. Add or update events under
-              Library → Notifications → Events, then return here to set defaults.
+              No notification defaults are configured for this engagement type. Add bindings under
+              Notifications → Notifications, or use the wizard from a type default row.
             </p>
           ) : null}
 
