@@ -137,6 +137,9 @@ export function describeHttpCall(log: IntegrationSyncLog): string | null {
       : null;
   const method = typeof req?.http_method === "string" ? req.http_method.toUpperCase() : null;
   const apiName = typeof req?.api_name === "string" ? req.api_name : null;
+  const direction = req?.direction === "inbound" ? "INBOUND" : null;
+  if (direction && apiName === "whatapi_inbound_webhook") return "INBOUND WhatAPI webhook";
+  if (direction && apiName === "whatapi_webhook_verify") return "INBOUND WhatAPI verify";
   if (method && apiName) return `${method} ${apiName}`;
   const call = primaryHttpCall(log);
   const url = call?.url ?? log.api_endpoint_url;

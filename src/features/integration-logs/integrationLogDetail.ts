@@ -23,7 +23,12 @@ function pickSent(log: IntegrationSyncLog): unknown {
   if (req && typeof req === "object" && !Array.isArray(req)) {
     const record = req as Record<string, unknown>;
     if (record.body !== undefined) return record.body;
-    if (record.query !== undefined) return record.query;
+    if (record.query !== undefined) {
+      if (typeof record.url === "string") {
+        return { url: record.url, query: record.query };
+      }
+      return record.query;
+    }
   }
   return req ?? null;
 }
@@ -33,6 +38,12 @@ function pickReceived(log: IntegrationSyncLog): unknown {
   if (!res || typeof res !== "object" || Array.isArray(res)) return res ?? null;
   const record = res as Record<string, unknown>;
   if (record.response_body !== undefined) return record.response_body;
+  if (record.handler_result !== undefined) {
+    return record;
+  }
+  if (record.data !== undefined) {
+    return res;
+  }
   if (record.queue_id !== undefined || record.message_status !== undefined) {
     return {
       ...(record.queue_id ? { queue_id: record.queue_id } : {}),
