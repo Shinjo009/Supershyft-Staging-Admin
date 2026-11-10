@@ -1,4 +1,69 @@
-import type { NotificationItem, NotificationRecipient } from "../../lib/api";
+import type { CatalogEventItem, NotificationItem, NotificationRecipient } from "../../lib/api";
+
+export const RECIPIENT_LABELS: Record<string, string> = {
+  user: "Participant from payload",
+  members: "Family members",
+  booker: "Family booker",
+  assistants: "All onboarding assistants",
+  "assistants.phlebo": "Phlebo assistants",
+  "assistants.expert": "Expert assistants",
+  "assistants.staff": "Staff assistants",
+  employees: "Default support employees",
+  admin: "Ops / alert users",
+  custom: "Specific phone numbers or emails",
+};
+
+/** Recipient types offered in the binding wizard (excludes legacy booker-only option). */
+export const WIZARD_RECIPIENT_TYPES = [
+  "user",
+  "members",
+  "assistants",
+  "assistants.phlebo",
+  "assistants.expert",
+  "assistants.staff",
+  "employees",
+  "admin",
+  "custom",
+] as const;
+
+export function participantPayloadHintForEvent(
+  event: CatalogEventItem | null | undefined
+): string {
+  if (!event) return "user_id or participant_user_id";
+  const hints = event.recipient_payload_hints ?? {};
+  if (event.code === "family.gift_sent") {
+    return "booker_user_id (emit also sets user_id)";
+  }
+  return hints.user ?? "user_id or participant_user_id";
+}
+
+export function recipientPayloadHint(
+  recipientType: string,
+  event: CatalogEventItem | null | undefined
+): string | null {
+  if (recipientType === "user") {
+    return participantPayloadHintForEvent(event);
+  }
+  const hints = event?.recipient_payload_hints ?? {};
+  return hints[recipientType] ?? null;
+}
+
+export function defaultRecipientForWizard(event: CatalogEventItem | null | undefined): string {
+  const first = event?.default_recipients[0];
+  if (!first || first === "booker") return "user";
+  return first;
+}
+
+export function selectableRowClass(selected: boolean): string {
+  return [
+    "w-full text-left rounded-lg border px-4 py-3 transition-colors",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 focus-visible:ring-offset-2",
+    "active:bg-zinc-100",
+    selected
+      ? "border-zinc-900 bg-zinc-50 shadow-sm"
+      : "border-zinc-200 bg-white hover:border-zinc-400 hover:bg-zinc-50",
+  ].join(" ");
+}
 
 export const STATUS_OPTIONS = ["pending", "sent", "failed"];
 export const CHANNEL_OPTIONS = ["email", "whatsapp"];

@@ -5606,6 +5606,7 @@ export interface CatalogEventItem {
   default_recipients: string[];
   trigger_notes: string;
   legacy_event_code: string | null;
+  recipient_payload_hints?: Record<string, string>;
 }
 
 export interface WhatsappTemplateMeta {

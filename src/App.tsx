@@ -145,6 +145,11 @@ const NotificationBindingWizard = lazy(() =>
     default: m.NotificationBindingWizard,
   }))
 );
+const NotificationEventDetailPage = lazy(() =>
+  import("./features/notifications/NotificationEventDetailPage").then((m) => ({
+    default: m.NotificationEventDetailPage,
+  }))
+);
 const SuperClub = lazy(() =>
   import("./features/superclub/SuperClub").then((m) => ({ default: m.SuperClub }))
 );
@@ -525,6 +530,14 @@ function AppRoutes() {
           element={
             <PermissionRoute category="notifications">
               <NotificationBindingWizard />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="notifications/notifications/events/:eventCode"
+          element={
+            <PermissionRoute category="notifications">
+              <NotificationEventDetailPage />
             </PermissionRoute>
           }
         />

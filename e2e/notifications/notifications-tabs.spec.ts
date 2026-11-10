@@ -39,12 +39,10 @@ test.describe("Notifications area (staging)", () => {
     }
   });
 
-  test("Notifications bindings tab loads list", async ({ page }) => {
+  test("Notifications bindings tab loads list with search", async ({ page }) => {
     await page.getByRole("button", { name: "Notifications" }).click();
     await expect(page).toHaveURL(/\/notifications\/notifications$/);
-    await expect(
-      page.getByText(/configure which services run when each notification event fires/i)
-    ).toBeVisible();
+    await expect(page.getByPlaceholder(/search events, recipients, services/i)).toBeVisible();
     await expect(page.getByRole("columnheader", { name: /Event/i })).toBeVisible();
     await expect(page.getByRole("columnheader", { name: /Recipient/i })).toBeVisible();
   });
