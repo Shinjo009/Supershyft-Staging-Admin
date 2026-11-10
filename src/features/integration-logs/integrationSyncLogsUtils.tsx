@@ -12,6 +12,8 @@ export const PROVIDER_OPTIONS = [
   { value: "orange_health", label: "Orange Health" },
   { value: "redcliffe", label: "Redcliffe" },
   { value: "n8n", label: "n8n" },
+  { value: "whatapi", label: "WhatAPI" },
+  { value: "whatapi_fallback", label: "WhatAPI fallback" },
   { value: "nutrition_api", label: "Nutrition API" },
   { value: "aurae", label: "Aurae" },
   { value: "bio_ai_reports", label: "Bio AI Reports" },
@@ -74,6 +76,8 @@ export function ProviderBadge({ provider }: { provider: string }) {
   if (provider === "orange_health") return <span className={`${base} bg-orange-50 text-orange-800 border-orange-300`}>orange_health</span>;
   if (provider === "redcliffe") return <span className={`${base} bg-rose-50 text-rose-800 border-rose-200`}>redcliffe</span>;
   if (provider === "n8n") return <span className={`${base} bg-violet-50 text-violet-700 border-violet-200`}>n8n</span>;
+  if (provider === "whatapi") return <span className={`${base} bg-green-50 text-green-800 border-green-200`}>whatapi</span>;
+  if (provider === "whatapi_fallback") return <span className={`${base} bg-lime-50 text-lime-800 border-lime-200`}>whatapi_fallback</span>;
   if (provider === "nutrition_api") return <span className={`${base} bg-emerald-50 text-emerald-700 border-emerald-200`}>nutrition_api</span>;
   if (provider === "aurae") return <span className={`${base} bg-cyan-50 text-cyan-700 border-cyan-200`}>aurae</span>;
   if (provider === "bio_ai_reports") return <span className={`${base} bg-teal-50 text-teal-700 border-teal-200`}>bio_ai_reports</span>;
@@ -109,8 +113,56 @@ function parseNutritionScore(log: IntegrationSyncLog): string {
   return "—";
 }
 
+function primaryHttpCall(log: IntegrationSyncLog): { method: string; url: string } | null {
+  const req = log.request_payload;
+  if (!req || typeof req !== "object" || Array.isArray(req)) return null;
+  const record = req as Record<string, unknown>;
+  if (typeof record.url === "string" && typeof record.http_method === "string") {
+    return { method: record.http_method, url: record.url };
+  }
+  const calls = record.calls;
+  if (Array.isArray(calls) && calls.length > 0 && calls[0] && typeof calls[0] === "object") {
+    const first = calls[0] as Record<string, unknown>;
+    if (typeof first.url === "string" && typeof first.http_method === "string") {
+      return { method: first.http_method, url: first.url };
+    }
+  }
+  return null;
+}
+
+export function describeHttpCall(log: IntegrationSyncLog): string | null {
+  const call = primaryHttpCall(log);
+  const url = call?.url ?? log.api_endpoint_url;
+  if (!url) return null;
+  const method =
+    call?.method ??
+    (log.request_payload &&
+    typeof log.request_payload === "object" &&
+    !Array.isArray(log.request_payload) &&
+    typeof (log.request_payload as Record<string, unknown>).http_method === "string"
+      ? String((log.request_payload as Record<string, unknown>).http_method)
+      : null);
+
+  try {
+    const parsed = new URL(url);
+    if (parsed.pathname.includes("message_templates")) {
+      const name = parsed.searchParams.get("name");
+      return name ? `GET message_templates?name=${name}` : "GET message_templates";
+    }
+    if (parsed.pathname.endsWith("/messages")) return "POST WhatsApp messages";
+    if (parsed.hostname.includes("webhook.whatapi")) return "GET WhatAPI webhook";
+  } catch {
+   
+  }
+  if (method) return `${method} ${url}`;
+  return url;
+}
+
 export function summarizeEndpoint(log: IntegrationSyncLog): string {
   const url = log.api_endpoint_url;
+  if (log.provider === "whatapi" || log.provider === "whatapi_fallback") {
+    return describeHttpCall(log) ?? url;
+  }
   if (log.provider === "n8n") return parseWebhookFromUrl(url);
   if (log.provider === "nutrition_api") {
     const score = parseNutritionScore(log);

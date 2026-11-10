@@ -15,6 +15,7 @@ import {
   getTimeRange,
   defaultPayloadTab,
   formatWho,
+  describeHttpCall,
   type TimePreset,
   type PayloadTab,
 } from "./integrationSyncLogsUtils";
@@ -67,6 +68,8 @@ function PayloadPanel({
     }
   };
 
+  const httpSummary = describeHttpCall(log);
+
   if (tab === "error") {
     if (!log.error_message) {
       return <p className="text-sm text-zinc-500 py-2">No error message.</p>;
@@ -80,6 +83,11 @@ function PayloadPanel({
         >
           <Copy className="w-3 h-3" /> Copy
         </button>
+        {httpSummary && (
+          <p className="text-xs font-mono text-zinc-600 bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 mb-2 break-all">
+            {httpSummary}
+          </p>
+        )}
         <pre className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg p-3 max-h-[min(60vh,28rem)] overflow-auto whitespace-pre-wrap">
           {log.error_message}
         </pre>
@@ -101,6 +109,11 @@ function PayloadPanel({
       >
         <Copy className="w-3 h-3" /> Copy
       </button>
+      {httpSummary && tab === "request" && (
+        <p className="text-xs font-mono text-zinc-700 bg-emerald-50/80 border border-emerald-100 rounded-lg px-3 py-2 mb-2 break-all pr-16">
+          {httpSummary}
+        </p>
+      )}
       <pre className="text-xs font-mono text-zinc-800 bg-zinc-50 border border-zinc-200 rounded-lg p-3 max-h-[min(60vh,28rem)] overflow-auto">
         {JSON.stringify(payload, null, 2)}
       </pre>
@@ -230,6 +243,11 @@ export function IntegrationLogsPage() {
     if (!selectedLogId) return null;
     return logs.find((l) => l.sync_log_id === selectedLogId) ?? null;
   }, [logs, selectedLogId]);
+
+  const selectedHttpSummary = useMemo(
+    () => (selectedLog ? describeHttpCall(selectedLog) : null),
+    [selectedLog],
+  );
 
   useEffect(() => {
     if (selectedLog) setPayloadTab(defaultPayloadTab(selectedLog));
@@ -612,7 +630,12 @@ export function IntegrationLogsPage() {
                 <p className="text-sm text-red-700 whitespace-pre-wrap">{selectedLog.error_message}</p>
               </div>
             )}
-            <div className="px-4 py-2 border-b border-zinc-100">
+            <div className="px-4 py-2 border-b border-zinc-100 space-y-2">
+              {selectedHttpSummary && (
+                <p className="text-xs font-semibold text-zinc-800 font-mono break-all">
+                  {selectedHttpSummary}
+                </p>
+              )}
               <div className="flex items-start gap-2">
                 <p className="text-xs font-mono text-zinc-600 break-all flex-1">{selectedLog.api_endpoint_url}</p>
                 <button
