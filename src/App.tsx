@@ -150,6 +150,11 @@ const NotificationEventDetailPage = lazy(() =>
     default: m.NotificationEventDetailPage,
   }))
 );
+const NotificationServiceFormPage = lazy(() =>
+  import("./features/notifications/NotificationServiceFormPage").then((m) => ({
+    default: m.NotificationServiceFormPage,
+  }))
+);
 const SuperClub = lazy(() =>
   import("./features/superclub/SuperClub").then((m) => ({ default: m.SuperClub }))
 );
@@ -538,6 +543,30 @@ function AppRoutes() {
           element={
             <PermissionRoute category="notifications">
               <NotificationEventDetailPage />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="notifications/services/new"
+          element={
+            <PermissionRoute category="notifications">
+              <NotificationServiceFormPage mode="add" />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="notifications/services/:serviceId/edit"
+          element={
+            <PermissionRoute category="notifications">
+              <NotificationServiceFormPage mode="edit" />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="notifications/services/:serviceId"
+          element={
+            <PermissionRoute category="notifications">
+              <NotificationServiceFormPage mode="view" />
             </PermissionRoute>
           }
         />

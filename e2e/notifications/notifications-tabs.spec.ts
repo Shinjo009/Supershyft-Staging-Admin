@@ -23,19 +23,26 @@ test.describe("Notifications area (staging)", () => {
     await expect(page.getByRole("columnheader", { name: /ID/i })).toBeVisible();
   });
 
-  test("Services tab form hides webhook and require fields", async ({ page }) => {
+  test("Services add page uses channel-specific fields", async ({ page }) => {
     await page.getByRole("button", { name: "Services" }).click();
     await expect(page).toHaveURL(/\/notifications\/services/);
 
     const addBtn = page.getByRole("button", { name: /add service/i });
     if (await addBtn.isVisible().catch(() => false)) {
       await addBtn.click();
+      await expect(page).toHaveURL(/\/notifications\/services\/new/);
       await expect(page.getByText("Display Name")).toBeVisible();
-      await expect(page.getByText("Template name")).toBeVisible();
       await expect(page.getByText(/webhook path/i)).toHaveCount(0);
-      await expect(page.getByText(/require_blood/i)).toHaveCount(0);
-      await expect(page.getByText(/blood report url/i)).toHaveCount(0);
-      await page.getByRole("button", { name: "Cancel" }).click();
+
+      await page.locator("select").first().selectOption("whatsapp");
+      await expect(page.getByText("Template name")).toBeVisible();
+      await expect(page.getByText(/email subject/i)).toHaveCount(0);
+
+      await page.locator("select").first().selectOption("email");
+      await expect(page.getByText(/email subject/i)).toBeVisible();
+      await expect(page.getByText("Template name")).toHaveCount(0);
+      await page.getByRole("button", { name: "HTML" }).click();
+      await expect(page.getByText(/email body \(html\)/i)).toBeVisible();
     }
   });
 
