@@ -326,7 +326,11 @@ export function NotificationBindingWizard() {
       } else {
         await notificationBindingsApi.createWizard(payload);
       }
-      navigate("/notifications/notifications");
+      const back =
+        presetEventCode && mode === "global"
+          ? `/notifications/notifications/events/${encodeURIComponent(presetEventCode)}`
+          : "/notifications/notifications";
+      navigate(back);
     } catch (err) {
       setError(getApiError(err));
     } finally {

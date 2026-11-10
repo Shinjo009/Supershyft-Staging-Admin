@@ -239,7 +239,9 @@ export function NotificationEventDetailPage() {
             <h3 className="text-sm font-medium text-zinc-900">Who gets which message</h3>
             <p className="text-sm text-zinc-600">
               Each row is one recipient group for this event. When the event fires, matching bindings
-              send through the linked notification services.
+              send through every linked notification service on that row (for example WhatsApp and email
+              together). Use <span className="font-medium">Add binding</span> again with the same
+              recipient to attach another channel — it is merged onto the existing row.
             </p>
 
             <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden">
