@@ -19,8 +19,7 @@ export const TIME_PRESETS: { key: TimePreset; label: string }[] = [
 
 export function formatNotificationStatusLabel(
   status: string,
-  queueId?: string | null,
-  message?: string | null
+  queueId?: string | number | null
 ): string {
   const hasQueue = queueId != null && String(queueId).trim() !== "";
   if (status === "pending" && hasQueue) return "Queued at provider";
@@ -37,7 +36,7 @@ export function StatusBadge({
   message,
 }: {
   status: string;
-  queueId?: string | null;
+  queueId?: string | number | null;
   message?: string | null;
 }) {
   const colors: Record<string, string> = {
@@ -45,7 +44,7 @@ export function StatusBadge({
     sent: "bg-emerald-50 text-emerald-700 border-emerald-200",
     failed: "bg-red-50 text-red-700 border-red-200",
   };
-  const label = formatNotificationStatusLabel(status, queueId, message);
+  const label = formatNotificationStatusLabel(status, queueId);
   const title =
     (message && String(message).trim()) ||
     (queueId ? `Queue: ${queueId}` : undefined);
