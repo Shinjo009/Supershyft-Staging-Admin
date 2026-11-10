@@ -5993,6 +5993,24 @@ export const notificationBindingsApi = {
     api.get<{ data: NotificationBindingItem; meta: Record<string, unknown> }>(
       `/notifications/bindings/${id}`
     ),
+  /** GET /bindings/{id} with list fallback when API process predates that route (405). */
+  getForWizard: async (id: number): Promise<NotificationBindingItem> => {
+    try {
+      const res = await api.get<{ data: NotificationBindingItem; meta: Record<string, unknown> }>(
+        `/notifications/bindings/${id}`
+      );
+      return res.data.data;
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 405) {
+        const list = await api.get<{ data: NotificationBindingItem[]; meta: Record<string, unknown> }>(
+          "/notifications/bindings"
+        );
+        const row = list.data.data.find((b) => b.id === id);
+        if (row) return row;
+      }
+      throw err;
+    }
+  },
   create: (body: {
     event_code: string;
     event_name: string;

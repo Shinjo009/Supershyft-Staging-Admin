@@ -192,7 +192,7 @@ export function NotificationBindingWizard() {
       setServices(svcRes.data.data);
 
       if (bindingId) {
-        const row = (await notificationBindingsApi.get(Number(bindingId))).data.data;
+        const row = await notificationBindingsApi.getForWizard(Number(bindingId));
         const ev = catalogEventForBinding(catalog, row);
         setSelectedEvent(ev);
         setRecipientType(row.recipient_type === "booker" ? "user" : row.recipient_type);
