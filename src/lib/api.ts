@@ -5989,6 +5989,10 @@ export const notificationBindingsApi = {
     api.get<{ data: NotificationBindingItem[]; meta: Record<string, unknown> }>("/notifications/bindings", {
       params,
     }),
+  get: (id: number) =>
+    api.get<{ data: NotificationBindingItem; meta: Record<string, unknown> }>(
+      `/notifications/bindings/${id}`
+    ),
   create: (body: {
     event_code: string;
     event_name: string;

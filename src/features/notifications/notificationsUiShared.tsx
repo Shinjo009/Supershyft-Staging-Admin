@@ -1,4 +1,9 @@
-import type { CatalogEventItem, NotificationItem, NotificationRecipient } from "../../lib/api";
+import type {
+  CatalogEventItem,
+  NotificationBindingItem,
+  NotificationItem,
+  NotificationRecipient,
+} from "../../lib/api";
 
 export const RECIPIENT_LABELS: Record<string, string> = {
   user: "Participant from payload",
@@ -52,6 +57,32 @@ export function defaultRecipientForWizard(event: CatalogEventItem | null | undef
   const first = event?.default_recipients[0];
   if (!first || first === "booker") return "user";
   return first;
+}
+
+/** Match catalog row for a binding, including legacy event codes stored in DB. */
+export function catalogEventForBinding(
+  catalog: CatalogEventItem[],
+  row: Pick<NotificationBindingItem, "event_code" | "event_name">
+): CatalogEventItem {
+  const exact = catalog.find((c) => c.code === row.event_code);
+  if (exact) return exact;
+  const viaLegacy = catalog.find((c) => c.legacy_event_code === row.event_code);
+  if (viaLegacy) return viaLegacy;
+  const catalogMatch = catalog.find(
+    (c) => c.code.replace(/\./g, "_") === row.event_code.replace(/\./g, "_")
+  );
+  if (catalogMatch) return catalogMatch;
+  return {
+    code: row.event_code,
+    name: row.event_name,
+    status: "current",
+    variable_groups: [],
+    variable_fields: [],
+    default_recipients: [],
+    trigger_notes: "",
+    legacy_event_code: null,
+    recipient_payload_hints: {},
+  };
 }
 
 export function selectableRowClass(selected: boolean): string {

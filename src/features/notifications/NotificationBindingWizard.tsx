@@ -16,6 +16,7 @@ import {
 import {
   RECIPIENT_LABELS,
   WIZARD_RECIPIENT_TYPES,
+  catalogEventForBinding,
   defaultRecipientForWizard,
   filterChipClass,
   recipientPayloadHint,
@@ -24,6 +25,12 @@ import {
 
 type Step = 1 | 2 | 3;
 type ServiceMode = "reuse" | "create";
+
+function parseWizardStepParam(raw: string | null): Step | null {
+  if (raw === "2") return 2;
+  if (raw === "3") return 3;
+  return null;
+}
 
 function applyServiceFromItem(
   svc: NotificationServiceItem,
@@ -71,8 +78,13 @@ export function NotificationBindingWizard() {
   const engagementTypeId = Number(searchParams.get("engagementTypeId") || 0) || 0;
   const returnTo = (location.state as { returnTo?: string } | null)?.returnTo ?? "/notifications/notifications";
   const presetEventCode = searchParams.get("event_code") || "";
+  const wizardStepParam = searchParams.get("step");
 
-  const [step, setStep] = useState<Step>(presetEventCode ? 2 : 1);
+  const [step, setStep] = useState<Step>(() => {
+    const fromUrl = parseWizardStepParam(wizardStepParam);
+    if (fromUrl) return fromUrl;
+    return presetEventCode ? 2 : 1;
+  });
   const [events, setEvents] = useState<CatalogEventItem[]>([]);
   const [services, setServices] = useState<NotificationServiceItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -180,10 +192,8 @@ export function NotificationBindingWizard() {
       setServices(svcRes.data.data);
 
       if (bindingId) {
-        const bindings = await notificationBindingsApi.list();
-        const row = bindings.data.data.find((b) => b.id === Number(bindingId));
-        if (!row) throw new Error("Binding not found");
-        const ev = catalog.find((c) => c.code === row.event_code) ?? null;
+        const row = (await notificationBindingsApi.get(Number(bindingId))).data.data;
+        const ev = catalogEventForBinding(catalog, row);
         setSelectedEvent(ev);
         setRecipientType(row.recipient_type === "booker" ? "user" : row.recipient_type);
         setCustomPhones((row.recipient_config?.phones ?? []).join("\n"));
@@ -194,7 +204,7 @@ export function NotificationBindingWizard() {
           applyServiceFromItem(svc, serviceHandlers);
           setServiceMode("create");
         }
-        setStep(3);
+        setStep(parseWizardStepParam(wizardStepParam) ?? 2);
       } else if (presetEventCode) {
         const ev = catalog.find((c) => c.code === presetEventCode) ?? null;
         setSelectedEvent(ev);
@@ -208,7 +218,7 @@ export function NotificationBindingWizard() {
     } finally {
       setLoading(false);
     }
-  }, [bindingId, presetEventCode, serviceHandlers]);
+  }, [bindingId, presetEventCode, serviceHandlers, wizardStepParam]);
 
   useEffect(() => {
     loadInitial();
@@ -485,6 +495,13 @@ export function NotificationBindingWizard() {
               </button>
             </div>
           </div>
+        )}
+
+        {step === 3 && !selectedEvent && (
+          <p className="text-sm text-zinc-600">
+            This binding’s event could not be matched to the catalog. Use Back and pick the event again,
+            or contact engineering if the event code in the database is wrong.
+          </p>
         )}
 
         {step === 3 && selectedEvent && (

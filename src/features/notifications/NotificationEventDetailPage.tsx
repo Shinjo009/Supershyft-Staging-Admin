@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { Loader2, Plus, Pencil } from "lucide-react";
 import {
   HeaderActionButton,
@@ -16,7 +16,7 @@ import {
   type NotificationServiceConfigItem,
   getApiError,
 } from "../../lib/api";
-import { RECIPIENT_LABELS } from "./notificationsUiShared";
+import { RECIPIENT_LABELS, catalogEventForBinding } from "./notificationsUiShared";
 
 function decodeEventCode(raw: string | undefined): string {
   if (!raw) return "";
@@ -52,6 +52,7 @@ export function NotificationEventDetailPage() {
   const { eventCode: eventCodeParam } = useParams<{ eventCode: string }>();
   const eventCode = decodeEventCode(eventCodeParam);
   const navigate = useNavigate();
+  const location = useLocation();
   const { canEditTask } = usePermissions();
   const mayEdit = canEditTask("notifications", "defaults");
 
@@ -69,9 +70,14 @@ export function NotificationEventDetailPage() {
         notificationsCatalogApi.getEvents(),
         notificationBindingsApi.list({ event_code: eventCode }),
       ]);
-      const ev = catalogRes.data.data.find((c) => c.code === eventCode) ?? null;
+      const catalog = catalogRes.data.data;
+      const bindingRows = bindingsRes.data.data;
+      let ev = catalog.find((c) => c.code === eventCode) ?? null;
+      if (ev == null && bindingRows[0]) {
+        ev = catalogEventForBinding(catalog, bindingRows[0]);
+      }
       setCatalogEvent(ev);
-      setBindings(bindingsRes.data.data);
+      setBindings(bindingRows);
     } catch (err) {
       setError(getApiError(err));
       setCatalogEvent(null);
@@ -108,6 +114,15 @@ export function NotificationEventDetailPage() {
           backTo: "/notifications/notifications",
         }
   );
+
+  const bindingEditPath = (row: NotificationBindingItem, wizardStep: 2 | 3) =>
+    `/notifications/notifications/${row.id}/edit?step=${wizardStep}`;
+
+  const navigateToBindingEdit = (row: NotificationBindingItem, wizardStep: 2 | 3) => {
+    navigate(bindingEditPath(row, wizardStep), {
+      state: { returnTo: `${location.pathname}${location.search}` },
+    });
+  };
 
   const handleDelete = async (row: NotificationBindingItem) => {
     if (!window.confirm(`Delete this binding for recipient “${row.recipient_type}”?`)) return;
@@ -237,7 +252,7 @@ export function NotificationEventDetailPage() {
                   columns={columns}
                   data={bindings}
                   keyExtractor={(r) => r.id}
-                  onEdit={mayEdit ? (row) => navigate(`/notifications/notifications/${row.id}/edit`) : undefined}
+                  onEdit={mayEdit ? (row) => navigateToBindingEdit(row, 2) : undefined}
                   onDelete={mayEdit ? handleDelete : undefined}
                   renderExtraMenuItems={
                     mayEdit
@@ -247,7 +262,7 @@ export function NotificationEventDetailPage() {
                             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
                             onClick={() => {
                               close();
-                              navigate(`/notifications/notifications/${row.id}/edit`);
+                              navigateToBindingEdit(row, 3);
                             }}
                           >
                             <Pencil className="w-4 h-4" />

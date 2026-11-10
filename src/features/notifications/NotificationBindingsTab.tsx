@@ -183,7 +183,14 @@ export function NotificationBindingsTab() {
               navigate(`/notifications/notifications/events/${encodeURIComponent(row.event_code)}`)
             }
             onEdit={
-              mayEdit ? (row) => navigate(`/notifications/notifications/${row.id}/edit`) : undefined
+              mayEdit
+                ? (row) =>
+                    navigate(`/notifications/notifications/${row.id}/edit?step=2`, {
+                      state: {
+                        returnTo: `/notifications/notifications/events/${encodeURIComponent(row.event_code)}`,
+                      },
+                    })
+                : undefined
             }
             onDelete={mayEdit ? handleDelete : undefined}
             firstColumnClickableView
