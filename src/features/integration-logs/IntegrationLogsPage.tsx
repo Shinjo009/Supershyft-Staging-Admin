@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Check, Copy, Filter, Loader2, RefreshCw, Search, X } from "lucide-react";
+import { Copy, Filter, Loader2, RefreshCw, Search, X } from "lucide-react";
 import { PageHeaderActions, HeaderActionButton } from "../../layouts/PageHeaderActions";
 import { integrationSyncLogsApi, getApiError, type IntegrationSyncLog } from "../../lib/api";
 import {
@@ -13,12 +13,13 @@ import {
   formatDateTime,
   summarizeEndpoint,
   getTimeRange,
-  defaultPayloadTab,
   formatWho,
-  describeHttpCall,
   type TimePreset,
-  type PayloadTab,
 } from "./integrationSyncLogsUtils";
+import {
+  buildIntegrationLogDetailView,
+  formatJsonBlock,
+} from "./integrationLogDetail";
 
 const LIMIT = 25;
 const DEFAULT_TIME: TimePreset = "24h";
@@ -38,93 +39,81 @@ function timePresetLabel(preset: TimePreset): string {
   return "all time";
 }
 
-function PayloadPanel({
-  tab,
-  log,
+function JsonBlock({
+  title,
+  value,
   onCopied,
+  variant = "neutral",
 }: {
-  tab: PayloadTab;
-  log: IntegrationSyncLog;
+  title: string;
+  value: unknown;
   onCopied: () => void;
+  variant?: "neutral" | "error";
 }) {
-  const copyText = useMemo(() => {
-    if (tab === "error") return log.error_message ?? "";
-    const payload = tab === "request" ? log.request_payload : log.response_payload;
-    if (payload == null) return "";
-    try {
-      return JSON.stringify(payload, null, 2);
-    } catch {
-      return String(payload);
-    }
-  }, [tab, log]);
+  const text = formatJsonBlock(value);
+  const empty = value == null || text === "—" || text === "{}";
 
-  const handleCopy = async () => {
-    if (!copyText) return;
+  const copy = async () => {
+    if (empty) return;
     try {
-      await navigator.clipboard.writeText(copyText);
+      await navigator.clipboard.writeText(text);
       onCopied();
     } catch {
-      // ignore
+      /* ignore */
     }
   };
 
-  const httpSummary = describeHttpCall(log);
-
-  if (tab === "error") {
-    if (!log.error_message) {
-      return <p className="text-sm text-zinc-500 py-2">No error message.</p>;
-    }
-    return (
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => void handleCopy()}
-          className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded border border-zinc-200 bg-white text-xs text-zinc-600 hover:bg-zinc-50"
-        >
-          <Copy className="w-3 h-3" /> Copy
-        </button>
-        {httpSummary && (
-          <p className="text-xs font-mono text-zinc-600 bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 mb-2 break-all">
-            {httpSummary}
-          </p>
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2 mb-1.5">
+        <p className="text-xs font-semibold text-zinc-700 uppercase tracking-wide">{title}</p>
+        {!empty && (
+          <button
+            type="button"
+            onClick={() => void copy()}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-zinc-200 text-[11px] text-zinc-600 hover:bg-zinc-50"
+          >
+            <Copy className="w-3 h-3" /> Copy
+          </button>
         )}
-        {log.response_payload &&
-          typeof log.response_payload === "object" &&
-          !Array.isArray(log.response_payload) &&
-          log.response_payload.response_body != null && (
-            <pre className="text-xs font-mono text-zinc-800 bg-white border border-zinc-200 rounded-lg p-3 mb-2 max-h-48 overflow-auto">
-              {JSON.stringify(log.response_payload.response_body, null, 2)}
-            </pre>
-          )}
-        <pre className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg p-3 max-h-[min(60vh,28rem)] overflow-auto whitespace-pre-wrap">
-          {log.error_message}
-        </pre>
       </div>
-    );
-  }
+      {empty ? (
+        <p className="text-sm text-zinc-400">—</p>
+      ) : (
+        <pre
+          className={`text-xs font-mono rounded-lg p-3 overflow-auto max-h-56 border ${
+            variant === "error"
+              ? "text-red-800 bg-red-50 border-red-100 whitespace-pre-wrap"
+              : "text-zinc-800 bg-zinc-50 border-zinc-200"
+          }`}
+        >
+          {text}
+        </pre>
+      )}
+    </div>
+  );
+}
 
-  const payload = tab === "request" ? log.request_payload : log.response_payload;
-  if (payload == null || (typeof payload === "object" && !Array.isArray(payload) && Object.keys(payload).length === 0)) {
-    return <p className="text-sm text-zinc-500 py-2">No {tab} payload.</p>;
-  }
+function IntegrationLogDetailPanel({
+  log,
+  onCopied,
+}: {
+  log: IntegrationSyncLog;
+  onCopied: () => void;
+}) {
+  const view = useMemo(() => buildIntegrationLogDetailView(log), [log]);
 
   return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => void handleCopy()}
-        className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded border border-zinc-200 bg-white text-xs text-zinc-600 hover:bg-zinc-50 z-10"
-      >
-        <Copy className="w-3 h-3" /> Copy
-      </button>
-      {httpSummary && tab === "request" && (
-        <p className="text-xs font-mono text-zinc-700 bg-emerald-50/80 border border-emerald-100 rounded-lg px-3 py-2 mb-2 break-all pr-16">
-          {httpSummary}
-        </p>
-      )}
-      <pre className="text-xs font-mono text-zinc-800 bg-zinc-50 border border-zinc-200 rounded-lg p-3 max-h-[min(60vh,28rem)] overflow-auto">
-        {JSON.stringify(payload, null, 2)}
-      </pre>
+    <div className="space-y-4">
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-sm">
+        <dt className="text-zinc-500">Method</dt>
+        <dd className="font-mono font-medium text-zinc-900">{view.method}</dd>
+        <dt className="text-zinc-500">API</dt>
+        <dd className="font-mono font-medium text-zinc-900 break-all">{view.apiName}</dd>
+      </dl>
+      <JsonBlock title="Sent" value={view.sent} onCopied={onCopied} />
+      <JsonBlock title="Received" value={view.received} onCopied={onCopied} />
+      {view.error && <JsonBlock title="Error" value={view.error} onCopied={onCopied} variant="error" />}
     </div>
   );
 }
@@ -156,8 +145,6 @@ export function IntegrationLogsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
-  const [payloadTab, setPayloadTab] = useState<PayloadTab>("request");
-  const [copyToast, setCopyToast] = useState(false);
   const fetchSeqRef = useRef(0);
 
   const patchParams = useCallback(
@@ -252,14 +239,6 @@ export function IntegrationLogsPage() {
     return logs.find((l) => l.sync_log_id === selectedLogId) ?? null;
   }, [logs, selectedLogId]);
 
-  const selectedHttpSummary = useMemo(
-    () => (selectedLog ? describeHttpCall(selectedLog) : null),
-    [selectedLog],
-  );
-
-  useEffect(() => {
-    if (selectedLog) setPayloadTab(defaultPayloadTab(selectedLog));
-  }, [selectedLog?.sync_log_id]);
 
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
 
@@ -290,21 +269,10 @@ export function IntegrationLogsPage() {
 
   const openLog = (log: IntegrationSyncLog) => {
     patchParams({ log: String(log.sync_log_id) }, false);
-    setPayloadTab(defaultPayloadTab(log));
   };
 
   const closePanel = () => {
     patchParams({ log: null }, false);
-  };
-
-  const copyUrl = async (url: string) => {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopyToast(true);
-      window.setTimeout(() => setCopyToast(false), 2000);
-    } catch {
-      // ignore
-    }
   };
 
   const showEmptyWiden =
@@ -632,55 +600,8 @@ export function IntegrationLogsPage() {
               <StatusBadge status={selectedLog.status} />
               <ProviderBadge provider={selectedLog.provider} />
             </div>
-            {selectedLog.status === "failed" && selectedLog.error_message && (
-              <div className="px-4 py-3 border-b border-zinc-100 bg-red-50/50">
-                <p className="text-xs font-medium text-red-800 mb-1">Error</p>
-                <p className="text-sm text-red-700 whitespace-pre-wrap">{selectedLog.error_message}</p>
-              </div>
-            )}
-            <div className="px-4 py-2 border-b border-zinc-100 space-y-2">
-              {selectedHttpSummary && (
-                <p className="text-xs font-semibold text-zinc-800 font-mono break-all">
-                  {selectedHttpSummary}
-                </p>
-              )}
-              <div className="flex items-start gap-2">
-                <p className="text-xs font-mono text-zinc-600 break-all flex-1">{selectedLog.api_endpoint_url}</p>
-                <button
-                  type="button"
-                  onClick={() => void copyUrl(selectedLog.api_endpoint_url)}
-                  className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded border border-zinc-200 text-xs hover:bg-zinc-50"
-                >
-                  {copyToast ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                  {copyToast ? "Copied" : "Copy"}
-                </button>
-              </div>
-            </div>
-            <div className="px-4 pt-2 flex gap-1">
-              {(["request", "response", "error"] as PayloadTab[]).map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setPayloadTab(tab)}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium capitalize ${
-                    payloadTab === tab
-                      ? "bg-zinc-900 text-white"
-                      : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-                  }`}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
             <div className="p-4 overflow-auto flex-1 min-h-0">
-              <PayloadPanel
-                tab={payloadTab}
-                log={selectedLog}
-                onCopied={() => {
-                  setCopyToast(true);
-                  window.setTimeout(() => setCopyToast(false), 2000);
-                }}
-              />
+              <IntegrationLogDetailPanel log={selectedLog} onCopied={() => undefined} />
             </div>
           </aside>
         )}

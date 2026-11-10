@@ -131,31 +131,42 @@ function primaryHttpCall(log: IntegrationSyncLog): { method: string; url: string
 }
 
 export function describeHttpCall(log: IntegrationSyncLog): string | null {
+  const req =
+    log.request_payload && typeof log.request_payload === "object" && !Array.isArray(log.request_payload)
+      ? (log.request_payload as Record<string, unknown>)
+      : null;
+  const method = typeof req?.http_method === "string" ? req.http_method.toUpperCase() : null;
+  const apiName = typeof req?.api_name === "string" ? req.api_name : null;
+  if (method && apiName) return `${method} ${apiName}`;
   const call = primaryHttpCall(log);
   const url = call?.url ?? log.api_endpoint_url;
   if (!url) return null;
-  const method =
+  const resolvedMethod =
+    method ??
     call?.method ??
-    (log.request_payload &&
-    typeof log.request_payload === "object" &&
-    !Array.isArray(log.request_payload) &&
-    typeof (log.request_payload as Record<string, unknown>).http_method === "string"
-      ? String((log.request_payload as Record<string, unknown>).http_method)
-      : null);
-
+    (url.includes("message_templates") ? "GET" : url.endsWith("/messages") ? "POST" : null);
   try {
     const parsed = new URL(url);
     if (parsed.pathname.includes("message_templates")) {
       const name = parsed.searchParams.get("name");
       return name ? `GET message_templates?name=${name}` : "GET message_templates";
     }
-    if (parsed.pathname.endsWith("/messages")) return "POST WhatsApp messages";
-    if (parsed.hostname.includes("webhook.whatapi")) return "GET WhatAPI webhook";
+    if (parsed.pathname.endsWith("/messages")) return "POST messages";
+    if (parsed.hostname.includes("webhook.whatapi")) return "GET whatapi_webhook";
   } catch {
-   
+    /* ignore */
   }
-  if (method) return `${method} ${url}`;
+  if (resolvedMethod) return `${resolvedMethod} ${apiNameFromUrl(url)}`;
   return url;
+}
+
+function apiNameFromUrl(url: string): string {
+  try {
+    const path = new URL(url).pathname;
+    return path.split("/").filter(Boolean).pop() ?? url;
+  } catch {
+    return url;
+  }
 }
 
 export function summarizeEndpoint(log: IntegrationSyncLog): string {
