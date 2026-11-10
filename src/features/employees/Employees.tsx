@@ -7,6 +7,7 @@ import { Modal } from "../../shared/ui/Modal";
 import { ExportLogsTab } from "./ExportLogsTab";
 import {
   employeesApi,
+  type EmployeeDepartmentName,
   type EmployeeListItem,
   type EmployeeCreate,
   type EmployeeUpdate,
@@ -31,6 +32,16 @@ const STAFF_ROLES = [
   { value: "admin", label: "Admin" },
   { value: "inferior_admin", label: "Employee" },
 ] as const;
+
+const DEPARTMENT_OPTIONS: { value: EmployeeDepartmentName; label: string }[] = [
+  { value: "ops", label: "Ops" },
+  { value: "tech", label: "Tech" },
+  { value: "design", label: "Design" },
+];
+
+function departmentLabel(code: string): string {
+  return DEPARTMENT_OPTIONS.find((d) => d.value === code)?.label ?? code;
+}
 
 type TabKey = "employees" | "logs";
 const TAB_KEYS: TabKey[] = ["employees", "logs"];
@@ -100,6 +111,7 @@ export function Employees() {
   }>>({});
   const [permissionsLoading, setPermissionsLoading] = useState(false);
   const [permissionsSaving, setPermissionsSaving] = useState(false);
+  const [selectedDepartments, setSelectedDepartments] = useState<Set<EmployeeDepartmentName>>(new Set());
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
@@ -159,6 +171,7 @@ export function Employees() {
     setExpandedTaskCategory(null);
     setPermissionDraftLoaded(true);
     setPermissionsVersion(1);
+    setSelectedDepartments(new Set());
     setModalMode("add");
     setModalOpen(true);
   };
@@ -178,6 +191,7 @@ export function Employees() {
     setExpandedTaskCategory(null);
     setPermissionDraftLoaded(row.role !== "inferior_admin");
     setPermissionsVersion(row.permissions_version ?? 1);
+    setSelectedDepartments(new Set((row.departments ?? []) as EmployeeDepartmentName[]));
     setModalMode("edit");
     setModalOpen(true);
     if (row.role === "inferior_admin") {
@@ -215,8 +229,9 @@ export function Employees() {
     setError(null);
     try {
       const grants = buildPermissionPayload();
+      const deptList = Array.from(selectedDepartments);
       if (modalMode === "add") {
-        await employeesApi.create({
+        const created = await employeesApi.create({
           name,
           phone: phone || null,
           email: email || null,
@@ -224,6 +239,10 @@ export function Employees() {
           status: formData.status ?? "active",
           permissions: formData.role === "inferior_admin" ? grants : undefined,
         });
+        const newId = created.data.data.employee_id;
+        if (isFullAdmin && deptList.length > 0) {
+          await employeesApi.updateDepartments(newId, deptList);
+        }
       } else if (selected) {
         const payload: EmployeeUpdate = {
           name,
@@ -235,6 +254,9 @@ export function Employees() {
           permissions: formData.role === "inferior_admin" ? grants : undefined,
         };
         await employeesApi.update(selected.employee_id, payload);
+        if (isFullAdmin) {
+          await employeesApi.updateDepartments(selected.employee_id, deptList);
+        }
       }
       setModalOpen(false);
       fetchList();
@@ -423,6 +445,27 @@ export function Employees() {
       render: (row) => row.email || "—",
     },
     { key: "role", label: "Role", sortable: true, hideOnMobile: true, render: (row) => staffRoleLabel(row.role) },
+    {
+      key: "departments",
+      label: "Departments",
+      hideOnTablet: true,
+      render: (row) => {
+        const depts = row.departments ?? [];
+        if (depts.length === 0) return "—";
+        return (
+          <div className="flex flex-wrap gap-1">
+            {depts.map((d) => (
+              <span
+                key={d}
+                className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700"
+              >
+                {departmentLabel(d)}
+              </span>
+            ))}
+          </div>
+        );
+      },
+    },
     {
       key: "status",
       label: "Status",
@@ -644,6 +687,37 @@ export function Employees() {
               ))}
             </select>
           </div>
+          {isFullAdmin ? (
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-2">Departments</label>
+              <p className="text-xs text-zinc-500 mb-2">
+                Ops members are auto-assigned as onboarding assistants on new engagements.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                {DEPARTMENT_OPTIONS.map((opt) => {
+                  const checked = selectedDepartments.has(opt.value);
+                  return (
+                    <label key={opt.value} className="inline-flex items-center gap-2 text-sm text-zinc-700">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          setSelectedDepartments((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(opt.value)) next.delete(opt.value);
+                            else next.add(opt.value);
+                            return next;
+                          });
+                        }}
+                        className="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
+                      />
+                      {opt.label}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
           {formData.role === "inferior_admin" && (
             <div className="rounded-lg border border-zinc-200 p-3 flex items-center justify-between gap-3">
               <div>

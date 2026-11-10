@@ -32,7 +32,6 @@ import { questionnaireCategoriesApi, type QuestionnaireCategory } from "../../li
 import {
   assessmentPackagesApi,
   diagnosticPackagesApi,
-  employeesApi,
   engagementsApi,
   engagementNotificationsApi,
   engagementTypesApi,
@@ -43,7 +42,6 @@ import {
   type B2cOnboardingTypeDefaults,
   type DiagnosticPackageBootstrapOption,
   type DiagnosticPackageGroupListItem,
-  type EmployeeListItem,
   type EngagementTypeItem,
   type BloodCollectionType,
   type EngagementsSyncImportPageResult,
@@ -67,20 +65,6 @@ import { fetchAllPages } from "../../lib/fetchAllPages";
 
 const SYNC_STORAGE_KEY = "metsights-sync-v1";
 const ENG_SYNC_STORAGE_KEY = "engagements-sync-v1";
-
-const ASSIGNABLE_DEFAULT_ASSISTANT_ROLES = new Set(["admin", "inferior_admin"]);
-
-function defaultAssistantEmployeeName(row: EmployeeListItem): string {
-  if (row.name?.trim()) return row.name.trim();
-  const legacy = [row.first_name, row.last_name].filter(Boolean).join(" ").trim();
-  return legacy || `Employee #${row.employee_id}`;
-}
-
-function defaultAssistantStaffRoleLabel(role: string | null | undefined): string {
-  if (role === "admin") return "Admin";
-  if (role === "inferior_admin") return "Employee";
-  return role ?? "";
-}
 
 type SyncPhase = "idle" | "running" | "paused" | "completed" | "error";
 
@@ -129,7 +113,6 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
   const mayEditSettings = canEditTask("platform_settings", "settings");
   const mayViewAssessments = canViewTask("assessments", "packages");
   const mayViewDiagnostics = canViewTask("diagnostics", "packages");
-  const mayViewEmployees = canViewTask("employees", "directory");
   const mayViewNotifications = canViewTask("notifications", "defaults");
   const mayEditNotifications = canEditTask("notifications", "defaults");
   const mayEditUsers = canEditTask("users", "profiles");
@@ -139,7 +122,6 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
   const [defaultEngagementTypeCode, setDefaultEngagementTypeCode] = useState("bio_ai");
   const [savedDefaultEngagementTypeCode, setSavedDefaultEngagementTypeCode] = useState("bio_ai");
   const [loadPrevCategories, setLoadPrevCategories] = useState<QuestionnaireCategory[]>([]);
-  const [savedDefaultAssistantIds, setSavedDefaultAssistantIds] = useState<Set<number>>(new Set());
   const [savedGeocodingProvider, setSavedGeocodingProvider] = useState<GeocodingProvider>("google");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -172,13 +154,6 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
   const [notifSuccess, setNotifSuccess] = useState(false);
   const notifDraftsRef = useRef<Record<number, Record<string, NotificationServiceConfigItem[]>>>({});
   const notifOriginalsRef = useRef<Record<number, Record<string, NotificationServiceConfigItem[]>>>({});
-
-  const [defaultAssistantEmployees, setDefaultAssistantEmployees] = useState<EmployeeListItem[]>([]);
-  const [selectedDefaultAssistantIds, setSelectedDefaultAssistantIds] = useState<Set<number>>(new Set());
-  const [defaultAssistantSearch, setDefaultAssistantSearch] = useState("");
-  const [savingDefaultAssistants, setSavingDefaultAssistants] = useState(false);
-  const [defaultAssistantsError, setDefaultAssistantsError] = useState<string | null>(null);
-  const [defaultAssistantsSaveOk, setDefaultAssistantsSaveOk] = useState<string | null>(null);
 
   const [supportQueryNotification, setSupportQueryNotification] = useState<string | null>(null);
   const [savingSupportQueryNotification, setSavingSupportQueryNotification] = useState(false);
@@ -230,7 +205,7 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
 
   const loadB2cPickers = useCallback(async () => {
     try {
-      const [notifServicesRes, aPkgs, dRes, employeesRes] = await Promise.all([
+      const [notifServicesRes, aPkgs, dRes] = await Promise.all([
         mayViewNotifications ? notificationsApi.listServices() : Promise.resolve(null),
         mayViewAssessments
           ? fetchAllPages<AssessmentPackage>((page, limit) =>
@@ -243,20 +218,11 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
               engagementsApi.formBootstrap().catch(() => null),
             ])
           : Promise.resolve(null),
-        mayViewEmployees
-          ? fetchAllPages<EmployeeListItem>((page, limit) =>
-              employeesApi.list({ status: "active", page, limit })
-            ).then((rows) => ({ data: { data: rows } }))
-          : Promise.resolve(null),
       ]);
       setNotificationServices(
         (notifServicesRes?.data.data ?? []).filter((s) => s.is_active !== false)
       );
       setAssessmentPackages(aPkgs);
-      const staff = (employeesRes?.data.data ?? []).filter((e) =>
-        ASSIGNABLE_DEFAULT_ASSISTANT_ROLES.has((e.role || "").toLowerCase())
-      );
-      setDefaultAssistantEmployees(staff);
       if (dRes) {
         const [groupsRes, bootstrapRes] = dRes;
         setDiagnosticPackageGroups(groupsRes.data.data ?? []);
@@ -265,7 +231,7 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
     } catch {
       // Pickers are optional until a settings control needs them.
     }
-  }, [mayViewAssessments, mayViewDiagnostics, mayViewEmployees, mayViewNotifications]);
+  }, [mayViewAssessments, mayViewDiagnostics, mayViewNotifications]);
 
   const loadB2c = useCallback(async () => {
     setLoading(true);
@@ -294,9 +260,6 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
       const defaultType = d.default_engagement_type_code ?? "bio_ai";
       setDefaultEngagementTypeCode(defaultType);
       setSavedDefaultEngagementTypeCode(defaultType);
-      const assistantIds = new Set(payload.default_onboarding_assistants.employee_ids ?? []);
-      setSelectedDefaultAssistantIds(assistantIds);
-      setSavedDefaultAssistantIds(new Set(assistantIds));
       const support = payload.support_query_notification?.default_support_query_notification ?? null;
       setSupportQueryNotification(support);
       const geo = payload.geocoding_provider?.geocoding_provider ?? "google";
@@ -567,27 +530,6 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
     setSaveOk(null);
   }
 
-  async function handleSaveDefaultAssistants(e: React.FormEvent) {
-    e.preventDefault();
-    setSavingDefaultAssistants(true);
-    setDefaultAssistantsError(null);
-    setDefaultAssistantsSaveOk(null);
-    try {
-      const savedIds = Array.from(selectedDefaultAssistantIds);
-      await platformSettingsApi.patchDefaultOnboardingAssistants({
-        employee_ids: savedIds,
-      });
-      setSavedDefaultAssistantIds(new Set(savedIds));
-      setDefaultAssistantsSaveOk(
-        "Saved. New B2B and B2C engagements will auto-assign these assistants."
-      );
-    } catch (err) {
-      setDefaultAssistantsError(getApiError(err));
-    } finally {
-      setSavingDefaultAssistants(false);
-    }
-  }
-
   async function handleSaveSupportQueryNotification(e: React.FormEvent) {
     e.preventDefault();
     setSavingSupportQueryNotification(true);
@@ -600,7 +542,7 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
       const res = await platformSettingsApi.patchSupportQueryNotification(payload);
       setSupportQueryNotification(res.data.data?.default_support_query_notification ?? null);
       setSupportQueryNotificationSaveOk(
-        "Saved. Default onboarding assistants will be notified with these services when a support query is submitted."
+        "Saved. Ops department staff will be notified with these services when a support query is submitted (via support.ticket_created binding)."
       );
     } catch (err) {
       setSupportQueryNotificationError(getApiError(err));
@@ -626,30 +568,6 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
       setSavingGeocodingProvider(false);
     }
   }
-
-  function toggleDefaultAssistantSelection(id: number) {
-    setSelectedDefaultAssistantIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  const filteredDefaultAssistantEmployees = useMemo(() => {
-    const q = defaultAssistantSearch.trim().toLowerCase();
-    if (!q) return defaultAssistantEmployees;
-    return defaultAssistantEmployees.filter((e) => {
-      const name = defaultAssistantEmployeeName(e).toLowerCase();
-      return (
-        String(e.employee_id).includes(q) ||
-        (e.role ?? "").toLowerCase().includes(q) ||
-        (e.phone ?? "").toLowerCase().includes(q) ||
-        (e.email ?? "").toLowerCase().includes(q) ||
-        name.includes(q)
-      );
-    });
-  }, [defaultAssistantEmployees, defaultAssistantSearch]);
 
   useEffect(() => {
     engagementTypesApi.list({ is_active: true }).then((res) => {
@@ -1036,10 +954,6 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
     (engStats?.users_with_metsights_profile_id ?? 0) > 0 &&
     !engStatsError;
   const isEngSyncing = engSyncPhase === "running";
-
-  const assistantsDirty =
-    JSON.stringify(Array.from(selectedDefaultAssistantIds).sort()) !==
-    JSON.stringify(Array.from(savedDefaultAssistantIds).sort());
 
   const geocodingDirty = geocodingProvider !== savedGeocodingProvider;
   return (
@@ -1505,72 +1419,6 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
                     </>
                   ) : null}
                 </div>
-              </SettingsFormCard>
-
-              <SettingsFormCard
-                title="Default onboarding assistants"
-                description="Auto-assigned when new B2B or B2C engagements are created. Select active admins and employees."
-                error={defaultAssistantsError}
-                success={defaultAssistantsSaveOk}
-                dirty={assistantsDirty}
-                saving={savingDefaultAssistants}
-                readOnly={!mayEditSettings}
-                saveLabel="Save assistants"
-                onSubmit={(e) => void handleSaveDefaultAssistants(e)}
-                onDiscard={() => {
-                  setSelectedDefaultAssistantIds(new Set(savedDefaultAssistantIds));
-                  setDefaultAssistantsError(null);
-                  setDefaultAssistantsSaveOk(null);
-                }}
-              >
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-                  <input
-                    type="search"
-                    placeholder="Search by name, phone, or ID…"
-                    value={defaultAssistantSearch}
-                    onChange={(ev) => setDefaultAssistantSearch(ev.target.value)}
-                    className="w-full pl-9 pr-4 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent"
-                    disabled={!mayEditSettings}
-                  />
-                </div>
-                {defaultAssistantEmployees.length === 0 ? (
-                  <p className="text-sm text-zinc-500">No active admins or employees found.</p>
-                ) : filteredDefaultAssistantEmployees.length === 0 ? (
-                  <p className="text-sm text-zinc-500">No staff match your search.</p>
-                ) : (
-                  <ul className="divide-y divide-zinc-100 border border-zinc-200 rounded-lg overflow-hidden max-h-64 overflow-y-auto">
-                    {filteredDefaultAssistantEmployees.map((employee) => {
-                      const checked = selectedDefaultAssistantIds.has(employee.employee_id);
-                      const roleLabel = defaultAssistantStaffRoleLabel(employee.role);
-                      const contact = employee.phone || employee.email || roleLabel;
-                      const subtitle = roleLabel && contact !== roleLabel ? `${contact} · ${roleLabel}` : contact || roleLabel;
-                      return (
-                        <li
-                          key={employee.employee_id}
-                          className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-zinc-50 ${checked ? "bg-zinc-50" : "bg-white"}`}
-                          onClick={() => mayEditSettings && toggleDefaultAssistantSelection(employee.employee_id)}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleDefaultAssistantSelection(employee.employee_id)}
-                            onClick={(ev) => ev.stopPropagation()}
-                            disabled={!mayEditSettings}
-                            className="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 shrink-0"
-                          />
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-zinc-900 truncate">
-                              {defaultAssistantEmployeeName(employee)}
-                            </p>
-                            <p className="text-xs text-zinc-500 truncate">{subtitle}</p>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-                <p className="text-xs text-zinc-500">Selected: {selectedDefaultAssistantIds.size}</p>
               </SettingsFormCard>
             </>
           )}

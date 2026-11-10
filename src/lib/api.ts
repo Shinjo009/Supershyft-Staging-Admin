@@ -316,20 +316,6 @@ export interface GeocodingProviderSettings {
   geocoding_provider: GeocodingProvider;
 }
 
-export interface DefaultOnboardingAssistantItem {
-  employee_id: number;
-  user_id: number;
-  role: string;
-  status: string;
-  first_name?: string | null;
-  last_name?: string | null;
-}
-
-export interface DefaultOnboardingAssistants {
-  employee_ids: number[];
-  assistants: DefaultOnboardingAssistantItem[];
-}
-
 export interface MetsightsProfilesStats {
   local_total_users: number;
   local_with_metsights_profile_id: number;
@@ -385,7 +371,6 @@ export const platformSettingsApi = {
     api.get<{
       data: {
         b2c_onboarding: B2cOnboardingDefaults;
-        default_onboarding_assistants: DefaultOnboardingAssistants;
         support_query_notification: SupportQueryNotification;
         geocoding_provider: GeocodingProviderSettings;
         engagement_types: EngagementTypeItem[];
@@ -410,15 +395,6 @@ export const platformSettingsApi = {
     api.put<{ data: NotificationDefaultItem[]; meta: Record<string, unknown> }>(
       "/platform-settings/engagement-notification-defaults",
       { engagement_type_id: engagementTypeId, defaults }
-    ),
-  getDefaultOnboardingAssistants: () =>
-    api.get<{ data: DefaultOnboardingAssistants; meta: Record<string, unknown> }>(
-      "/platform-settings/default-onboarding-assistants"
-    ),
-  patchDefaultOnboardingAssistants: (payload: { employee_ids: number[] }) =>
-    api.patch<{ data: DefaultOnboardingAssistants; meta: Record<string, unknown> }>(
-      "/platform-settings/default-onboarding-assistants",
-      payload
     ),
   getSupportQueryNotification: () =>
     api.get<{ data: SupportQueryNotification; meta: Record<string, unknown> }>(
@@ -1143,6 +1119,8 @@ export type EmployeeRoleValue =
 
 export type StaffEmployeeRoleValue = "admin" | "inferior_admin";
 
+export type EmployeeDepartmentName = "tech" | "design" | "ops";
+
 export interface EmployeeListItem {
   employee_id: number;
   name: string;
@@ -1150,6 +1128,7 @@ export interface EmployeeListItem {
   email?: string | null;
   role?: EmployeeRoleValue | string | null;
   status?: string | null;
+  departments?: EmployeeDepartmentName[];
   permissions_version?: number;
   /** @deprecated Legacy join fields — prefer `name` */
   user_id?: number;
@@ -1251,6 +1230,15 @@ export const employeesApi = {
     api.put<{ data: { employee_id: number; version: number } }>(
       `/employees/${id}/permissions`,
       payload
+    ),
+  getDepartments: (id: number) =>
+    api.get<{ data: { employee_id: number; departments: EmployeeDepartmentName[] } }>(
+      `/employees/${id}/departments`
+    ),
+  updateDepartments: (id: number, departments: EmployeeDepartmentName[]) =>
+    api.put<{ data: { employee_id: number; departments: EmployeeDepartmentName[] } }>(
+      `/employees/${id}/departments`,
+      { departments }
     ),
 };
 

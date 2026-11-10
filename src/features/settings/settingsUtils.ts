@@ -2,7 +2,6 @@ import type {
   AssessmentPackage,
   B2cOnboardingTypeDefaults,
   BloodCollectionType,
-  DefaultOnboardingAssistantItem,
   DiagnosticPackageListItem,
   PartnerListItem,
 } from "../../lib/api";
@@ -17,15 +16,9 @@ export function labelDiagnostic(p: DiagnosticPackageListItem) {
   return `${name} (#${p.diagnostic_package_id})`;
 }
 
-export function labelPartner(p: PartnerListItem | DefaultOnboardingAssistantItem) {
-  if ("partner_id" in p) {
-    const name = p.name?.trim();
-    return name || `Partner #${p.partner_id}`;
-  }
-  const first = p.first_name?.trim() ?? "";
-  const last = p.last_name?.trim() ?? "";
-  const full = `${first} ${last}`.trim();
-  return full || `Partner #${p.employee_id}`;
+export function labelPartner(p: PartnerListItem) {
+  const name = p.name?.trim();
+  return name || `Partner #${p.partner_id}`;
 }
 
 export const BLOOD_COLLECTION_TYPE_OPTIONS: { value: BloodCollectionType | ""; label: string }[] = [

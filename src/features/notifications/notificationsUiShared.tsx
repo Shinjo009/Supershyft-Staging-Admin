@@ -13,8 +13,10 @@ export const RECIPIENT_LABELS: Record<string, string> = {
   "assistants.phlebo": "Phlebo assistants",
   "assistants.expert": "Expert assistants",
   "assistants.staff": "Staff assistants",
-  employees: "Default support employees",
-  admin: "Ops / alert users",
+  departments: "All departments",
+  "departments.ops": "Ops department",
+  "departments.tech": "Tech department",
+  "departments.design": "Design department",
   custom: "Specific phone numbers or emails",
 };
 
@@ -26,8 +28,10 @@ export const WIZARD_RECIPIENT_TYPES = [
   "assistants.phlebo",
   "assistants.expert",
   "assistants.staff",
-  "employees",
-  "admin",
+  "departments",
+  "departments.ops",
+  "departments.tech",
+  "departments.design",
   "custom",
 ] as const;
 
