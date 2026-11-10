@@ -5595,7 +5595,13 @@ export interface CatalogEventItem {
   trigger_notes: string;
   legacy_event_code: string | null;
   recipient_payload_hints?: Record<string, string>;
-  user_recipient_context_fields?: { key: string; label: string; description: string }[];
+  user_recipient_context_fields?: {
+    key: string;
+    label: string;
+    description: string;
+    source?: "emit" | "trigger";
+    trigger_api?: string;
+  }[];
 }
 
 export interface WhatsappTemplateMeta {

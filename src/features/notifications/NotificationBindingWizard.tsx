@@ -470,17 +470,25 @@ export function NotificationBindingWizard() {
                 })}
               </div>
             )}
-            {recipientType === "user" && mode === "global" && (
-              <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 space-y-3">
-                <p className="text-sm font-medium text-zinc-900">Emit context for this event</p>
-                <p className="text-xs text-zinc-600">
-                  Choose which field on the notification emit payload identifies the participant user.
-                </p>
-                {(selectedEvent.user_recipient_context_fields ?? []).length === 0 ? (
-                  <p className="text-sm text-zinc-500 font-mono">user_id · participant_user_id · user_ids</p>
-                ) : (
+            {recipientType === "user" && mode === "global" && (() => {
+              const participantFields = selectedEvent.user_recipient_context_fields ?? [];
+              if (participantFields.length === 0) return null;
+              const triggerApi =
+                participantFields.find((f) => f.trigger_api)?.trigger_api ??
+                selectedEvent.trigger_notes?.split(",")[0]?.trim();
+              const fromTrigger = participantFields.some((f) => f.source === "trigger");
+              return (
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 space-y-3">
+                  <p className="text-sm font-medium text-zinc-900">
+                    {fromTrigger ? "Request JSON body" : "Participant identifier on emit"}
+                  </p>
+                  <p className="text-xs text-zinc-600">
+                    {fromTrigger && triggerApi
+                      ? `Choose which field from ${triggerApi} identifies who receives this notification.`
+                      : "Choose which value on the emit payload identifies the participant user."}
+                  </p>
                   <ul className="space-y-2">
-                    {(selectedEvent.user_recipient_context_fields ?? []).map((field) => {
+                    {participantFields.map((field) => {
                       const selected = userContextKey === field.key;
                       return (
                         <li key={field.key}>
@@ -503,9 +511,9 @@ export function NotificationBindingWizard() {
                       );
                     })}
                   </ul>
-                )}
-              </div>
-            )}
+                </div>
+              );
+            })()}
             {recipientType === "custom" && mode === "global" && (
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="block text-sm text-zinc-800">
