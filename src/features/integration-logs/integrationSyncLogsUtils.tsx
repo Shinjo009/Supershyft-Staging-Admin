@@ -205,6 +205,15 @@ export function getTimeRange(preset: TimePreset): { from?: string; to?: string }
 }
 
 export function defaultPayloadTab(log: IntegrationSyncLog): PayloadTab {
+  if (
+    log.status === "failed" &&
+    log.response_payload &&
+    typeof log.response_payload === "object" &&
+    !Array.isArray(log.response_payload) &&
+    "response_body" in log.response_payload
+  ) {
+    return "response";
+  }
   if (log.status === "failed" && log.error_message) {
     return "error";
   }

@@ -88,6 +88,14 @@ function PayloadPanel({
             {httpSummary}
           </p>
         )}
+        {log.response_payload &&
+          typeof log.response_payload === "object" &&
+          !Array.isArray(log.response_payload) &&
+          log.response_payload.response_body != null && (
+            <pre className="text-xs font-mono text-zinc-800 bg-white border border-zinc-200 rounded-lg p-3 mb-2 max-h-48 overflow-auto">
+              {JSON.stringify(log.response_payload.response_body, null, 2)}
+            </pre>
+          )}
         <pre className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg p-3 max-h-[min(60vh,28rem)] overflow-auto whitespace-pre-wrap">
           {log.error_message}
         </pre>
