@@ -218,10 +218,7 @@ export function EngagementDrawer({
                   />
                 ) : null}
                 {activeTab === "notifications" ? (
-                  <EngagementNotificationsTab
-                    engagement={engagement}
-                    notificationServiceLabel={notificationServiceLabel}
-                  />
+                  <EngagementNotificationsTab engagement={engagement} />
                 ) : null}
                 {activeTab === "operations" ? (
                   <EngagementOperationsPanel

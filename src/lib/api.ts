@@ -6114,7 +6114,54 @@ export interface EngagementNotificationItem {
   event_display_name?: string;
 }
 
+export interface EngagementNotificationSetupEventRow {
+  event_code: string;
+  name: string;
+  is_applicable: boolean;
+  is_extra: boolean;
+  global_bindings: NotificationBindingItem[];
+  engagement_bindings: Array<{
+    id: number;
+    engagement_id: number;
+    event_code: string;
+    recipient_type: string;
+    delivery_channel: string;
+    notification_services: NotificationServiceConfigItem[];
+    condition_key?: string;
+  }>;
+}
+
+export interface EngagementNotificationSetup {
+  profile_key: string;
+  profile_label: string;
+  engagement_id?: number | null;
+  applicable_event_count: number;
+  events: EngagementNotificationSetupEventRow[];
+  addable_events: { code: string; name: string }[];
+  seeded_slots?: number;
+}
+
 export const engagementNotificationsApi = {
+  getSetup: (params: {
+    engagement_id?: number;
+    engagement_kind?: string;
+    payment_type?: string;
+    blood_collection_type?: string | null;
+    consultation_mode?: string | null;
+    auto_booking?: boolean | null;
+  }) =>
+    api.get<{ data: EngagementNotificationSetup; meta: Record<string, unknown> }>(
+      "/engagements/notification-setup",
+      { params }
+    ),
+  seedFromDefaults: (engagementId: number) =>
+    api.post<{ data: EngagementNotificationSetup & { seeded_slots: number }; meta: Record<string, unknown> }>(
+      `/engagements/${engagementId}/notifications/seed-from-defaults`
+    ),
+  deleteBinding: (engagementId: number, bindingId: number) =>
+    api.delete<{ data: { deleted: number }; meta: Record<string, unknown> }>(
+      `/engagements/${engagementId}/notifications/bindings/${bindingId}`
+    ),
   getForEngagement: (engagementId: number) =>
     api.get<{ data: EngagementNotificationItem[]; meta: Record<string, unknown> }>(
       `/engagements/${engagementId}/notifications`
@@ -6127,7 +6174,7 @@ export const engagementNotificationsApi = {
       `/engagements/${engagementId}/notifications`,
       { notifications }
     ),
-  saveWizard: (engagementId: number, body: { event_code: string; service: WizardServicePayload }) =>
+  saveWizard: (engagementId: number, body: WizardBindingPayload & { engagement_binding_id?: number | null }) =>
     api.post<{ data: Record<string, unknown>; meta: Record<string, unknown> }>(
       `/engagements/${engagementId}/notifications/wizard`,
       body

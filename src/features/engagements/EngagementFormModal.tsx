@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { Loader2, Info } from "lucide-react";
+import { Info } from "lucide-react";
 import { Modal } from "../../shared/ui/Modal";
 import {
   type AssessmentPackage,
@@ -10,16 +10,13 @@ import {
   type EngagementTypeItem,
   type ExpertTypeItem,
   type GeocodeSuggestion,
-  type NotificationServiceConfigItem,
   type NotificationServiceItem,
   type OrganizationListItem,
   type SlotDetail,
   engagementsApi,
-  engagementNotificationsApi,
   engagementTypesApi,
   expertTypesApi,
   getApiError,
-  notificationsCatalogApi,
   questionnaireCategoriesApi,
   type QuestionnaireCategory,
 } from "../../lib/api";
@@ -29,7 +26,7 @@ import {
   effectiveLoadPrevCategoryKeys,
 } from "./loadPrevQuestionnaireDefaults";
 import { DiagnosticPackageGroupProviderSelect } from "../diagnostics/DiagnosticPackageGroupProviderSelect";
-import { NotificationEventServicesInput, normalizeNotificationServiceConfigs, validateNotificationServiceConfigs } from "../../shared/ui/NotificationEventServicesInput";
+import { EngagementNotificationSetupPanel } from "./EngagementNotificationSetupPanel";
 import { AddressAutocomplete } from "./AddressAutocomplete";
 import { EngagementScheduleStep } from "./EngagementScheduleStep";
 import {
@@ -77,10 +74,6 @@ const PAYMENT_TYPE_OPTIONS = [
 export type EngagementFormStepKey = "basics" | "location" | "offerings" | "schedule" | "notifications";
 
 type StepKey = EngagementFormStepKey;
-
-function shouldIncludeNotificationsInSave(step: StepKey): boolean {
-  return step === "notifications";
-}
 
 function shouldIncludeSlotDetailInSave(step: StepKey): boolean {
   return step === "schedule" || step === "notifications";
@@ -152,13 +145,14 @@ export function EngagementFormWizard({
   assessmentPackages,
   diagnosticPackages,
   diagnosticPackageGroups,
-  notificationServices,
+  notificationServices: _notificationServices,
   submitting,
   onClose,
   onSubmit,
   onSaveAndContinue,
   enforceMetsightsProGate,
 }: Props) {
+  void _notificationServices;
   const applyMetsightsProGate = enforceMetsightsProGate ?? mode === "add";
   const [stepIndex, setStepIndex] = useState(0);
   const [formData, setFormData] = useState<EngagementCreate>(initialData);
@@ -186,15 +180,7 @@ export function EngagementFormWizard({
   );
 
   const [engagementTypes, setEngagementTypes] = useState<EngagementTypeItem[]>([]);
-  const [notificationEvents, setNotificationEvents] = useState<
-    { event_code: string; display_name: string }[]
-  >([]);
-  const [notificationConfig, setNotificationConfig] = useState<
-    Record<string, NotificationServiceConfigItem[]>
-  >({});
-  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [questionnaireCategories, setQuestionnaireCategories] = useState<QuestionnaireCategory[]>([]);
-  const editConfigLoaded = useRef(false);
   const stepErrorRef = useRef<HTMLParagraphElement | null>(null);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
 
@@ -214,9 +200,6 @@ export function EngagementFormWizard({
     setSidePanelOpen(false);
     setZoneMessage(null);
     setZoneMessageTone("info");
-    setNotificationEvents([]);
-    setNotificationConfig({});
-    editConfigLoaded.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -824,94 +807,41 @@ export function EngagementFormWizard({
     }
   };
 
-  useEffect(() => {
-    if (currentStepKey !== "notifications" || !selectedTypeId) return;
-
-    let cancelled = false;
-    setNotificationsLoading(true);
-
-    (async () => {
-      try {
-        const [defaultsRes, catalogRes] = await Promise.all([
-          engagementNotificationsApi.getDefaults(selectedTypeId),
-          notificationsCatalogApi.getEvents(),
-        ]);
-        if (cancelled) return;
-        const catalog = Array.isArray(catalogRes.data.data) ? catalogRes.data.data : [];
-        const defaults = Array.isArray(defaultsRes.data.data) ? defaultsRes.data.data : [];
-        const eventRows = defaults.map((d) => ({
-          event_code: d.event_code,
-          display_name:
-            d.event_display_name ??
-            catalog.find((c) => c.code === d.event_code)?.name ??
-            d.event_code,
-        }));
-        setNotificationEvents(eventRows);
-
-        const config: Record<string, NotificationServiceConfigItem[]> = {};
-
-        if (mode === "edit" && engagementId && !editConfigLoaded.current) {
-          editConfigLoaded.current = true;
-          try {
-            const configRes =
-              await engagementNotificationsApi.getForEngagement(engagementId);
-            if (!cancelled) {
-              const items = Array.isArray(configRes.data.data) ? configRes.data.data : [];
-              for (const item of items) {
-                if (item.event_code) {
-                  config[item.event_code] = normalizeNotificationServiceConfigs(
-                    item.notification_services
-                  );
-                }
-              }
-            }
-          } catch {
-            // fall through with empty config
-          }
-        } else {
-          for (const item of defaults) {
-            config[item.event_code] = normalizeNotificationServiceConfigs(item.notification_services);
-          }
-        }
-
-        if (!cancelled) setNotificationConfig(config);
-      } catch {
-        if (!cancelled) {
-          setNotificationEvents([]);
-          setNotificationConfig({});
-        }
-      } finally {
-        if (!cancelled) setNotificationsLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
+  const notificationProfileParams = useMemo(() => {
+    if (!selectedTypeCode) return null;
+    return {
+      engagement_kind: selectedTypeCode,
+      payment_type: formData.payment_type ?? "paid_by_group",
+      blood_collection_type: typeConfig.needsBloodCollection
+        ? formData.blood_collection_type ?? null
+        : null,
+      consultation_mode: typeConfig.needsConsultation ? formData.consultation_mode ?? null : null,
+      auto_booking:
+        typeConfig.needsBloodCollection &&
+        formData.blood_collection_type !== "camp_collection" &&
+        Boolean(formData.auto_booking),
     };
-  }, [currentStepKey, selectedTypeId, mode, engagementId]);
+  }, [
+    selectedTypeCode,
+    formData.payment_type,
+    formData.blood_collection_type,
+    formData.consultation_mode,
+    formData.auto_booking,
+    typeConfig.needsBloodCollection,
+    typeConfig.needsConsultation,
+  ]);
+
+  const notificationsReturnTo = useMemo(() => {
+    const code = formData.engagement_code?.trim();
+    if (mode === "edit" && code) {
+      return `/engagements/${encodeURIComponent(code)}/edit?step=notifications`;
+    }
+    return "/engagements";
+  }, [formData.engagement_code, mode]);
 
   const findStepIndex = (key: StepKey) => steps.findIndex((s) => s.key === key);
 
-  const buildNotificationsPayload = () =>
-    Object.entries(notificationConfig)
-      .map(([eventCode, services]) => ({
-        event_code: eventCode,
-        notification_services: services.filter((item) => item.service_key.trim()),
-      }))
-      .filter((item) => item.notification_services.length > 0);
-
   const validateNotificationsStep = () => {
-    const notifications = buildNotificationsPayload();
-    for (const item of notifications) {
-      const validationError = validateNotificationServiceConfigs(
-        item.notification_services,
-        notificationServices,
-      );
-      if (validationError) {
-        setStepError(validationError);
-        return false;
-      }
-    }
     setStepError(null);
     return true;
   };
@@ -963,9 +893,6 @@ export function EngagementFormWizard({
       ...formRest,
       consultations,
       ...(shouldIncludeSlotDetailInSave(saveStep) ? { slot_detail: prunedSlotDetail } : {}),
-      ...(shouldIncludeNotificationsInSave(saveStep)
-        ? { notifications: buildNotificationsPayload() }
-        : {}),
       assessment_package_id:
         kind && typeConfig.needsAssessment ? formData.assessment_package_id ?? null : null,
       diagnostic_package_id:
@@ -1951,43 +1878,11 @@ export function EngagementFormWizard({
         )}
 
         {currentStepKey === "notifications" && (
-          <div className="grid grid-cols-1 gap-4">
-            {notificationsLoading ? (
-              <div className="py-8 flex justify-center">
-                <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
-              </div>
-            ) : notificationEvents.length === 0 ? (
-              <p className="text-sm text-zinc-500">
-                {selectedTypeId
-                  ? "No notification events configured for this engagement type."
-                  : "Select an engagement type in Type & basics first."}
-              </p>
-            ) : (
-              notificationEvents.map((event) => (
-                <div key={event.event_code} className="space-y-2">
-                  <NotificationEventServicesInput
-                    label={event.display_name}
-                    value={notificationConfig[event.event_code] ?? []}
-                    onChange={(next) =>
-                      setNotificationConfig((prev) => ({
-                        ...prev,
-                        [event.event_code]: next,
-                      }))
-                    }
-                    services={notificationServices}
-                  />
-                  {mode === "edit" && engagementId ? (
-                    <a
-                      href={`/notifications/notifications/new?mode=engagement&event_code=${encodeURIComponent(event.event_code)}&engagementId=${engagementId}`}
-                      className="text-xs font-medium text-zinc-600 hover:text-zinc-900"
-                    >
-                      Set up notification (wizard)
-                    </a>
-                  ) : null}
-                </div>
-              ))
-            )}
-          </div>
+          <EngagementNotificationSetupPanel
+            engagementId={mode === "edit" ? engagementId ?? null : null}
+            profileParams={notificationProfileParams}
+            returnTo={notificationsReturnTo}
+          />
         )}
 
       </form>

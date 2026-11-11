@@ -12,17 +12,14 @@ import type {
   DiagnosticPackageBootstrapOption,
   Engagement,
   EngagementDataCompletenessResponse,
-  EngagementNotificationItem,
   EngagementTypeItem,
 } from "../../lib/api";
-import { normalizeNotificationServiceConfigs } from "../../shared/ui/NotificationEventServicesInput";
 import {
   engagementDataCompletenessApi,
-  engagementNotificationsApi,
   engagementTypesApi,
   getApiError,
-  notificationsCatalogApi,
 } from "../../lib/api";
+import { EngagementNotificationSetupPanel } from "./EngagementNotificationSetupPanel";
 import { CampOverviewSection } from "./CampOverviewSection";
 import { ConsoleUrlActions } from "./consoleUrlActions";
 import { EngagementBookingSummaryCards } from "./EngagementBookingSummary";
@@ -451,26 +448,8 @@ export function EngagementDetailsTab({
 
 export function EngagementNotificationsTab({
   engagement,
-  notificationServiceLabel,
-}: Pick<SharedProps, "engagement" | "notificationServiceLabel">) {
-  const [loading, setLoading] = useState(true);
+}: Pick<SharedProps, "engagement">) {
   const [engagementTypes, setEngagementTypes] = useState<EngagementTypeItem[]>([]);
-  const [defaultEventRows, setDefaultEventRows] = useState<
-    { event_code: string; display_name: string }[]
-  >([]);
-  const [configuredNotifications, setConfiguredNotifications] = useState<
-    EngagementNotificationItem[]
-  >([]);
-
-  const engagementTypeId = useMemo((): number | null => {
-    const val = engagement.engagement_type;
-    if (typeof val === "number" && val > 0) return val;
-    if (typeof val === "string") {
-      const match = engagementTypes.find((t) => t.code === val);
-      return match?.id ?? null;
-    }
-    return null;
-  }, [engagement.engagement_type, engagementTypes]);
 
   useEffect(() => {
     engagementTypesApi
@@ -479,119 +458,38 @@ export function EngagementNotificationsTab({
       .catch(() => setEngagementTypes([]));
   }, []);
 
-  const embeddedNotifications = (
-    engagement as Engagement & { notifications?: EngagementNotificationItem[] }
-  ).notifications;
+  const engagementKind = useMemo(() => {
+    const val = engagement.engagement_type;
+    if (typeof val === "string" && !/^\d+$/.test(val)) return val;
+    const match = engagementTypes.find(
+      (t) => t.id === val || t.code === val
+    );
+    return match?.code ?? null;
+  }, [engagement.engagement_type, engagementTypes]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      setLoading(true);
-      try {
-        const hasEmbedded =
-          Array.isArray(embeddedNotifications) && embeddedNotifications.length > 0;
-
-        const [defaultsRes, configRes] = await Promise.all([
-          engagementTypeId
-            ? engagementNotificationsApi.getDefaults(engagementTypeId)
-            : Promise.resolve({ data: { data: [] } }),
-          hasEmbedded
-            ? Promise.resolve({ data: { data: embeddedNotifications } })
-            : engagementNotificationsApi.getForEngagement(engagement.engagement_id),
-        ]);
-
-        if (cancelled) return;
-
-        const catalogRes = await notificationsCatalogApi.getEvents();
-        const catalog = catalogRes.data.data ?? [];
-        const defaults = Array.isArray(defaultsRes.data.data) ? defaultsRes.data.data : [];
-        setDefaultEventRows(
-          defaults.map((d) => ({
-            event_code: d.event_code,
-            display_name:
-              d.event_display_name ??
-              catalog.find((c) => c.code === d.event_code)?.name ??
-              d.event_code,
-          }))
-        );
-        setConfiguredNotifications(
-          Array.isArray(configRes.data.data) ? configRes.data.data : []
-        );
-      } catch {
-        if (!cancelled) {
-          setDefaultEventRows([]);
-          setConfiguredNotifications([]);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+  const profileParams = useMemo(() => {
+    if (!engagementKind) return null;
+    return {
+      engagement_kind: engagementKind,
+      payment_type: engagement.payment_type ?? "paid_by_group",
+      blood_collection_type: engagement.blood_collection_type ?? null,
+      consultation_mode: engagement.consultation_mode ?? null,
+      auto_booking: engagement.auto_booking ?? null,
     };
+  }, [engagementKind, engagement]);
 
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [engagement.engagement_id, engagementTypeId, embeddedNotifications]);
-
-  const servicesByEventCode = useMemo(() => {
-    const map = new Map<string, ReturnType<typeof normalizeNotificationServiceConfigs>>();
-    for (const item of configuredNotifications) {
-      if (item.event_code) {
-        map.set(item.event_code, normalizeNotificationServiceConfigs(item.notification_services));
-      }
-    }
-    return map;
-  }, [configuredNotifications]);
-
-  const formatServices = (
-    services: ReturnType<typeof normalizeNotificationServiceConfigs>
-  ) =>
-    services.length > 0
-      ? services
-          .map((item) => {
-            const label = notificationServiceLabel(item.service_key);
-            return item.external_link ? `${label} (${item.external_link})` : label;
-          })
-          .join(", ")
-      : "—";
-
-  const rows = useMemo(() => {
-    if (defaultEventRows.length > 0) {
-      return defaultEventRows.map((event) => ({
-        key: event.event_code,
-        label: event.display_name,
-        services: servicesByEventCode.get(event.event_code) ?? [],
-      }));
-    }
-    return configuredNotifications.map((item) => ({
-      key: item.event_code,
-      label: item.event_display_name ?? item.event_code,
-      services: normalizeNotificationServiceConfigs(item.notification_services),
-    }));
-  }, [configuredNotifications, defaultEventRows, servicesByEventCode]);
+  const returnTo = useMemo(() => {
+    const code = engagement.engagement_code?.trim();
+    return code ? `/engagements/${encodeURIComponent(code)}?tab=notifications` : "/engagements";
+  }, [engagement.engagement_code]);
 
   return (
     <div className="bg-white border border-zinc-200 rounded-xl p-4">
-      {loading ? (
-        <div className="py-8 flex justify-center">
-          <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
-        </div>
-      ) : rows.length === 0 ? (
-        <p className="text-sm text-zinc-500">
-          {engagementTypeId
-            ? "No notification events configured for this engagement type."
-            : "No notification configuration found for this engagement."}
-        </p>
-      ) : (
-        <div className="grid grid-cols-1 gap-3">
-          {rows.map((row) => (
-            <Field key={row.key} label={row.label}>
-              {formatServices(row.services)}
-            </Field>
-          ))}
-        </div>
-      )}
+      <EngagementNotificationSetupPanel
+        engagementId={engagement.engagement_id}
+        profileParams={profileParams}
+        returnTo={returnTo}
+      />
     </div>
   );
 }

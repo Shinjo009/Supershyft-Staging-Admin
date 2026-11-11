@@ -168,6 +168,8 @@ export function NotificationBindingWizard() {
   const location = useLocation();
   const mode = searchParams.get("mode") === "engagement" ? "engagement" : "global";
   const engagementId = Number(searchParams.get("engagementId") || 0) || 0;
+  const engagementBindingId =
+    Number(searchParams.get("engagementBindingId") || 0) || undefined;
   const engagementTypeId = Number(searchParams.get("engagementTypeId") || 0) || 0;
   const locationState = location.state as {
     returnTo?: string;
@@ -548,10 +550,14 @@ export function NotificationBindingWizard() {
       }
       const payload = buildPayload();
       if (mode === "engagement") {
+        if (!recipientType.trim()) {
+          throw new Error("Select a recipient for this notification.");
+        }
         if (engagementId > 0) {
           await engagementNotificationsApi.saveWizard(engagementId, {
-            event_code: payload.event_code,
-            service: payload.service,
+            ...payload,
+            engagement_type_id: null,
+            engagement_binding_id: engagementBindingId ?? null,
           });
         } else {
           navigate(returnTo, {
@@ -621,7 +627,7 @@ export function NotificationBindingWizard() {
             </h1>
             <p className="text-sm text-zinc-500 mt-1">
               Step {step} of 3 — {stepTitle}
-              {mode === "engagement" && " (engagement override: content only affects this engagement)"}
+              {mode === "engagement" && " (binding applies only to this engagement)"}
             </p>
           </header>
           {selectedEvent && step > 1 ? (
@@ -685,13 +691,7 @@ export function NotificationBindingWizard() {
 
         {step === 2 && selectedEvent && (
           <div className="space-y-5">
-            {mode === "engagement" ? (
-              <div className="rounded-lg border border-zinc-200 p-4 text-sm text-zinc-600">
-                Recipients are configured globally for this event. This engagement setup only changes which
-                message content is sent.
-              </div>
-            ) : (
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {recipientOptions.map((rt) => {
                   const hint = recipientPayloadHint(rt, selectedEvent);
                   const selected =
@@ -719,8 +719,7 @@ export function NotificationBindingWizard() {
                   );
                 })}
               </div>
-            )}
-            {recipientType === "custom" && mode === "global" && (
+            {recipientType === "custom" && (
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="block text-sm text-zinc-800">
                   Phone numbers (one per line)
@@ -751,7 +750,7 @@ export function NotificationBindingWizard() {
               <button
                 type="button"
                 onClick={() => setStep(3)}
-                disabled={!recipientType && mode === "global"}
+                disabled={!recipientType}
                 className="px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm disabled:opacity-50"
               >
                 Continue
@@ -769,7 +768,7 @@ export function NotificationBindingWizard() {
 
         {step === 3 && selectedEvent && (
           <div className="space-y-5">
-            {recipientType === "payload" && mode === "global" ? (
+            {recipientType === "payload" ? (
               <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-4 space-y-3">
                 <div>
                   <p className="text-sm font-medium text-zinc-900">Payload contact field</p>
@@ -1157,7 +1156,7 @@ export function NotificationBindingWizard() {
             <div className="flex flex-wrap gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => setStep(mode === "engagement" ? 1 : 2)}
+                onClick={() => setStep(2)}
                 className="px-4 py-2 border border-zinc-300 rounded-lg text-sm hover:bg-zinc-50"
               >
                 Back
