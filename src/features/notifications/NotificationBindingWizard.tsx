@@ -168,7 +168,6 @@ export function NotificationBindingWizard() {
   const location = useLocation();
   const mode = searchParams.get("mode") === "engagement" ? "engagement" : "global";
   const engagementId = Number(searchParams.get("engagementId") || 0) || 0;
-  const engagementTypeId = Number(searchParams.get("engagementTypeId") || 0) || 0;
   const locationState = location.state as {
     returnTo?: string;
     editBinding?: { recipient_type?: string; event_code?: string };
@@ -486,7 +485,7 @@ export function NotificationBindingWizard() {
     const body: WizardBindingPayload = {
       event_code: persistedEventCode,
       recipient_type: recipientType,
-      engagement_type_id: engagementTypeId > 0 ? engagementTypeId : null,
+      engagement_type_id: null,
       service,
     };
     if (recipientType === "custom") {

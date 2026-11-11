@@ -13,15 +13,12 @@ import type {
   Engagement,
   EngagementDataCompletenessResponse,
   EngagementNotificationItem,
-  EngagementTypeItem,
 } from "../../lib/api";
 import { normalizeNotificationServiceConfigs } from "../../shared/ui/NotificationEventServicesInput";
 import {
   engagementDataCompletenessApi,
   engagementNotificationsApi,
-  engagementTypesApi,
   getApiError,
-  notificationsCatalogApi,
 } from "../../lib/api";
 import { CampOverviewSection } from "./CampOverviewSection";
 import { ConsoleUrlActions } from "./consoleUrlActions";
@@ -454,7 +451,6 @@ export function EngagementNotificationsTab({
   notificationServiceLabel,
 }: Pick<SharedProps, "engagement" | "notificationServiceLabel">) {
   const [loading, setLoading] = useState(true);
-  const [engagementTypes, setEngagementTypes] = useState<EngagementTypeItem[]>([]);
   const [defaultEventRows, setDefaultEventRows] = useState<
     { event_code: string; display_name: string }[]
   >([]);
@@ -462,61 +458,34 @@ export function EngagementNotificationsTab({
     EngagementNotificationItem[]
   >([]);
 
-  const engagementTypeId = useMemo((): number | null => {
-    const val = engagement.engagement_type;
-    if (typeof val === "number" && val > 0) return val;
-    if (typeof val === "string") {
-      const match = engagementTypes.find((t) => t.code === val);
-      return match?.id ?? null;
-    }
-    return null;
-  }, [engagement.engagement_type, engagementTypes]);
-
-  useEffect(() => {
-    engagementTypesApi
-      .list()
-      .then((res) => setEngagementTypes(res.data.data ?? []))
-      .catch(() => setEngagementTypes([]));
-  }, []);
-
-  const embeddedNotifications = (
-    engagement as Engagement & { notifications?: EngagementNotificationItem[] }
-  ).notifications;
-
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
       setLoading(true);
       try {
-        const hasEmbedded =
-          Array.isArray(embeddedNotifications) && embeddedNotifications.length > 0;
-
-        const [defaultsRes, configRes] = await Promise.all([
-          engagementTypeId
-            ? engagementNotificationsApi.getDefaults(engagementTypeId)
-            : Promise.resolve({ data: { data: [] } }),
-          hasEmbedded
-            ? Promise.resolve({ data: { data: embeddedNotifications } })
-            : engagementNotificationsApi.getForEngagement(engagement.engagement_id),
-        ]);
+        const setupRes = await engagementNotificationsApi.getNotificationSetup(
+          engagement.engagement_id
+        );
 
         if (cancelled) return;
 
-        const catalogRes = await notificationsCatalogApi.getEvents();
-        const catalog = catalogRes.data.data ?? [];
-        const defaults = Array.isArray(defaultsRes.data.data) ? defaultsRes.data.data : [];
+        const setup = Array.isArray(setupRes.data.data) ? setupRes.data.data : [];
         setDefaultEventRows(
-          defaults.map((d) => ({
-            event_code: d.event_code,
-            display_name:
-              d.event_display_name ??
-              catalog.find((c) => c.code === d.event_code)?.name ??
-              d.event_code,
+          setup.map((item) => ({
+            event_code: item.event_code,
+            display_name: item.name ?? item.event_code,
           }))
         );
         setConfiguredNotifications(
-          Array.isArray(configRes.data.data) ? configRes.data.data : []
+          setup.map((item) => ({
+            id: 0,
+            engagement_id: engagement.engagement_id,
+            event_code: item.event_code,
+            notification_services:
+              item.override_services?.length > 0 ? item.override_services : item.default_services,
+            event_display_name: item.name,
+          }))
         );
       } catch {
         if (!cancelled) {
@@ -532,7 +501,7 @@ export function EngagementNotificationsTab({
     return () => {
       cancelled = true;
     };
-  }, [engagement.engagement_id, engagementTypeId, embeddedNotifications]);
+  }, [engagement.engagement_id]);
 
   const servicesByEventCode = useMemo(() => {
     const map = new Map<string, ReturnType<typeof normalizeNotificationServiceConfigs>>();
@@ -579,9 +548,7 @@ export function EngagementNotificationsTab({
         </div>
       ) : rows.length === 0 ? (
         <p className="text-sm text-zinc-500">
-          {engagementTypeId
-            ? "No notification events configured for this engagement type."
-            : "No notification configuration found for this engagement."}
+          No applicable notification events for this engagement, or global defaults are not configured yet.
         </p>
       ) : (
         <div className="grid grid-cols-1 gap-3">

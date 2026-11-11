@@ -383,19 +383,6 @@ export const platformSettingsApi = {
       "/platform-settings/b2c-onboarding",
       payload
     ),
-  getEngagementNotificationDefaults: (engagementTypeId: number) =>
-    api.get<{ data: NotificationDefaultItem[]; meta: Record<string, unknown> }>(
-      "/platform-settings/engagement-notification-defaults",
-      { params: { engagement_type_id: engagementTypeId } }
-    ),
-  patchEngagementNotificationDefaults: (
-    engagementTypeId: number,
-    defaults: { event_code: string; recipient_type?: string; notification_services: NotificationServiceConfigItem[] }[]
-  ) =>
-    api.put<{ data: NotificationDefaultItem[]; meta: Record<string, unknown> }>(
-      "/platform-settings/engagement-notification-defaults",
-      { engagement_type_id: engagementTypeId, defaults }
-    ),
   getSupportQueryNotification: () =>
     api.get<{ data: SupportQueryNotification; meta: Record<string, unknown> }>(
       "/platform-settings/support-query-notification"
@@ -5607,6 +5594,32 @@ export interface CatalogEventItem {
   trigger_kind?: "http" | "cron" | "webhook" | "internal";
   allows_payload_recipient?: boolean;
   payload_contact_fields?: PayloadContactFieldItem[];
+  catalog_groups?: string[];
+  show_on_engagement_wizard?: boolean;
+}
+
+export const NOTIFICATION_CATALOG_GROUP_ORDER = [
+  "Camp & enrollment",
+  "Home blood booking",
+  "Consultations",
+  "Reports & reminders",
+  "Payments & checkout",
+  "Platform",
+] as const;
+
+export interface EngagementNotificationSetupEvent {
+  event_code: string;
+  name: string;
+  catalog_groups: string[];
+  default_services: NotificationServiceConfigItem[];
+  override_services: NotificationServiceConfigItem[];
+}
+
+export interface NotificationSetupPreviewBody {
+  engagement_kind: string;
+  blood_collection_type?: string | null;
+  auto_booking?: boolean | null;
+  consultation_mode?: string | null;
 }
 
 export interface WhatsappTemplateMeta {
@@ -6132,18 +6145,14 @@ export const engagementNotificationsApi = {
       `/engagements/${engagementId}/notifications/wizard`,
       body
     ),
-  getDefaults: (engagementTypeId: number) =>
-    api.get<{ data: NotificationDefaultItem[]; meta: Record<string, unknown> }>(
-      "/platform-settings/engagement-notification-defaults",
-      { params: { engagement_type_id: engagementTypeId } }
+  getNotificationSetup: (engagementId: number) =>
+    api.get<{ data: EngagementNotificationSetupEvent[]; meta: Record<string, unknown> }>(
+      `/engagements/${engagementId}/notification-setup`
     ),
-  upsertDefaults: (
-    engagementTypeId: number,
-    defaults: { event_code: string; recipient_type?: string; notification_services: NotificationServiceConfigItem[] }[]
-  ) =>
-    api.put<{ data: NotificationDefaultItem[]; meta: Record<string, unknown> }>(
-      "/platform-settings/engagement-notification-defaults",
-      { engagement_type_id: engagementTypeId, defaults }
+  previewNotificationSetup: (body: NotificationSetupPreviewBody) =>
+    api.post<{ data: EngagementNotificationSetupEvent[]; meta: Record<string, unknown> }>(
+      "/engagements/notification-setup/preview",
+      body
     ),
 };
 

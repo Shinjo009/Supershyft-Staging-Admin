@@ -19,7 +19,6 @@ import {
   engagementTypesApi,
   expertTypesApi,
   getApiError,
-  notificationsCatalogApi,
   questionnaireCategoriesApi,
   type QuestionnaireCategory,
 } from "../../lib/api";
@@ -825,55 +824,40 @@ export function EngagementFormWizard({
   };
 
   useEffect(() => {
-    if (currentStepKey !== "notifications" || !selectedTypeId) return;
+    if (currentStepKey !== "notifications" || !selectedTypeCode) return;
 
     let cancelled = false;
     setNotificationsLoading(true);
 
     (async () => {
       try {
-        const [defaultsRes, catalogRes] = await Promise.all([
-          engagementNotificationsApi.getDefaults(selectedTypeId),
-          notificationsCatalogApi.getEvents(),
-        ]);
+        const setupRes =
+          mode === "edit" && engagementId
+            ? await engagementNotificationsApi.getNotificationSetup(engagementId)
+            : await engagementNotificationsApi.previewNotificationSetup({
+                engagement_kind: selectedTypeCode,
+                blood_collection_type: formData.blood_collection_type ?? null,
+                auto_booking: formData.auto_booking ?? null,
+                consultation_mode: formData.consultation_mode ?? null,
+              });
         if (cancelled) return;
-        const catalog = Array.isArray(catalogRes.data.data) ? catalogRes.data.data : [];
-        const defaults = Array.isArray(defaultsRes.data.data) ? defaultsRes.data.data : [];
-        const eventRows = defaults.map((d) => ({
-          event_code: d.event_code,
-          display_name:
-            d.event_display_name ??
-            catalog.find((c) => c.code === d.event_code)?.name ??
-            d.event_code,
-        }));
-        setNotificationEvents(eventRows);
+        const setup = Array.isArray(setupRes.data.data) ? setupRes.data.data : [];
+        setNotificationEvents(
+          setup.map((item) => ({
+            event_code: item.event_code,
+            display_name: item.name ?? item.event_code,
+          }))
+        );
 
         const config: Record<string, NotificationServiceConfigItem[]> = {};
-
-        if (mode === "edit" && engagementId && !editConfigLoaded.current) {
-          editConfigLoaded.current = true;
-          try {
-            const configRes =
-              await engagementNotificationsApi.getForEngagement(engagementId);
-            if (!cancelled) {
-              const items = Array.isArray(configRes.data.data) ? configRes.data.data : [];
-              for (const item of items) {
-                if (item.event_code) {
-                  config[item.event_code] = normalizeNotificationServiceConfigs(
-                    item.notification_services
-                  );
-                }
-              }
-            }
-          } catch {
-            // fall through with empty config
-          }
-        } else {
-          for (const item of defaults) {
-            config[item.event_code] = normalizeNotificationServiceConfigs(item.notification_services);
-          }
+        for (const item of setup) {
+          const services =
+            item.override_services?.length > 0 ? item.override_services : item.default_services;
+          config[item.event_code] = normalizeNotificationServiceConfigs(services ?? []);
         }
-
+        if (mode === "edit" && engagementId) {
+          editConfigLoaded.current = true;
+        }
         if (!cancelled) setNotificationConfig(config);
       } catch {
         if (!cancelled) {
@@ -888,7 +872,15 @@ export function EngagementFormWizard({
     return () => {
       cancelled = true;
     };
-  }, [currentStepKey, selectedTypeId, mode, engagementId]);
+  }, [
+    currentStepKey,
+    selectedTypeCode,
+    mode,
+    engagementId,
+    formData.blood_collection_type,
+    formData.auto_booking,
+    formData.consultation_mode,
+  ]);
 
   const findStepIndex = (key: StepKey) => steps.findIndex((s) => s.key === key);
 
@@ -1952,14 +1944,17 @@ export function EngagementFormWizard({
 
         {currentStepKey === "notifications" && (
           <div className="grid grid-cols-1 gap-4">
+            <p className="text-xs text-zinc-500">
+              Defaults come from global Notifications settings; changes here apply only to this engagement.
+            </p>
             {notificationsLoading ? (
               <div className="py-8 flex justify-center">
                 <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
               </div>
             ) : notificationEvents.length === 0 ? (
               <p className="text-sm text-zinc-500">
-                {selectedTypeId
-                  ? "No notification events configured for this engagement type."
+                {selectedTypeCode
+                  ? "No notification events apply to this engagement profile yet."
                   : "Select an engagement type in Type & basics first."}
               </p>
             ) : (
