@@ -18,7 +18,6 @@ test.describe("Notification binding wizard", () => {
     await expect(page.getByText("Step 2 of 3")).toBeVisible();
     await expect(page.getByRole("button", { name: /All onboarding assistants/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /^Participant$/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: /From API payload/i })).toBeVisible();
   });
 
   test("step 3 offers reuse existing service", async ({ page }) => {

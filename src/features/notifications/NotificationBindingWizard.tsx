@@ -13,7 +13,6 @@ import {
   type WizardBindingPayload,
   getApiError,
 } from "../../lib/api";
-import { PayloadRecipientPicker } from "./PayloadRecipientPicker";
 import {
   RECIPIENT_LABELS,
   catalogEventForBinding,
@@ -23,7 +22,7 @@ import {
   recipientPayloadHint,
   recipientTypeFromEditLocation,
   selectableRowClass,
-  wizardRecipientOptions,
+  wizardRecipientOptionsForEvent,
 } from "./notificationsUiShared";
 
 type Step = 1 | 2 | 3;
@@ -200,7 +199,7 @@ export function NotificationBindingWizard() {
   );
   const [customPhones, setCustomPhones] = useState("");
   const [customEmails, setCustomEmails] = useState("");
-  const [payloadFieldIds, setPayloadFieldIds] = useState<string[]>([]);
+  const [payloadPath, setPayloadPath] = useState("");
 
   const [channel, setChannel] = useState<"whatsapp" | "email">("whatsapp");
   const [displayName, setDisplayName] = useState("");
@@ -259,15 +258,20 @@ export function NotificationBindingWizard() {
   }, [variableFields]);
 
   const recipientOptions = useMemo(
-    () => wizardRecipientOptions(recipientType || prefilledRecipient, selectedEvent),
+    () => wizardRecipientOptionsForEvent(selectedEvent, recipientType || prefilledRecipient),
     [recipientType, prefilledRecipient, selectedEvent]
   );
 
-  const payloadSelectionHasPhoneOrUser = useMemo(() => {
+  const payloadFieldOptions = useMemo(() => {
     const fields = selectedEvent?.payload_contact_fields ?? [];
-    const selected = fields.filter((f) => payloadFieldIds.includes(f.id));
-    return selected.some((f) => f.kind === "phone" || f.kind === "user_id");
-  }, [payloadFieldIds, selectedEvent]);
+    const want = channel === "email" ? "email" : "phone";
+    return fields.filter((f) => f.value_type === want);
+  }, [selectedEvent, channel]);
+
+  const selectedPayloadField = useMemo(
+    () => payloadFieldOptions.find((f) => f.path === payloadPath) ?? null,
+    [payloadFieldOptions, payloadPath]
+  );
 
   const serviceHandlers = useMemo(
     () => ({
@@ -384,7 +388,7 @@ export function NotificationBindingWizard() {
         setRecipientType(normalizedRecipient);
         setCustomPhones((row.recipient_config?.phones ?? []).join("\n"));
         setCustomEmails((row.recipient_config?.emails ?? []).join("\n"));
-        setPayloadFieldIds(row.recipient_config?.payload_field_ids ?? []);
+        setPayloadPath(row.recipient_config?.payload_path ?? "");
         const sk = row.service_key ?? row.notification_services[0]?.service_key;
         const svc = sk ? svcRes.data.data.find((s) => s.service_key === sk) : undefined;
         setServiceMode("reuse");
@@ -419,6 +423,13 @@ export function NotificationBindingWizard() {
     if (!isEdit || !prefilledRecipient) return;
     setRecipientType((prev) => prev || prefilledRecipient);
   }, [isEdit, prefilledRecipient]);
+
+  useEffect(() => {
+    if (recipientType !== "payload") return;
+    if (payloadPath && !payloadFieldOptions.some((f) => f.path === payloadPath)) {
+      setPayloadPath("");
+    }
+  }, [channel, payloadFieldOptions, payloadPath, recipientType]);
 
   const lookupTemplate = () => lookupTemplateByName(templateName, { showErrors: true });
 
@@ -471,8 +482,11 @@ export function NotificationBindingWizard() {
         emails: customEmails.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean),
       };
     }
-    if (recipientType === "payload") {
-      body.recipient_config = { payload_field_ids: [...payloadFieldIds] };
+    if (recipientType === "payload" && selectedPayloadField) {
+      body.recipient_config = {
+        payload_path: selectedPayloadField.path,
+        value_type: selectedPayloadField.value_type,
+      };
     }
     return body;
   };
@@ -494,17 +508,8 @@ export function NotificationBindingWizard() {
       ) {
         throw new Error("This template requires a header document URL or variable.");
       }
-      if (recipientType === "payload" && payloadFieldIds.length === 0) {
-        throw new Error("Select at least one payload contact field.");
-      }
-      if (
-        recipientType === "payload" &&
-        channel === "whatsapp" &&
-        !payloadSelectionHasPhoneOrUser
-      ) {
-        throw new Error(
-          "WhatsApp requires at least one phone or user ID field in the payload selection."
-        );
+      if (recipientType === "payload" && mode === "global" && !selectedPayloadField) {
+        throw new Error("Select a payload contact field for this channel.");
       }
       const payload = buildPayload();
       if (mode === "engagement") {
@@ -670,13 +675,7 @@ export function NotificationBindingWizard() {
                             {RECIPIENT_LABELS[rt] ?? rt}
                           </p>
                           {hint ? (
-                            <p
-                              className={`text-xs text-zinc-500 mt-1 leading-snug ${
-                                rt === "payload" || rt === "user" ? "" : "font-mono"
-                              }`}
-                            >
-                              {hint}
-                            </p>
+                            <p className="text-xs text-zinc-500 mt-1 font-mono leading-snug">{hint}</p>
                           ) : null}
                         </div>
                         {selected ? <Check className="w-4 h-4 text-zinc-900 shrink-0 mt-0.5" /> : null}
@@ -706,13 +705,6 @@ export function NotificationBindingWizard() {
                 </label>
               </div>
             )}
-            {recipientType === "payload" && mode === "global" && selectedEvent?.allows_payload_recipient && (
-              <PayloadRecipientPicker
-                event={selectedEvent}
-                selectedIds={payloadFieldIds}
-                onChange={setPayloadFieldIds}
-              />
-            )}
             <div className="flex flex-wrap gap-3 pt-2">
               <button
                 type="button"
@@ -724,10 +716,7 @@ export function NotificationBindingWizard() {
               <button
                 type="button"
                 onClick={() => setStep(3)}
-                disabled={
-                  (mode === "global" && !recipientType) ||
-                  (recipientType === "payload" && payloadFieldIds.length === 0)
-                }
+                disabled={!recipientType && mode === "global"}
                 className="px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm disabled:opacity-50"
               >
                 Continue
@@ -745,6 +734,43 @@ export function NotificationBindingWizard() {
 
         {step === 3 && selectedEvent && (
           <div className="space-y-5">
+            {recipientType === "payload" && mode === "global" ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-4 space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-zinc-900">Payload contact field</p>
+                  <p className="text-xs text-zinc-600 mt-1">
+                    {channel === "whatsapp"
+                      ? "Choose a phone field from the API emit context."
+                      : "Choose an email field from the API emit context."}
+                    {selectedPayloadField?.cardinality === "array"
+                      ? " One message is sent per entry (e.g. each member)."
+                      : null}
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    If the field is missing at runtime, delivery is skipped silently.
+                  </p>
+                </div>
+                <label className="block text-sm text-zinc-800 max-w-xl">
+                  Contact path
+                  <select
+                    value={payloadPath}
+                    onChange={(e) => setPayloadPath(e.target.value)}
+                    className="mt-1 w-full border border-zinc-300 rounded-lg p-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-zinc-900"
+                  >
+                    <option value="">Select field…</option>
+                    {payloadFieldOptions.map((field) => (
+                      <option key={field.path} value={field.path}>
+                        {field.group}: {field.label} ({field.path})
+                        {field.cardinality === "array" ? " ×N" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {selectedPayloadField?.description ? (
+                  <p className="text-xs text-zinc-600">{selectedPayloadField.description}</p>
+                ) : null}
+              </div>
+            ) : null}
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"

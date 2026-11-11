@@ -69,20 +69,13 @@ export const RECIPIENT_LABELS: Record<string, string> = {
   "departments.tech": "Tech department",
   "departments.design": "Design department",
   custom: "Specific phone numbers or emails",
-  payload: "From API payload",
-};
-
-const PAYLOAD_GROUP_LABELS: Record<string, string> = {
-  primary: "Primary",
-  booker: "Booker",
-  members: "Members",
-  inline: "Inline contacts",
-  payment: "Payment",
+  payload: "Payload contact",
 };
 
 /** Recipient types offered in the binding wizard (excludes legacy booker-only option). */
 export const WIZARD_RECIPIENT_TYPES = [
   "user",
+  "payload",
   "members",
   "assistants",
   "assistants.phlebo",
@@ -93,7 +86,6 @@ export const WIZARD_RECIPIENT_TYPES = [
   "departments.tech",
   "departments.design",
   "custom",
-  "payload",
 ] as const;
 
 export function participantPayloadHintForEvent(
@@ -112,14 +104,33 @@ export function recipientPayloadHint(
     return participantPayloadHintForEvent(event);
   }
   if (recipientType === "payload") {
-    const short = event?.payload_admin_hint?.trim();
-    if (short) {
-      return short.length > 100 ? `${short.slice(0, 97)}…` : short;
-    }
-    return "Payer and participants when the API fires this event.";
+    return "Phone or email from API emit context (pick field in step 3)";
   }
   const hints = event?.recipient_payload_hints ?? {};
   return hints[recipientType] ?? null;
+}
+
+export function formatBindingRecipientLabel(
+  row: Pick<NotificationBindingItem, "recipient_type" | "recipient_config">
+): string {
+  const rt = normalizeRecipientTypeForWizard(row.recipient_type) || row.recipient_type;
+  if (rt === "payload") {
+    const path = row.recipient_config?.payload_path?.trim();
+    if (path) return `Payload · ${path}`;
+  }
+  return RECIPIENT_LABELS[rt] ?? row.recipient_type;
+}
+
+/** Recipient cards for step 2; hides payload unless the event allows it. */
+export function wizardRecipientOptionsForEvent(
+  event: CatalogEventItem | null | undefined,
+  currentRecipientType: string
+): readonly string[] {
+  const base = wizardRecipientOptions(currentRecipientType);
+  if (event?.allows_payload_recipient) {
+    return base;
+  }
+  return base.filter((rt) => rt !== "payload");
 }
 
 export function defaultRecipientForWizard(event: CatalogEventItem | null | undefined): string {
@@ -207,46 +218,12 @@ export function groupNotificationBindingsByEvent(
 }
 
 /** Wizard step-2 options, always including the binding's current recipient when editing. */
-export function wizardRecipientOptions(
-  currentRecipientType: string,
-  event?: CatalogEventItem | null
-): readonly string[] {
+export function wizardRecipientOptions(currentRecipientType: string): readonly string[] {
   const current = normalizeRecipientTypeForWizard(currentRecipientType);
-  const baseTypes = (WIZARD_RECIPIENT_TYPES as readonly string[]).filter(
-    (rt) => rt !== "payload" || event?.allows_payload_recipient
-  );
-  if (!current || baseTypes.includes(current)) {
-    return baseTypes;
+  if (!current || (WIZARD_RECIPIENT_TYPES as readonly string[]).includes(current)) {
+    return WIZARD_RECIPIENT_TYPES;
   }
-  return [current, ...baseTypes];
-}
-
-export function payloadContactFieldsByGroup(
-  event: CatalogEventItem | null | undefined
-): Map<string, NonNullable<CatalogEventItem["payload_contact_fields"]>> {
-  const map = new Map<string, NonNullable<CatalogEventItem["payload_contact_fields"]>>();
-  for (const field of event?.payload_contact_fields ?? []) {
-    const group = field.group || "primary";
-    const bucket = map.get(group) ?? [];
-    bucket.push(field);
-    map.set(group, bucket);
-  }
-  return map;
-}
-
-export function payloadGroupLabel(group: string): string {
-  return PAYLOAD_GROUP_LABELS[group] ?? group;
-}
-
-export function formatPayloadRecipientSummary(
-  recipientConfig: { payload_field_ids?: string[] } | null | undefined,
-  event: CatalogEventItem | null | undefined
-): string {
-  const ids = recipientConfig?.payload_field_ids ?? [];
-  if (!ids.length) return "From API payload";
-  const byId = new Map((event?.payload_contact_fields ?? []).map((f) => [f.id, f.label]));
-  const labels = ids.map((id) => byId.get(id) ?? id);
-  return labels.join(", ");
+  return [current, ...WIZARD_RECIPIENT_TYPES];
 }
 
 /** Match an event code to a catalog row (aliases, legacy codes, dot/underscore variants). */

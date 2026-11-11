@@ -5586,17 +5586,12 @@ export interface NotificationServiceItem {
 }
 
 export interface PayloadContactFieldItem {
-  id: string;
-  label: string;
   path: string;
-  kind: "phone" | "email" | "user_id";
-  cardinality: "single" | "list";
+  label: string;
+  value_type: "phone" | "email";
+  cardinality: "scalar" | "array";
+  description: string;
   group: string;
-  description?: string;
-  example?: string;
-  audience?: string;
-  channels?: string[];
-  sort_order?: number;
 }
 
 export interface CatalogEventItem {
@@ -5609,12 +5604,9 @@ export interface CatalogEventItem {
   trigger_notes: string;
   legacy_event_code: string | null;
   recipient_payload_hints?: Record<string, string>;
-  trigger_source?: string;
+  trigger_kind?: "http" | "cron" | "webhook" | "internal";
   allows_payload_recipient?: boolean;
   payload_contact_fields?: PayloadContactFieldItem[];
-  payload_layout?: string;
-  payload_trigger_apis?: string[];
-  payload_admin_hint?: string;
 }
 
 export interface WhatsappTemplateMeta {
@@ -5642,7 +5634,8 @@ export interface NotificationBindingItem {
   recipient_config?: {
     phones?: string[];
     emails?: string[];
-    payload_field_ids?: string[];
+    payload_path?: string;
+    value_type?: "phone" | "email";
   } | null;
   service_key?: string | null;
 }
@@ -5670,7 +5663,12 @@ export interface WizardServicePayload {
 export interface WizardBindingPayload {
   event_code: string;
   recipient_type: string;
-  recipient_config?: { phones?: string[]; emails?: string[]; payload_field_ids?: string[] };
+  recipient_config?: {
+    phones?: string[];
+    emails?: string[];
+    payload_path?: string;
+    value_type?: "phone" | "email";
+  };
   engagement_type_id?: number | null;
   service: WizardServicePayload;
 }

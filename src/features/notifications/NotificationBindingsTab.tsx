@@ -6,6 +6,7 @@ import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate } from "../../contexts/PermissionContext";
 import { notificationBindingsApi, type NotificationBindingItem, getApiError } from "../../lib/api";
 import {
+  formatBindingRecipientLabel,
   RECIPIENT_LABELS,
   groupNotificationBindingsByEvent,
   type NotificationEventGroupRow,
@@ -65,7 +66,7 @@ export function NotificationBindingsTab() {
         row.event_name,
         row.event_code,
         row.recipient_type,
-        RECIPIENT_LABELS[row.recipient_type] ?? row.recipient_type,
+        formatBindingRecipientLabel(row),
         ...row.notification_services.map((s) => s.service_key),
       ]
         .join(" ")
