@@ -23,6 +23,13 @@ type Props = {
   onSetupLoaded?: (setup: EngagementNotificationSetup) => void;
 };
 
+function coerceEngagementId(value: number | null | undefined): number | null {
+  if (value == null) return null;
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) return value;
+  if (typeof value === "string" && /^\d+$/.test(value)) return Number(value);
+  return null;
+}
+
 function bindingSummary(binding: {
   recipient_type?: string;
   delivery_channel?: string;
@@ -48,14 +55,15 @@ export function EngagementNotificationSetupPanel({
   const [error, setError] = useState<string | null>(null);
   const [setup, setSetup] = useState<EngagementNotificationSetup | null>(null);
   const [addEventCode, setAddEventCode] = useState("");
+  const resolvedEngagementId = coerceEngagementId(engagementId ?? null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const params =
-        engagementId != null && engagementId > 0
-          ? { engagement_id: engagementId }
+        resolvedEngagementId != null
+          ? { engagement_id: resolvedEngagementId }
           : profileParams?.engagement_kind
             ? {
                 engagement_kind: profileParams.engagement_kind,
@@ -75,10 +83,10 @@ export function EngagementNotificationSetupPanel({
       onSetupLoaded?.(data);
 
       const hasBindings = data.events.some((e) => e.engagement_bindings.length > 0);
-      if (engagementId && engagementId > 0 && !hasBindings && data.applicable_event_count > 0) {
+      if (resolvedEngagementId && !hasBindings && data.applicable_event_count > 0) {
         setSeeding(true);
         try {
-          const seedRes = await engagementNotificationsApi.seedFromDefaults(engagementId);
+          const seedRes = await engagementNotificationsApi.seedFromDefaults(resolvedEngagementId);
           setSetup(seedRes.data.data);
           onSetupLoaded?.(seedRes.data.data);
         } finally {
@@ -91,7 +99,7 @@ export function EngagementNotificationSetupPanel({
     } finally {
       setLoading(false);
     }
-  }, [engagementId, profileParams, onSetupLoaded]);
+  }, [resolvedEngagementId, profileParams, onSetupLoaded]);
 
   useEffect(() => {
     void load();
@@ -103,7 +111,7 @@ export function EngagementNotificationSetupPanel({
     (eventCode: string, extra?: { engagementBindingId?: number; step?: number }) => {
       const q = new URLSearchParams({
         mode: "engagement",
-        engagementId: String(engagementId ?? ""),
+        engagementId: String(resolvedEngagementId ?? ""),
         event_code: eventCode,
       });
       if (extra?.engagementBindingId) {
@@ -114,13 +122,13 @@ export function EngagementNotificationSetupPanel({
       }
       return `/notifications/notifications/new?${q.toString()}`;
     },
-    [engagementId]
+    [resolvedEngagementId]
   );
 
   const handleDeleteBinding = async (bindingId: number) => {
-    if (!engagementId) return;
+    if (!resolvedEngagementId) return;
     try {
-      await engagementNotificationsApi.deleteBinding(engagementId, bindingId);
+      await engagementNotificationsApi.deleteBinding(resolvedEngagementId, bindingId);
       await load();
     } catch (err) {
       setError(getApiError(err));
@@ -136,7 +144,7 @@ export function EngagementNotificationSetupPanel({
     );
   }
 
-  if (!profileParams?.engagement_kind && !engagementId) {
+  if (!profileParams?.engagement_kind && !resolvedEngagementId) {
     return <p className="text-sm text-zinc-500">Select an engagement type in Type & basics first.</p>;
   }
 
@@ -208,7 +216,7 @@ export function EngagementNotificationSetupPanel({
                         {event.engagement_bindings.map((b) => (
                           <li key={b.id} className="flex items-start justify-between gap-2 text-zinc-700">
                             <span>{bindingSummary(b)}</span>
-                            {engagementId ? (
+                            {resolvedEngagementId ? (
                               <div className="flex gap-1 shrink-0">
                                 <Link
                                   to={wizardPath(event.event_code, {
@@ -244,7 +252,7 @@ export function EngagementNotificationSetupPanel({
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {engagementId ? (
+                    {resolvedEngagementId ? (
                       <Link
                         to={wizardPath(event.event_code, { step: 2 })}
                         state={wizardLinkState}
@@ -264,7 +272,7 @@ export function EngagementNotificationSetupPanel({
         </div>
       )}
 
-      {setup.addable_events?.length > 0 && engagementId ? (
+      {setup.addable_events?.length > 0 && resolvedEngagementId ? (
         <div className="flex flex-col sm:flex-row gap-2 sm:items-end border border-dashed border-zinc-300 rounded-lg p-4">
           <label className="flex-1 text-sm text-zinc-800">
             Add event outside profile
