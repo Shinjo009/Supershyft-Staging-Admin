@@ -79,7 +79,7 @@ export function templateVariableFieldsForRecipient(args: {
   }
   const groups = variableGroupsForRecipient(event.variable_groups ?? [], recipient);
   const teamFields = fieldsForGroups(groups.filter((g) => g === "staff" || g === "participant"));
-  const base = event.variable_fields ?? [];
+  const base = (event.variable_fields ?? []).filter((f) => !f.startsWith("user."));
   const seen = new Set<string>();
   const merged: string[] = [];
   for (const f of [...teamFields, ...base]) {

@@ -22,7 +22,7 @@ describe("templateVariableFieldsForRecipient", () => {
     });
     expect(fields[0]).toBe("staff.name");
     expect(fields).toContain("participant.name");
-    expect(fields).toContain("user.name");
+    expect(fields).not.toContain("user.name");
   });
 
   it("leaves participant-facing bindings unchanged", () => {
