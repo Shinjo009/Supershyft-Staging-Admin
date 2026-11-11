@@ -21,6 +21,7 @@ import {
   filterChipClass,
   normalizeRecipientTypeForWizard,
   recipientPayloadHint,
+  recipientTypeFromEditLocation,
   selectableRowClass,
   wizardRecipientOptions,
 } from "./notificationsUiShared";
@@ -83,8 +84,9 @@ export function NotificationBindingWizard() {
     editBinding?: { recipient_type?: string; event_code?: string };
   } | null;
   const returnTo = locationState?.returnTo ?? "/notifications/notifications";
-  const prefilledRecipient = locationState?.editBinding?.recipient_type ?? "";
-  const presetEventCode = searchParams.get("event_code") || "";
+  const prefilledRecipient = recipientTypeFromEditLocation(searchParams, locationState);
+  const presetEventCode =
+    searchParams.get("event_code") || locationState?.editBinding?.event_code || "";
   const wizardStepParam = searchParams.get("step");
 
   const [step, setStep] = useState<Step>(() => {
@@ -102,7 +104,9 @@ export function NotificationBindingWizard() {
   const [serviceMode, setServiceMode] = useState<ServiceMode>("create");
 
   const [selectedEvent, setSelectedEvent] = useState<CatalogEventItem | null>(null);
-  const [recipientType, setRecipientType] = useState("");
+  const [recipientType, setRecipientType] = useState(() =>
+    bindingId ? prefilledRecipient : ""
+  );
   const [customPhones, setCustomPhones] = useState("");
   const [customEmails, setCustomEmails] = useState("");
 
@@ -142,8 +146,8 @@ export function NotificationBindingWizard() {
   const variableFields = useMemo(() => selectedEvent?.variable_fields ?? [], [selectedEvent]);
 
   const recipientOptions = useMemo(
-    () => wizardRecipientOptions(recipientType),
-    [recipientType]
+    () => wizardRecipientOptions(recipientType || prefilledRecipient),
+    [recipientType, prefilledRecipient]
   );
 
   const serviceHandlers = useMemo(
@@ -207,7 +211,9 @@ export function NotificationBindingWizard() {
         const row = await notificationBindingsApi.getForWizard(Number(bindingId));
         const ev = catalogEventForBinding(catalog, row);
         setSelectedEvent(ev);
-        setRecipientType(normalizeRecipientTypeForWizard(row.recipient_type));
+        setRecipientType(
+          normalizeRecipientTypeForWizard(row.recipient_type) || prefilledRecipient
+        );
         setCustomPhones((row.recipient_config?.phones ?? []).join("\n"));
         setCustomEmails((row.recipient_config?.emails ?? []).join("\n"));
         const sk = row.service_key ?? row.notification_services[0]?.service_key;
@@ -230,17 +236,15 @@ export function NotificationBindingWizard() {
     } finally {
       setLoading(false);
     }
-  }, [bindingId, presetEventCode, serviceHandlers, wizardStepParam]);
+  }, [bindingId, prefilledRecipient, presetEventCode, serviceHandlers, wizardStepParam]);
 
   useEffect(() => {
     loadInitial();
   }, [loadInitial]);
 
   useEffect(() => {
-    if (!isEdit || !prefilledRecipient.trim()) return;
-    setRecipientType((prev) =>
-      prev ? prev : normalizeRecipientTypeForWizard(prefilledRecipient)
-    );
+    if (!isEdit || !prefilledRecipient) return;
+    setRecipientType((prev) => prev || prefilledRecipient);
   }, [isEdit, prefilledRecipient]);
 
   const lookupTemplate = async () => {
@@ -453,16 +457,6 @@ export function NotificationBindingWizard() {
                 message content is sent.
               </div>
             ) : (
-              <div className="space-y-3">
-                {recipientType ? (
-                  <p className="text-sm text-zinc-600">
-                    Current selection:{" "}
-                    <span className="font-medium text-zinc-900">
-                      {RECIPIENT_LABELS[recipientType] ?? recipientType}
-                    </span>
-                    <span className="ml-2 font-mono text-xs text-zinc-500">{recipientType}</span>
-                  </p>
-                ) : null}
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {recipientOptions.map((rt) => {
                   const hint = recipientPayloadHint(rt, selectedEvent);
@@ -490,7 +484,6 @@ export function NotificationBindingWizard() {
                     </button>
                   );
                 })}
-              </div>
               </div>
             )}
             {recipientType === "custom" && mode === "global" && (

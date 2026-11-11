@@ -5,8 +5,25 @@ import type {
   NotificationRecipient,
 } from "../../lib/api";
 
+/** Stored DB values that map to a wizard recipient card (uniform edit UI). */
+const RECIPIENT_LEGACY_TO_WIZARD: Record<string, string> = {
+  booker: "user",
+  participant: "user",
+  employees: "departments",
+  employee: "departments",
+  admin: "departments.ops",
+  support: "departments.ops",
+};
+
+/** Event codes in DB that should use catalog metadata from another code. */
+const BINDING_EVENT_CODE_ALIASES: Record<string, string> = {
+  "onboarding.completed": "users.onboarded",
+  onboarding: "users.onboarded",
+};
+
 export const RECIPIENT_LABELS: Record<string, string> = {
   user: "Participant from payload",
+  participant: "Participant from payload",
   members: "Family members",
   booker: "Family booker",
   assistants: "All onboarding assistants",
@@ -65,10 +82,35 @@ export function defaultRecipientForWizard(event: CatalogEventItem | null | undef
 
 /** Map stored binding recipient_type to a wizard card id. */
 export function normalizeRecipientTypeForWizard(raw: string | null | undefined): string {
-  const rt = (raw ?? "").trim();
+  const rt = (raw ?? "").trim().toLowerCase();
   if (!rt) return "";
-  if (rt === "booker") return "user";
-  return rt;
+  return RECIPIENT_LEGACY_TO_WIZARD[rt] ?? rt;
+}
+
+export function bindingEditPath(
+  bindingId: number,
+  step: 2 | 3,
+  row?: Pick<NotificationBindingItem, "recipient_type" | "event_code">
+): string {
+  const params = new URLSearchParams({ step: String(step) });
+  const recipient = (row?.recipient_type ?? "").trim();
+  if (recipient) {
+    params.set("recipient", recipient);
+  }
+  const eventCode = (row?.event_code ?? "").trim();
+  if (eventCode) {
+    params.set("event_code", eventCode);
+  }
+  return `/notifications/notifications/${bindingId}/edit?${params.toString()}`;
+}
+
+export function recipientTypeFromEditLocation(
+  searchParams: URLSearchParams,
+  locationState?: { editBinding?: { recipient_type?: string } } | null
+): string {
+  const fromUrl = (searchParams.get("recipient") ?? "").trim();
+  const fromState = (locationState?.editBinding?.recipient_type ?? "").trim();
+  return normalizeRecipientTypeForWizard(fromUrl || fromState);
 }
 
 /** Wizard step-2 options, always including the binding's current recipient when editing. */
@@ -85,6 +127,11 @@ export function catalogEventForBinding(
   catalog: CatalogEventItem[],
   row: Pick<NotificationBindingItem, "event_code" | "event_name">
 ): CatalogEventItem {
+  const aliased = BINDING_EVENT_CODE_ALIASES[row.event_code];
+  if (aliased) {
+    const target = catalog.find((c) => c.code === aliased);
+    if (target) return target;
+  }
   const exact = catalog.find((c) => c.code === row.event_code);
   if (exact) return exact;
   const viaLegacy = catalog.find((c) => c.legacy_event_code === row.event_code);

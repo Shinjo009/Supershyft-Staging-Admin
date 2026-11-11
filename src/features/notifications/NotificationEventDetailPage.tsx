@@ -16,7 +16,7 @@ import {
   type NotificationServiceConfigItem,
   getApiError,
 } from "../../lib/api";
-import { RECIPIENT_LABELS, catalogEventForBinding } from "./notificationsUiShared";
+import { RECIPIENT_LABELS, bindingEditPath, catalogEventForBinding } from "./notificationsUiShared";
 
 function decodeEventCode(raw: string | undefined): string {
   if (!raw) return "";
@@ -115,11 +115,8 @@ export function NotificationEventDetailPage() {
         }
   );
 
-  const bindingEditPath = (row: NotificationBindingItem, wizardStep: 2 | 3) =>
-    `/notifications/notifications/${row.id}/edit?step=${wizardStep}`;
-
   const navigateToBindingEdit = (row: NotificationBindingItem, wizardStep: 2 | 3) => {
-    navigate(bindingEditPath(row, wizardStep), {
+    navigate(bindingEditPath(row.id, wizardStep, row), {
       state: {
         returnTo: `${location.pathname}${location.search}`,
         editBinding: {

@@ -10,7 +10,7 @@ import {
   type NotificationServiceConfigItem,
   getApiError,
 } from "../../lib/api";
-import { RECIPIENT_LABELS } from "./notificationsUiShared";
+import { RECIPIENT_LABELS, bindingEditPath } from "./notificationsUiShared";
 
 function ServiceChips({ services }: { services: NotificationServiceConfigItem[] }) {
   if (!services.length) {
@@ -200,7 +200,7 @@ export function NotificationBindingsTab() {
             onEdit={
               mayEdit
                 ? (row) =>
-                    navigate(`/notifications/notifications/${row.id}/edit?step=2`, {
+                    navigate(bindingEditPath(row.id, 2, row), {
                       state: {
                         returnTo: `/notifications/notifications/events/${encodeURIComponent(row.event_code)}`,
                         editBinding: {
