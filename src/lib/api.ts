@@ -5605,6 +5605,7 @@ export interface WhatsappTemplateMeta {
   status?: string | null;
   parameter_format?: string | null;
   body_positional_count?: number | null;
+  header_format?: string | null;
   component_types?: string[];
   body_text?: string | null;
 }
@@ -5628,6 +5629,7 @@ export interface WizardServicePayload {
   channel: "email" | "whatsapp";
   template_name?: string | null;
   template_slots?: { index: number; source: string; value?: string | null }[];
+  template_header?: { source: string; value?: string | null } | null;
   template_variables?: Record<string, unknown> | unknown[] | null;
   email_subject?: string | null;
   email_body?: string | null;

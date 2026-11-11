@@ -46,6 +46,7 @@ function applyServiceFromItem(
     setEmailHtml: (v: string) => void;
     setEmailMode: (m: "plain" | "html") => void;
     setSlotValues: (v: string[]) => void;
+    setHeaderDocument: (v: string) => void;
     setTemplateMeta: (m: WhatsappTemplateMeta | null) => void;
   }
 ) {
@@ -68,6 +69,32 @@ function applyServiceFromItem(
   } else {
     handlers.setSlotValues([]);
   }
+  handlers.setHeaderDocument("");
+  if (tv && typeof tv === "object" && !Array.isArray(tv)) {
+    const header = (tv as { header?: { source?: string; value?: string } }).header;
+    if (header?.source === "literal" && header.value) {
+      handlers.setHeaderDocument(header.value);
+    } else if (header?.source) {
+      handlers.setHeaderDocument(`{{${header.source}}}`);
+    }
+  }
+}
+
+function templateNeedsHeaderDocument(meta: WhatsappTemplateMeta | null): boolean {
+  const fmt = (meta?.header_format ?? "").toUpperCase();
+  return fmt === "DOCUMENT" || fmt === "IMAGE";
+}
+
+function buildHeaderDocumentPayload(
+  raw: string
+): { source: string; value?: string | null } | undefined {
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  const varMatch = /^\{\{(.+)\}\}$/.exec(trimmed);
+  if (varMatch) {
+    return { source: varMatch[1].trim() };
+  }
+  return { source: "literal", value: trimmed };
 }
 
 export function NotificationBindingWizard() {
@@ -116,6 +143,7 @@ export function NotificationBindingWizard() {
   const [templateMeta, setTemplateMeta] = useState<WhatsappTemplateMeta | null>(null);
   const [templateLookupLoading, setTemplateLookupLoading] = useState(false);
   const [slotValues, setSlotValues] = useState<string[]>([]);
+  const [headerDocument, setHeaderDocument] = useState("");
 
   const [emailSubject, setEmailSubject] = useState("");
   const [emailMode, setEmailMode] = useState<"plain" | "html">("plain");
@@ -145,6 +173,18 @@ export function NotificationBindingWizard() {
 
   const variableFields = useMemo(() => selectedEvent?.variable_fields ?? [], [selectedEvent]);
 
+  const headerInsertFields = useMemo(() => {
+    const extra = [
+      "external_link",
+      "gift.gift_card_url",
+      "report.blood_report_url",
+      "report.bio_ai_report_url",
+      "report.face_scan_report_url",
+    ];
+    const seen = new Set(variableFields);
+    return [...variableFields, ...extra.filter((f) => !seen.has(f))];
+  }, [variableFields]);
+
   const recipientOptions = useMemo(
     () => wizardRecipientOptions(recipientType || prefilledRecipient),
     [recipientType, prefilledRecipient]
@@ -161,6 +201,7 @@ export function NotificationBindingWizard() {
       setEmailHtml,
       setEmailMode,
       setSlotValues,
+      setHeaderDocument,
       setTemplateMeta,
     }),
   []);
@@ -178,6 +219,7 @@ export function NotificationBindingWizard() {
     setTemplateName("");
     setTemplateMeta(null);
     setSlotValues([]);
+    setHeaderDocument("");
     setEmailSubject("");
     setEmailBody("");
     setEmailHtml("");
@@ -272,6 +314,9 @@ export function NotificationBindingWizard() {
       if (count > 0) {
         setSlotValues(Array.from({ length: count }, () => ""));
       }
+      if (!templateNeedsHeaderDocument(meta)) {
+        setHeaderDocument("");
+      }
     } catch (err) {
       setError(getApiError(err));
       setTemplateMeta(null);
@@ -298,6 +343,10 @@ export function NotificationBindingWizard() {
       channel,
       template_name: channel === "whatsapp" ? templateName.trim() || null : null,
       template_slots: channel === "whatsapp" ? buildSlots() : undefined,
+      template_header:
+        channel === "whatsapp" && templateNeedsHeaderDocument(templateMeta)
+          ? buildHeaderDocumentPayload(headerDocument)
+          : undefined,
       email_subject: channel === "email" ? emailSubject.trim() || null : null,
       email_body: channel === "email" && emailMode === "plain" ? emailBody.trim() || null : null,
       email_html: channel === "email" && emailMode === "html" ? emailHtml.trim() || null : null,
@@ -331,6 +380,13 @@ export function NotificationBindingWizard() {
       }
       if (channel === "whatsapp" && templateMeta && templateMeta.status !== "APPROVED") {
         throw new Error("WhatsApp template must be APPROVED before saving.");
+      }
+      if (
+        channel === "whatsapp" &&
+        templateNeedsHeaderDocument(templateMeta) &&
+        !headerDocument.trim()
+      ) {
+        throw new Error("This template requires a header document URL or variable.");
       }
       const payload = buildPayload();
       if (mode === "engagement") {
@@ -671,6 +727,38 @@ export function NotificationBindingWizard() {
                       </button>
                     </div>
                     {templateMeta?.found && <PackageInfo meta={templateMeta} />}
+                    {(templateNeedsHeaderDocument(templateMeta) || headerDocument.trim()) && (
+                      <div className="space-y-2 max-w-3xl">
+                        <p className="text-xs text-zinc-500">
+                          Header {templateMeta?.header_format?.toLowerCase() ?? "document"} — HTTPS
+                          URL or {"{{variable}}"} (PDF/image attachment)
+                        </p>
+                        <div className="flex gap-2">
+                          <input
+                            value={headerDocument}
+                            onChange={(e) => setHeaderDocument(e.target.value)}
+                            placeholder="https://…/guidelines.pdf or {{gift.gift_card_url}}"
+                            className="flex-1 border border-zinc-300 rounded-lg px-3 py-2 text-sm"
+                          />
+                          <select
+                            className="border border-zinc-300 rounded-lg text-xs"
+                            onChange={(e) => {
+                              const f = e.target.value;
+                              if (!f) return;
+                              setHeaderDocument(`{{${f}}}`);
+                            }}
+                            defaultValue=""
+                          >
+                            <option value="">Insert…</option>
+                            {headerInsertFields.map((f) => (
+                              <option key={f} value={f}>
+                                {f}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    )}
                     {slotValues.length > 0 && (
                       <div className="space-y-2 max-w-3xl">
                         <p className="text-xs text-zinc-500">
@@ -819,7 +907,9 @@ function PackageInfo({ meta }: { meta: WhatsappTemplateMeta }) {
         </span>
       </p>
       <p>
-        Language: {meta.language} · Category: {meta.category} · Variables: {meta.body_positional_count ?? 0}
+        Language: {meta.language} · Category: {meta.category} · Variables:{" "}
+        {meta.body_positional_count ?? 0}
+        {meta.header_format ? ` · Header: ${meta.header_format}` : ""}
       </p>
       {meta.status !== "APPROVED" && (
         <p className="text-amber-700">Only APPROVED templates can be used for sending.</p>
