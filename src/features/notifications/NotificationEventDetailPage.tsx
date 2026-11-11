@@ -303,9 +303,10 @@ export function NotificationEventDetailPage() {
           <section className="space-y-3">
             <h3 className="text-sm font-medium text-zinc-900">Who gets which message</h3>
             <p className="text-sm text-zinc-600">
-              Each row is one recipient and delivery channel (WhatsApp or email). When the event fires,
-              every matching row dispatches. Use <span className="font-medium">Add binding</span> again
-              with the same recipient to add the other channel as a separate row you can edit on its own.
+              Each row is one recipient, channel, and optional condition (e.g. discount code). When the
+              event fires, every matching row dispatches all services listed in that row. Use{" "}
+              <span className="font-medium">Add binding</span> with the same recipient and condition to
+              attach another service to that row, or change channel/condition to create a separate row.
             </p>
 
             <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden">
