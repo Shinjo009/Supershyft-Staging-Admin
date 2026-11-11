@@ -6,6 +6,7 @@ import {
   groupNotificationBindingsByEvent,
   formatBindingEmitConditionLabel,
   normalizeRecipientTypeForWizard,
+  wizardRecipientOptionsForEvent,
 } from "./notificationsUiShared";
 import type { NotificationBindingItem } from "../../lib/api";
 
@@ -103,6 +104,28 @@ describe("groupNotificationBindingsByEvent", () => {
     ];
     const groups = groupNotificationBindingsByEvent(rows);
     expect(groups).toHaveLength(2);
+  });
+});
+
+describe("wizardRecipientOptionsForEvent", () => {
+  const paymentsEvent: CatalogEventItem = {
+    code: "payments.completed",
+    name: "Payment completed",
+    status: "current",
+    variable_groups: ["payment"],
+    variable_fields: [],
+    default_recipients: ["user", "payload"],
+    trigger_notes: "",
+    legacy_event_code: null,
+    recipient_payload_hints: {},
+    allows_payload_recipient: true,
+    payload_contact_fields: [],
+  };
+
+  it("hides members when payload recipient is allowed", () => {
+    const opts = wizardRecipientOptionsForEvent(paymentsEvent, "payload");
+    expect(opts).toContain("payload");
+    expect(opts).not.toContain("members");
   });
 });
 

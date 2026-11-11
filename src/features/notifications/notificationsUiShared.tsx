@@ -146,8 +146,9 @@ export function wizardRecipientOptionsForEvent(
   event: CatalogEventItem | null | undefined,
   currentRecipientType: string
 ): readonly string[] {
-  const base = wizardRecipientOptions(currentRecipientType);
+  let base = wizardRecipientOptions(currentRecipientType);
   if (event?.allows_payload_recipient) {
+    base = base.filter((rt) => rt !== "members");
     return base;
   }
   return base.filter((rt) => rt !== "payload");
