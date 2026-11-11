@@ -3,37 +3,38 @@ import { useNavigate } from "react-router-dom";
 import { Plus, Loader2, Search } from "lucide-react";
 import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
-import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
+import { PermissionGate } from "../../contexts/PermissionContext";
+import { notificationBindingsApi, type NotificationBindingItem, getApiError } from "../../lib/api";
 import {
-  notificationBindingsApi,
-  type NotificationBindingItem,
-  type NotificationServiceConfigItem,
-  getApiError,
-} from "../../lib/api";
-import { RECIPIENT_LABELS, bindingEditPath } from "./notificationsUiShared";
+  RECIPIENT_LABELS,
+  groupNotificationBindingsByEvent,
+  type NotificationEventGroupRow,
+} from "./notificationsUiShared";
 
-function ServiceChips({ services }: { services: NotificationServiceConfigItem[] }) {
-  if (!services.length) {
-    return <span className="text-zinc-400">—</span>;
-  }
-  return (
-    <div className="flex flex-wrap gap-1 max-w-md">
-      {services.map((s) => (
-        <span
-          key={`${s.service_key}-${s.external_link ?? ""}`}
-          className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-violet-50 text-violet-700 border-violet-200"
-        >
-          {s.service_key}
-        </span>
-      ))}
-    </div>
-  );
+function channelLabel(ch: string): string {
+  if (ch === "whatsapp") return "WhatsApp";
+  if (ch === "email") return "Email";
+  return ch || "—";
+}
+
+function uniqueRecipientLabels(bindings: NotificationBindingItem[]): string {
+  const labels = [
+    ...new Set(
+      bindings.map((b) => (RECIPIENT_LABELS[b.recipient_type] ?? b.recipient_type).trim()).filter(Boolean)
+    ),
+  ];
+  if (!labels.length) return "—";
+  if (labels.length <= 2) return labels.join(", ");
+  return `${labels.slice(0, 2).join(", ")} +${labels.length - 2}`;
+}
+
+function uniqueChannels(bindings: NotificationBindingItem[]): string {
+  const channels = [...new Set(bindings.map((b) => channelLabel(b.delivery_channel)).filter((c) => c !== "—"))];
+  return channels.length ? channels.join(" · ") : "—";
 }
 
 export function NotificationBindingsTab() {
   const navigate = useNavigate();
-  const { canEditTask } = usePermissions();
-  const mayEdit = canEditTask("notifications", "defaults");
   const [data, setData] = useState<NotificationBindingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +57,7 @@ export function NotificationBindingsTab() {
     fetchList();
   }, [fetchList]);
 
-  const filteredData = useMemo(() => {
+  const filteredBindings = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return data;
     return data.filter((row) => {
@@ -73,23 +74,14 @@ export function NotificationBindingsTab() {
     });
   }, [data, searchQuery]);
 
-  const handleDelete = async (row: NotificationBindingItem) => {
-    if (
-      !window.confirm(
-        `Delete binding for "${row.event_name}" (${row.event_code})? This cannot be undone.`
-      )
-    ) {
-      return;
-    }
-    try {
-      await notificationBindingsApi.delete(row.id);
-      await fetchList();
-    } catch (err) {
-      setError(getApiError(err));
-    }
-  };
+  const groupedData = useMemo(
+    () => groupNotificationBindingsByEvent(filteredBindings),
+    [filteredBindings]
+  );
 
-  const columns: Column<NotificationBindingItem>[] = [
+  const totalEvents = useMemo(() => groupNotificationBindingsByEvent(data).length, [data]);
+
+  const columns: Column<NotificationEventGroupRow>[] = [
     {
       key: "event_name",
       label: "Event",
@@ -102,49 +94,49 @@ export function NotificationBindingsTab() {
       ),
     },
     {
-      key: "recipient_type",
-      label: "Recipient",
+      key: "bindingCount",
+      label: "Bindings",
       sortable: false,
       render: (r) => (
-        <span className="text-sm text-zinc-800">
-          {(RECIPIENT_LABELS[r.recipient_type] ?? r.recipient_type) || "—"}
+        <span className="text-sm font-medium text-zinc-900">
+          {r.bindingCount}
         </span>
+      ),
+    },
+    {
+      key: "recipient_type",
+      label: "Recipients",
+      sortable: false,
+      hideOnMobile: true,
+      render: (r) => (
+        <span className="text-sm text-zinc-600">{uniqueRecipientLabels(r.bindings)}</span>
       ),
     },
     {
       key: "delivery_channel",
-      label: "Channel",
+      label: "Channels",
       sortable: false,
       hideOnMobile: true,
       render: (r) => (
-        <span className="text-sm text-zinc-800">
-          {r.delivery_channel === "whatsapp"
-            ? "WhatsApp"
-            : r.delivery_channel === "email"
-              ? "Email"
-              : r.delivery_channel ?? "—"}
-        </span>
+        <span className="text-sm text-zinc-600">{uniqueChannels(r.bindings)}</span>
       ),
     },
     {
-      key: "notification_services",
-      label: "Service",
-      sortable: false,
-      hideOnMobile: true,
-      render: (r) => <ServiceChips services={r.notification_services} />,
-    },
-    {
       key: "engagement_type_id",
-      label: "Engagement type",
+      label: "Scope",
       sortable: false,
       hideOnTablet: true,
       render: (r) => (
         <span className="text-sm text-zinc-600">
-          {r.engagement_type_id != null ? `#${r.engagement_type_id}` : "Global"}
+          {r.engagement_type_id != null ? `Engagement type #${r.engagement_type_id}` : "Global"}
         </span>
       ),
     },
   ];
+
+  const openEvent = (row: NotificationEventGroupRow) => {
+    navigate(`/notifications/notifications/events/${encodeURIComponent(row.event_code)}`);
+  };
 
   return (
     <>
@@ -174,16 +166,22 @@ export function NotificationBindingsTab() {
 
       {!loading && data.length > 0 ? (
         <p className="mb-3 text-xs text-zinc-500">
-          Showing {filteredData.length} of {data.length} binding{data.length === 1 ? "" : "s"}
+          Showing {groupedData.length} event{groupedData.length === 1 ? "" : "s"}
+          {totalEvents !== groupedData.length ? ` (filtered)` : ""} · {filteredBindings.length} binding
+          {filteredBindings.length === 1 ? "" : "s"} total
         </p>
       ) : null}
+
+      <p className="mb-3 text-xs text-zinc-500">
+        Open an event to view and edit each recipient and channel binding.
+      </p>
 
       <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden">
         {loading ? (
           <div className="py-12 flex justify-center">
             <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
           </div>
-        ) : filteredData.length === 0 ? (
+        ) : groupedData.length === 0 ? (
           <div className="py-12 px-6 text-center text-sm text-zinc-500">
             {data.length === 0
               ? "No notification bindings yet. Add one to map events to services and recipients."
@@ -192,26 +190,9 @@ export function NotificationBindingsTab() {
         ) : (
           <DataTable
             columns={columns}
-            data={filteredData}
-            keyExtractor={(r) => r.id}
-            onView={(row) =>
-              navigate(`/notifications/notifications/events/${encodeURIComponent(row.event_code)}`)
-            }
-            onEdit={
-              mayEdit
-                ? (row) =>
-                    navigate(bindingEditPath(row.id, 2, row), {
-                      state: {
-                        returnTo: `/notifications/notifications/events/${encodeURIComponent(row.event_code)}`,
-                        editBinding: {
-                          recipient_type: row.recipient_type,
-                          event_code: row.event_code,
-                        },
-                      },
-                    })
-                : undefined
-            }
-            onDelete={mayEdit ? handleDelete : undefined}
+            data={groupedData}
+            keyExtractor={(r) => r.key}
+            onView={openEvent}
             firstColumnClickableView
             mutationCategory="notifications"
             mutationTaskKey="defaults"

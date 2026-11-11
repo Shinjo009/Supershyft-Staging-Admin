@@ -3,8 +3,10 @@ import type { CatalogEventItem } from "../../lib/api";
 import {
   canonicalCatalogEventCode,
   catalogEventForEventCode,
+  groupNotificationBindingsByEvent,
   normalizeRecipientTypeForWizard,
 } from "./notificationsUiShared";
+import type { NotificationBindingItem } from "../../lib/api";
 
 const catalog: CatalogEventItem[] = [
   {
@@ -58,5 +60,40 @@ describe("catalogEventForEventCode", () => {
 describe("canonicalCatalogEventCode", () => {
   it("normalizes dotted support routes", () => {
     expect(canonicalCatalogEventCode("support.ticket.created")).toBe("support.ticket_created");
+  });
+});
+
+function bindingStub(partial: Partial<NotificationBindingItem> & Pick<NotificationBindingItem, "id">): NotificationBindingItem {
+  return {
+    event_code: "auth.otp_sent",
+    event_name: "OTP sent",
+    recipient_type: "participant",
+    delivery_channel: "email",
+    engagement_type_id: null,
+    notification_services: [{ service_key: "email-otp", channel: "email" }],
+    ...partial,
+  } as NotificationBindingItem;
+}
+
+describe("groupNotificationBindingsByEvent", () => {
+  it("merges multiple bindings for the same global event", () => {
+    const rows = [
+      bindingStub({ id: 1, delivery_channel: "email" }),
+      bindingStub({ id: 2, delivery_channel: "whatsapp", notification_services: [{ service_key: "whatapi-otp", channel: "whatsapp" }] }),
+    ];
+    const groups = groupNotificationBindingsByEvent(rows);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]!.event_code).toBe("auth.otp_sent");
+    expect(groups[0]!.bindingCount).toBe(2);
+    expect(groups[0]!.bindings.map((b) => b.id)).toEqual([1, 2]);
+  });
+
+  it("keeps separate rows per engagement type override", () => {
+    const rows = [
+      bindingStub({ id: 1, engagement_type_id: null }),
+      bindingStub({ id: 2, engagement_type_id: 5, event_code: "bookings.confirmed", event_name: "Booking confirmed" }),
+    ];
+    const groups = groupNotificationBindingsByEvent(rows);
+    expect(groups).toHaveLength(2);
   });
 });

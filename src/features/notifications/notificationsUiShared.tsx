@@ -147,6 +147,51 @@ export function recipientTypeFromEditLocation(
   return normalizeRecipientTypeForWizard(fromUrl || fromState);
 }
 
+export type NotificationEventGroupRow = {
+  key: string;
+  event_code: string;
+  event_name: string;
+  engagement_type_id: number | null;
+  bindings: NotificationBindingItem[];
+  bindingCount: number;
+};
+
+function groupKeyForBinding(row: Pick<NotificationBindingItem, "event_code" | "engagement_type_id">): string {
+  if (row.engagement_type_id != null) {
+    return `${row.event_code}::et:${row.engagement_type_id}`;
+  }
+  return row.event_code;
+}
+
+/** One list row per event (detail page shows each binding row). */
+export function groupNotificationBindingsByEvent(
+  bindings: NotificationBindingItem[]
+): NotificationEventGroupRow[] {
+  const map = new Map<string, NotificationEventGroupRow>();
+  for (const row of bindings) {
+    const key = groupKeyForBinding(row);
+    const existing = map.get(key);
+    if (existing) {
+      existing.bindings.push(row);
+      continue;
+    }
+    map.set(key, {
+      key,
+      event_code: row.event_code,
+      event_name: row.event_name,
+      engagement_type_id: row.engagement_type_id ?? null,
+      bindings: [row],
+      bindingCount: 0,
+    });
+  }
+  return [...map.values()]
+    .map((g) => ({ ...g, bindingCount: g.bindings.length }))
+    .sort(
+      (a, b) =>
+        a.event_name.localeCompare(b.event_name) || a.event_code.localeCompare(b.event_code)
+    );
+}
+
 /** Wizard step-2 options, always including the binding's current recipient when editing. */
 export function wizardRecipientOptions(currentRecipientType: string): readonly string[] {
   const current = normalizeRecipientTypeForWizard(currentRecipientType);
