@@ -26,6 +26,7 @@ import {
   wizardRecipientOptionsForEvent,
 } from "./notificationsUiShared";
 import { TemplateVariablePills, useTemplateVariableFields, type TemplateFieldBinding } from "./TemplateVariablePills";
+import { isTeamRecipient, templateVariableFieldsForRecipient } from "./templateVariableFields";
 
 type Step = 1 | 2 | 3;
 type ServiceMode = "reuse" | "create";
@@ -243,14 +244,21 @@ export function NotificationBindingWizard() {
     });
   }, [serviceSearch, services]);
 
-  const variableFields = useMemo(() => selectedEvent?.variable_fields ?? [], [selectedEvent]);
+  const variableFields = useMemo(
+    () =>
+      templateVariableFieldsForRecipient({
+        event: selectedEvent,
+        recipientType: recipientType || prefilledRecipient,
+      }),
+    [selectedEvent, recipientType, prefilledRecipient]
+  );
 
   const templateVariableHint = useMemo(() => {
     const base =
       "Click a pill to insert at the cursor in the focused field, or drag onto a field.";
     if (selectedEvent?.code !== "users.onboarded") return base;
     const rt = (recipientType || prefilledRecipient || "").trim();
-    if (rt.startsWith("departments") || rt.startsWith("assistants")) {
+    if (isTeamRecipient(rt)) {
       return `${base} For ops/assistant recipients use staff.* for who receives the message and participant.* for the enrolled user.`;
     }
     if (rt === "user") {
