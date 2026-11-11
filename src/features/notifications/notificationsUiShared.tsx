@@ -63,6 +63,23 @@ export function defaultRecipientForWizard(event: CatalogEventItem | null | undef
   return first;
 }
 
+/** Map stored binding recipient_type to a wizard card id. */
+export function normalizeRecipientTypeForWizard(raw: string | null | undefined): string {
+  const rt = (raw ?? "").trim();
+  if (!rt) return "";
+  if (rt === "booker") return "user";
+  return rt;
+}
+
+/** Wizard step-2 options, always including the binding's current recipient when editing. */
+export function wizardRecipientOptions(currentRecipientType: string): readonly string[] {
+  const current = normalizeRecipientTypeForWizard(currentRecipientType);
+  if (!current || (WIZARD_RECIPIENT_TYPES as readonly string[]).includes(current)) {
+    return WIZARD_RECIPIENT_TYPES;
+  }
+  return [current, ...WIZARD_RECIPIENT_TYPES];
+}
+
 /** Match catalog row for a binding, including legacy event codes stored in DB. */
 export function catalogEventForBinding(
   catalog: CatalogEventItem[],

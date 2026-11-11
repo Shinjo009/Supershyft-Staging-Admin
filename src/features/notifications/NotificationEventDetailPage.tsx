@@ -120,7 +120,13 @@ export function NotificationEventDetailPage() {
 
   const navigateToBindingEdit = (row: NotificationBindingItem, wizardStep: 2 | 3) => {
     navigate(bindingEditPath(row, wizardStep), {
-      state: { returnTo: `${location.pathname}${location.search}` },
+      state: {
+        returnTo: `${location.pathname}${location.search}`,
+        editBinding: {
+          recipient_type: row.recipient_type,
+          event_code: row.event_code,
+        },
+      },
     });
   };
 

@@ -19,8 +19,10 @@ import {
   catalogEventForBinding,
   defaultRecipientForWizard,
   filterChipClass,
+  normalizeRecipientTypeForWizard,
   recipientPayloadHint,
   selectableRowClass,
+  wizardRecipientOptions,
 } from "./notificationsUiShared";
 
 type Step = 1 | 2 | 3;
@@ -76,7 +78,12 @@ export function NotificationBindingWizard() {
   const mode = searchParams.get("mode") === "engagement" ? "engagement" : "global";
   const engagementId = Number(searchParams.get("engagementId") || 0) || 0;
   const engagementTypeId = Number(searchParams.get("engagementTypeId") || 0) || 0;
-  const returnTo = (location.state as { returnTo?: string } | null)?.returnTo ?? "/notifications/notifications";
+  const locationState = location.state as {
+    returnTo?: string;
+    editBinding?: { recipient_type?: string; event_code?: string };
+  } | null;
+  const returnTo = locationState?.returnTo ?? "/notifications/notifications";
+  const prefilledRecipient = locationState?.editBinding?.recipient_type ?? "";
   const presetEventCode = searchParams.get("event_code") || "";
   const wizardStepParam = searchParams.get("step");
 
@@ -133,6 +140,11 @@ export function NotificationBindingWizard() {
   }, [serviceSearch, services]);
 
   const variableFields = useMemo(() => selectedEvent?.variable_fields ?? [], [selectedEvent]);
+
+  const recipientOptions = useMemo(
+    () => wizardRecipientOptions(recipientType),
+    [recipientType]
+  );
 
   const serviceHandlers = useMemo(
     () => ({
@@ -195,7 +207,7 @@ export function NotificationBindingWizard() {
         const row = await notificationBindingsApi.getForWizard(Number(bindingId));
         const ev = catalogEventForBinding(catalog, row);
         setSelectedEvent(ev);
-        setRecipientType(row.recipient_type === "booker" ? "user" : row.recipient_type);
+        setRecipientType(normalizeRecipientTypeForWizard(row.recipient_type));
         setCustomPhones((row.recipient_config?.phones ?? []).join("\n"));
         setCustomEmails((row.recipient_config?.emails ?? []).join("\n"));
         const sk = row.service_key ?? row.notification_services[0]?.service_key;
@@ -223,6 +235,13 @@ export function NotificationBindingWizard() {
   useEffect(() => {
     loadInitial();
   }, [loadInitial]);
+
+  useEffect(() => {
+    if (!isEdit || !prefilledRecipient.trim()) return;
+    setRecipientType((prev) =>
+      prev ? prev : normalizeRecipientTypeForWizard(prefilledRecipient)
+    );
+  }, [isEdit, prefilledRecipient]);
 
   const lookupTemplate = async () => {
     const name = templateName.trim();
@@ -434,10 +453,22 @@ export function NotificationBindingWizard() {
                 message content is sent.
               </div>
             ) : (
+              <div className="space-y-3">
+                {recipientType ? (
+                  <p className="text-sm text-zinc-600">
+                    Current selection:{" "}
+                    <span className="font-medium text-zinc-900">
+                      {RECIPIENT_LABELS[recipientType] ?? recipientType}
+                    </span>
+                    <span className="ml-2 font-mono text-xs text-zinc-500">{recipientType}</span>
+                  </p>
+                ) : null}
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {WIZARD_RECIPIENT_TYPES.map((rt) => {
+                {recipientOptions.map((rt) => {
                   const hint = recipientPayloadHint(rt, selectedEvent);
-                  const selected = recipientType === rt;
+                  const selected =
+                    normalizeRecipientTypeForWizard(recipientType) ===
+                    normalizeRecipientTypeForWizard(rt);
                   return (
                     <button
                       key={rt}
@@ -459,6 +490,7 @@ export function NotificationBindingWizard() {
                     </button>
                   );
                 })}
+              </div>
               </div>
             )}
             {recipientType === "custom" && mode === "global" && (

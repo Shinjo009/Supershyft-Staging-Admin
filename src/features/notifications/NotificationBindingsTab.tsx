@@ -203,6 +203,10 @@ export function NotificationBindingsTab() {
                     navigate(`/notifications/notifications/${row.id}/edit?step=2`, {
                       state: {
                         returnTo: `/notifications/notifications/events/${encodeURIComponent(row.event_code)}`,
+                        editBinding: {
+                          recipient_type: row.recipient_type,
+                          event_code: row.event_code,
+                        },
                       },
                     })
                 : undefined
