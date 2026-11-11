@@ -55,8 +55,8 @@ export function canonicalCatalogEventCode(routeOrBindingCode: string): string {
 }
 
 export const RECIPIENT_LABELS: Record<string, string> = {
-  user: "Participant from payload",
-  participant: "Participant from payload",
+  user: "Participant",
+  participant: "Participant",
   members: "Family members",
   booker: "Family booker",
   assistants: "All onboarding assistants",
@@ -91,9 +91,6 @@ export function participantPayloadHintForEvent(
 ): string {
   if (!event) return "user_id or participant_user_id";
   const hints = event.recipient_payload_hints ?? {};
-  if (event.code === "family.gift_sent") {
-    return "booker_user_id (emit also sets user_id)";
-  }
   return hints.user ?? "user_id or participant_user_id";
 }
 

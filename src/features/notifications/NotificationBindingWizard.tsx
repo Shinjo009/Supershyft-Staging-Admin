@@ -47,6 +47,7 @@ function applyServiceFromItem(
     setEmailMode: (m: "plain" | "html") => void;
     setSlotValues: (v: string[]) => void;
     setHeaderDocument: (v: string) => void;
+    setHeaderDocumentFilename: (v: string) => void;
     setTemplateMeta: (m: WhatsappTemplateMeta | null) => void;
   }
 ) {
@@ -70,12 +71,25 @@ function applyServiceFromItem(
     handlers.setSlotValues([]);
   }
   handlers.setHeaderDocument("");
+  handlers.setHeaderDocumentFilename("document.pdf");
   if (tv && typeof tv === "object" && !Array.isArray(tv)) {
-    const header = (tv as { header?: { source?: string; value?: string } }).header;
+    const header = (tv as {
+      header?: {
+        source?: string;
+        value?: string;
+        filename_source?: string;
+        filename_value?: string;
+      };
+    }).header;
     if (header?.source === "literal" && header.value) {
       handlers.setHeaderDocument(header.value);
     } else if (header?.source) {
       handlers.setHeaderDocument(`{{${header.source}}}`);
+    }
+    if (header?.filename_source === "literal" && header.filename_value) {
+      handlers.setHeaderDocumentFilename(header.filename_value);
+    } else if (header?.filename_source) {
+      handlers.setHeaderDocumentFilename(`{{${header.filename_source}}}`);
     }
   }
 }
@@ -96,7 +110,7 @@ function templateNeedsHeaderDocument(meta: WhatsappTemplateMeta | null, template
   return KNOWN_HEADER_MEDIA_TEMPLATES.has(name);
 }
 
-function buildHeaderDocumentPayload(
+function parseTemplateFieldPayload(
   raw: string
 ): { source: string; value?: string | null } | undefined {
   const trimmed = raw.trim();
@@ -106,6 +120,44 @@ function buildHeaderDocumentPayload(
     return { source: varMatch[1].trim() };
   }
   return { source: "literal", value: trimmed };
+}
+
+function buildTemplateHeaderPayload(
+  linkRaw: string,
+  filenameRaw?: string
+): {
+  source: string;
+  value?: string | null;
+  filename_source?: string;
+  filename_value?: string | null;
+} | undefined {
+  const link = parseTemplateFieldPayload(linkRaw);
+  if (!link) return undefined;
+  const out: {
+    source: string;
+    value?: string | null;
+    filename_source?: string;
+    filename_value?: string | null;
+  } = { source: link.source, value: link.value ?? undefined };
+  const filename = filenameRaw?.trim() ? parseTemplateFieldPayload(filenameRaw) : undefined;
+  if (filename) {
+    out.filename_source = filename.source;
+    if (filename.value != null) {
+      out.filename_value = filename.value;
+    }
+  }
+  return out;
+}
+
+function templateSupportsHeaderFilename(meta: WhatsappTemplateMeta | null, templateName = ""): boolean {
+  const primary = (meta?.name || templateName || "").trim().toLowerCase();
+  const alt = (templateName || meta?.name || "").trim().toLowerCase();
+  return (
+    primary === "camp15" ||
+    alt === "camp15" ||
+    primary.startsWith("camp15") ||
+    alt.startsWith("camp15")
+  );
 }
 
 export function NotificationBindingWizard() {
@@ -155,6 +207,7 @@ export function NotificationBindingWizard() {
   const [templateLookupLoading, setTemplateLookupLoading] = useState(false);
   const [slotValues, setSlotValues] = useState<string[]>([]);
   const [headerDocument, setHeaderDocument] = useState("");
+  const [headerDocumentFilename, setHeaderDocumentFilename] = useState("document.pdf");
 
   const [emailSubject, setEmailSubject] = useState("");
   const [emailMode, setEmailMode] = useState<"plain" | "html">("plain");
@@ -220,9 +273,15 @@ export function NotificationBindingWizard() {
       setEmailMode,
       setSlotValues,
       setHeaderDocument,
+      setHeaderDocumentFilename,
       setTemplateMeta,
     }),
   []);
+
+  const showHeaderFilename = useMemo(
+    () => channel === "whatsapp" && templateSupportsHeaderFilename(templateMeta, templateName),
+    [channel, templateMeta, templateName]
+  );
 
   const applyTemplateMeta = useCallback((meta: WhatsappTemplateMeta, name: string) => {
     setTemplateMeta(meta);
@@ -277,6 +336,7 @@ export function NotificationBindingWizard() {
     setTemplateMeta(null);
     setSlotValues([]);
     setHeaderDocument("");
+    setHeaderDocumentFilename("document.pdf");
     setEmailSubject("");
     setEmailBody("");
     setEmailHtml("");
@@ -374,7 +434,12 @@ export function NotificationBindingWizard() {
       template_header:
         channel === "whatsapp" &&
         templateNeedsHeaderDocument(templateMeta, templateName)
-          ? buildHeaderDocumentPayload(headerDocument)
+          ? buildTemplateHeaderPayload(
+              headerDocument,
+              templateSupportsHeaderFilename(templateMeta, templateName)
+                ? headerDocumentFilename
+                : undefined
+            )
           : undefined,
       email_subject: channel === "email" ? emailSubject.trim() || null : null,
       email_body: channel === "email" && emailMode === "plain" ? emailBody.trim() || null : null,
@@ -794,6 +859,39 @@ export function NotificationBindingWizard() {
                             ))}
                           </select>
                         </div>
+                        {showHeaderFilename && (
+                          <div className="space-y-1 pt-1">
+                            <p className="text-xs text-zinc-600">
+                              Document filename (camp15 only) — literal name or {"{{variable}}"} sent to WhatsApp
+                              with the header link.
+                            </p>
+                            <div className="flex gap-2">
+                              <input
+                                value={headerDocumentFilename}
+                                onChange={(e) => setHeaderDocumentFilename(e.target.value)}
+                                aria-label="Header document filename"
+                                placeholder="document.pdf or {{report.filename}}"
+                                className="flex-1 border border-zinc-300 rounded-lg px-3 py-2 text-sm"
+                              />
+                              <select
+                                className="border border-zinc-300 rounded-lg text-xs"
+                                onChange={(e) => {
+                                  const f = e.target.value;
+                                  if (!f) return;
+                                  setHeaderDocumentFilename(`{{${f}}}`);
+                                }}
+                                defaultValue=""
+                              >
+                                <option value="">Insert…</option>
+                                {headerInsertFields.map((f) => (
+                                  <option key={`fn-${f}`} value={f}>
+                                    {f}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                     {slotValues.length > 0 && (
