@@ -542,6 +542,14 @@ export function IntegrationLogsPage() {
                             <div className="text-[11px] text-zinc-500 truncate font-mono" title={log.api_endpoint_url}>
                               {log.api_endpoint_url}
                             </div>
+                            {log.status === "failed" && log.error_message ? (
+                              <div
+                                className="text-[11px] text-red-700 truncate mt-0.5"
+                                title={log.error_message}
+                              >
+                                {log.error_message}
+                              </div>
+                            ) : null}
                           </td>
                           <td className="px-4 py-2.5 text-xs">
                             <div className="text-zinc-800">{who.primary}</div>

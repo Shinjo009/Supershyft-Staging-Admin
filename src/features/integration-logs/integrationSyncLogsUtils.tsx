@@ -140,7 +140,14 @@ export function describeHttpCall(log: IntegrationSyncLog): string | null {
   const direction = req?.direction === "inbound" ? "INBOUND" : null;
   if (direction && apiName === "whatapi_inbound_webhook") return "INBOUND WhatAPI webhook";
   if (direction && apiName === "whatapi_webhook_verify") return "INBOUND WhatAPI verify";
-  if (method && apiName) return `${method} ${apiName}`;
+  if (method && apiName) {
+    const phase = typeof req?.failure_phase === "string" ? req.failure_phase : null;
+    const serviceKey = typeof req?.service_key === "string" ? req.service_key : null;
+    const bits = [`${method} ${apiName}`];
+    if (phase) bits.push(phase);
+    if (serviceKey) bits.push(serviceKey);
+    return bits.join(" · ");
+  }
   const call = primaryHttpCall(log);
   const url = call?.url ?? log.api_endpoint_url;
   if (!url) return null;
