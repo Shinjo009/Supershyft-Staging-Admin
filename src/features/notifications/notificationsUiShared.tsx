@@ -29,6 +29,9 @@ const BINDING_EVENT_CODE_ALIASES: Record<string, string> = {
   "onboarding.completed": "users.onboarded",
   onboarding: "users.onboarded",
   "support.ticket.created": "support.ticket_created",
+  "assistants.consultation_booked": "consultations.booked",
+  "consultations.ready_to_book": "reminders.consultation_ready_to_book",
+  "consultations.reminder": "reminders.consultation_reminder",
 };
 
 function dottedUnderscoreVariants(code: string): string[] {
