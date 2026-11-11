@@ -80,9 +80,20 @@ function applyServiceFromItem(
   }
 }
 
-function templateNeedsHeaderDocument(meta: WhatsappTemplateMeta | null): boolean {
+const KNOWN_HEADER_MEDIA_TEMPLATES = new Set([
+  "camp15",
+  "camp3",
+  "3rd_message",
+]);
+
+function templateNeedsHeaderDocument(meta: WhatsappTemplateMeta | null, templateName = ""): boolean {
+  if (meta?.requires_header_document === true) return true;
   const fmt = (meta?.header_format ?? "").toUpperCase();
-  return fmt === "DOCUMENT" || fmt === "IMAGE";
+  if (fmt === "DOCUMENT" || fmt === "IMAGE" || fmt === "VIDEO") return true;
+  const types = (meta?.component_types ?? []).map((t) => t.toUpperCase());
+  if (types.includes("HEADER")) return true;
+  const name = (meta?.name || templateName || "").trim().toLowerCase();
+  return KNOWN_HEADER_MEDIA_TEMPLATES.has(name);
 }
 
 function buildHeaderDocumentPayload(
@@ -172,6 +183,13 @@ export function NotificationBindingWizard() {
   }, [serviceSearch, services]);
 
   const variableFields = useMemo(() => selectedEvent?.variable_fields ?? [], [selectedEvent]);
+
+  const showHeaderAttachment = useMemo(
+    () =>
+      channel === "whatsapp" &&
+      (templateNeedsHeaderDocument(templateMeta, templateName) || headerDocument.trim().length > 0),
+    [channel, templateMeta, templateName, headerDocument]
+  );
 
   const headerInsertFields = useMemo(() => {
     const extra = [
@@ -314,7 +332,7 @@ export function NotificationBindingWizard() {
       if (count > 0) {
         setSlotValues(Array.from({ length: count }, () => ""));
       }
-      if (!templateNeedsHeaderDocument(meta)) {
+      if (!templateNeedsHeaderDocument(meta, name)) {
         setHeaderDocument("");
       }
     } catch (err) {
@@ -344,7 +362,8 @@ export function NotificationBindingWizard() {
       template_name: channel === "whatsapp" ? templateName.trim() || null : null,
       template_slots: channel === "whatsapp" ? buildSlots() : undefined,
       template_header:
-        channel === "whatsapp" && templateNeedsHeaderDocument(templateMeta)
+        channel === "whatsapp" &&
+        templateNeedsHeaderDocument(templateMeta, templateName)
           ? buildHeaderDocumentPayload(headerDocument)
           : undefined,
       email_subject: channel === "email" ? emailSubject.trim() || null : null,
@@ -383,7 +402,7 @@ export function NotificationBindingWizard() {
       }
       if (
         channel === "whatsapp" &&
-        templateNeedsHeaderDocument(templateMeta) &&
+        templateNeedsHeaderDocument(templateMeta, templateName) &&
         !headerDocument.trim()
       ) {
         throw new Error("This template requires a header document URL or variable.");
@@ -727,11 +746,12 @@ export function NotificationBindingWizard() {
                       </button>
                     </div>
                     {templateMeta?.found && <PackageInfo meta={templateMeta} />}
-                    {(templateNeedsHeaderDocument(templateMeta) || headerDocument.trim()) && (
-                      <div className="space-y-2 max-w-3xl">
-                        <p className="text-xs text-zinc-500">
-                          Header {templateMeta?.header_format?.toLowerCase() ?? "document"} — HTTPS
-                          URL or {"{{variable}}"} (PDF/image attachment)
+                    {showHeaderAttachment && (
+                      <div className="space-y-2 max-w-3xl rounded-lg border border-amber-200 bg-amber-50/80 p-3">
+                        <p className="text-sm font-medium text-zinc-900">Header attachment (PDF / image)</p>
+                        <p className="text-xs text-zinc-600">
+                          Required for this Meta template. Paste a public HTTPS link or use{" "}
+                          {"{{variable}}"} (not one of the numbered body slots below).
                         </p>
                         <div className="flex gap-2">
                           <input
@@ -910,6 +930,7 @@ function PackageInfo({ meta }: { meta: WhatsappTemplateMeta }) {
         Language: {meta.language} · Category: {meta.category} · Variables:{" "}
         {meta.body_positional_count ?? 0}
         {meta.header_format ? ` · Header: ${meta.header_format}` : ""}
+        {meta.requires_header_document && !meta.header_format ? " · Header: media" : ""}
       </p>
       {meta.status !== "APPROVED" && (
         <p className="text-amber-700">Only APPROVED templates can be used for sending.</p>
