@@ -13,6 +13,7 @@ import {
   type WizardBindingPayload,
   getApiError,
 } from "../../lib/api";
+import { PayloadRecipientPicker } from "./PayloadRecipientPicker";
 import {
   RECIPIENT_LABELS,
   catalogEventForBinding,
@@ -22,8 +23,6 @@ import {
   recipientPayloadHint,
   recipientTypeFromEditLocation,
   selectableRowClass,
-  payloadContactFieldsByGroup,
-  payloadGroupLabel,
   wizardRecipientOptions,
 } from "./notificationsUiShared";
 
@@ -262,11 +261,6 @@ export function NotificationBindingWizard() {
   const recipientOptions = useMemo(
     () => wizardRecipientOptions(recipientType || prefilledRecipient, selectedEvent),
     [recipientType, prefilledRecipient, selectedEvent]
-  );
-
-  const payloadFieldsByGroup = useMemo(
-    () => payloadContactFieldsByGroup(selectedEvent),
-    [selectedEvent]
   );
 
   const payloadSelectionHasPhoneOrUser = useMemo(() => {
@@ -676,7 +670,13 @@ export function NotificationBindingWizard() {
                             {RECIPIENT_LABELS[rt] ?? rt}
                           </p>
                           {hint ? (
-                            <p className="text-xs text-zinc-500 mt-1 font-mono leading-snug">{hint}</p>
+                            <p
+                              className={`text-xs text-zinc-500 mt-1 leading-snug ${
+                                rt === "payload" || rt === "user" ? "" : "font-mono"
+                              }`}
+                            >
+                              {hint}
+                            </p>
                           ) : null}
                         </div>
                         {selected ? <Check className="w-4 h-4 text-zinc-900 shrink-0 mt-0.5" /> : null}
@@ -707,60 +707,11 @@ export function NotificationBindingWizard() {
               </div>
             )}
             {recipientType === "payload" && mode === "global" && selectedEvent?.allows_payload_recipient && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-4 space-y-4">
-                <p className="text-sm text-zinc-700">
-                  Choose emit-context fields for this event. Recipients are deduped by phone, email,
-                  and user ID.
-                </p>
-                {[...payloadFieldsByGroup.entries()].map(([group, fields]) => (
-                  <div key={group}>
-                    <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-2">
-                      {payloadGroupLabel(group)}
-                    </h4>
-                    <ul className="space-y-2">
-                      {fields.map((field) => {
-                        const checked = payloadFieldIds.includes(field.id);
-                        return (
-                          <li key={field.id}>
-                            <label className="flex items-start gap-3 cursor-pointer text-sm">
-                              <input
-                                type="checkbox"
-                                className="mt-1 rounded border-zinc-300"
-                                checked={checked}
-                                onChange={() => {
-                                  setPayloadFieldIds((prev) =>
-                                    checked
-                                      ? prev.filter((id) => id !== field.id)
-                                      : [...prev, field.id]
-                                  );
-                                }}
-                              />
-                              <span className="min-w-0">
-                                <span className="font-medium text-zinc-900">{field.label}</span>
-                                <span className="ml-2 text-[10px] uppercase tracking-wide text-zinc-500">
-                                  {field.kind} · {field.cardinality}
-                                </span>
-                                <span className="block font-mono text-xs text-zinc-500 mt-0.5">
-                                  {field.path}
-                                </span>
-                                {field.description ? (
-                                  <span className="block text-xs text-zinc-500 mt-0.5">
-                                    {field.description}
-                                  </span>
-                                ) : null}
-                              </span>
-                            </label>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                ))}
-                <p className="text-xs text-zinc-600">
-                  Selected: {payloadFieldIds.length} field
-                  {payloadFieldIds.length === 1 ? "" : "s"} (distinct contacts after dedupe).
-                </p>
-              </div>
+              <PayloadRecipientPicker
+                event={selectedEvent}
+                selectedIds={payloadFieldIds}
+                onChange={setPayloadFieldIds}
+              />
             )}
             <div className="flex flex-wrap gap-3 pt-2">
               <button

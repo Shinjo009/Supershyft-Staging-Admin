@@ -111,6 +111,13 @@ export function recipientPayloadHint(
   if (recipientType === "user") {
     return participantPayloadHintForEvent(event);
   }
+  if (recipientType === "payload") {
+    const short = event?.payload_admin_hint?.trim();
+    if (short) {
+      return short.length > 100 ? `${short.slice(0, 97)}…` : short;
+    }
+    return "Payer and participants when the API fires this event.";
+  }
   const hints = event?.recipient_payload_hints ?? {};
   return hints[recipientType] ?? null;
 }

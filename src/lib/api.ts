@@ -5594,6 +5594,9 @@ export interface PayloadContactFieldItem {
   group: string;
   description?: string;
   example?: string;
+  audience?: string;
+  channels?: string[];
+  sort_order?: number;
 }
 
 export interface CatalogEventItem {
@@ -5609,6 +5612,9 @@ export interface CatalogEventItem {
   trigger_source?: string;
   allows_payload_recipient?: boolean;
   payload_contact_fields?: PayloadContactFieldItem[];
+  payload_layout?: string;
+  payload_trigger_apis?: string[];
+  payload_admin_hint?: string;
 }
 
 export interface WhatsappTemplateMeta {
