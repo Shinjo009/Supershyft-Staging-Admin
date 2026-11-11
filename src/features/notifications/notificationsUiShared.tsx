@@ -13,13 +13,39 @@ const RECIPIENT_LEGACY_TO_WIZARD: Record<string, string> = {
   employee: "departments",
   admin: "departments.ops",
   support: "departments.ops",
+  specific_contacts: "custom",
+  specific_numbers: "custom",
+  specific: "custom",
+  onboarding_assistant: "assistants",
+  onboarding_assistants: "assistants",
 };
 
-/** Event codes in DB that should use catalog metadata from another code. */
+/** Event codes in DB/routes that should use catalog metadata from another code. */
 const BINDING_EVENT_CODE_ALIASES: Record<string, string> = {
   "onboarding.completed": "users.onboarded",
   onboarding: "users.onboarded",
+  "support.ticket.created": "support.ticket_created",
 };
+
+function dottedUnderscoreVariants(code: string): string[] {
+  const trimmed = code.trim();
+  if (!trimmed) return [];
+  const underscore = trimmed.replace(/\./g, "_");
+  const dotted = trimmed.replace(/_/g, ".");
+  return [...new Set([trimmed, underscore, dotted])];
+}
+
+export function canonicalCatalogEventCode(routeOrBindingCode: string): string {
+  const rt = (routeOrBindingCode ?? "").trim();
+  if (!rt) return "";
+  const aliased = BINDING_EVENT_CODE_ALIASES[rt];
+  if (aliased) return aliased;
+  for (const variant of dottedUnderscoreVariants(rt)) {
+    const mapped = BINDING_EVENT_CODE_ALIASES[variant];
+    if (mapped) return mapped;
+  }
+  return rt.replace(/\./g, "_");
+}
 
 export const RECIPIENT_LABELS: Record<string, string> = {
   user: "Participant from payload",
@@ -93,7 +119,7 @@ export function bindingEditPath(
   row?: Pick<NotificationBindingItem, "recipient_type" | "event_code">
 ): string {
   const params = new URLSearchParams({ step: String(step) });
-  const recipient = (row?.recipient_type ?? "").trim();
+  const recipient = normalizeRecipientTypeForWizard(row?.recipient_type) || (row?.recipient_type ?? "").trim();
   if (recipient) {
     params.set("recipient", recipient);
   }
@@ -122,24 +148,46 @@ export function wizardRecipientOptions(currentRecipientType: string): readonly s
   return [current, ...WIZARD_RECIPIENT_TYPES];
 }
 
+function findCatalogEvent(catalog: CatalogEventItem[], eventCode: string): CatalogEventItem | null {
+  const code = (eventCode ?? "").trim();
+  if (!code) return null;
+
+  const aliased = BINDING_EVENT_CODE_ALIASES[code];
+  if (aliased) {
+    const target = catalog.find((c) => c.code === aliased);
+    if (target) return target;
+  }
+
+  const exact = catalog.find((c) => c.code === code);
+  if (exact) return exact;
+
+  const viaLegacy = catalog.find((c) => c.legacy_event_code === code);
+  if (viaLegacy) return viaLegacy;
+
+  for (const variant of dottedUnderscoreVariants(code)) {
+    const mapped = BINDING_EVENT_CODE_ALIASES[variant];
+    if (mapped) {
+      const target = catalog.find((c) => c.code === mapped);
+      if (target) return target;
+    }
+    const catalogMatch = catalog.find(
+      (c) => c.code === variant || c.code.replace(/\./g, "_") === variant.replace(/\./g, "_")
+    );
+    if (catalogMatch) return catalogMatch;
+    const legacyMatch = catalog.find((c) => c.legacy_event_code === variant);
+    if (legacyMatch) return legacyMatch;
+  }
+
+  return null;
+}
+
 /** Match catalog row for a binding, including legacy event codes stored in DB. */
 export function catalogEventForBinding(
   catalog: CatalogEventItem[],
   row: Pick<NotificationBindingItem, "event_code" | "event_name">
 ): CatalogEventItem {
-  const aliased = BINDING_EVENT_CODE_ALIASES[row.event_code];
-  if (aliased) {
-    const target = catalog.find((c) => c.code === aliased);
-    if (target) return target;
-  }
-  const exact = catalog.find((c) => c.code === row.event_code);
-  if (exact) return exact;
-  const viaLegacy = catalog.find((c) => c.legacy_event_code === row.event_code);
-  if (viaLegacy) return viaLegacy;
-  const catalogMatch = catalog.find(
-    (c) => c.code.replace(/\./g, "_") === row.event_code.replace(/\./g, "_")
-  );
-  if (catalogMatch) return catalogMatch;
+  const match = findCatalogEvent(catalog, row.event_code);
+  if (match) return match;
   return {
     code: row.event_code,
     name: row.event_name,
@@ -151,6 +199,20 @@ export function catalogEventForBinding(
     legacy_event_code: null,
     recipient_payload_hints: {},
   };
+}
+
+/** Resolve catalog metadata for an event detail route (/events/:code). */
+export function catalogEventForEventCode(
+  catalog: CatalogEventItem[],
+  eventCode: string,
+  bindingHint?: Pick<NotificationBindingItem, "event_code" | "event_name">
+): CatalogEventItem {
+  const fromRoute = findCatalogEvent(catalog, eventCode);
+  if (fromRoute) return fromRoute;
+  if (bindingHint) {
+    return catalogEventForBinding(catalog, bindingHint);
+  }
+  return catalogEventForBinding(catalog, { event_code: eventCode, event_name: "" });
 }
 
 export function selectableRowClass(selected: boolean): string {

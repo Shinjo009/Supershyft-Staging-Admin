@@ -15,7 +15,6 @@ import {
 } from "../../lib/api";
 import {
   RECIPIENT_LABELS,
-  WIZARD_RECIPIENT_TYPES,
   catalogEventForBinding,
   defaultRecipientForWizard,
   filterChipClass,
@@ -104,6 +103,7 @@ export function NotificationBindingWizard() {
   const [serviceMode, setServiceMode] = useState<ServiceMode>("create");
 
   const [selectedEvent, setSelectedEvent] = useState<CatalogEventItem | null>(null);
+  const [bindingEventCode, setBindingEventCode] = useState("");
   const [recipientType, setRecipientType] = useState(() =>
     bindingId ? prefilledRecipient : ""
   );
@@ -210,21 +210,26 @@ export function NotificationBindingWizard() {
       if (bindingId) {
         const row = await notificationBindingsApi.getForWizard(Number(bindingId));
         const ev = catalogEventForBinding(catalog, row);
+        setBindingEventCode(row.event_code);
         setSelectedEvent(ev);
-        setRecipientType(
-          normalizeRecipientTypeForWizard(row.recipient_type) || prefilledRecipient
-        );
+        const normalizedRecipient =
+          normalizeRecipientTypeForWizard(row.recipient_type) || prefilledRecipient;
+        setRecipientType(normalizedRecipient);
         setCustomPhones((row.recipient_config?.phones ?? []).join("\n"));
         setCustomEmails((row.recipient_config?.emails ?? []).join("\n"));
         const sk = row.service_key ?? row.notification_services[0]?.service_key;
         const svc = sk ? svcRes.data.data.find((s) => s.service_key === sk) : undefined;
+        setServiceMode("reuse");
         if (svc) {
-          applyServiceFromItem(svc, serviceHandlers);
-          setServiceMode("create");
+          selectServiceForReuse(svc);
         }
         setStep(parseWizardStepParam(wizardStepParam) ?? 2);
       } else if (presetEventCode) {
-        const ev = catalog.find((c) => c.code === presetEventCode) ?? null;
+        const ev =
+          catalogEventForBinding(catalog, {
+            event_code: presetEventCode,
+            event_name: "",
+          }) ?? null;
         setSelectedEvent(ev);
         if (ev) {
           setRecipientType(defaultRecipientForWizard(ev));
@@ -236,7 +241,14 @@ export function NotificationBindingWizard() {
     } finally {
       setLoading(false);
     }
-  }, [bindingId, prefilledRecipient, presetEventCode, serviceHandlers, wizardStepParam]);
+  }, [
+    bindingId,
+    prefilledRecipient,
+    presetEventCode,
+    selectServiceForReuse,
+    serviceHandlers,
+    wizardStepParam,
+  ]);
 
   useEffect(() => {
     loadInitial();
@@ -291,8 +303,12 @@ export function NotificationBindingWizard() {
       email_html: channel === "email" && emailMode === "html" ? emailHtml.trim() || null : null,
       is_active: true,
     };
+    const persistedEventCode =
+      isEdit && bindingEventCode.trim()
+        ? bindingEventCode.trim()
+        : selectedEvent.code;
     const body: WizardBindingPayload = {
-      event_code: selectedEvent.code,
+      event_code: persistedEventCode,
       recipient_type: recipientType,
       engagement_type_id: engagementTypeId > 0 ? engagementTypeId : null,
       service,
@@ -349,9 +365,11 @@ export function NotificationBindingWizard() {
       } else {
         await notificationBindingsApi.createWizard(payload);
       }
+      const eventBackCode =
+        (isEdit && bindingEventCode.trim()) || presetEventCode.trim() || "";
       const back =
-        presetEventCode && mode === "global"
-          ? `/notifications/notifications/events/${encodeURIComponent(presetEventCode)}`
+        eventBackCode && mode === "global"
+          ? `/notifications/notifications/events/${encodeURIComponent(eventBackCode)}`
           : "/notifications/notifications";
       navigate(back);
     } catch (err) {
@@ -396,7 +414,9 @@ export function NotificationBindingWizard() {
             <span className="inline-flex max-w-md items-center rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs text-zinc-700">
               <span className="font-medium truncate">{selectedEvent.name}</span>
               <span className="mx-1.5 text-zinc-400">·</span>
-              <span className="font-mono truncate text-zinc-500">{selectedEvent.code}</span>
+              <span className="font-mono truncate text-zinc-500">
+                {bindingEventCode.trim() || selectedEvent.code}
+              </span>
             </span>
           ) : null}
         </div>

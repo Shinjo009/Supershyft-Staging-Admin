@@ -16,7 +16,11 @@ import {
   type NotificationServiceConfigItem,
   getApiError,
 } from "../../lib/api";
-import { RECIPIENT_LABELS, bindingEditPath, catalogEventForBinding } from "./notificationsUiShared";
+import {
+  RECIPIENT_LABELS,
+  bindingEditPath,
+  catalogEventForEventCode,
+} from "./notificationsUiShared";
 
 function decodeEventCode(raw: string | undefined): string {
   if (!raw) return "";
@@ -27,24 +31,21 @@ function decodeEventCode(raw: string | undefined): string {
   }
 }
 
-function ServiceSummary({ services }: { services: NotificationServiceConfigItem[] }) {
+function ServiceChips({ services }: { services: NotificationServiceConfigItem[] }) {
   if (!services.length) {
-    return <span className="text-zinc-400 text-sm">No services linked</span>;
+    return <span className="text-zinc-400 text-sm">—</span>;
   }
   return (
-    <ul className="space-y-2">
+    <div className="flex flex-wrap gap-1">
       {services.map((s) => (
-        <li
+        <span
           key={`${s.service_key}-${s.external_link ?? ""}`}
-          className="flex flex-wrap items-center gap-2 text-sm"
+          className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-violet-50 text-violet-700 border-violet-200"
         >
-          <span className="font-medium text-zinc-900">{s.service_key}</span>
-          {s.external_link ? (
-            <span className="text-xs text-zinc-500 truncate max-w-xs">{s.external_link}</span>
-          ) : null}
-        </li>
+          {s.service_key}
+        </span>
       ))}
-    </ul>
+    </div>
   );
 }
 
@@ -72,10 +73,7 @@ export function NotificationEventDetailPage() {
       ]);
       const catalog = catalogRes.data.data;
       const bindingRows = bindingsRes.data.data;
-      let ev = catalog.find((c) => c.code === eventCode) ?? null;
-      if (ev == null && bindingRows[0]) {
-        ev = catalogEventForBinding(catalog, bindingRows[0]);
-      }
+      const ev = catalogEventForEventCode(catalog, eventCode, bindingRows[0]);
       setCatalogEvent(ev);
       setBindings(bindingRows);
     } catch (err) {
@@ -101,16 +99,21 @@ export function NotificationEventDetailPage() {
     return keys.size;
   }, [bindings]);
 
+  const headerTitle =
+    bindings[0]?.event_name && bindings[0].event_code === eventCode
+      ? bindings[0].event_name
+      : catalogEvent?.name ?? eventCode;
+  const headerSubtitle = catalogEvent?.code ?? eventCode;
+
   usePageHeader(
-    catalogEvent
+    eventCode
       ? {
-          title: catalogEvent.name,
-          subtitle: catalogEvent.code,
+          title: headerTitle || "Notification event",
+          subtitle: headerSubtitle || eventCode,
           backTo: "/notifications/notifications",
         }
       : {
           title: "Notification event",
-          subtitle: eventCode || undefined,
           backTo: "/notifications/notifications",
         }
   );
@@ -171,7 +174,7 @@ export function NotificationEventDetailPage() {
       key: "notification_services",
       label: "Service",
       sortable: false,
-      render: (r) => <ServiceSummary services={r.notification_services} />,
+      render: (r) => <ServiceChips services={r.notification_services} />,
     },
     {
       key: "engagement_type_id",
@@ -214,7 +217,7 @@ export function NotificationEventDetailPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-zinc-900">
-                  {catalogEvent?.name ?? eventCode}
+                  {headerTitle || eventCode}
                 </h2>
                 <p className="text-xs font-mono text-zinc-500 mt-1">{eventCode}</p>
                 {catalogEvent?.trigger_notes ? (
