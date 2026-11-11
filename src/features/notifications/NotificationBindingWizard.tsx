@@ -224,12 +224,51 @@ export function NotificationBindingWizard() {
     }),
   []);
 
+  const applyTemplateMeta = useCallback((meta: WhatsappTemplateMeta, name: string) => {
+    setTemplateMeta(meta);
+    const count = meta.body_positional_count ?? 0;
+    if (count > 0) {
+      setSlotValues((prev) => {
+        if (prev.length === count) return prev;
+        return Array.from({ length: count }, (_, i) => prev[i] ?? "");
+      });
+    }
+    if (!templateNeedsHeaderDocument(meta, name)) {
+      setHeaderDocument("");
+    }
+  }, []);
+
+  const lookupTemplateByName = useCallback(
+    async (name: string, opts?: { showErrors?: boolean }) => {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      setTemplateLookupLoading(true);
+      if (opts?.showErrors !== false) setError(null);
+      try {
+        const res = await notificationsCatalogApi.getWhatsappTemplate(trimmed);
+        applyTemplateMeta(res.data.data, trimmed);
+      } catch (err) {
+        if (opts?.showErrors !== false) {
+          setError(getApiError(err));
+        }
+        setTemplateMeta(null);
+      } finally {
+        setTemplateLookupLoading(false);
+      }
+    },
+    [applyTemplateMeta]
+  );
+
   const selectServiceForReuse = useCallback(
     (svc: NotificationServiceItem) => {
       applyServiceFromItem(svc, serviceHandlers);
       setServiceMode("reuse");
+      const tn = (svc.template_name ?? "").trim();
+      if (svc.channel === "whatsapp" && tn) {
+        void lookupTemplateByName(tn, { showErrors: false });
+      }
     },
-    [serviceHandlers]
+    [serviceHandlers, lookupTemplateByName]
   );
 
   const resetCreateServiceForm = useCallback(() => {
@@ -301,14 +340,7 @@ export function NotificationBindingWizard() {
     } finally {
       setLoading(false);
     }
-  }, [
-    bindingId,
-    prefilledRecipient,
-    presetEventCode,
-    selectServiceForReuse,
-    serviceHandlers,
-    wizardStepParam,
-  ]);
+  }, [bindingId, prefilledRecipient, presetEventCode, selectServiceForReuse, wizardStepParam]);
 
   useEffect(() => {
     loadInitial();
@@ -319,29 +351,7 @@ export function NotificationBindingWizard() {
     setRecipientType((prev) => prev || prefilledRecipient);
   }, [isEdit, prefilledRecipient]);
 
-  const lookupTemplate = async () => {
-    const name = templateName.trim();
-    if (!name) return;
-    setTemplateLookupLoading(true);
-    setError(null);
-    try {
-      const res = await notificationsCatalogApi.getWhatsappTemplate(name);
-      const meta = res.data.data;
-      setTemplateMeta(meta);
-      const count = meta.body_positional_count ?? 0;
-      if (count > 0) {
-        setSlotValues(Array.from({ length: count }, () => ""));
-      }
-      if (!templateNeedsHeaderDocument(meta, name)) {
-        setHeaderDocument("");
-      }
-    } catch (err) {
-      setError(getApiError(err));
-      setTemplateMeta(null);
-    } finally {
-      setTemplateLookupLoading(false);
-    }
-  };
+  const lookupTemplate = () => lookupTemplateByName(templateName, { showErrors: true });
 
   const buildSlots = () =>
     slotValues.map((val, i) => {
@@ -746,6 +756,12 @@ export function NotificationBindingWizard() {
                       </button>
                     </div>
                     {templateMeta?.found && <PackageInfo meta={templateMeta} />}
+                    {showHeaderAttachment && !templateMeta?.found && templateName.trim() && (
+                      <p className="text-xs text-amber-800 max-w-3xl">
+                        This template name uses a document/image header — use Look up to confirm with Meta, then
+                        fill the amber attachment box below the status card.
+                      </p>
+                    )}
                     {showHeaderAttachment && (
                       <div className="space-y-2 max-w-3xl rounded-lg border border-amber-200 bg-amber-50/80 p-3">
                         <p className="text-sm font-medium text-zinc-900">Header attachment (PDF / image)</p>
@@ -757,6 +773,7 @@ export function NotificationBindingWizard() {
                           <input
                             value={headerDocument}
                             onChange={(e) => setHeaderDocument(e.target.value)}
+                            aria-label="Header PDF or image URL"
                             placeholder="https://…/guidelines.pdf or {{gift.gift_card_url}}"
                             className="flex-1 border border-zinc-300 rounded-lg px-3 py-2 text-sm"
                           />
