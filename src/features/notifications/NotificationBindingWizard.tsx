@@ -245,6 +245,20 @@ export function NotificationBindingWizard() {
 
   const variableFields = useMemo(() => selectedEvent?.variable_fields ?? [], [selectedEvent]);
 
+  const templateVariableHint = useMemo(() => {
+    const base =
+      "Click a pill to insert at the cursor in the focused field, or drag onto a field.";
+    if (selectedEvent?.code !== "users.onboarded") return base;
+    const rt = (recipientType || prefilledRecipient || "").trim();
+    if (rt.startsWith("departments") || rt.startsWith("assistants")) {
+      return `${base} For ops/assistant recipients use staff.* for who receives the message and participant.* for the enrolled user.`;
+    }
+    if (rt === "user") {
+      return `${base} For the participant recipient, user.* and participant.* refer to the same person.`;
+    }
+    return base;
+  }, [selectedEvent?.code, recipientType, prefilledRecipient]);
+
   const showHeaderAttachment = useMemo(
     () =>
       channel === "whatsapp" &&
@@ -1046,6 +1060,7 @@ export function NotificationBindingWizard() {
                       fields={headerInsertFields}
                       legend="Variables"
                       className="max-w-3xl"
+                      hint={templateVariableHint}
                       onInsert={handleTemplateVariableInsert}
                     />
                     {showHeaderAttachment && !templateMeta?.found && templateName.trim() && (
@@ -1117,6 +1132,7 @@ export function NotificationBindingWizard() {
                     <TemplateVariablePills
                       fields={variableFields}
                       legend="Variables"
+                      hint={templateVariableHint}
                       onInsert={handleTemplateVariableInsert}
                     />
                     <label className="block text-sm text-zinc-800">
