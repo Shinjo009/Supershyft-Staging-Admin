@@ -10,7 +10,6 @@ import {
   type EngagementTypeItem,
   type ExpertTypeItem,
   type GeocodeSuggestion,
-  type NotificationServiceConfigItem,
   type NotificationServiceItem,
   type OrganizationListItem,
   type SlotDetail,
@@ -28,7 +27,6 @@ import {
   effectiveLoadPrevCategoryKeys,
 } from "./loadPrevQuestionnaireDefaults";
 import { DiagnosticPackageGroupProviderSelect } from "../diagnostics/DiagnosticPackageGroupProviderSelect";
-import { NotificationEventServicesInput, normalizeNotificationServiceConfigs, validateNotificationServiceConfigs } from "../../shared/ui/NotificationEventServicesInput";
 import { AddressAutocomplete } from "./AddressAutocomplete";
 import { EngagementScheduleStep } from "./EngagementScheduleStep";
 import {
@@ -76,10 +74,6 @@ const PAYMENT_TYPE_OPTIONS = [
 export type EngagementFormStepKey = "basics" | "location" | "offerings" | "schedule" | "notifications";
 
 type StepKey = EngagementFormStepKey;
-
-function shouldIncludeNotificationsInSave(step: StepKey): boolean {
-  return step === "notifications";
-}
 
 function shouldIncludeSlotDetailInSave(step: StepKey): boolean {
   return step === "schedule" || step === "notifications";
@@ -151,7 +145,7 @@ export function EngagementFormWizard({
   assessmentPackages,
   diagnosticPackages,
   diagnosticPackageGroups,
-  notificationServices,
+  notificationServices: _notificationServices,
   submitting,
   onClose,
   onSubmit,
@@ -186,11 +180,13 @@ export function EngagementFormWizard({
 
   const [engagementTypes, setEngagementTypes] = useState<EngagementTypeItem[]>([]);
   const [notificationEvents, setNotificationEvents] = useState<
-    { event_code: string; display_name: string }[]
+    {
+      event_code: string;
+      display_name: string;
+      global_binding_count: number;
+      engagement_binding_count: number;
+    }[]
   >([]);
-  const [notificationConfig, setNotificationConfig] = useState<
-    Record<string, NotificationServiceConfigItem[]>
-  >({});
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [questionnaireCategories, setQuestionnaireCategories] = useState<QuestionnaireCategory[]>([]);
   const editConfigLoaded = useRef(false);
@@ -214,7 +210,6 @@ export function EngagementFormWizard({
     setZoneMessage(null);
     setZoneMessageTone("info");
     setNotificationEvents([]);
-    setNotificationConfig({});
     editConfigLoaded.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -846,24 +841,15 @@ export function EngagementFormWizard({
           setup.map((item) => ({
             event_code: item.event_code,
             display_name: item.name ?? item.event_code,
+            global_binding_count: item.global_bindings?.length ?? 0,
+            engagement_binding_count: item.engagement_bindings?.length ?? 0,
           }))
         );
-
-        const config: Record<string, NotificationServiceConfigItem[]> = {};
-        for (const item of setup) {
-          const services =
-            item.override_services?.length > 0 ? item.override_services : item.default_services;
-          config[item.event_code] = normalizeNotificationServiceConfigs(services ?? []);
-        }
         if (mode === "edit" && engagementId) {
           editConfigLoaded.current = true;
         }
-        if (!cancelled) setNotificationConfig(config);
       } catch {
-        if (!cancelled) {
-          setNotificationEvents([]);
-          setNotificationConfig({});
-        }
+        if (!cancelled) setNotificationEvents([]);
       } finally {
         if (!cancelled) setNotificationsLoading(false);
       }
@@ -884,26 +870,7 @@ export function EngagementFormWizard({
 
   const findStepIndex = (key: StepKey) => steps.findIndex((s) => s.key === key);
 
-  const buildNotificationsPayload = () =>
-    Object.entries(notificationConfig)
-      .map(([eventCode, services]) => ({
-        event_code: eventCode,
-        notification_services: services.filter((item) => item.service_key.trim()),
-      }))
-      .filter((item) => item.notification_services.length > 0);
-
   const validateNotificationsStep = () => {
-    const notifications = buildNotificationsPayload();
-    for (const item of notifications) {
-      const validationError = validateNotificationServiceConfigs(
-        item.notification_services,
-        notificationServices,
-      );
-      if (validationError) {
-        setStepError(validationError);
-        return false;
-      }
-    }
     setStepError(null);
     return true;
   };
@@ -955,9 +922,6 @@ export function EngagementFormWizard({
       ...formRest,
       consultations,
       ...(shouldIncludeSlotDetailInSave(saveStep) ? { slot_detail: prunedSlotDetail } : {}),
-      ...(shouldIncludeNotificationsInSave(saveStep)
-        ? { notifications: buildNotificationsPayload() }
-        : {}),
       assessment_package_id:
         kind && typeConfig.needsAssessment ? formData.assessment_package_id ?? null : null,
       diagnostic_package_id:
@@ -1945,7 +1909,9 @@ export function EngagementFormWizard({
         {currentStepKey === "notifications" && (
           <div className="grid grid-cols-1 gap-4">
             <p className="text-xs text-zinc-500">
-              Defaults come from global Notifications settings; changes here apply only to this engagement.
+              {mode === "add"
+                ? "When you save, notification bindings are copied from global Notifications settings. You can customize each event after the engagement is created."
+                : "This engagement uses its own notification bindings only (global defaults are not used at send time)."}
             </p>
             {notificationsLoading ? (
               <div className="py-8 flex justify-center">
@@ -1958,29 +1924,40 @@ export function EngagementFormWizard({
                   : "Select an engagement type in Type & basics first."}
               </p>
             ) : (
-              notificationEvents.map((event) => (
-                <div key={event.event_code} className="space-y-2">
-                  <NotificationEventServicesInput
-                    label={event.display_name}
-                    value={notificationConfig[event.event_code] ?? []}
-                    onChange={(next) =>
-                      setNotificationConfig((prev) => ({
-                        ...prev,
-                        [event.event_code]: next,
-                      }))
-                    }
-                    services={notificationServices}
-                  />
-                  {mode === "edit" && engagementId ? (
-                    <a
-                      href={`/notifications/notifications/new?mode=engagement&event_code=${encodeURIComponent(event.event_code)}&engagementId=${engagementId}`}
-                      className="text-xs font-medium text-zinc-600 hover:text-zinc-900"
+              <ul className="divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white">
+                {notificationEvents.map((event) => {
+                  const count =
+                    mode === "edit"
+                      ? event.engagement_binding_count
+                      : event.global_binding_count;
+                  return (
+                    <li
+                      key={event.event_code}
+                      className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
                     >
-                      Set up notification (wizard)
-                    </a>
-                  ) : null}
-                </div>
-              ))
+                      <div className="min-w-0">
+                        <div className="font-medium text-zinc-900 text-sm">{event.display_name}</div>
+                        <div className="text-xs font-mono text-zinc-500">{event.event_code}</div>
+                      </div>
+                      <span className="flex items-center gap-3 text-sm">
+                        <span className="text-zinc-600">
+                          {count > 0
+                            ? `${count} binding${count === 1 ? "" : "s"}`
+                            : "Not configured"}
+                        </span>
+                        {mode === "edit" && engagementId ? (
+                          <a
+                            href={`/engagements/${engagementId}/notifications/events/${encodeURIComponent(event.event_code)}`}
+                            className="text-xs font-medium text-zinc-900 underline hover:no-underline"
+                          >
+                            Configure
+                          </a>
+                        ) : null}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </div>
         )}

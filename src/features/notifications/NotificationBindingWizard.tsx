@@ -168,6 +168,7 @@ export function NotificationBindingWizard() {
   const location = useLocation();
   const mode = searchParams.get("mode") === "engagement" ? "engagement" : "global";
   const engagementId = Number(searchParams.get("engagementId") || 0) || 0;
+  const engagementBindingId = Number(searchParams.get("engagementBindingId") || 0) || 0;
   const locationState = location.state as {
     returnTo?: string;
     editBinding?: { recipient_type?: string; event_code?: string };
@@ -381,7 +382,34 @@ export function NotificationBindingWizard() {
       setEvents(catalog);
       setServices(svcRes.data.data);
 
-      if (bindingId) {
+      if (mode === "engagement" && engagementId > 0 && engagementBindingId > 0) {
+        const listRes = await engagementNotificationsApi.listBindings(engagementId);
+        const row = listRes.data.data.find((r) => r.id === engagementBindingId);
+        if (!row) {
+          throw new Error("Engagement binding not found");
+        }
+        const ev = catalogEventForBinding(catalog, row);
+        setBindingEventCode(row.event_code);
+        setSelectedEvent(ev);
+        const normalizedRecipient =
+          normalizeRecipientTypeForWizard(row.recipient_type) || prefilledRecipient;
+        setRecipientType(normalizedRecipient);
+        setCustomPhones((row.recipient_config?.phones ?? []).join("\n"));
+        setCustomEmails((row.recipient_config?.emails ?? []).join("\n"));
+        setPayloadPath(row.recipient_config?.payload_path ?? "");
+        if (row.emit_condition?.op) {
+          setEmitWhenMode("conditional");
+          setEmitConditionOp(row.emit_condition.op);
+          setEmitConditionValue(row.emit_condition.value ?? "");
+        }
+        const sk = row.service_key ?? row.notification_services[0]?.service_key;
+        const svc = sk ? svcRes.data.data.find((s) => s.service_key === sk) : undefined;
+        setServiceMode("reuse");
+        if (svc) {
+          selectServiceForReuse(svc);
+        }
+        setStep(parseWizardStepParam(wizardStepParam) ?? 2);
+      } else if (bindingId) {
         const row = await notificationBindingsApi.getForWizard(Number(bindingId));
         const ev = catalogEventForBinding(catalog, row);
         setBindingEventCode(row.event_code);
@@ -500,11 +528,7 @@ export function NotificationBindingWizard() {
         value_type: selectedPayloadField.value_type,
       };
     }
-    if (
-      selectedEvent.code === "payments.completed" &&
-      mode === "global" &&
-      emitWhenMode === "conditional"
-    ) {
+    if (selectedEvent.code === "payments.completed" && emitWhenMode === "conditional") {
       body.emit_condition = {
         path: "payment.discount_code",
         op: emitConditionOp,
@@ -533,12 +557,11 @@ export function NotificationBindingWizard() {
       ) {
         throw new Error("This template requires a header document URL or variable.");
       }
-      if (recipientType === "payload" && mode === "global" && !selectedPayloadField) {
+      if (recipientType === "payload" && !selectedPayloadField) {
         throw new Error("Select a payload contact field for this channel.");
       }
       if (
         selectedEvent?.code === "payments.completed" &&
-        mode === "global" &&
         emitWhenMode === "conditional" &&
         (emitConditionOp === "equals" || emitConditionOp === "one_of") &&
         !emitConditionValue.trim()
@@ -550,7 +573,11 @@ export function NotificationBindingWizard() {
         if (engagementId > 0) {
           await engagementNotificationsApi.saveWizard(engagementId, {
             event_code: payload.event_code,
+            recipient_type: payload.recipient_type,
+            recipient_config: payload.recipient_config,
+            emit_condition: payload.emit_condition ?? null,
             service: payload.service,
+            binding_id: engagementBindingId > 0 ? engagementBindingId : null,
           });
         } else {
           navigate(returnTo, {
@@ -620,7 +647,7 @@ export function NotificationBindingWizard() {
             </h1>
             <p className="text-sm text-zinc-500 mt-1">
               Step {step} of 3 — {stepTitle}
-              {mode === "engagement" && " (engagement override: content only affects this engagement)"}
+              {mode === "engagement" && " (this engagement only)"}
             </p>
           </header>
           {selectedEvent && step > 1 ? (
@@ -684,13 +711,7 @@ export function NotificationBindingWizard() {
 
         {step === 2 && selectedEvent && (
           <div className="space-y-5">
-            {mode === "engagement" ? (
-              <div className="rounded-lg border border-zinc-200 p-4 text-sm text-zinc-600">
-                Recipients are configured globally for this event. This engagement setup only changes which
-                message content is sent.
-              </div>
-            ) : (
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {recipientOptions.map((rt) => {
                   const hint = recipientPayloadHint(rt, selectedEvent);
                   const selected =
@@ -718,8 +739,7 @@ export function NotificationBindingWizard() {
                   );
                 })}
               </div>
-            )}
-            {recipientType === "custom" && mode === "global" && (
+            {recipientType === "custom" && (
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="block text-sm text-zinc-800">
                   Phone numbers (one per line)
@@ -750,7 +770,7 @@ export function NotificationBindingWizard() {
               <button
                 type="button"
                 onClick={() => setStep(3)}
-                disabled={!recipientType && mode === "global"}
+                disabled={!recipientType}
                 className="px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm disabled:opacity-50"
               >
                 Continue
@@ -768,7 +788,7 @@ export function NotificationBindingWizard() {
 
         {step === 3 && selectedEvent && (
           <div className="space-y-5">
-            {recipientType === "payload" && mode === "global" ? (
+            {recipientType === "payload" ? (
               <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-4 space-y-3">
                 <div>
                   <p className="text-sm font-medium text-zinc-900">Payload contact field</p>
@@ -805,7 +825,7 @@ export function NotificationBindingWizard() {
                 ) : null}
               </div>
             ) : null}
-            {selectedEvent.code === "payments.completed" && mode === "global" ? (
+            {selectedEvent.code === "payments.completed" ? (
               <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 p-4 space-y-3 max-w-xl">
                 <div>
                   <p className="text-sm font-medium text-zinc-900">When to send</p>

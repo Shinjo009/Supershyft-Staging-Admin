@@ -12,9 +12,7 @@ import type {
   DiagnosticPackageBootstrapOption,
   Engagement,
   EngagementDataCompletenessResponse,
-  EngagementNotificationItem,
 } from "../../lib/api";
-import { normalizeNotificationServiceConfigs } from "../../shared/ui/NotificationEventServicesInput";
 import {
   engagementDataCompletenessApi,
   engagementNotificationsApi,
@@ -448,14 +446,15 @@ export function EngagementDetailsTab({
 
 export function EngagementNotificationsTab({
   engagement,
-  notificationServiceLabel,
+  notificationServiceLabel: _notificationServiceLabel,
 }: Pick<SharedProps, "engagement" | "notificationServiceLabel">) {
   const [loading, setLoading] = useState(true);
-  const [defaultEventRows, setDefaultEventRows] = useState<
-    { event_code: string; display_name: string }[]
-  >([]);
-  const [configuredNotifications, setConfiguredNotifications] = useState<
-    EngagementNotificationItem[]
+  const [eventRows, setEventRows] = useState<
+    {
+      event_code: string;
+      display_name: string;
+      binding_count: number;
+    }[]
   >([]);
 
   useEffect(() => {
@@ -471,27 +470,15 @@ export function EngagementNotificationsTab({
         if (cancelled) return;
 
         const setup = Array.isArray(setupRes.data.data) ? setupRes.data.data : [];
-        setDefaultEventRows(
+        setEventRows(
           setup.map((item) => ({
             event_code: item.event_code,
             display_name: item.name ?? item.event_code,
-          }))
-        );
-        setConfiguredNotifications(
-          setup.map((item) => ({
-            id: 0,
-            engagement_id: engagement.engagement_id,
-            event_code: item.event_code,
-            notification_services:
-              item.override_services?.length > 0 ? item.override_services : item.default_services,
-            event_display_name: item.name,
+            binding_count: item.engagement_bindings?.length ?? 0,
           }))
         );
       } catch {
-        if (!cancelled) {
-          setDefaultEventRows([]);
-          setConfiguredNotifications([]);
-        }
+        if (!cancelled) setEventRows([]);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -503,58 +490,35 @@ export function EngagementNotificationsTab({
     };
   }, [engagement.engagement_id]);
 
-  const servicesByEventCode = useMemo(() => {
-    const map = new Map<string, ReturnType<typeof normalizeNotificationServiceConfigs>>();
-    for (const item of configuredNotifications) {
-      if (item.event_code) {
-        map.set(item.event_code, normalizeNotificationServiceConfigs(item.notification_services));
-      }
-    }
-    return map;
-  }, [configuredNotifications]);
-
-  const formatServices = (
-    services: ReturnType<typeof normalizeNotificationServiceConfigs>
-  ) =>
-    services.length > 0
-      ? services
-          .map((item) => {
-            const label = notificationServiceLabel(item.service_key);
-            return item.external_link ? `${label} (${item.external_link})` : label;
-          })
-          .join(", ")
-      : "—";
-
-  const rows = useMemo(() => {
-    if (defaultEventRows.length > 0) {
-      return defaultEventRows.map((event) => ({
-        key: event.event_code,
-        label: event.display_name,
-        services: servicesByEventCode.get(event.event_code) ?? [],
-      }));
-    }
-    return configuredNotifications.map((item) => ({
-      key: item.event_code,
-      label: item.event_display_name ?? item.event_code,
-      services: normalizeNotificationServiceConfigs(item.notification_services),
-    }));
-  }, [configuredNotifications, defaultEventRows, servicesByEventCode]);
-
   return (
     <div className="bg-white border border-zinc-200 rounded-xl p-4">
       {loading ? (
         <div className="py-8 flex justify-center">
           <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
         </div>
-      ) : rows.length === 0 ? (
+      ) : eventRows.length === 0 ? (
         <p className="text-sm text-zinc-500">
-          No applicable notification events for this engagement, or global defaults are not configured yet.
+          No applicable notification events for this engagement.
         </p>
       ) : (
         <div className="grid grid-cols-1 gap-3">
-          {rows.map((row) => (
-            <Field key={row.key} label={row.label}>
-              {formatServices(row.services)}
+          {eventRows.map((row) => (
+            <Field key={row.event_code} label={row.display_name}>
+              <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-700">
+                <span className="font-mono text-xs text-zinc-500">{row.event_code}</span>
+                <span>·</span>
+                <span>
+                  {row.binding_count > 0
+                    ? `${row.binding_count} binding${row.binding_count === 1 ? "" : "s"}`
+                    : "Not configured"}
+                </span>
+                <a
+                  href={`/engagements/${engagement.engagement_id}/notifications/events/${encodeURIComponent(row.event_code)}`}
+                  className="text-xs font-medium text-zinc-900 underline hover:no-underline"
+                >
+                  Configure
+                </a>
+              </div>
             </Field>
           ))}
         </div>

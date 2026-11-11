@@ -29,6 +29,11 @@ const EngagementDetailPage = lazy(() =>
 const EngagementFormPage = lazy(() =>
   import("./features/engagements/EngagementFormPage").then((m) => ({ default: m.EngagementFormPage }))
 );
+const EngagementEventDetailPage = lazy(() =>
+  import("./features/engagements/EngagementEventDetailPage").then((m) => ({
+    default: m.EngagementEventDetailPage,
+  }))
+);
 const Employees = lazy(() =>
   import("./features/employees/Employees").then((m) => ({ default: m.Employees }))
 );
@@ -390,6 +395,14 @@ function AppRoutes() {
           element={
             <PermissionRoute category="engagements">
               <EngagementFormPage mode="edit" />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="engagements/:engagementId/notifications/events/:eventCode"
+          element={
+            <PermissionRoute category="notifications">
+              <EngagementEventDetailPage />
             </PermissionRoute>
           }
         />

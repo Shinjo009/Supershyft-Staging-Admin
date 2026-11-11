@@ -5607,12 +5607,17 @@ export const NOTIFICATION_CATALOG_GROUP_ORDER = [
   "Platform",
 ] as const;
 
+export interface EngagementNotificationBindingItem extends NotificationBindingItem {
+  engagement_id: number;
+  event_display_name?: string;
+}
+
 export interface EngagementNotificationSetupEvent {
   event_code: string;
   name: string;
   catalog_groups: string[];
-  default_services: NotificationServiceConfigItem[];
-  override_services: NotificationServiceConfigItem[];
+  global_bindings: NotificationBindingItem[];
+  engagement_bindings: EngagementNotificationBindingItem[];
 }
 
 export interface NotificationSetupPreviewBody {
@@ -6140,10 +6145,43 @@ export const engagementNotificationsApi = {
       `/engagements/${engagementId}/notifications`,
       { notifications }
     ),
-  saveWizard: (engagementId: number, body: { event_code: string; service: WizardServicePayload }) =>
+  saveWizard: (
+    engagementId: number,
+    body: {
+      event_code: string;
+      recipient_type: string;
+      recipient_config?: NotificationBindingItem["recipient_config"];
+      emit_condition?: EmitConditionPayload | null;
+      service: WizardServicePayload;
+      binding_id?: number | null;
+    }
+  ) =>
     api.post<{ data: Record<string, unknown>; meta: Record<string, unknown> }>(
       `/engagements/${engagementId}/notifications/wizard`,
       body
+    ),
+  listBindings: (engagementId: number, params?: { event_code?: string }) =>
+    api.get<{ data: EngagementNotificationBindingItem[]; meta: Record<string, unknown> }>(
+      `/engagements/${engagementId}/notification-bindings`,
+      { params }
+    ),
+  getEventBindings: (engagementId: number, eventCode: string) =>
+    api.get<{
+      data: {
+        event_code: string;
+        name: string;
+        engagement_bindings: EngagementNotificationBindingItem[];
+        global_bindings: NotificationBindingItem[];
+      };
+      meta: Record<string, unknown>;
+    }>(`/engagements/${engagementId}/notifications/events/${encodeURIComponent(eventCode)}`),
+  deleteBinding: (engagementId: number, bindingId: number) =>
+    api.delete<{ data: { deleted: boolean }; meta: Record<string, unknown> }>(
+      `/engagements/${engagementId}/notification-bindings/${bindingId}`
+    ),
+  copyFromGlobal: (engagementId: number) =>
+    api.post<{ data: { copied: number }; meta: Record<string, unknown> }>(
+      `/engagements/${engagementId}/notification-bindings/copy-from-global`
     ),
   getNotificationSetup: (engagementId: number) =>
     api.get<{ data: EngagementNotificationSetupEvent[]; meta: Record<string, unknown> }>(
