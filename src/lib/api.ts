@@ -5638,6 +5638,16 @@ export interface NotificationBindingItem {
     value_type?: "phone" | "email";
   } | null;
   service_key?: string | null;
+  condition_key?: string;
+  emit_condition?: EmitConditionPayload | null;
+}
+
+export type EmitConditionOp = "is_empty" | "is_not_empty" | "equals" | "one_of";
+
+export interface EmitConditionPayload {
+  path?: string;
+  op: EmitConditionOp;
+  value?: string | null;
 }
 
 export interface WizardServicePayload {
@@ -5670,6 +5680,7 @@ export interface WizardBindingPayload {
     value_type?: "phone" | "email";
   };
   engagement_type_id?: number | null;
+  emit_condition?: EmitConditionPayload | null;
   service: WizardServicePayload;
 }
 

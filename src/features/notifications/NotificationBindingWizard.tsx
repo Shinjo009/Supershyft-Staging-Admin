@@ -10,6 +10,7 @@ import {
   type CatalogEventItem,
   type NotificationServiceItem,
   type WhatsappTemplateMeta,
+  type EmitConditionOp,
   type WizardBindingPayload,
   getApiError,
 } from "../../lib/api";
@@ -200,6 +201,9 @@ export function NotificationBindingWizard() {
   const [customPhones, setCustomPhones] = useState("");
   const [customEmails, setCustomEmails] = useState("");
   const [payloadPath, setPayloadPath] = useState("");
+  const [emitWhenMode, setEmitWhenMode] = useState<"always" | "conditional">("always");
+  const [emitConditionOp, setEmitConditionOp] = useState<EmitConditionOp>("equals");
+  const [emitConditionValue, setEmitConditionValue] = useState("");
 
   const [channel, setChannel] = useState<"whatsapp" | "email">("whatsapp");
   const [displayName, setDisplayName] = useState("");
@@ -389,6 +393,15 @@ export function NotificationBindingWizard() {
         setCustomPhones((row.recipient_config?.phones ?? []).join("\n"));
         setCustomEmails((row.recipient_config?.emails ?? []).join("\n"));
         setPayloadPath(row.recipient_config?.payload_path ?? "");
+        if (row.emit_condition?.op) {
+          setEmitWhenMode("conditional");
+          setEmitConditionOp(row.emit_condition.op);
+          setEmitConditionValue(row.emit_condition.value ?? "");
+        } else {
+          setEmitWhenMode("always");
+          setEmitConditionOp("equals");
+          setEmitConditionValue("");
+        }
         const sk = row.service_key ?? row.notification_services[0]?.service_key;
         const svc = sk ? svcRes.data.data.find((s) => s.service_key === sk) : undefined;
         setServiceMode("reuse");
@@ -488,6 +501,19 @@ export function NotificationBindingWizard() {
         value_type: selectedPayloadField.value_type,
       };
     }
+    if (
+      selectedEvent.code === "payments.completed" &&
+      mode === "global" &&
+      emitWhenMode === "conditional"
+    ) {
+      body.emit_condition = {
+        path: "payment.discount_code",
+        op: emitConditionOp,
+        ...((emitConditionOp === "equals" || emitConditionOp === "one_of") && emitConditionValue.trim()
+          ? { value: emitConditionValue.trim() }
+          : {}),
+      };
+    }
     return body;
   };
 
@@ -510,6 +536,15 @@ export function NotificationBindingWizard() {
       }
       if (recipientType === "payload" && mode === "global" && !selectedPayloadField) {
         throw new Error("Select a payload contact field for this channel.");
+      }
+      if (
+        selectedEvent?.code === "payments.completed" &&
+        mode === "global" &&
+        emitWhenMode === "conditional" &&
+        (emitConditionOp === "equals" || emitConditionOp === "one_of") &&
+        !emitConditionValue.trim()
+      ) {
+        throw new Error("Enter a discount code for the selected condition.");
       }
       const payload = buildPayload();
       if (mode === "engagement") {
@@ -768,6 +803,62 @@ export function NotificationBindingWizard() {
                 </label>
                 {selectedPayloadField?.description ? (
                   <p className="text-xs text-zinc-600">{selectedPayloadField.description}</p>
+                ) : null}
+              </div>
+            ) : null}
+            {selectedEvent.code === "payments.completed" && mode === "global" ? (
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 p-4 space-y-3 max-w-xl">
+                <div>
+                  <p className="text-sm font-medium text-zinc-900">When to send</p>
+                  <p className="text-xs text-zinc-600 mt-1">
+                    Optional. Use separate bindings for each discount code or template. If no discount
+                    should trigger a message, do not create an unconditional binding.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEmitWhenMode("always")}
+                    className={filterChipClass(emitWhenMode === "always")}
+                  >
+                    Always
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEmitWhenMode("conditional")}
+                    className={filterChipClass(emitWhenMode === "conditional")}
+                  >
+                    Only when discount code…
+                  </button>
+                </div>
+                {emitWhenMode === "conditional" ? (
+                  <div className="space-y-3">
+                    <label className="block text-sm text-zinc-800">
+                      Condition
+                      <select
+                        value={emitConditionOp}
+                        onChange={(e) => setEmitConditionOp(e.target.value as EmitConditionOp)}
+                        className="mt-1 w-full border border-zinc-300 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
+                      >
+                        <option value="equals">Equals specific code</option>
+                        <option value="one_of">Is one of (comma-separated)</option>
+                        <option value="is_empty">No discount applied</option>
+                        <option value="is_not_empty">Any discount applied</option>
+                      </select>
+                    </label>
+                    {emitConditionOp === "equals" || emitConditionOp === "one_of" ? (
+                      <label className="block text-sm text-zinc-800">
+                        {emitConditionOp === "equals" ? "Discount code" : "Discount codes"}
+                        <input
+                          type="text"
+                          value={emitConditionValue}
+                          onChange={(e) => setEmitConditionValue(e.target.value)}
+                          placeholder={emitConditionOp === "equals" ? "e.g. CAMP50" : "e.g. VIP, STAFF"}
+                          className="mt-1 w-full border border-zinc-300 rounded-lg p-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-zinc-900"
+                        />
+                      </label>
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
             ) : null}

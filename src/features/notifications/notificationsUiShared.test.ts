@@ -4,6 +4,7 @@ import {
   canonicalCatalogEventCode,
   catalogEventForEventCode,
   groupNotificationBindingsByEvent,
+  formatBindingEmitConditionLabel,
   normalizeRecipientTypeForWizard,
 } from "./notificationsUiShared";
 import type { NotificationBindingItem } from "../../lib/api";
@@ -102,5 +103,21 @@ describe("groupNotificationBindingsByEvent", () => {
     ];
     const groups = groupNotificationBindingsByEvent(rows);
     expect(groups).toHaveLength(2);
+  });
+});
+
+describe("formatBindingEmitConditionLabel", () => {
+  it("formats discount operators", () => {
+    expect(formatBindingEmitConditionLabel({ emit_condition: null })).toBe("Always");
+    expect(
+      formatBindingEmitConditionLabel({
+        emit_condition: { op: "equals", value: "VIP" },
+      })
+    ).toBe("Discount = VIP");
+    expect(
+      formatBindingEmitConditionLabel({
+        emit_condition: { op: "is_empty" },
+      })
+    ).toBe("No discount");
   });
 });

@@ -17,6 +17,7 @@ import {
   getApiError,
 } from "../../lib/api";
 import {
+  formatBindingEmitConditionLabel,
   formatBindingRecipientLabel,
   RECIPIENT_LABELS,
   bindingEditPath,
@@ -186,6 +187,15 @@ export function NotificationEventDetailPage() {
       sortable: false,
       render: (r) => (
         <span className="text-sm font-medium text-zinc-900">{channelLabel(r.delivery_channel)}</span>
+      ),
+    },
+    {
+      key: "emit_condition",
+      label: "When",
+      sortable: false,
+      hideOnMobile: true,
+      render: (r) => (
+        <span className="text-sm text-zinc-600">{formatBindingEmitConditionLabel(r)}</span>
       ),
     },
     {

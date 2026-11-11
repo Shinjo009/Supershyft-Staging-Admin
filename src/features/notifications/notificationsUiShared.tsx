@@ -110,6 +110,26 @@ export function recipientPayloadHint(
   return hints[recipientType] ?? null;
 }
 
+export function formatBindingEmitConditionLabel(
+  row: Pick<NotificationBindingItem, "emit_condition">
+): string {
+  const c = row.emit_condition;
+  if (!c?.op) return "Always";
+  const value = (c.value ?? "").trim();
+  switch (c.op) {
+    case "is_empty":
+      return "No discount";
+    case "is_not_empty":
+      return "Any discount";
+    case "equals":
+      return value ? `Discount = ${value}` : "Discount = …";
+    case "one_of":
+      return value ? `Discount in ${value}` : "Discount in …";
+    default:
+      return "Always";
+  }
+}
+
 export function formatBindingRecipientLabel(
   row: Pick<NotificationBindingItem, "recipient_type" | "recipient_config">
 ): string {
