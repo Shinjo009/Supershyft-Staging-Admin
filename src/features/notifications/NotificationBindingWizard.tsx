@@ -25,6 +25,7 @@ import {
   selectableRowClass,
   wizardRecipientOptionsForEvent,
 } from "./notificationsUiShared";
+import { TemplateVariablePills, useTemplateVariableFields, type TemplateFieldBinding } from "./TemplateVariablePills";
 
 type Step = 1 | 2 | 3;
 type ServiceMode = "reuse" | "create";
@@ -299,6 +300,70 @@ export function NotificationBindingWizard() {
   const showHeaderFilename = useMemo(
     () => channel === "whatsapp" && templateSupportsHeaderFilename(templateMeta, templateName),
     [channel, templateMeta, templateName]
+  );
+
+  const templateFieldBindings = useMemo((): TemplateFieldBinding[] => {
+    const list: TemplateFieldBinding[] = [
+      {
+        id: "email-subject",
+        getValue: () => emailSubject,
+        setValue: setEmailSubject,
+      },
+      {
+        id: "email-body",
+        getValue: () => (emailMode === "html" ? emailHtml : emailBody),
+        setValue: (v) => (emailMode === "html" ? setEmailHtml(v) : setEmailBody(v)),
+      },
+    ];
+    if (showHeaderAttachment) {
+      list.push({
+        id: "wa-header-doc",
+        getValue: () => headerDocument,
+        setValue: setHeaderDocument,
+      });
+      if (showHeaderFilename) {
+        list.push({
+          id: "wa-header-filename",
+          getValue: () => headerDocumentFilename,
+          setValue: setHeaderDocumentFilename,
+        });
+      }
+    }
+    for (let i = 0; i < slotValues.length; i += 1) {
+      const idx = i;
+      list.push({
+        id: `wa-slot-${idx}`,
+        getValue: () => slotValues[idx] ?? "",
+        setValue: (v) =>
+          setSlotValues((prev) => {
+            const next = [...prev];
+            next[idx] = v;
+            return next;
+          }),
+      });
+    }
+    return list;
+  }, [
+    emailSubject,
+    emailBody,
+    emailHtml,
+    emailMode,
+    showHeaderAttachment,
+    showHeaderFilename,
+    headerDocument,
+    headerDocumentFilename,
+    slotValues,
+  ]);
+
+  const { insertVariable, fieldInputProps } = useTemplateVariableFields({
+    bindings: templateFieldBindings,
+  });
+
+  const handleTemplateVariableInsert = useCallback(
+    (field: string) => {
+      insertVariable(field);
+    },
+    [insertVariable]
   );
 
   const applyTemplateMeta = useCallback((meta: WhatsappTemplateMeta, name: string) => {
@@ -977,6 +1042,12 @@ export function NotificationBindingWizard() {
                       </button>
                     </div>
                     {templateMeta?.found && <PackageInfo meta={templateMeta} />}
+                    <TemplateVariablePills
+                      fields={headerInsertFields}
+                      legend="Variables"
+                      className="max-w-3xl"
+                      onInsert={handleTemplateVariableInsert}
+                    />
                     {showHeaderAttachment && !templateMeta?.found && templateName.trim() && (
                       <p className="text-xs text-amber-800 max-w-3xl">
                         This template name uses a document/image header — use Look up to confirm with Meta, then
@@ -990,62 +1061,28 @@ export function NotificationBindingWizard() {
                           Required for this Meta template. Paste a public HTTPS link or use{" "}
                           {"{{variable}}"} (not one of the numbered body slots below).
                         </p>
-                        <div className="flex gap-2">
-                          <input
-                            value={headerDocument}
-                            onChange={(e) => setHeaderDocument(e.target.value)}
-                            aria-label="Header PDF or image URL"
-                            placeholder="https://…/guidelines.pdf or {{gift.gift_card_url}}"
-                            className="flex-1 border border-zinc-300 rounded-lg px-3 py-2 text-sm"
-                          />
-                          <select
-                            className="border border-zinc-300 rounded-lg text-xs"
-                            onChange={(e) => {
-                              const f = e.target.value;
-                              if (!f) return;
-                              setHeaderDocument(`{{${f}}}`);
-                            }}
-                            defaultValue=""
-                          >
-                            <option value="">Insert…</option>
-                            {headerInsertFields.map((f) => (
-                              <option key={f} value={f}>
-                                {f}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                        <input
+                          {...fieldInputProps("wa-header-doc")}
+                          value={headerDocument}
+                          onChange={(e) => setHeaderDocument(e.target.value)}
+                          aria-label="Header PDF or image URL"
+                          placeholder="https://…/guidelines.pdf or {{gift.gift_card_url}}"
+                          className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm"
+                        />
                         {showHeaderFilename && (
                           <div className="space-y-1 pt-1">
                             <p className="text-xs text-zinc-600">
                               Document filename (camp15 only) — literal name or {"{{variable}}"} sent to WhatsApp
                               with the header link.
                             </p>
-                            <div className="flex gap-2">
-                              <input
-                                value={headerDocumentFilename}
-                                onChange={(e) => setHeaderDocumentFilename(e.target.value)}
-                                aria-label="Header document filename"
-                                placeholder="document.pdf or {{report.filename}}"
-                                className="flex-1 border border-zinc-300 rounded-lg px-3 py-2 text-sm"
-                              />
-                              <select
-                                className="border border-zinc-300 rounded-lg text-xs"
-                                onChange={(e) => {
-                                  const f = e.target.value;
-                                  if (!f) return;
-                                  setHeaderDocumentFilename(`{{${f}}}`);
-                                }}
-                                defaultValue=""
-                              >
-                                <option value="">Insert…</option>
-                                {headerInsertFields.map((f) => (
-                                  <option key={`fn-${f}`} value={f}>
-                                    {f}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
+                            <input
+                              {...fieldInputProps("wa-header-filename")}
+                              value={headerDocumentFilename}
+                              onChange={(e) => setHeaderDocumentFilename(e.target.value)}
+                              aria-label="Header document filename"
+                              placeholder="document.pdf or {{report.filename}}"
+                              className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm"
+                            />
                           </div>
                         )}
                       </div>
@@ -1059,6 +1096,7 @@ export function NotificationBindingWizard() {
                           <div key={i} className="flex gap-2">
                             <span className="text-xs text-zinc-500 w-8 pt-2">{i + 1}</span>
                             <input
+                              {...fieldInputProps(`wa-slot-${i}`)}
                               value={val}
                               onChange={(e) => {
                                 const next = [...slotValues];
@@ -1067,24 +1105,6 @@ export function NotificationBindingWizard() {
                               }}
                               className="flex-1 border border-zinc-300 rounded-lg px-3 py-2 text-sm"
                             />
-                            <select
-                              className="border border-zinc-300 rounded-lg text-xs"
-                              onChange={(e) => {
-                                const f = e.target.value;
-                                if (!f) return;
-                                const next = [...slotValues];
-                                next[i] = `{{${f}}}`;
-                                setSlotValues(next);
-                              }}
-                              defaultValue=""
-                            >
-                              <option value="">Insert…</option>
-                              {variableFields.map((f) => (
-                                <option key={f} value={f}>
-                                  {f}
-                                </option>
-                              ))}
-                            </select>
                           </div>
                         ))}
                       </div>
@@ -1094,9 +1114,15 @@ export function NotificationBindingWizard() {
 
                 {channel === "email" && (
                   <div className="space-y-3 max-w-3xl">
+                    <TemplateVariablePills
+                      fields={variableFields}
+                      legend="Variables"
+                      onInsert={handleTemplateVariableInsert}
+                    />
                     <label className="block text-sm text-zinc-800">
                       Subject
                       <input
+                        {...fieldInputProps("email-subject")}
                         value={emailSubject}
                         onChange={(e) => setEmailSubject(e.target.value)}
                         className="mt-1 w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
@@ -1118,23 +1144,8 @@ export function NotificationBindingWizard() {
                         HTML
                       </button>
                     </div>
-                    <div className="flex flex-wrap gap-1">
-                      {variableFields.map((f) => (
-                        <button
-                          key={f}
-                          type="button"
-                          onClick={() => {
-                            const token = `{{${f}}}`;
-                            if (emailMode === "html") setEmailHtml((prev) => prev + token);
-                            else setEmailBody((prev) => prev + token);
-                          }}
-                          className="text-xs px-2 py-0.5 rounded-full border bg-zinc-50 hover:bg-zinc-100"
-                        >
-                          {f}
-                        </button>
-                      ))}
-                    </div>
                     <textarea
+                      {...fieldInputProps("email-body")}
                       value={emailMode === "html" ? emailHtml : emailBody}
                       onChange={(e) =>
                         emailMode === "html" ? setEmailHtml(e.target.value) : setEmailBody(e.target.value)
