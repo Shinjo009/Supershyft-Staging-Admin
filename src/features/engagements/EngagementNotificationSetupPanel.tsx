@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Loader2, Plus, Settings2, Trash2 } from "lucide-react";
 
 import {
@@ -50,6 +50,7 @@ export function EngagementNotificationSetupPanel({
   returnTo,
   onSetupLoaded,
 }: Props) {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,8 +83,10 @@ export function EngagementNotificationSetupPanel({
       setSetup(data);
       onSetupLoaded?.(data);
 
-      const hasBindings = data.events.some((e) => e.engagement_bindings.length > 0);
-      if (resolvedEngagementId && !hasBindings && data.applicable_event_count > 0) {
+      const needsEngagementBindings = data.events.some(
+        (e) => e.global_bindings.length > 0 && e.engagement_bindings.length === 0
+      );
+      if (resolvedEngagementId && needsEngagementBindings) {
         setSeeding(true);
         try {
           const seedRes = await engagementNotificationsApi.seedFromDefaults(resolvedEngagementId);
@@ -140,11 +143,40 @@ export function EngagementNotificationSetupPanel({
     }
   };
 
+  const ensureEngagementCopies = async (): Promise<EngagementNotificationSetup | null> => {
+    if (!resolvedEngagementId) return null;
+    try {
+      const seedRes = await engagementNotificationsApi.seedFromDefaults(resolvedEngagementId);
+      const next = seedRes.data.data;
+      setSetup(next);
+      onSetupLoaded?.(next);
+      return next;
+    } catch (err) {
+      setError(getApiError(err));
+      return null;
+    }
+  };
+
+  const handleCustomizeEvent = async (eventCode: string) => {
+    if (!resolvedEngagementId) return;
+    const data = await ensureEngagementCopies();
+    if (!data) return;
+    const ev = data.events.find((e) => e.event_code === eventCode);
+    const bindingId = ev?.engagement_bindings[0]?.id;
+    if (bindingId) {
+      navigate(wizardPath(eventCode, { engagementBindingId: bindingId, step: 2 }), {
+        state: wizardLinkState,
+      });
+    }
+  };
+
   if (loading || seeding) {
     return (
       <div className="py-10 flex flex-col items-center gap-2 text-zinc-500">
         <Loader2 className="w-6 h-6 animate-spin" />
-        {seeding ? <p className="text-sm">Seeding notifications from platform defaults…</p> : null}
+        {seeding ? (
+          <p className="text-sm">Creating engagement-specific copies of default bindings…</p>
+        ) : null}
       </div>
     );
   }
@@ -248,8 +280,34 @@ export function EngagementNotificationSetupPanel({
                         ))}
                         {event.engagement_bindings.length === 0
                           ? event.global_bindings.map((b, i) => (
-                              <li key={i} className="text-zinc-500">
-                                {bindingSummary(b)} (default)
+                              <li
+                                key={i}
+                                className="flex items-start justify-between gap-2 text-zinc-500"
+                              >
+                                <span>
+                                  {bindingSummary(b)}
+                                  <span className="text-zinc-400"> (platform default)</span>
+                                </span>
+                                {resolvedEngagementId ? (
+                                  <div className="flex gap-1 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleCustomizeEvent(event.event_code)}
+                                      className="text-zinc-500 hover:text-zinc-900"
+                                      title="Customize for this engagement"
+                                    >
+                                      <Settings2 className="w-4 h-4" />
+                                    </button>
+                                    <Link
+                                      to={wizardPath(event.event_code, { step: 2 })}
+                                      state={wizardLinkState}
+                                      className="text-zinc-500 hover:text-zinc-900"
+                                      title="Add engagement binding"
+                                    >
+                                      <Plus className="w-4 h-4" />
+                                    </Link>
+                                  </div>
+                                ) : null}
                               </li>
                             ))
                           : null}
