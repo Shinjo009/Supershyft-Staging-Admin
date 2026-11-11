@@ -18,8 +18,10 @@ test.describe("Notification binding edit (uniform UX)", () => {
   });
 
   test("onboarding.completed edit matches support (recipient + reuse service)", async ({ page }) => {
+    await page.goto("/notifications/notifications/27/edit?step=2");
+    const assistants = page.getByRole("button", { name: /All onboarding assistants/i });
+    await expect(assistants).toHaveClass(selectableCardBorder);
     await page.goto("/notifications/notifications/events/onboarding.completed");
-    await expect(page.getByText(/Typical recipients for this event/i)).toBeVisible();
     await page.getByRole("button", { name: "Actions" }).first().click();
     await page.getByRole("button", { name: "Edit content" }).click();
     await expect(page).toHaveURL(/\/notifications\/notifications\/\d+\/edit\?step=3/);

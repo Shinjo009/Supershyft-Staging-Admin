@@ -35,6 +35,7 @@ describe("normalizeRecipientTypeForWizard", () => {
   it("maps legacy participant and onboarding assistant types", () => {
     expect(normalizeRecipientTypeForWizard("participant")).toBe("user");
     expect(normalizeRecipientTypeForWizard("onboarding_assistant")).toBe("assistants");
+    expect(normalizeRecipientTypeForWizard("oa.all")).toBe("assistants");
     expect(normalizeRecipientTypeForWizard("departments.ops")).toBe("departments.ops");
   });
 });

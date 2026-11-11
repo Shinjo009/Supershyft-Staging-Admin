@@ -18,6 +18,10 @@ const RECIPIENT_LEGACY_TO_WIZARD: Record<string, string> = {
   specific: "custom",
   onboarding_assistant: "assistants",
   onboarding_assistants: "assistants",
+  "oa.all": "assistants",
+  "oa.phlebo": "assistants.phlebo",
+  "oa.expert": "assistants.expert",
+  "oa.staff": "assistants.staff",
 };
 
 /** Event codes in DB/routes that should use catalog metadata from another code. */
@@ -53,6 +57,7 @@ export const RECIPIENT_LABELS: Record<string, string> = {
   members: "Family members",
   booker: "Family booker",
   assistants: "All onboarding assistants",
+  "oa.all": "All onboarding assistants",
   "assistants.phlebo": "Phlebo assistants",
   "assistants.expert": "Expert assistants",
   "assistants.staff": "Staff assistants",
