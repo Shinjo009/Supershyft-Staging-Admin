@@ -61,11 +61,13 @@ export function NotificationEventDetailPage() {
   const [bindings, setBindings] = useState<NotificationBindingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [eventMissing, setEventMissing] = useState(false);
 
   const load = useCallback(async () => {
     if (!eventCode) return;
     setLoading(true);
     setError(null);
+    setEventMissing(false);
     try {
       const [catalogRes, bindingsRes] = await Promise.all([
         notificationsCatalogApi.getEvents(),
@@ -74,16 +76,25 @@ export function NotificationEventDetailPage() {
       const catalog = catalogRes.data.data;
       const bindingRows = bindingsRes.data.data;
       const ev = catalogEventForEventCode(catalog, eventCode, bindingRows[0]);
+      if (ev && ev.code !== eventCode && bindingRows.length === 0) {
+        navigate(
+          `/notifications/notifications/events/${encodeURIComponent(ev.code)}`,
+          { replace: true }
+        );
+        return;
+      }
       setCatalogEvent(ev);
       setBindings(bindingRows);
+      setEventMissing(!ev && bindingRows.length === 0);
     } catch (err) {
       setError(getApiError(err));
       setCatalogEvent(null);
       setBindings([]);
+      setEventMissing(false);
     } finally {
       setLoading(false);
     }
-  }, [eventCode]);
+  }, [eventCode, navigate]);
 
   useEffect(() => {
     void load();
@@ -106,16 +117,22 @@ export function NotificationEventDetailPage() {
   const headerSubtitle = catalogEvent?.code ?? eventCode;
 
   usePageHeader(
-    eventCode
+    eventMissing
       ? {
-          title: headerTitle || "Notification event",
-          subtitle: headerSubtitle || eventCode,
+          title: "Event not found",
+          subtitle: eventCode,
           backTo: "/notifications/notifications",
         }
-      : {
-          title: "Notification event",
-          backTo: "/notifications/notifications",
-        }
+      : eventCode
+        ? {
+            title: headerTitle || "Notification event",
+            subtitle: headerSubtitle || eventCode,
+            backTo: "/notifications/notifications",
+          }
+        : {
+            title: "Notification event",
+            backTo: "/notifications/notifications",
+          }
   );
 
   const navigateToBindingEdit = (row: NotificationBindingItem, wizardStep: 2 | 3) => {
@@ -210,6 +227,21 @@ export function NotificationEventDetailPage() {
       {loading ? (
         <div className="py-16 flex justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
+        </div>
+      ) : eventMissing ? (
+        <div className="bg-white rounded-xl border border-zinc-200 p-8 sm:p-10 text-center max-w-lg mx-auto">
+          <h2 className="text-lg font-semibold text-zinc-900">This event does not exist</h2>
+          <p className="mt-2 text-sm text-zinc-600">
+            <span className="font-mono text-zinc-800">{eventCode}</span> is not in the notification
+            events catalog and has no bindings configured.
+          </p>
+          <p className="mt-3 text-sm text-zinc-500">
+            Check the code from{" "}
+            <Link to="/notifications/notifications" className="text-zinc-900 underline">
+              Notifications
+            </Link>{" "}
+            or pick an event when adding a binding.
+          </p>
         </div>
       ) : (
         <>

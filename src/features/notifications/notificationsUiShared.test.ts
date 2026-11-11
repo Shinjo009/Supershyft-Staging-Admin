@@ -43,17 +43,24 @@ describe("normalizeRecipientTypeForWizard", () => {
 });
 
 describe("catalogEventForEventCode", () => {
+  it("returns null for unknown codes with no binding hint", () => {
+    expect(catalogEventForEventCode(catalog, "not.a.real.event")).toBeNull();
+    expect(catalogEventForEventCode(catalog, "legacy.deleted_event")).toBeNull();
+  });
+
   it("resolves onboarding.completed to users.onboarded catalog row", () => {
     const ev = catalogEventForEventCode(catalog, "onboarding.completed");
-    expect(ev.code).toBe("users.onboarded");
-    expect(ev.default_recipients).toContain("assistants");
-    expect(ev.trigger_notes).toContain("Enrollment");
+    expect(ev).not.toBeNull();
+    expect(ev!.code).toBe("users.onboarded");
+    expect(ev!.default_recipients).toContain("assistants");
+    expect(ev!.trigger_notes).toContain("Enrollment");
   });
 
   it("resolves support.ticket.created route to support.ticket_created", () => {
     const ev = catalogEventForEventCode(catalog, "support.ticket.created");
-    expect(ev.code).toBe("support.ticket_created");
-    expect(ev.default_recipients).toContain("departments.ops");
+    expect(ev).not.toBeNull();
+    expect(ev!.code).toBe("support.ticket_created");
+    expect(ev!.default_recipients).toContain("departments.ops");
   });
 });
 

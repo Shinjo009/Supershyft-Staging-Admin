@@ -201,7 +201,11 @@ export function wizardRecipientOptions(currentRecipientType: string): readonly s
   return [current, ...WIZARD_RECIPIENT_TYPES];
 }
 
-function findCatalogEvent(catalog: CatalogEventItem[], eventCode: string): CatalogEventItem | null {
+/** Match an event code to a catalog row (aliases, legacy codes, dot/underscore variants). */
+export function lookupNotificationCatalogEvent(
+  catalog: CatalogEventItem[],
+  eventCode: string
+): CatalogEventItem | null {
   const code = (eventCode ?? "").trim();
   if (!code) return null;
 
@@ -239,7 +243,7 @@ export function catalogEventForBinding(
   catalog: CatalogEventItem[],
   row: Pick<NotificationBindingItem, "event_code" | "event_name">
 ): CatalogEventItem {
-  const match = findCatalogEvent(catalog, row.event_code);
+  const match = lookupNotificationCatalogEvent(catalog, row.event_code);
   if (match) return match;
   return {
     code: row.event_code,
@@ -259,13 +263,13 @@ export function catalogEventForEventCode(
   catalog: CatalogEventItem[],
   eventCode: string,
   bindingHint?: Pick<NotificationBindingItem, "event_code" | "event_name">
-): CatalogEventItem {
-  const fromRoute = findCatalogEvent(catalog, eventCode);
+): CatalogEventItem | null {
+  const fromRoute = lookupNotificationCatalogEvent(catalog, eventCode);
   if (fromRoute) return fromRoute;
   if (bindingHint) {
     return catalogEventForBinding(catalog, bindingHint);
   }
-  return catalogEventForBinding(catalog, { event_code: eventCode, event_name: "" });
+  return null;
 }
 
 export function selectableRowClass(selected: boolean): string {
