@@ -4,7 +4,6 @@ import type {
   NotificationItem,
   NotificationRecipient,
 } from "../../lib/api";
-import { NOTIFICATION_CATALOG_GROUP_ORDER } from "../../lib/api";
 
 /** Stored DB values that map to a wizard recipient card (uniform edit UI). */
 const RECIPIENT_LEGACY_TO_WIZARD: Record<string, string> = {
@@ -237,73 +236,6 @@ export function groupNotificationBindingsByEvent(
       (a, b) =>
         a.event_name.localeCompare(b.event_name) || a.event_code.localeCompare(b.event_code)
     );
-}
-
-export type NotificationCatalogSection = {
-  group: string;
-  events: Array<{
-    event: CatalogEventItem;
-    bindings: NotificationBindingItem[];
-    bindingCount: number;
-  }>;
-};
-
-export function uniqueChannels(bindings: NotificationBindingItem[]): string {
-  const labels = [
-    ...new Set(
-      bindings
-        .map((b) => {
-          const ch = (b.delivery_channel ?? "").trim();
-          if (ch === "whatsapp") return "WhatsApp";
-          if (ch === "email") return "Email";
-          return ch;
-        })
-        .filter(Boolean)
-    ),
-  ];
-  if (!labels.length) return "—";
-  if (labels.length <= 2) return labels.join(", ");
-  return `${labels.slice(0, 2).join(", ")} +${labels.length - 2}`;
-}
-
-/** Group catalog events under engagement-oriented sections (event may appear in multiple groups). */
-export function buildNotificationCatalogSections(
-  catalog: CatalogEventItem[],
-  bindings: NotificationBindingItem[],
-  searchQuery: string
-): NotificationCatalogSection[] {
-  const byEvent = groupNotificationBindingsByEvent(bindings);
-  const bindingMap = new Map(byEvent.map((g) => [g.event_code, g.bindings]));
-  const q = searchQuery.trim().toLowerCase();
-
-  const sections: NotificationCatalogSection[] = [];
-  for (const group of NOTIFICATION_CATALOG_GROUP_ORDER) {
-    const eventsInGroup = catalog.filter((ev) => (ev.catalog_groups ?? []).includes(group));
-    const rows: NotificationCatalogSection["events"] = [];
-    for (const ev of eventsInGroup) {
-      const eventBindings = bindingMap.get(ev.code) ?? [];
-      if (q) {
-        const haystack = `${ev.code} ${ev.name} ${ev.trigger_notes} ${group}`.toLowerCase();
-        const bindingHay = eventBindings
-          .map((b) => `${b.recipient_type} ${b.delivery_channel}`)
-          .join(" ")
-          .toLowerCase();
-        if (!haystack.includes(q) && !bindingHay.includes(q)) {
-          continue;
-        }
-      }
-      rows.push({
-        event: ev,
-        bindings: eventBindings,
-        bindingCount: eventBindings.length,
-      });
-    }
-    if (rows.length > 0) {
-      rows.sort((a, b) => a.event.name.localeCompare(b.event.name));
-      sections.push({ group, events: rows });
-    }
-  }
-  return sections;
 }
 
 /** Wizard step-2 options, always including the binding's current recipient when editing. */
