@@ -89,6 +89,11 @@ export function EngagementNotificationSetupPanel({
           const seedRes = await engagementNotificationsApi.seedFromDefaults(resolvedEngagementId);
           setSetup(seedRes.data.data);
           onSetupLoaded?.(seedRes.data.data);
+        } catch (seedErr) {
+          setError(
+            getApiError(seedErr) ||
+              "Could not auto-seed from defaults. You can still add bindings manually."
+          );
         } finally {
           setSeeding(false);
         }
