@@ -22,6 +22,8 @@ import {
   recipientPayloadHint,
   recipientTypeFromEditLocation,
   selectableRowClass,
+  payloadContactFieldsByGroup,
+  payloadGroupLabel,
   wizardRecipientOptions,
 } from "./notificationsUiShared";
 
@@ -199,6 +201,7 @@ export function NotificationBindingWizard() {
   );
   const [customPhones, setCustomPhones] = useState("");
   const [customEmails, setCustomEmails] = useState("");
+  const [payloadFieldIds, setPayloadFieldIds] = useState<string[]>([]);
 
   const [channel, setChannel] = useState<"whatsapp" | "email">("whatsapp");
   const [displayName, setDisplayName] = useState("");
@@ -257,9 +260,20 @@ export function NotificationBindingWizard() {
   }, [variableFields]);
 
   const recipientOptions = useMemo(
-    () => wizardRecipientOptions(recipientType || prefilledRecipient),
-    [recipientType, prefilledRecipient]
+    () => wizardRecipientOptions(recipientType || prefilledRecipient, selectedEvent),
+    [recipientType, prefilledRecipient, selectedEvent]
   );
+
+  const payloadFieldsByGroup = useMemo(
+    () => payloadContactFieldsByGroup(selectedEvent),
+    [selectedEvent]
+  );
+
+  const payloadSelectionHasPhoneOrUser = useMemo(() => {
+    const fields = selectedEvent?.payload_contact_fields ?? [];
+    const selected = fields.filter((f) => payloadFieldIds.includes(f.id));
+    return selected.some((f) => f.kind === "phone" || f.kind === "user_id");
+  }, [payloadFieldIds, selectedEvent]);
 
   const serviceHandlers = useMemo(
     () => ({
@@ -376,6 +390,7 @@ export function NotificationBindingWizard() {
         setRecipientType(normalizedRecipient);
         setCustomPhones((row.recipient_config?.phones ?? []).join("\n"));
         setCustomEmails((row.recipient_config?.emails ?? []).join("\n"));
+        setPayloadFieldIds(row.recipient_config?.payload_field_ids ?? []);
         const sk = row.service_key ?? row.notification_services[0]?.service_key;
         const svc = sk ? svcRes.data.data.find((s) => s.service_key === sk) : undefined;
         setServiceMode("reuse");
@@ -462,6 +477,9 @@ export function NotificationBindingWizard() {
         emails: customEmails.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean),
       };
     }
+    if (recipientType === "payload") {
+      body.recipient_config = { payload_field_ids: [...payloadFieldIds] };
+    }
     return body;
   };
 
@@ -481,6 +499,18 @@ export function NotificationBindingWizard() {
         !headerDocument.trim()
       ) {
         throw new Error("This template requires a header document URL or variable.");
+      }
+      if (recipientType === "payload" && payloadFieldIds.length === 0) {
+        throw new Error("Select at least one payload contact field.");
+      }
+      if (
+        recipientType === "payload" &&
+        channel === "whatsapp" &&
+        !payloadSelectionHasPhoneOrUser
+      ) {
+        throw new Error(
+          "WhatsApp requires at least one phone or user ID field in the payload selection."
+        );
       }
       const payload = buildPayload();
       if (mode === "engagement") {
@@ -676,6 +706,62 @@ export function NotificationBindingWizard() {
                 </label>
               </div>
             )}
+            {recipientType === "payload" && mode === "global" && selectedEvent?.allows_payload_recipient && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-4 space-y-4">
+                <p className="text-sm text-zinc-700">
+                  Choose emit-context fields for this event. Recipients are deduped by phone, email,
+                  and user ID.
+                </p>
+                {[...payloadFieldsByGroup.entries()].map(([group, fields]) => (
+                  <div key={group}>
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-2">
+                      {payloadGroupLabel(group)}
+                    </h4>
+                    <ul className="space-y-2">
+                      {fields.map((field) => {
+                        const checked = payloadFieldIds.includes(field.id);
+                        return (
+                          <li key={field.id}>
+                            <label className="flex items-start gap-3 cursor-pointer text-sm">
+                              <input
+                                type="checkbox"
+                                className="mt-1 rounded border-zinc-300"
+                                checked={checked}
+                                onChange={() => {
+                                  setPayloadFieldIds((prev) =>
+                                    checked
+                                      ? prev.filter((id) => id !== field.id)
+                                      : [...prev, field.id]
+                                  );
+                                }}
+                              />
+                              <span className="min-w-0">
+                                <span className="font-medium text-zinc-900">{field.label}</span>
+                                <span className="ml-2 text-[10px] uppercase tracking-wide text-zinc-500">
+                                  {field.kind} · {field.cardinality}
+                                </span>
+                                <span className="block font-mono text-xs text-zinc-500 mt-0.5">
+                                  {field.path}
+                                </span>
+                                {field.description ? (
+                                  <span className="block text-xs text-zinc-500 mt-0.5">
+                                    {field.description}
+                                  </span>
+                                ) : null}
+                              </span>
+                            </label>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ))}
+                <p className="text-xs text-zinc-600">
+                  Selected: {payloadFieldIds.length} field
+                  {payloadFieldIds.length === 1 ? "" : "s"} (distinct contacts after dedupe).
+                </p>
+              </div>
+            )}
             <div className="flex flex-wrap gap-3 pt-2">
               <button
                 type="button"
@@ -687,7 +773,10 @@ export function NotificationBindingWizard() {
               <button
                 type="button"
                 onClick={() => setStep(3)}
-                disabled={!recipientType && mode === "global"}
+                disabled={
+                  (mode === "global" && !recipientType) ||
+                  (recipientType === "payload" && payloadFieldIds.length === 0)
+                }
                 className="px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm disabled:opacity-50"
               >
                 Continue

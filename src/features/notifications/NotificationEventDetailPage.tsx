@@ -18,6 +18,7 @@ import {
 } from "../../lib/api";
 import {
   RECIPIENT_LABELS,
+  formatPayloadRecipientSummary,
   bindingEditPath,
   catalogEventForEventCode,
 } from "./notificationsUiShared";
@@ -173,7 +174,9 @@ export function NotificationEventDetailPage() {
       render: (r) => (
         <div>
           <div className="text-sm font-medium text-zinc-900">
-            {RECIPIENT_LABELS[r.recipient_type] ?? r.recipient_type}
+            {r.recipient_type === "payload"
+              ? formatPayloadRecipientSummary(r.recipient_config, catalogEvent)
+              : RECIPIENT_LABELS[r.recipient_type] ?? r.recipient_type}
           </div>
           <div className="text-xs font-mono text-zinc-500 mt-0.5">{r.recipient_type}</div>
         </div>

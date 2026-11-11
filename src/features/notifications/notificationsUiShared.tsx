@@ -69,6 +69,15 @@ export const RECIPIENT_LABELS: Record<string, string> = {
   "departments.tech": "Tech department",
   "departments.design": "Design department",
   custom: "Specific phone numbers or emails",
+  payload: "From API payload",
+};
+
+const PAYLOAD_GROUP_LABELS: Record<string, string> = {
+  primary: "Primary",
+  booker: "Booker",
+  members: "Members",
+  inline: "Inline contacts",
+  payment: "Payment",
 };
 
 /** Recipient types offered in the binding wizard (excludes legacy booker-only option). */
@@ -84,6 +93,7 @@ export const WIZARD_RECIPIENT_TYPES = [
   "departments.tech",
   "departments.design",
   "custom",
+  "payload",
 ] as const;
 
 export function participantPayloadHintForEvent(
@@ -190,12 +200,46 @@ export function groupNotificationBindingsByEvent(
 }
 
 /** Wizard step-2 options, always including the binding's current recipient when editing. */
-export function wizardRecipientOptions(currentRecipientType: string): readonly string[] {
+export function wizardRecipientOptions(
+  currentRecipientType: string,
+  event?: CatalogEventItem | null
+): readonly string[] {
   const current = normalizeRecipientTypeForWizard(currentRecipientType);
-  if (!current || (WIZARD_RECIPIENT_TYPES as readonly string[]).includes(current)) {
-    return WIZARD_RECIPIENT_TYPES;
+  const baseTypes = (WIZARD_RECIPIENT_TYPES as readonly string[]).filter(
+    (rt) => rt !== "payload" || event?.allows_payload_recipient
+  );
+  if (!current || baseTypes.includes(current)) {
+    return baseTypes;
   }
-  return [current, ...WIZARD_RECIPIENT_TYPES];
+  return [current, ...baseTypes];
+}
+
+export function payloadContactFieldsByGroup(
+  event: CatalogEventItem | null | undefined
+): Map<string, NonNullable<CatalogEventItem["payload_contact_fields"]>> {
+  const map = new Map<string, NonNullable<CatalogEventItem["payload_contact_fields"]>>();
+  for (const field of event?.payload_contact_fields ?? []) {
+    const group = field.group || "primary";
+    const bucket = map.get(group) ?? [];
+    bucket.push(field);
+    map.set(group, bucket);
+  }
+  return map;
+}
+
+export function payloadGroupLabel(group: string): string {
+  return PAYLOAD_GROUP_LABELS[group] ?? group;
+}
+
+export function formatPayloadRecipientSummary(
+  recipientConfig: { payload_field_ids?: string[] } | null | undefined,
+  event: CatalogEventItem | null | undefined
+): string {
+  const ids = recipientConfig?.payload_field_ids ?? [];
+  if (!ids.length) return "From API payload";
+  const byId = new Map((event?.payload_contact_fields ?? []).map((f) => [f.id, f.label]));
+  const labels = ids.map((id) => byId.get(id) ?? id);
+  return labels.join(", ");
 }
 
 /** Match an event code to a catalog row (aliases, legacy codes, dot/underscore variants). */
