@@ -5633,7 +5633,11 @@ export interface NotificationBindingItem {
   delivery_channel: string;
   notification_services: NotificationServiceConfigItem[];
   engagement_type_id: number | null;
-  recipient_config?: { phones?: string[]; emails?: string[] } | null;
+  recipient_config?: {
+    phones?: string[];
+    emails?: string[];
+    payload_field_ids?: string[];
+  } | null;
   service_key?: string | null;
 }
 
