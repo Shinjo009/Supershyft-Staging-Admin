@@ -149,8 +149,9 @@ export function buildEngagementCreatePayload(data: EngagementCreate): Engagement
   }
   const locationFields = buildEngagementLocationFields(data);
   const packages = normalizePackageIds(data);
+  const { notifications: formNotifications, ...dataWithoutNotifications } = data;
   return {
-    ...data,
+    ...dataWithoutNotifications,
     ...locationFields,
     organization_id: orgId,
     metsights_engagement_id: data.metsights_engagement_id?.trim() || null,
@@ -165,7 +166,9 @@ export function buildEngagementCreatePayload(data: EngagementCreate): Engagement
     load_prev_questionnaire_category_keys: data.load_prev_questionnaire_category_keys ?? null,
     payment_type: data.payment_type ?? "paid_by_group",
     auto_booking: Boolean(data.auto_booking),
-    notifications: data.notifications ?? [],
+    ...(formNotifications && formNotifications.length > 0
+      ? { notifications: formNotifications }
+      : {}),
     camp_no: computeCampNo(orgId, data.start_date),
     slot_detail: data.slot_detail ?? null,
   };

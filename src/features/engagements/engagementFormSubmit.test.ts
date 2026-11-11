@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildEngagementCreatePayload,
   buildEngagementUpdatePayload,
   buildEngagementUpdatePayloadForWizardStep,
 } from "./engagementFormSubmit";
@@ -23,6 +24,15 @@ function minimalEngagementCreate(
     ...overrides,
   };
 }
+
+describe("buildEngagementCreatePayload", () => {
+  it("omits notifications when undefined or empty so API seeds from global defaults", () => {
+    const base = buildEngagementCreatePayload(minimalEngagementCreate());
+    expect(base).not.toHaveProperty("notifications");
+    const empty = buildEngagementCreatePayload(minimalEngagementCreate({ notifications: [] }));
+    expect(empty).not.toHaveProperty("notifications");
+  });
+});
 
 describe("buildEngagementUpdatePayload", () => {
   it("omits notifications and slot_detail when undefined on partial wizard save", () => {
