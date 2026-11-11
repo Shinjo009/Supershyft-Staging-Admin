@@ -70,7 +70,7 @@ function bindingStub(partial: Partial<NotificationBindingItem> & Pick<Notificati
     recipient_type: "participant",
     delivery_channel: "email",
     engagement_type_id: null,
-    notification_services: [{ service_key: "email-otp", channel: "email" }],
+    notification_services: [{ service_key: "email-otp" }],
     ...partial,
   } as NotificationBindingItem;
 }
@@ -79,7 +79,7 @@ describe("groupNotificationBindingsByEvent", () => {
   it("merges multiple bindings for the same global event", () => {
     const rows = [
       bindingStub({ id: 1, delivery_channel: "email" }),
-      bindingStub({ id: 2, delivery_channel: "whatsapp", notification_services: [{ service_key: "whatapi-otp", channel: "whatsapp" }] }),
+      bindingStub({ id: 2, delivery_channel: "whatsapp", notification_services: [{ service_key: "whatapi-otp" }] }),
     ];
     const groups = groupNotificationBindingsByEvent(rows);
     expect(groups).toHaveLength(1);
