@@ -28,6 +28,7 @@ import {
 import { TemplateVariablePills, useTemplateVariableFields, type TemplateFieldBinding } from "./TemplateVariablePills";
 import { isTeamRecipient, templateVariableFieldsForRecipient } from "./templateVariableFields";
 import { WhatsappTemplateMessagePreview } from "./WhatsappTemplateMessagePreview";
+import { resolvePreviewHeaderUrl } from "./whatsappTemplateHeaderPreview";
 import { WhatsappTemplateMetaStatus } from "./WhatsappTemplateMetaStatus";
 import {
   canonicalTemplateNameForLookup,
@@ -563,6 +564,19 @@ export function NotificationBindingWizard() {
     return renderPositionalTemplateBody(templateMeta.body_text, values);
   }, [templateMeta, slotValues]);
 
+  const whatsappPreviewHeaderUrl = useMemo(
+    () => resolvePreviewHeaderUrl(templateMeta, headerDocument),
+    [templateMeta, headerDocument]
+  );
+
+  const whatsappPreviewHeaderLabel = useMemo(() => {
+    const fmt = (templateMeta?.header_format ?? "").toUpperCase();
+    if (fmt === "DOCUMENT" && headerDocumentFilename.trim()) {
+      return headerDocumentFilename.trim();
+    }
+    return null;
+  }, [templateMeta?.header_format, headerDocumentFilename]);
+
   const buildSlots = () =>
     slotValues.map((val, i) => {
       const trimmed = val.trim();
@@ -1093,7 +1107,13 @@ export function NotificationBindingWizard() {
                     </div>
                     {templateMeta && <WhatsappTemplateMetaStatus meta={templateMeta} />}
                     {whatsappPreviewText ? (
-                      <WhatsappTemplateMessagePreview message={whatsappPreviewText} className="max-w-3xl" />
+                      <WhatsappTemplateMessagePreview
+                        bodyText={whatsappPreviewText}
+                        headerFormat={templateMeta?.header_format}
+                        headerUrl={whatsappPreviewHeaderUrl}
+                        headerLabel={whatsappPreviewHeaderLabel}
+                        className="max-w-3xl"
+                      />
                     ) : null}
                     <TemplateVariablePills
                       fields={headerInsertFields}

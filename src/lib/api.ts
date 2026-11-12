@@ -5618,6 +5618,7 @@ export interface WhatsappTemplateMeta {
   parameter_format?: string | null;
   body_positional_count?: number | null;
   header_format?: string | null;
+  header_example_url?: string | null;
   requires_header_document?: boolean | null;
   component_types?: string[];
   body_text?: string | null;

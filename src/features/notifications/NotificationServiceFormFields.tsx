@@ -8,6 +8,10 @@ import { WhatsappTemplateMetaStatus } from "./WhatsappTemplateMetaStatus";
 import { useWhatsappTemplateLookup } from "./useWhatsappTemplateLookup";
 import { renderPositionalTemplateBody } from "./whatsappTemplatePreviewUtils";
 import { previewValuesFromTemplateVariablesJson } from "./whatsappTemplateSlotPreviewValues";
+import {
+  parseHeaderFromTemplateVariablesJson,
+  resolvePreviewHeaderUrl,
+} from "./whatsappTemplateHeaderPreview";
 
 const inputClass =
   "w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 disabled:bg-zinc-100 disabled:text-zinc-500";
@@ -41,6 +45,24 @@ export function NotificationServiceFormFields({
     );
     return renderPositionalTemplateBody(waLookup.meta.body_text, values);
   }, [form.channel, form.template_variables_json, waLookup.meta]);
+
+  const parsedHeader = useMemo(
+    () => parseHeaderFromTemplateVariablesJson(form.template_variables_json),
+    [form.template_variables_json]
+  );
+
+  const whatsappPreviewHeaderUrl = useMemo(
+    () => resolvePreviewHeaderUrl(waLookup.meta, parsedHeader.link),
+    [waLookup.meta, parsedHeader.link]
+  );
+
+  const whatsappPreviewHeaderLabel = useMemo(() => {
+    const fmt = (waLookup.meta?.header_format ?? "").toUpperCase();
+    if (fmt === "DOCUMENT" && parsedHeader.filename) {
+      return parsedHeader.filename;
+    }
+    return null;
+  }, [waLookup.meta?.header_format, parsedHeader.filename]);
 
   return (
     <>
@@ -149,7 +171,12 @@ export function NotificationServiceFormFields({
             )}
             {waLookup.meta && <WhatsappTemplateMetaStatus meta={waLookup.meta} />}
             {whatsappPreviewText ? (
-              <WhatsappTemplateMessagePreview message={whatsappPreviewText} />
+              <WhatsappTemplateMessagePreview
+                bodyText={whatsappPreviewText}
+                headerFormat={waLookup.meta?.header_format}
+                headerUrl={whatsappPreviewHeaderUrl}
+                headerLabel={whatsappPreviewHeaderLabel}
+              />
             ) : null}
             {!readOnly && (
               <p className="text-xs text-zinc-500">
