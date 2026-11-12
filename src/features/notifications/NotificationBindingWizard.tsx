@@ -27,6 +27,13 @@ import {
 } from "./notificationsUiShared";
 import { TemplateVariablePills, useTemplateVariableFields, type TemplateFieldBinding } from "./TemplateVariablePills";
 import { isTeamRecipient, templateVariableFieldsForRecipient } from "./templateVariableFields";
+import { WhatsappTemplateMessagePreview } from "./WhatsappTemplateMessagePreview";
+import { WhatsappTemplateMetaStatus } from "./WhatsappTemplateMetaStatus";
+import {
+  canonicalTemplateNameForLookup,
+  renderPositionalTemplateBody,
+} from "./whatsappTemplatePreviewUtils";
+import { previewValuesForWizardSlots } from "./whatsappTemplateSlotPreviewValues";
 
 type Step = 1 | 2 | 3;
 type ServiceMode = "reuse" | "create";
@@ -390,11 +397,20 @@ export function NotificationBindingWizard() {
 
   const applyTemplateMeta = useCallback((meta: WhatsappTemplateMeta, name: string) => {
     setTemplateMeta(meta);
+    if (meta.found && meta.name) {
+      setTemplateName(meta.name);
+    }
     const count = meta.body_positional_count ?? 0;
+    const examples = meta.body_example_values ?? [];
     if (count > 0) {
       setSlotValues((prev) => {
-        if (prev.length === count) return prev;
-        return Array.from({ length: count }, (_, i) => prev[i] ?? "");
+        if (prev.length === count) {
+          return prev.map((p, i) => (p.trim() ? p : examples[i] ?? ""));
+        }
+        return Array.from({ length: count }, (_, i) => {
+          const prior = prev[i]?.trim();
+          return prior ? prev[i] : examples[i] ?? "";
+        });
       });
     }
     if (!templateNeedsHeaderDocument(meta, name)) {
@@ -409,7 +425,9 @@ export function NotificationBindingWizard() {
       setTemplateLookupLoading(true);
       if (opts?.showErrors !== false) setError(null);
       try {
-        const res = await notificationsCatalogApi.getWhatsappTemplate(trimmed);
+        const res = await notificationsCatalogApi.getWhatsappTemplate(
+          canonicalTemplateNameForLookup(trimmed)
+        );
         applyTemplateMeta(res.data.data, trimmed);
       } catch (err) {
         if (opts?.showErrors !== false) {
@@ -534,6 +552,16 @@ export function NotificationBindingWizard() {
   }, [channel, payloadFieldOptions, payloadPath, recipientType]);
 
   const lookupTemplate = () => lookupTemplateByName(templateName, { showErrors: true });
+
+  const whatsappPreviewText = useMemo(() => {
+    if (!templateMeta?.found || !templateMeta.body_text) return "";
+    const values = previewValuesForWizardSlots(
+      slotValues,
+      templateMeta.body_example_values,
+      templateMeta.body_positional_count ?? 0
+    );
+    return renderPositionalTemplateBody(templateMeta.body_text, values);
+  }, [templateMeta, slotValues]);
 
   const buildSlots = () =>
     slotValues.map((val, i) => {
@@ -1063,7 +1091,10 @@ export function NotificationBindingWizard() {
                         {templateLookupLoading ? "Looking up…" : "Look up"}
                       </button>
                     </div>
-                    {templateMeta?.found && <PackageInfo meta={templateMeta} />}
+                    {templateMeta && <WhatsappTemplateMetaStatus meta={templateMeta} />}
+                    {whatsappPreviewText ? (
+                      <WhatsappTemplateMessagePreview message={whatsappPreviewText} className="max-w-3xl" />
+                    ) : null}
                     <TemplateVariablePills
                       fields={headerInsertFields}
                       legend="Variables"
@@ -1223,24 +1254,3 @@ export function NotificationBindingWizard() {
   );
 }
 
-function PackageInfo({ meta }: { meta: WhatsappTemplateMeta }) {
-  return (
-    <div className="rounded-lg border border-zinc-200 p-3 text-xs space-y-1 max-w-3xl">
-      <p>
-        <span className="text-zinc-500">Status:</span>{" "}
-        <span className={meta.status === "APPROVED" ? "text-emerald-700" : "text-amber-700"}>
-          {meta.status}
-        </span>
-      </p>
-      <p>
-        Language: {meta.language} · Category: {meta.category} · Variables:{" "}
-        {meta.body_positional_count ?? 0}
-        {meta.header_format ? ` · Header: ${meta.header_format}` : ""}
-        {meta.requires_header_document && !meta.header_format ? " · Header: media" : ""}
-      </p>
-      {meta.status !== "APPROVED" && (
-        <p className="text-amber-700">Only APPROVED templates can be used for sending.</p>
-      )}
-    </div>
-  );
-}

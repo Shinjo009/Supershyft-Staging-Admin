@@ -5621,6 +5621,7 @@ export interface WhatsappTemplateMeta {
   requires_header_document?: boolean | null;
   component_types?: string[];
   body_text?: string | null;
+  body_example_values?: string[] | null;
 }
 
 export interface NotificationBindingItem {

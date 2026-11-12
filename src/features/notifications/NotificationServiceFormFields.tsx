@@ -2,7 +2,12 @@ import { Modal } from "../../shared/ui/Modal";
 import { DevicePreviewFrame } from "../../shared/ui/DevicePreviewFrame";
 import { CHANNEL_OPTIONS, filterChipClass } from "./notificationsUiShared";
 import type { ServiceFormData } from "./notificationServiceFormData";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { WhatsappTemplateMessagePreview } from "./WhatsappTemplateMessagePreview";
+import { WhatsappTemplateMetaStatus } from "./WhatsappTemplateMetaStatus";
+import { useWhatsappTemplateLookup } from "./useWhatsappTemplateLookup";
+import { renderPositionalTemplateBody } from "./whatsappTemplatePreviewUtils";
+import { previewValuesFromTemplateVariablesJson } from "./whatsappTemplateSlotPreviewValues";
 
 const inputClass =
   "w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 disabled:bg-zinc-100 disabled:text-zinc-500";
@@ -22,6 +27,20 @@ export function NotificationServiceFormFields({
 }: Props) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const disabled = readOnly;
+  const waLookup = useWhatsappTemplateLookup(
+    form.channel === "whatsapp" ? form.template_name : "",
+    { auto: readOnly && form.channel === "whatsapp" }
+  );
+  const whatsappPreviewText = useMemo(() => {
+    if (form.channel !== "whatsapp" || !waLookup.meta?.found || !waLookup.meta.body_text) {
+      return "";
+    }
+    const values = previewValuesFromTemplateVariablesJson(
+      form.template_variables_json,
+      waLookup.meta.body_example_values
+    );
+    return renderPositionalTemplateBody(waLookup.meta.body_text, values);
+  }, [form.channel, form.template_variables_json, waLookup.meta]);
 
   return (
     <>
@@ -101,18 +120,43 @@ export function NotificationServiceFormFields({
 
         {form.channel === "whatsapp" && (
           <>
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1">Template name</label>
-              <input
-                type="text"
-                value={form.template_name}
-                onChange={(e) => onChange({ template_name: e.target.value })}
-                disabled={disabled}
-                className={inputClass}
-                placeholder="WhatsApp template id"
-                readOnly={readOnly}
-              />
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-zinc-700 mb-1">Template name</label>
+                <input
+                  type="text"
+                  value={form.template_name}
+                  onChange={(e) => onChange({ template_name: e.target.value })}
+                  disabled={disabled}
+                  className={inputClass}
+                  placeholder="WhatsApp template id"
+                  readOnly={readOnly}
+                />
+              </div>
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={() => void waLookup.lookup()}
+                  disabled={waLookup.loading || !form.template_name.trim()}
+                  className="px-3 py-2 border border-zinc-300 rounded-lg text-sm shrink-0 hover:bg-zinc-50"
+                >
+                  {waLookup.loading ? "Looking up…" : "Look up"}
+                </button>
+              )}
             </div>
+            {waLookup.error && (
+              <p className="text-xs text-red-600">{waLookup.error}</p>
+            )}
+            {waLookup.meta && <WhatsappTemplateMetaStatus meta={waLookup.meta} />}
+            {whatsappPreviewText ? (
+              <WhatsappTemplateMessagePreview message={whatsappPreviewText} />
+            ) : null}
+            {!readOnly && (
+              <p className="text-xs text-zinc-500">
+                Use Look up to load Meta template text. Preview uses literals from template variables JSON and
+                placeholders for mapped fields.
+              </p>
+            )}
             <div>
               <label className="block text-sm font-medium text-zinc-700 mb-1">
                 Template variables (JSON)
