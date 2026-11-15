@@ -6003,3 +6003,61 @@ export const dashboardApi = {
     ),
 };
 
+// --- Command-center dashboard ---
+
+export interface CommandNotificationHealth {
+  sent: number;
+  failed: number;
+  pending: number;
+  total: number;
+}
+
+export interface CommandFailedNotificationRow {
+  notification_id?: number;
+  recipients: string;
+  engagement: string;
+  channel: string;
+  message: string;
+}
+
+export interface CommandPeopleRegisteredRow {
+  user_id: number;
+  person: { name: string; phone: string };
+  type: string;
+  engagement: string;
+  package: string;
+  collection: string;
+  blood_collection: string;
+  questionnaire: string;
+  lab_report: string;
+  bio_ai: string;
+  consult: string;
+}
+
+export type CommandPeriodParams = {
+  period?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  limit?: number;
+  include_rows?: boolean;
+};
+
+export const commandDashboardApi = {
+  notificationHealth: (params?: CommandPeriodParams) =>
+    api.get<{ data: CommandNotificationHealth; meta: { period: string } }>(
+      "/admin/dashboard/command/notification-health",
+      { params }
+    ),
+  notificationHealthFailed: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandFailedNotificationRow[];
+      meta: { period: string; page: number; limit: number; total: number };
+    }>("/admin/dashboard/command/notification-health/failed", { params }),
+  peopleRegistered: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: { period: string; page: number; limit: number; total: number };
+    }>("/admin/dashboard/command/people-registered", { params }),
+};
+
