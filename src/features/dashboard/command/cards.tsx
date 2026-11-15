@@ -1,7 +1,15 @@
-import { Loader2 } from "lucide-react";
+import { ListTodo, Loader2, Ticket } from "lucide-react";
 import type { CommandNotificationHealth } from "../../../lib/api";
 import { MiniDonut, MiniStat } from "./charts";
-import { MetricCard } from "./MetricCard";
+import { MetricCard, type MetricCardVariant } from "./MetricCard";
+import type { CardId } from "./period";
+
+const FEATURE_IDS = new Set<CardId>(["booking_issues"]);
+
+function variantFor(id: string): MetricCardVariant {
+  if (FEATURE_IDS.has(id as CardId)) return "feature";
+  return "metric";
+}
 
 export function ServerLoadCard({
   cpu,
@@ -16,7 +24,7 @@ export function ServerLoadCard({
 }) {
   const fmt = (v: number | null) => (v == null || !Number.isFinite(v) ? "—" : `${Math.round(v)}%`);
   return (
-    <MetricCard title="Server load" data-testid="card-server_load">
+    <MetricCard title="Server load" variant="feature" data-testid="card-server_load">
       {loading ? (
         <Loader2 className="size-5 animate-spin text-zinc-400" aria-label="Loading" />
       ) : (
@@ -46,6 +54,7 @@ export function NotificationHealthCard({
   return (
     <MetricCard
       title="Notification health"
+      variant="feature"
       clickable
       onClick={onOpen}
       data-testid="card-notification_health"
@@ -80,6 +89,7 @@ export function PeopleRegisteredCard({
   return (
     <MetricCard
       title="People registered"
+      variant="metric"
       clickable
       onClick={onOpen}
       data-testid="card-people_registered"
@@ -88,19 +98,111 @@ export function PeopleRegisteredCard({
         <Loader2 className="size-5 animate-spin text-zinc-400" aria-label="Loading" />
       ) : (
         <div className="w-full">
-          <div className="text-3xl font-semibold tabular-nums text-zinc-900">
+          <div className="text-4xl font-semibold tabular-nums leading-none text-zinc-900">
             {total ?? 0}
           </div>
-          <p className="mt-1 text-xs text-zinc-500">Registrations in selected period</p>
         </div>
       )}
     </MetricCard>
   );
 }
 
-export function PlaceholderCard({ title, id }: { title: string; id: string }) {
+/** Soft tints matching supershyft-command warning/success opacity style */
+const TICKET_SLICES = [
+  {
+    id: "open",
+    label: "Open",
+    tint: "border-amber-500/30 bg-amber-500/[0.10]",
+    dot: "bg-amber-500",
+  },
+  {
+    id: "solved",
+    label: "Solved",
+    tint: "border-emerald-500/25 bg-emerald-500/[0.10]",
+    dot: "bg-emerald-600",
+  },
+] as const;
+
+export function TicketsCard() {
   return (
-    <MetricCard title={title} data-testid={`card-${id}`}>
+    <MetricCard
+      title="Tickets"
+      icon={Ticket}
+      description={
+        <>
+          <span className="tabular-nums">—</span> raised
+        </>
+      }
+      variant="panel"
+      showViewAll
+      bodyClassName="p-0 overflow-hidden"
+      data-testid="card-tickets"
+    >
+      <div className="grid h-full min-h-0 w-full grid-cols-2 items-stretch gap-2 p-2.5">
+        {TICKET_SLICES.map((s) => (
+          <div
+            key={s.id}
+            className={`flex min-h-0 min-w-0 items-center justify-between gap-2 overflow-hidden rounded-lg border px-2.5 py-2 ${s.tint}`}
+          >
+            <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-zinc-500">
+              <span className={`size-2 shrink-0 rounded-full ${s.dot}`} aria-hidden />
+              <span className="truncate">{s.label}</span>
+            </span>
+            <span className="shrink-0 text-lg font-semibold tabular-nums leading-none text-zinc-900">
+              —
+            </span>
+          </div>
+        ))}
+      </div>
+    </MetricCard>
+  );
+}
+
+/**
+ * Soft pastels matched to design screenshot / command info·danger·warning tones.
+ * Explicit hex avoids Tailwind opacity utility quirks.
+ */
+const ACTION_TILES = [
+  { label: "Upcoming collections", tone: "border-[#C5D0E0] bg-[#EEF2F7]" },
+  { label: "Overdue collections", tone: "border-[#F5C2C2] bg-[#FEF2F2]" },
+  { label: "Questionnaire pending", tone: "border-[#E8C9A0] bg-[#FFF7ED]" },
+  { label: "Blood reports pending", tone: "border-[#E8C9A0] bg-[#FFF7ED]" },
+  { label: "Bio-AI pending", tone: "border-[#E8C9A0] bg-[#FFF7ED]" },
+  { label: "Consultations pending", tone: "border-[#C5D0E0] bg-[#EEF2F7]" },
+] as const;
+
+export function ActionCenterCard() {
+  return (
+    <MetricCard
+      title="Action Center"
+      icon={ListTodo}
+      variant="panel"
+      bodyClassName="p-0 overflow-hidden"
+      data-testid="card-action_center"
+    >
+      {/* gap-3 ≈ 12px between tiles; p-3 outer inset — matches design gutters */}
+      <div className="grid w-full grid-cols-3 gap-3 p-3">
+        {ACTION_TILES.map((tile) => (
+          <div
+            key={tile.label}
+            className={`flex min-h-[4.75rem] flex-col justify-center gap-1.5 overflow-hidden rounded-xl border px-3 py-2.5 text-left ${tile.tone}`}
+          >
+            <span className="text-xs font-medium leading-tight text-zinc-600">{tile.label}</span>
+            <span className="text-2xl font-semibold tabular-nums leading-none text-zinc-900">
+              —
+            </span>
+          </div>
+        ))}
+      </div>
+    </MetricCard>
+  );
+}
+
+export function PlaceholderCard({ title, id }: { title: string; id: string }) {
+  if (id === "tickets") return <TicketsCard />;
+  if (id === "action_center") return <ActionCenterCard />;
+  return (
+    <MetricCard title={title} variant={variantFor(id)} data-testid={`card-${id}`}>
       <div className="w-full text-xs text-zinc-400" aria-hidden>
         {/* reserved */}
       </div>

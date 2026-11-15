@@ -1,5 +1,17 @@
 export type Slice = { id?: string; label: string; value: number; color: string };
 
+function centerTextClass(center: string, largeValues?: boolean) {
+  const len = center.length;
+  if (largeValues) {
+    if (len >= 6) return "text-[8px]";
+    if (len >= 5) return "text-[9px]";
+    if (len >= 4) return "text-[10px]";
+    return "text-[12px]";
+  }
+  if (len >= 5) return "text-[9px]";
+  return "text-[11px]";
+}
+
 export function MiniDonut({
   slices,
   center,
@@ -12,7 +24,8 @@ export function MiniDonut({
   largeValues?: boolean;
 }) {
   const total = slices.reduce((n, s) => n + Math.max(0, s.value), 0);
-  const r = compact ? 16 : 18;
+  const r = largeValues ? 15 : compact ? 16 : 18;
+  const stroke = largeValues ? 4.5 : compact ? 6 : 7;
   const c = 2 * Math.PI * r;
   let offset = 0;
   const safe =
@@ -22,12 +35,12 @@ export function MiniDonut({
   const safeTotal = safe.reduce((n, s) => n + s.value, 0);
 
   return (
-    <div
-      className={`flex items-center ${largeValues ? "gap-5" : compact ? "gap-3" : "gap-4"}`}
-    >
+    <div className="flex w-full min-w-0 items-center gap-4">
       <svg
         viewBox="0 0 48 48"
-        className={`shrink-0 ${largeValues ? "size-32" : compact ? "size-[5.25rem]" : "size-24"}`}
+        className={`shrink-0 ${
+          largeValues ? "size-[6.75rem]" : compact ? "size-[5.25rem]" : "size-24"
+        }`}
         aria-hidden
       >
         {safe.map((s) => {
@@ -40,7 +53,7 @@ export function MiniDonut({
               r={r}
               fill="none"
               stroke={s.color}
-              strokeWidth={compact ? 6 : 7}
+              strokeWidth={stroke}
               strokeDasharray={`${len} ${c - len}`}
               strokeDashoffset={-offset}
               transform="rotate(-90 24 24)"
@@ -54,43 +67,31 @@ export function MiniDonut({
             x="24"
             y="27"
             textAnchor="middle"
-            className={`fill-zinc-900 font-semibold ${largeValues ? "text-[13px]" : "text-[11px]"}`}
+            className={`fill-zinc-900 font-semibold tabular-nums ${centerTextClass(center, largeValues)}`}
           >
             {center}
           </text>
         )}
       </svg>
-      <ul className={`min-w-0 flex-1 ${largeValues ? "space-y-2.5" : "space-y-1.5"}`}>
-        {slices.map((s) => (
-          <li
-            key={s.label}
-            className={`flex items-center justify-between gap-3 ${largeValues ? "text-sm" : "text-xs"}`}
-          >
-            <span className="flex min-w-0 items-center gap-1.5 truncate text-zinc-500">
-              <span
-                className={`shrink-0 rounded-full ${largeValues ? "size-2.5" : "size-2"}`}
-                style={{ background: s.color }}
-              />
-              {s.label}
-            </span>
-            <span
-              className={`shrink-0 whitespace-nowrap font-semibold tabular-nums text-zinc-900 ${
-                largeValues ? "text-xl" : ""
-              }`}
+      {/* Vertically + horizontally centered in space beside donut; 1px between label & value */}
+      <div className="flex min-w-0 flex-1 items-center justify-center">
+        <ul className="w-max space-y-2">
+          {slices.map((s) => (
+            <li
+              key={s.label}
+              className="flex items-center gap-4.5 whitespace-nowrap text-xs leading-none"
             >
-              {s.value}
-              {total ? (
-                <span
-                  className={`font-normal text-zinc-500 ${largeValues ? "text-base" : ""}`}
-                >
-                  {" "}
-                  · {Math.round((s.value / total) * 100)}%
-                </span>
-              ) : null}
-            </span>
-          </li>
-        ))}
-      </ul>
+              <span
+                className="mr-1.5 size-2 shrink-0 rounded-full"
+                style={{ background: s.color }}
+                aria-hidden
+              />
+              <span className="text-zinc-500">{s.label}</span>
+              <span className="font-semibold tabular-nums text-zinc-900">{s.value}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
@@ -107,12 +108,12 @@ export function MiniStat({
   return (
     <div
       className={`rounded-lg border px-2.5 py-2 ${
-        warn ? "border-amber-300/60 bg-amber-50/50" : "border-zinc-200 bg-zinc-50/60"
+        warn ? "border-amber-300/60 bg-amber-50/50" : "border-zinc-200 bg-zinc-50/70"
       }`}
     >
-      <div className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</div>
+      <div className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">{label}</div>
       <div
-        className={`mt-0.5 text-lg font-semibold tabular-nums ${
+        className={`mt-0.5 text-base font-semibold tabular-nums ${
           warn ? "text-amber-700" : "text-zinc-900"
         }`}
       >
