@@ -1,134 +1,243 @@
-import { MapPin } from "lucide-react";
-import { useEffect } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import "./commandTokens.css";
-import { B2BTab } from "./B2BTab";
-import { B2CTab } from "./B2CTab";
-import { cn } from "./cn";
-import { DateRangeControl } from "./controls";
-import { CampDetailPanel } from "./CampDetailPanel";
-import { DrillView } from "./DrillView";
-import { OverviewTab } from "./OverviewTab";
-import { useCommandDashboard, type CommandTab } from "./useCommandDashboard";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import {
+  commandDashboardApi,
+  getApiError,
+  serverHealthApi,
+  type CommandNotificationHealth,
+} from "../../../lib/api";
+import { NotificationHealthDetail } from "./NotificationHealthDetail";
+import { OverviewGrid } from "./OverviewGrid";
+import { PeriodFilter } from "./PeriodFilter";
+import { PeopleRegisteredDetail } from "./PeopleRegisteredDetail";
+import { TabBar } from "./TabBar";
+import {
+  DEFAULT_PERIOD,
+  normalizeCard,
+  normalizePeriod,
+  normalizeTab,
+  type CardId,
+  type DashboardTab,
+  type PeriodPreset,
+} from "./period";
 
-function tabFromPath(pathname: string): CommandTab {
-  if (pathname.endsWith("/dashboard/b2b") || pathname.endsWith("/b2b")) return "b2b";
-  if (pathname.endsWith("/dashboard/b2c") || pathname.endsWith("/b2c")) return "b2c";
-  return "overview";
+function buildPeriodParams(
+  period: PeriodPreset,
+  from: string | null,
+  to: string | null
+) {
+  if (period === "custom" && from && to) {
+    return { period, from, to };
+  }
+  return { period };
 }
 
-function pathForTab(tab: CommandTab): string {
-  if (tab === "b2b") return "/dashboard/b2b";
-  if (tab === "b2c") return "/dashboard/b2c";
-  return "/";
-}
+export function CommandDashboard() {
+  const [searchParams, setSearchParams] = useSearchParams();
 
-export function CommandDashboard({
-  registerRefetch,
-}: {
-  registerRefetch?: (refetch: () => void) => void;
-}) {
-  const ops = useCommandDashboard();
-  const navigate = useNavigate();
-  const location = useLocation();
+  const rawTab = searchParams.get("tab");
+  const rawPeriod = searchParams.get("period");
+  const rawCard = searchParams.get("card");
+  const from = searchParams.get("from");
+  const to = searchParams.get("to");
 
+  const tab = normalizeTab(rawTab);
+  const period = normalizePeriod(rawPeriod);
+  const card = normalizeCard(rawCard);
+
+  // Normalize URL defaults / invalid values once they diverge
   useEffect(() => {
-    const fromUrl = tabFromPath(location.pathname);
-    if (fromUrl !== ops.tab) {
-      ops.setTab(fromUrl);
-      if (fromUrl === "overview") ops.setAudience("all");
-      if (fromUrl === "b2b") ops.setAudience("b2b");
-      if (fromUrl === "b2c") ops.setAudience("b2c");
+    const next = new URLSearchParams(searchParams);
+    let changed = false;
+
+    if (rawTab !== tab) {
+      next.set("tab", tab);
+      changed = true;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync URL → tab only
-  }, [location.pathname]);
+    if (rawPeriod !== period) {
+      next.set("period", period);
+      changed = true;
+    }
+    if (period !== "custom") {
+      if (next.has("from") || next.has("to")) {
+        next.delete("from");
+        next.delete("to");
+        changed = true;
+      }
+    }
+    if (rawCard && !card) {
+      next.delete("card");
+      changed = true;
+    }
+
+    if (changed) setSearchParams(next, { replace: true });
+    // Intentionally depend on raw query pieces, not the whole searchParams object.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawTab, rawPeriod, rawCard, tab, period, card, from, to, setSearchParams]);
+
+  const updateParams = useCallback(
+    (patch: Record<string, string | null>) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          for (const [key, value] of Object.entries(patch)) {
+            if (value == null || value === "") next.delete(key);
+            else next.set(key, value);
+          }
+          return next;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
+
+  const setTab = (nextTab: DashboardTab) => {
+    updateParams({ tab: nextTab, card: null });
+  };
+
+  const setPeriod = (nextPeriod: PeriodPreset) => {
+    updateParams({
+      period: nextPeriod,
+      from: null,
+      to: null,
+    });
+  };
+
+  const setCustom = (nextFrom: string, nextTo: string) => {
+    updateParams({
+      period: "custom",
+      from: nextFrom,
+      to: nextTo,
+    });
+  };
+
+  const openCard = (id: CardId) => {
+    updateParams({ card: id, tab: "overview" });
+  };
+
+  const closeCard = () => {
+    updateParams({ card: null });
+  };
+
+  const periodParams = useMemo(
+    () => buildPeriodParams(period, from, to),
+    [period, from, to]
+  );
+
+  const [server, setServer] = useState<{
+    cpu: number | null;
+    memory: number | null;
+    storage: number | null;
+  }>({ cpu: null, memory: null, storage: null });
+  const [loadingServer, setLoadingServer] = useState(true);
+  const [notif, setNotif] = useState<CommandNotificationHealth | null>(null);
+  const [loadingNotif, setLoadingNotif] = useState(true);
+  const [peopleTotal, setPeopleTotal] = useState<number | null>(null);
+  const [loadingPeople, setLoadingPeople] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    registerRefetch?.(() => {
-      void ops.reload();
-    });
-  }, [registerRefetch, ops.reload]);
+    let cancelled = false;
+    setLoadingServer(true);
+    serverHealthApi
+      .current()
+      .then((res) => {
+        if (cancelled) return;
+        const metrics = res.data.data?.latest_metrics;
+        const run = res.data.data?.run;
+        setServer({
+          cpu: metrics?.cpu_usage ?? run?.cpu_pct ?? null,
+          memory: metrics?.memory_usage ?? run?.mem_pct ?? null,
+          storage: metrics?.storage_usage ?? run?.storage_pct ?? null,
+        });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLoadError((prev) => prev ?? getApiError(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingServer(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const tabs: [CommandTab, string][] = [
-    ["overview", "Overview"],
-    ["b2b", "B2B"],
-    ["b2c", "B2C"],
-  ];
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingNotif(true);
+    setLoadingPeople(true);
+    Promise.all([
+      commandDashboardApi.notificationHealth(periodParams),
+      commandDashboardApi.peopleRegistered({
+        ...periodParams,
+        include_rows: false,
+        page: 1,
+        limit: 1,
+      }),
+    ])
+      .then(([notifRes, peopleRes]) => {
+        if (cancelled) return;
+        setNotif(notifRes.data.data);
+        setPeopleTotal(peopleRes.data.meta?.total ?? 0);
+        setLoadError(null);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLoadError(getApiError(err));
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingNotif(false);
+          setLoadingPeople(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [periodParams.period, periodParams.from, periodParams.to]);
 
-  const fillFold = !ops.drill && ops.campId == null && ops.tab === "overview";
+  const showTabs = !card;
 
   return (
-    <div className="dashboard-command min-w-0">
-      <div
-        className={cn(
-          "mx-auto max-w-[1400px]",
-          fillFold ? "flex flex-col gap-3" : "space-y-3",
-        )}
-      >
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex gap-1 rounded-lg border bg-card p-0.5">
-              {tabs.map(([t, l]) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => {
-                    ops.openDrill(null);
-                    ops.setTab(t);
-                    if (t === "overview") ops.setAudience("all");
-                    if (t === "b2b") ops.setAudience("b2b");
-                    if (t === "b2c") ops.setAudience("b2c");
-                    navigate(pathForTab(t));
-                  }}
-                  className={cn(
-                    "rounded-md px-4 py-1.5 text-sm",
-                    ops.tab === t
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {l}
-                </button>
-              ))}
-            </div>
-            <Link
-              to="/serviceability"
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border bg-card px-3 text-xs font-medium text-foreground shadow-[0_1px_2px_oklch(0_0_0/0.04)] hover:border-foreground/20"
-            >
-              <MapPin className="size-3.5" />
-              Serviceability tracker
-            </Link>
-          </div>
-          <DateRangeControl preset={ops.preset} range={ops.range} onChange={ops.setPeriod} />
-        </div>
-
-        {ops.error && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {ops.error}
-            <button type="button" className="ml-3 underline" onClick={() => void ops.reload()}>
-              Retry
-            </button>
-          </div>
-        )}
-
-        {ops.loading && !ops.data ? (
-          <div className="p-10 text-sm text-muted-foreground">Loading operations…</div>
+    <div className="min-w-0 space-y-4" data-testid="command-dashboard">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        {showTabs ? (
+          <TabBar active={tab} onChange={setTab} />
         ) : (
-          <div>
-            {ops.drill ? (
-              <DrillView ops={ops} />
-            ) : ops.selectedCamp ? (
-              <CampDetailPanel ops={ops} />
-            ) : ops.tab === "overview" ? (
-              <OverviewTab ops={ops} />
-            ) : ops.tab === "b2b" ? (
-              <B2BTab ops={ops} />
-            ) : (
-              <B2CTab ops={ops} />
-            )}
-          </div>
+          <div data-testid="tabs-hidden" aria-hidden className="h-9" />
         )}
+        <PeriodFilter
+          period={period || DEFAULT_PERIOD}
+          from={from}
+          to={to}
+          onPeriodChange={setPeriod}
+          onCustomApply={setCustom}
+        />
       </div>
+
+      {loadError && !card ? (
+        <p className="text-sm text-amber-700" role="status">
+          {loadError}
+        </p>
+      ) : null}
+
+      {card === "notification_health" ? (
+        <NotificationHealthDetail periodParams={periodParams} onBack={closeCard} />
+      ) : card === "people_registered" ? (
+        <PeopleRegisteredDetail periodParams={periodParams} onBack={closeCard} />
+      ) : (
+        <OverviewGrid
+          server={server}
+          notificationHealth={notif}
+          peopleTotal={peopleTotal}
+          loadingServer={loadingServer}
+          loadingNotif={loadingNotif}
+          loadingPeople={loadingPeople}
+          onOpenCard={openCard}
+        />
+      )}
     </div>
   );
 }

@@ -3809,41 +3809,6 @@ export const engagementDataCompletenessApi = {
     ),
 };
 
-export interface EngagementCampOverview {
-  engagement_id: number;
-  engagement_code: string;
-  organization_id: number | null;
-  progress: {
-    registered: number;
-    collected: number;
-    questionnaire_done: number;
-    blood_report: number;
-    bio_ai: number;
-    consultations_done: number;
-  };
-  needs_attention: {
-    collection_pending: number;
-    questionnaire_pending: number;
-    reports_pending: number;
-    consultations_pending: number;
-  };
-  days: {
-    date: string;
-    day_index: number;
-    registered: number;
-    collected: number;
-    questionnaire: number;
-    report: number;
-    consultation: number;
-    recollect: number;
-  }[];
-}
-
-export const engagementCampOverviewApi = {
-  get: (engagementId: number) =>
-    api.get<{ data: EngagementCampOverview }>(`/engagements/${engagementId}/camp-overview`),
-};
-
 // Onboarding Assistants (partners + staff employees)
 export interface OnboardingAssistant {
   kind?: "partner" | "employee";
@@ -6260,158 +6225,6 @@ export interface DashboardOperationsPayload {
   generated_at: string;
 }
 
-export type DashboardAudience = "all" | "b2b" | "b2c";
-export type DashboardLifecycle = "all" | "ongoing" | "upcoming" | "completed";
-
-export interface DashboardKpiSplit {
-  total: number;
-  b2b: number | null;
-  b2c: number | null;
-}
-
-export interface DashboardCommandCamp {
-  engagement_id: number;
-  engagement_code: string;
-  engagement_name: string | null;
-  camp_no: number | null;
-  city: string | null;
-  start_date: string | null;
-  end_date: string | null;
-  status: string;
-  lifecycle: string;
-  organization_id: number | null;
-  organization_name: string | null;
-  payment_type: string | null;
-  blood_collection_type: string | null;
-  consultation_mode: string | null;
-  audience: "b2b" | "b2c";
-}
-
-export interface DashboardCommandBootstrap {
-  server_health: {
-    cpu_usage: number;
-    memory_usage: number;
-    storage_usage: number;
-    reported_at: string | null;
-    source: string;
-  };
-  notification_health: {
-    sent: number;
-    failed: number;
-    pending: number;
-    total: number;
-  };
-  booking_issues: {
-    unserviceable: number;
-    payment_failed: number;
-    total: number;
-  };
-  tickets: {
-    open: number;
-    resolved: number;
-    closed: number;
-    solved: number;
-  };
-  overview_kpis: {
-    people_registered: DashboardKpiSplit;
-    tests_completed: DashboardKpiSplit;
-    questionnaire_done: DashboardKpiSplit;
-    reports_delivered: {
-      total: number;
-      lab: number;
-      bio_ai: number;
-      b2b: number;
-      b2c: number;
-    };
-    consultations: {
-      total: number;
-      b2b: number;
-      b2c: number;
-      doctor: number;
-      nutritionist: number;
-    };
-    open_engagements: DashboardKpiSplit;
-  };
-  action_center: {
-    upcoming_collections: number;
-    overdue_collections: number;
-    blood_reports_pending: number;
-    questionnaire_pending: number;
-    bio_ai_pending: number;
-    consultations_pending: number;
-  };
-  b2b: {
-    lifecycle_counts: {
-      ongoing: number;
-      upcoming: number;
-      completed: number;
-    };
-    camps: DashboardCommandCamp[];
-    camps_total: number;
-  };
-  b2c: {
-    total_bookings: number;
-    collections_tomorrow: number;
-    tests_completed: number;
-    lab_reports_delivered: number;
-    bio_ai_reports_generated: number;
-    consultations: {
-      total: number;
-      doctor: number;
-      nutritionist: number;
-    };
-    package_performance: {
-      package_id: number;
-      package_name: string;
-      bookings: number;
-      revenue_paise: number;
-    }[];
-    coupon_usage: {
-      discount_code_id: number;
-      code: string;
-      name: string;
-      uses: number;
-      discount_paise: number;
-      unique_users: number;
-    }[];
-    tomorrows_collections: Record<string, unknown>[];
-  };
-  filters: {
-    audience: DashboardAudience;
-    from: string | null;
-    to: string | null;
-    lifecycle: DashboardLifecycle;
-  };
-  generated_at: string;
-}
-
-export interface DashboardCommandDrillPayload {
-  drill: string;
-  items: Record<string, unknown>[];
-  filters?: Record<string, unknown>;
-  page?: number;
-  limit?: number;
-  total?: number;
-  error?: string;
-}
-
-export interface DashboardCommandParams {
-  audience?: DashboardAudience;
-  from?: string;
-  to?: string;
-  lifecycle?: DashboardLifecycle;
-}
-
-export interface DashboardCommandDrillParams extends DashboardCommandParams {
-  drill: string;
-  page?: number;
-  limit?: number;
-  package_id?: number;
-  discount_code_id?: number;
-  q?: string;
-  city?: string;
-}
-
 export const dashboardApi = {
   overview: () =>
     api.get<{ data: DashboardOverviewKpisPayload }>("/admin/dashboard/overview"),
@@ -6425,14 +6238,63 @@ export const dashboardApi = {
     api.get<{ data: { engagement_participants_total: number } }>(
       "/admin/dashboard/participant-stats"
     ),
-  command: (params?: DashboardCommandParams) =>
-    api.get<{ data: DashboardCommandBootstrap }>("/admin/dashboard/command", {
-      params,
-    }),
-  commandDrill: (params: DashboardCommandDrillParams) =>
-    api.get<{ data: DashboardCommandDrillPayload; meta: { page: number; limit: number; total: number } }>(
-      "/admin/dashboard/command/drill",
+};
+
+// --- Command-center dashboard ---
+
+export interface CommandNotificationHealth {
+  sent: number;
+  failed: number;
+  pending: number;
+  total: number;
+}
+
+export interface CommandFailedNotificationRow {
+  notification_id?: number;
+  recipients: string;
+  engagement: string;
+  channel: string;
+  message: string;
+}
+
+export interface CommandPeopleRegisteredRow {
+  user_id: number;
+  person: { name: string; phone: string };
+  type: string;
+  engagement: string;
+  package: string;
+  collection: string;
+  blood_collection: string;
+  questionnaire: string;
+  lab_report: string;
+  bio_ai: string;
+  consult: string;
+}
+
+export type CommandPeriodParams = {
+  period?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  limit?: number;
+  include_rows?: boolean;
+};
+
+export const commandDashboardApi = {
+  notificationHealth: (params?: CommandPeriodParams) =>
+    api.get<{ data: CommandNotificationHealth; meta: { period: string } }>(
+      "/admin/dashboard/command/notification-health",
       { params }
     ),
+  notificationHealthFailed: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandFailedNotificationRow[];
+      meta: { period: string; page: number; limit: number; total: number };
+    }>("/admin/dashboard/command/notification-health/failed", { params }),
+  peopleRegistered: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: { period: string; page: number; limit: number; total: number };
+    }>("/admin/dashboard/command/people-registered", { params }),
 };
 
