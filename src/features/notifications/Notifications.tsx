@@ -76,7 +76,7 @@ export function Notifications() {
             label="Sync Logs"
             icon={ScrollText}
             variant="secondary"
-            onClick={() => navigate(buildIntegrationLogsPath({ provider: "n8n" }))}
+            onClick={() => navigate(buildIntegrationLogsPath({ provider: "whatapi" }))}
           />
         )}
       </PageHeaderActions>

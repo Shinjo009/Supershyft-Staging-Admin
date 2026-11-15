@@ -5569,7 +5569,6 @@ export interface NotificationServiceItem {
   service_key: string;
   display_name: string;
   channel: "email" | "whatsapp";
-  webhook_path: string;
   is_active: boolean;
   require_blood_report_url: boolean;
   require_bio_ai_report_url: boolean;
@@ -5747,7 +5746,6 @@ export const notificationsApi = {
     service_key: string;
     display_name: string;
     channel: string;
-    webhook_path: string;
     is_active?: boolean;
     require_blood_report_url?: boolean;
     require_bio_ai_report_url?: boolean;
@@ -5767,7 +5765,6 @@ export const notificationsApi = {
     body: {
       display_name?: string;
       channel?: string;
-      webhook_path?: string;
       is_active?: boolean;
       require_blood_report_url?: boolean;
       require_bio_ai_report_url?: boolean;

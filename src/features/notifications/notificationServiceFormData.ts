@@ -48,9 +48,8 @@ export function itemToForm(row: NotificationServiceItem): ServiceFormData {
   };
 }
 
-export function hiddenServiceDefaults(serviceKey: string, existing?: NotificationServiceItem) {
+export function hiddenServiceDefaults(_serviceKey: string, existing?: NotificationServiceItem) {
   return {
-    webhook_path: existing?.webhook_path ?? serviceKey,
     require_blood_report_url: existing?.require_blood_report_url ?? false,
     require_bio_ai_report_url: existing?.require_bio_ai_report_url ?? false,
     require_participant_detail: existing?.require_participant_detail ?? false,

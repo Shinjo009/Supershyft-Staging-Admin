@@ -103,7 +103,6 @@ export function NotificationServiceFormPage({ mode }: { mode: NotificationServic
           display_name: form.display_name.trim(),
           channel: form.channel,
           is_active: form.is_active,
-          webhook_path: hidden.webhook_path,
           require_blood_report_url: hidden.require_blood_report_url,
           require_bio_ai_report_url: hidden.require_bio_ai_report_url,
           require_participant_detail: hidden.require_participant_detail,
