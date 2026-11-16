@@ -5125,7 +5125,7 @@ export const diagnosticTestGroupsApi = {
     has_allergy_screening?: boolean | null;
     has_cancer_screening?: boolean | null;
     gender_suitability?: string | null;
-    package_for?: "public" | "camp" | null;
+    package_for?: "package" | "public" | "both" | null;
   }) => api.post<{ data: DiagnosticTestGroupStandalone }>("/diagnostic-test-groups", payload),
   update: (
     groupId: number,
@@ -5144,7 +5144,7 @@ export const diagnosticTestGroupsApi = {
       has_allergy_screening?: boolean | null;
       has_cancer_screening?: boolean | null;
       gender_suitability?: string | null;
-      package_for?: "public" | "camp" | null;
+      package_for?: "package" | "public" | "both" | null;
     }
   ) => api.put<{ data: DiagnosticTestGroupStandalone }>(`/diagnostic-test-groups/${groupId}`, payload),
   delete: (groupId: number) => api.delete(`/diagnostic-test-groups/${groupId}`),

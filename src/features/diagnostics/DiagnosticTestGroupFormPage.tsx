@@ -15,6 +15,7 @@ import {
   buildJoinGroupMemberLines,
   buildTestGroupPayload,
   EMPTY_TEST_GROUP_FORM,
+  normalizeTestGroupPackageForForForm,
   resolveGroupDefaultTestGroupId,
   testGroupToForm,
   type TestGroupFormState,
@@ -106,7 +107,7 @@ export function DiagnosticTestGroupFormPage({ mode }: { mode: FormPageMode }) {
       setForm((prev) => ({
         ...prev,
         group_name: parent.group_name,
-        package_for: (parent.package_for as "public" | "camp") ?? prev.package_for,
+        package_for: normalizeTestGroupPackageForForForm(parent.package_for),
       }));
     } catch (err) {
       setError(getApiError(err));

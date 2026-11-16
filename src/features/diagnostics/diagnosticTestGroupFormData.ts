@@ -77,6 +77,18 @@ export function resolveGroupDefaultTestGroupIdFromListRow(
   return row.group_id;
 }
 
+export type TestGroupPackageForForm = TestGroupFormState["package_for"];
+
+/** Map API values (incl. legacy `camp`) to form select values. */
+export function normalizeTestGroupPackageForForForm(
+  value: string | null | undefined
+): TestGroupPackageForForm {
+  const raw = (value ?? "public").trim().toLowerCase();
+  if (raw === "camp" || raw === "package") return "package";
+  if (raw === "both") return "both";
+  return "public";
+}
+
 export function testGroupToForm(row: {
   group_name: string;
   group_key?: string | null;
@@ -90,10 +102,9 @@ export function testGroupToForm(row: {
   has_allergy_screening?: boolean | null;
   has_cancer_screening?: boolean | null;
   gender_suitability?: string | null;
-  package_for?: "package" | "public" | "both" | null;
+  package_for?: string | null;
 }): TestGroupFormState {
-  const normalizedPackageFor =
-    row.package_for === "camp" ? "package" : (row.package_for ?? "public");
+  const normalizedPackageFor = normalizeTestGroupPackageForForForm(row.package_for);
   return {
     group_name: row.group_name,
     group_key: row.group_key ?? "",
@@ -107,7 +118,7 @@ export function testGroupToForm(row: {
     has_allergy_screening: !!row.has_allergy_screening,
     has_cancer_screening: !!row.has_cancer_screening,
     gender_suitability: row.gender_suitability ?? "",
-    package_for: normalizedPackageFor as TestGroupFormState["package_for"],
+    package_for: normalizedPackageFor,
   };
 }
 

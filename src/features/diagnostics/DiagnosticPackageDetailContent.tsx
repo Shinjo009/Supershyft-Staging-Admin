@@ -10,7 +10,6 @@ import {
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import {
   Loader2,
-  AlertTriangle,
   ChevronDown,
   ChevronRight,
   Eye,

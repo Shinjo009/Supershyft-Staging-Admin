@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { Loader2, Search } from "lucide-react";
 import {
-  diagnosticPackagesApi,
   diagnosticTestGroupsApi,
   getApiError,
   healthiansApi,
@@ -57,7 +56,6 @@ export function TestGroupProviderMapModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mismatchPackages, setMismatchPackages] = useState<AssignedPackage[]>([]);
-  const [removingPackageId, setRemovingPackageId] = useState<number | null>(null);
   const [syncDetailsOpen, setSyncDetailsOpen] = useState(false);
 
   const incomingKey = useMemo(
@@ -146,27 +144,6 @@ export function TestGroupProviderMapModal({
   const handleSelectProfile = (profile: HealthiansConstituent) => {
     setSelectedProfile(profile);
     void loadPackagesAndDiff(profile);
-  };
-
-  const handleRemoveFromPackage = async (packageId: number) => {
-    setRemovingPackageId(packageId);
-    setError(null);
-    try {
-      await diagnosticPackagesApi.removeTestGroup(packageId, groupId);
-      const packagesRes = await diagnosticTestGroupsApi.listPackages(groupId);
-      const packages = packagesRes.data.data ?? [];
-      setAssignedPackages(packages);
-      setMismatchPackages(
-        packages.filter((pkg) => {
-          const pkgKey = providerKey(pkg.diagnostic_provider);
-          return pkgKey != null && pkgKey !== incomingKey;
-        })
-      );
-    } catch (err) {
-      setError(getApiError(err));
-    } finally {
-      setRemovingPackageId(null);
-    }
   };
 
   const handleSave = async () => {
