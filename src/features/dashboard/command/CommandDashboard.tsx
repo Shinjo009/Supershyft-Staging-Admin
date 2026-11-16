@@ -6,6 +6,7 @@ import {
   serverHealthApi,
   type CommandNotificationHealth,
 } from "../../../lib/api";
+import { B2BGrid } from "./B2BGrid";
 import { NotificationHealthDetail } from "./NotificationHealthDetail";
 import { OverviewGrid } from "./OverviewGrid";
 import { PeriodFilter } from "./PeriodFilter";
@@ -13,6 +14,7 @@ import { PeopleRegisteredDetail } from "./PeopleRegisteredDetail";
 import { TabBar } from "./TabBar";
 import {
   DEFAULT_PERIOD,
+  cardInteraction,
   normalizeCard,
   normalizePeriod,
   normalizeTab,
@@ -43,7 +45,7 @@ export function CommandDashboard() {
 
   const tab = normalizeTab(rawTab);
   const period = normalizePeriod(rawPeriod);
-  const card = normalizeCard(rawCard);
+  const card = normalizeCard(rawCard, tab);
 
   // Normalize URL defaults / invalid values once they diverge
   useEffect(() => {
@@ -112,8 +114,8 @@ export function CommandDashboard() {
     });
   };
 
-  const openCard = (id: CardId) => {
-    updateParams({ card: id, tab: "overview" });
+  const openCard = (id: CardId, owningTab: DashboardTab = tab) => {
+    updateParams({ card: id, tab: owningTab });
   };
 
   const closeCard = () => {
@@ -165,6 +167,7 @@ export function CommandDashboard() {
   }, []);
 
   useEffect(() => {
+    if (tab !== "overview") return;
     let cancelled = false;
     setLoadingNotif(true);
     setLoadingPeople(true);
@@ -196,9 +199,10 @@ export function CommandDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [periodParams.period, periodParams.from, periodParams.to]);
+  }, [tab, periodParams.period, periodParams.from, periodParams.to]);
 
-  const showTabs = !card;
+  const interaction = cardInteraction(card);
+  const showTabs = !(card && interaction === "new_page");
 
   return (
     <div className="min-w-0 space-y-4" data-testid="command-dashboard">
@@ -217,13 +221,19 @@ export function CommandDashboard() {
         />
       </div>
 
-      {loadError && !card ? (
+      {loadError && tab === "overview" && interaction !== "new_page" ? (
         <p className="text-sm text-amber-700" role="status">
           {loadError}
         </p>
       ) : null}
 
-      {card === "notification_health" ? (
+      {tab === "b2b" ? (
+        <B2BGrid
+          periodParams={periodParams}
+          selectedCard={card}
+          onOpenCard={(id) => openCard(id, "b2b")}
+        />
+      ) : card === "notification_health" ? (
         <NotificationHealthDetail periodParams={periodParams} onBack={closeCard} />
       ) : card === "people_registered" ? (
         <PeopleRegisteredDetail periodParams={periodParams} onBack={closeCard} />
@@ -235,7 +245,7 @@ export function CommandDashboard() {
           loadingServer={loadingServer}
           loadingNotif={loadingNotif}
           loadingPeople={loadingPeople}
-          onOpenCard={openCard}
+          onOpenCard={(id) => openCard(id, "overview")}
         />
       )}
     </div>

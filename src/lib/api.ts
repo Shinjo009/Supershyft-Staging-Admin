@@ -6280,6 +6280,25 @@ export type CommandPeriodParams = {
   include_rows?: boolean;
 };
 
+export interface CommandB2BSummary {
+  ongoing: number;
+  upcoming: number;
+  completed: number;
+}
+
+export type CommandB2BBucket = "ongoing" | "upcoming" | "completed";
+
+export interface CommandB2BEngagementRow {
+  engagement_id: number;
+  engagement_code: string;
+  engagement_name: string;
+  city: string;
+  start_date: string | null;
+  end_date: string | null;
+  status: string;
+  participant_count: number;
+}
+
 export const commandDashboardApi = {
   notificationHealth: (params?: CommandPeriodParams) =>
     api.get<{ data: CommandNotificationHealth; meta: { period: string } }>(
@@ -6296,5 +6315,23 @@ export const commandDashboardApi = {
       data: CommandPeopleRegisteredRow[];
       meta: { period: string; page: number; limit: number; total: number };
     }>("/admin/dashboard/command/people-registered", { params }),
+  b2bSummary: (params?: CommandPeriodParams) =>
+    api.get<{ data: CommandB2BSummary; meta: { period: string } }>(
+      "/admin/dashboard/command/b2b/summary",
+      { params }
+    ),
+  b2bEngagements: (
+    params: CommandPeriodParams & { bucket: CommandB2BBucket }
+  ) =>
+    api.get<{
+      data: CommandB2BEngagementRow[];
+      meta: {
+        period: string;
+        page: number;
+        limit: number;
+        total: number;
+        bucket: string;
+      };
+    }>("/admin/dashboard/command/b2b/engagements", { params }),
 };
 
