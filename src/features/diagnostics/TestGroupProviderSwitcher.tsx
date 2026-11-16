@@ -135,7 +135,7 @@ export function TestGroupProviderSwitcher({
     <>
       Delete {diagnosticProviderDisplayLabel(pendingDelete.diagnostic_provider)} variant for &ldquo;{profileName}
       &rdquo;? This removes this lab&apos;s test list and filter links for this variant.
-      {options.length > 1 ? " Other labs in this profile will remain." : ""}
+      {options.length > 1 ? " Other variants in this profile will remain." : ""}
     </>
   ) : null;
 
@@ -150,7 +150,7 @@ export function TestGroupProviderSwitcher({
           >
             {profileName}
           </Link>
-          {labsInProfile > 1 ? <span className="text-zinc-500"> · {labsInProfile} labs</span> : null}
+          {labsInProfile > 1 ? <span className="text-zinc-500"> · {labsInProfile} variants</span> : null}
         </p>
       ) : null}
 

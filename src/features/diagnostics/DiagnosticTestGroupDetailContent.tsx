@@ -8,7 +8,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { GripVertical, Loader2, Search, Trash2, AlertTriangle, Link as LinkIcon } from "lucide-react";
+import { GripVertical, Loader2, Search, Trash2, AlertTriangle } from "lucide-react";
 import { SortableItem } from "../../components/SortableItem";
 import { Modal } from "../../shared/ui/Modal";
 import { PermissionGate } from "../../contexts/PermissionContext";
@@ -21,7 +21,11 @@ import {
   type DiagnosticTestGroupStandalone,
   type DiagnosticTestStandalone,
 } from "../../lib/api";
-import { diagnosticProviderDisplayLabel, isHealthiansProvider } from "./providerParameterKeys";
+import {
+  diagnosticProviderDisplayLabel,
+  isHealthiansProvider,
+  testGroupNeedsProviderMap,
+} from "./providerParameterKeys";
 import { TestGroupProviderMapModal } from "./TestGroupProviderMapModal";
 import { DiagnosticPackageProviderCompare } from "./DiagnosticPackageProviderCompare";
 import { HealthiansMapModal, type MapModalTest } from "./HealthiansMapModal";
@@ -57,16 +61,10 @@ export function DiagnosticTestGroupDetailContent({ groupId, onUpdated }: Diagnos
   const [paramMapTest, setParamMapTest] = useState<MapModalTest | null>(null);
   const [compareRefresh, setCompareRefresh] = useState(0);
 
-  const needsProviderMapping = useMemo(() => {
-    if (!detail) return false;
-    const audience = (detail.package_for ?? "public").toLowerCase();
-    if (audience !== "public" && audience !== "both") return false;
-    if (!detail.diagnostic_provider) return false;
-    if (isHealthiansProvider(detail.diagnostic_provider)) {
-      return !(detail.external_test_group_code ?? "").trim();
-    }
-    return false;
-  }, [detail]);
+  const needsProviderMapping = useMemo(
+    () => (detail ? testGroupNeedsProviderMap(detail) : false),
+    [detail]
+  );
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -282,19 +280,10 @@ export function DiagnosticTestGroupDetailContent({ groupId, onUpdated }: Diagnos
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
           <div className="flex-1 min-w-0">
             <p>
-              This test group is missing a lab provider or Healthians profile code. Map it to a lab catalog profile
-              before using it on packages.
+              {(detail.diagnostic_provider ?? "").trim()
+                ? "This test group is missing a lab profile code. Map it to a lab catalog profile before using it on packages."
+                : "This variant has no lab provider set. Map it to a lab catalog profile before using it on packages."}
             </p>
-            <PermissionGate category="diagnostics" action="edit" taskKey="tests_groups">
-              <button
-                type="button"
-                onClick={() => setMapModalOpen(true)}
-                className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-100 border border-amber-300 text-amber-950 text-xs font-medium hover:bg-amber-200"
-              >
-                <LinkIcon className="w-3.5 h-3.5" />
-                Map
-              </button>
-            </PermissionGate>
           </div>
         </div>
       ) : null}
@@ -302,17 +291,15 @@ export function DiagnosticTestGroupDetailContent({ groupId, onUpdated }: Diagnos
       <div className="bg-white border border-zinc-200 rounded-xl p-4">
         <div className="flex items-center justify-between gap-2 mb-3">
           <h3 className="text-sm font-medium text-zinc-900">Overview</h3>
-          {!needsProviderMapping ? (
-            <PermissionGate category="diagnostics" action="edit" taskKey="tests_groups">
-              <button
-                type="button"
-                onClick={() => setMapModalOpen(true)}
-                className="text-xs font-medium text-zinc-600 hover:text-zinc-900 underline underline-offset-2"
-              >
-                Remap
-              </button>
-            </PermissionGate>
-          ) : null}
+          <PermissionGate category="diagnostics" action="edit" taskKey="tests_groups">
+            <button
+              type="button"
+              onClick={() => setMapModalOpen(true)}
+              className="text-xs font-medium text-zinc-600 hover:text-zinc-900 underline underline-offset-2"
+            >
+              {needsProviderMapping ? "Map" : "Remap"}
+            </button>
+          </PermissionGate>
         </div>
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           {detail.test_group_image ? (
@@ -329,7 +316,11 @@ export function DiagnosticTestGroupDetailContent({ groupId, onUpdated }: Diagnos
           ) : null}
           <div>
             <dt className="text-zinc-500">Provider</dt>
-            <dd className="text-zinc-900">{detail.diagnostic_provider ?? "—"}</dd>
+            <dd className="text-zinc-900">
+              {(detail.diagnostic_provider ?? "").trim()
+                ? diagnosticProviderDisplayLabel(detail.diagnostic_provider)
+                : "—"}
+            </dd>
           </div>
           <div>
             <dt className="text-zinc-500">

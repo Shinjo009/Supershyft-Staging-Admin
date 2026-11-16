@@ -8,10 +8,10 @@ export function isOrangeHealthProvider(provider: string | null | undefined): boo
   return (provider ?? "").trim().toLowerCase() === "orange_health";
 }
 
-/** Human-readable provider name for labels (Healthians, Orange Health, …). */
+/** Human-readable provider name for labels (Healthians, Orange Health, Generic, …). */
 export function diagnosticProviderDisplayLabel(provider: string | null | undefined): string {
   const raw = (provider ?? "").trim();
-  if (!raw) return "Provider";
+  if (!raw) return "Generic";
   const normalized = raw.toLowerCase();
   if (normalized === "orange_health") return "Orange Health";
   if (normalized === "healthians") return "Healthians";
@@ -31,6 +31,21 @@ export function providerParameterKeyForPackage(
   if (raw == null) return null;
   const trimmed = String(raw).trim();
   return trimmed || null;
+}
+
+/** Public/both catalog variants that still need an initial provider map (no lab or missing lab code). */
+export function testGroupNeedsProviderMap(detail: {
+  package_for?: string | null;
+  diagnostic_provider?: string | null;
+  external_test_group_code?: string | null;
+}): boolean {
+  const audience = (detail.package_for ?? "public").toLowerCase();
+  if (audience !== "public" && audience !== "both") return false;
+  if (!(detail.diagnostic_provider ?? "").trim()) return true;
+  if (isHealthiansProvider(detail.diagnostic_provider)) {
+    return !(detail.external_test_group_code ?? "").trim();
+  }
+  return false;
 }
 
 export function isProviderParameterMapped(

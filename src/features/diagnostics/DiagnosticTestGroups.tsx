@@ -96,7 +96,7 @@ export function DiagnosticTestGroups() {
             {row.group_name}
             {labCount > 1 ? (
               <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-100 text-zinc-600">
-                {labCount} labs
+                {labCount} variants
               </span>
             ) : null}
           </button>
