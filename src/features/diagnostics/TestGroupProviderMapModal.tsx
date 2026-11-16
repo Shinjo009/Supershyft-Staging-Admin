@@ -170,18 +170,24 @@ export function TestGroupProviderMapModal({
   };
 
   const handleSave = async () => {
-    if (mismatchPackages.length > 0) {
-      setError("Remove this test group from mismatched packages before saving.");
-      return;
-    }
     setSaving(true);
     setError(null);
     try {
-      await diagnosticTestGroupsApi.update(groupId, {
+      const res = await diagnosticTestGroupsApi.update(groupId, {
         diagnostic_provider: providerChoice,
         external_test_group_code:
           providerChoice === "Healthians" ? selectedProfile?.id ?? currentExternalCode ?? null : null,
       });
+      const variant = res.data.data?.created_provider_variant;
+      const toReassign = res.data.data?.packages_to_reassign ?? [];
+      if (variant && (mismatchPackages.length > 0 || toReassign.length > 0)) {
+        const names = toReassign.map((p) => p.package_name).join(", ");
+        window.alert(
+          names
+            ? `Created lab variant "${variant.group_name}". Reassign these packages to use it: ${names}.`
+            : `Created lab variant "${variant.group_name}" for this lab provider.`
+        );
+      }
       await onComplete();
       onClose();
     } catch (err) {
@@ -313,22 +319,15 @@ export function TestGroupProviderMapModal({
 
             {mismatchPackages.length > 0 ? (
               <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900">
-                <p className="font-medium mb-2">Remove this test group from these packages first:</p>
-                <ul className="space-y-2">
+                <p className="font-medium mb-1">This group is on packages with other labs.</p>
+                <p className="text-sm">
+                  Saving will create a <span className="font-medium">new lab variant</span> with this provider and
+                  suggest reassigning matching packages. Other packages can keep the unmapped group.
+                </p>
+                <ul className="mt-2 text-xs text-amber-900/90 list-disc pl-4 space-y-0.5">
                   {mismatchPackages.map((pkg) => (
-                    <li key={pkg.diagnostic_package_id} className="flex items-center justify-between gap-2">
-                      <span>
-                        {pkg.package_name}{" "}
-                        <span className="text-amber-800/80">({pkg.diagnostic_provider ?? "no provider"})</span>
-                      </span>
-                      <button
-                        type="button"
-                        disabled={removingPackageId === pkg.diagnostic_package_id}
-                        onClick={() => void handleRemoveFromPackage(pkg.diagnostic_package_id)}
-                        className="px-2 py-1 rounded border border-amber-300 bg-white text-xs font-medium hover:bg-amber-100 disabled:opacity-50"
-                      >
-                        {removingPackageId === pkg.diagnostic_package_id ? "Removing…" : "Remove"}
-                      </button>
+                    <li key={pkg.diagnostic_package_id}>
+                      {pkg.package_name} ({pkg.diagnostic_provider ?? "no provider"})
                     </li>
                   ))}
                 </ul>

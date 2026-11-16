@@ -59,7 +59,9 @@ export function DiagnosticTestGroupDetailContent({ groupId, onUpdated }: Diagnos
 
   const needsProviderMapping = useMemo(() => {
     if (!detail) return false;
-    if (!detail.diagnostic_provider) return true;
+    const audience = (detail.package_for ?? "public").toLowerCase();
+    if (audience !== "public" && audience !== "both") return false;
+    if (!detail.diagnostic_provider) return false;
     if (isHealthiansProvider(detail.diagnostic_provider)) {
       return !(detail.external_test_group_code ?? "").trim();
     }

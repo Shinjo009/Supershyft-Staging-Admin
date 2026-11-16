@@ -142,11 +142,17 @@ export function DiagnosticTestGroupFormFields({
         <label className="block text-sm font-medium text-zinc-700 mb-1">Package for</label>
         <select
           value={form.package_for}
-          onChange={(e) => setForm((prev) => ({ ...prev, package_for: e.target.value as "public" | "camp" }))}
+          onChange={(e) =>
+            setForm((prev) => ({
+              ...prev,
+              package_for: e.target.value as "package" | "public" | "both",
+            }))
+          }
           className="w-full border border-zinc-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-zinc-900"
         >
           <option value="public">public</option>
-          <option value="camp">camp</option>
+          <option value="package">package</option>
+          <option value="both">both</option>
         </select>
       </div>
       <label className="flex items-center gap-2 text-sm text-zinc-700">

@@ -4536,7 +4536,7 @@ export interface DiagnosticPackageDetail {
   has_cancer_screening?: boolean | null;
   complementary_consultation?: Record<string, boolean> | null;
   gender_suitability?: string | null;
-  package_for?: "public" | "camp" | null;
+  package_for?: "public" | "camp" | "both" | null;
   status?: string | null;
   display_order?: number | null;
   package_group_id?: number | null;
@@ -4570,7 +4570,7 @@ export interface DiagnosticPackageCreate {
   is_default_for_group?: boolean | null;
   complementary_consultation?: Record<string, boolean> | null;
   gender_suitability?: string | null;
-  package_for?: "public" | "camp" | null;
+  package_for?: "public" | "camp" | "both" | null;
   /** Link this row to an existing package from another lab (create) or change link (update). */
   same_as_package_id?: number | null;
   /** Duplicate test groups from this package id on create (same group as same_as). */
@@ -4880,11 +4880,20 @@ export interface DiagnosticTestGroupStandalone {
   has_allergy_screening?: boolean | null;
   has_cancer_screening?: boolean | null;
   gender_suitability?: string | null;
-  package_for?: "public" | "camp" | null;
+  package_for?: "package" | "public" | "both" | null;
   forked_from_group_id?: number | null;
   same_test_groups?: DiagnosticTestGroupPeer[];
   tests?: DiagnosticTestStandalone[];
   filter_chips?: PackageFilterChip[];
+  created_provider_variant?: DiagnosticTestGroupPeer | null;
+  packages_to_reassign?: TestGroupAssignedPackage[];
+}
+
+export interface TestGroupAssignedPackage {
+  diagnostic_package_id: number;
+  package_name: string;
+  diagnostic_provider?: string | null;
+  status?: string | null;
 }
 
 export interface DiagnosticTestGroupPeer {
@@ -4893,6 +4902,11 @@ export interface DiagnosticTestGroupPeer {
   diagnostic_provider?: string | null;
   price?: number | null;
   is_default_for_group?: boolean | null;
+}
+
+export interface DiagnosticCatalogWarning {
+  code: string;
+  message: string;
 }
 
 export interface DiagnosticTestGroupProfileListItem {
@@ -4906,6 +4920,7 @@ export interface DiagnosticTestGroupProfileListItem {
   profile_group_id?: number | null;
   diagnostic_provider?: string | null;
   profile_group: Record<string, number>;
+  warnings?: DiagnosticCatalogWarning[];
 }
 
 export interface AssignTestsToGroupResponse {

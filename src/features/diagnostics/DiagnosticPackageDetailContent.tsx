@@ -171,12 +171,6 @@ export function DiagnosticPackageDetailContent({
     return filterChipCatalog.filter((c) => !assigned.has(c.filter_chip_id));
   }, [filterChipCatalog, detail?.filter_chips]);
 
-  const testGroupsMissingProvider = useMemo(
-    () =>
-      testGroups.filter((group) => !(group.diagnostic_provider ?? "").trim()),
-    [testGroups]
-  );
-
   const fetchProviderDiff = useCallback(
     async (
       targetPackageId: number,
@@ -480,6 +474,8 @@ export function DiagnosticPackageDetailContent({
     const packageProviderKey = (detail?.diagnostic_provider ?? "").trim().toLowerCase() || null;
     return allGroups.filter((group) => {
       if (group.forked_from_group_id != null) return false;
+      const audience = (group.package_for ?? "public").toLowerCase();
+      if (audience !== "package" && audience !== "both") return false;
       const groupProviderKey = (group.diagnostic_provider ?? "").trim().toLowerCase() || null;
       if (
         packageProviderKey &&
@@ -901,19 +897,6 @@ export function DiagnosticPackageDetailContent({
                   {assignGroupsNote}
                 </div>
               )}
-              {testGroupsMissingProvider.length > 0 ? (
-                <div
-                  className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-sm"
-                  title="Some assigned test groups have no lab provider set"
-                >
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
-                  <p>
-                    Some assigned test groups have no lab provider set (
-                    {testGroupsMissingProvider.map((g) => g.group_name).join(", ")}). Set providers on those test
-                    group profiles so they match package labs.
-                  </p>
-                </div>
-              ) : null}
               {(() => {
                 const allTests = testGroups.flatMap((g) => g.tests ?? []);
                 const totalTests = allTests.length;
@@ -1045,15 +1028,6 @@ export function DiagnosticPackageDetailContent({
                                     {group.group_name}
                                     <span className="font-normal text-zinc-500"> ({group.group_key})</span>
                                   </span>
-                                  {!(group.diagnostic_provider ?? "").trim() ? (
-                                    <span
-                                      title="No lab provider set on this test group"
-                                      className="inline-flex text-amber-600"
-                                      aria-label="No lab provider set on this test group"
-                                    >
-                                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                                    </span>
-                                  ) : null}
                                   <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-zinc-100 text-zinc-600">
                                     {group.test_count}
                                   </span>

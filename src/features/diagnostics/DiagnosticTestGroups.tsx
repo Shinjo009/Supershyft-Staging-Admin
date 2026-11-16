@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, Loader2, Search, Trash2 } from "lucide-react";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { Modal } from "../../shared/ui/Modal";
 import {
@@ -138,6 +138,21 @@ export function DiagnosticTestGroups() {
           "—"
         ),
       hideOnTablet: true,
+    },
+    {
+      key: "warnings",
+      label: "",
+      hideOnTablet: true,
+      render: (row) =>
+        (row.warnings?.length ?? 0) > 0 ? (
+          <span
+            title={row.warnings?.map((w) => w.message).join(" ")}
+            className="inline-flex text-amber-600"
+            aria-label="Test group warning"
+          >
+            <AlertTriangle className="w-4 h-4" />
+          </span>
+        ) : null,
     },
   ];
 

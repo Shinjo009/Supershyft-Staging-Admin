@@ -40,7 +40,7 @@ export type TestGroupFormState = {
   has_allergy_screening: boolean;
   has_cancer_screening: boolean;
   gender_suitability: string;
-  package_for: "public" | "camp";
+  package_for: "package" | "public" | "both";
 };
 
 export const EMPTY_TEST_GROUP_FORM: TestGroupFormState = {
@@ -90,8 +90,10 @@ export function testGroupToForm(row: {
   has_allergy_screening?: boolean | null;
   has_cancer_screening?: boolean | null;
   gender_suitability?: string | null;
-  package_for?: "public" | "camp" | null;
+  package_for?: "package" | "public" | "both" | null;
 }): TestGroupFormState {
+  const normalizedPackageFor =
+    row.package_for === "camp" ? "package" : (row.package_for ?? "public");
   return {
     group_name: row.group_name,
     group_key: row.group_key ?? "",
@@ -105,7 +107,7 @@ export function testGroupToForm(row: {
     has_allergy_screening: !!row.has_allergy_screening,
     has_cancer_screening: !!row.has_cancer_screening,
     gender_suitability: row.gender_suitability ?? "",
-    package_for: row.package_for ?? "public",
+    package_for: normalizedPackageFor as TestGroupFormState["package_for"],
   };
 }
 
@@ -124,7 +126,7 @@ export type TestGroupWritePayload = {
   has_allergy_screening?: boolean;
   has_cancer_screening?: boolean;
   gender_suitability?: string;
-  package_for?: "public" | "camp";
+  package_for?: "package" | "public" | "both";
 };
 
 export function buildTestGroupPayload(

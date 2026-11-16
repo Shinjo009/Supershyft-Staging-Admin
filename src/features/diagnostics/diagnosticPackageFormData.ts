@@ -142,7 +142,7 @@ export function buildPackagePayload(form: PackageFormState): DiagnosticPackageCr
     external_package_code: form.external_package_code?.trim() || null,
     collection_type: form.collection_type?.trim() || null,
     gender_suitability: form.gender_suitability?.trim() || null,
-    package_for: (form.package_for as "public" | "camp") || "public",
+    package_for: (form.package_for as "public" | "camp" | "both") || "public",
     report_duration_hours: form.report_duration_hours ?? null,
     price: form.price ?? null,
     original_price: form.original_price ?? null,
