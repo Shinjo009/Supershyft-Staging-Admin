@@ -23,12 +23,16 @@ export type ApiCounters = {
   getServerCalls: () => number;
   getNotifCalls: () => number;
   getPeopleCalls: () => number;
+  getB2bSummaryCalls: () => number;
+  getB2bEngagementsCalls: () => number;
 };
 
 export async function mockCommandApis(page: Page): Promise<ApiCounters> {
   let serverCalls = 0;
   let notifCalls = 0;
   let peopleCalls = 0;
+  let b2bSummaryCalls = 0;
+  let b2bEngagementsCalls = 0;
 
   await page.route("**/*", async (route) => {
     const url = route.request().url();
@@ -161,6 +165,74 @@ export async function mockCommandApis(page: Page): Promise<ApiCounters> {
       return;
     }
 
+    if (url.includes("/admin/dashboard/command/b2b/summary")) {
+      b2bSummaryCalls += 1;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: { ongoing: 3, upcoming: 5, completed: 12 },
+          meta: { period: "this_week" },
+        }),
+      });
+      return;
+    }
+
+    if (url.includes("/admin/dashboard/command/b2b/engagements")) {
+      b2bEngagementsCalls += 1;
+      const parsed = new URL(url);
+      const bucket = parsed.searchParams.get("bucket") || "ongoing";
+      const statusByBucket: Record<string, string> = {
+        ongoing: "running",
+        upcoming: "scheduled",
+        completed: "completed",
+      };
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [
+            {
+              engagement_id: 101,
+              engagement_code: "ENG-B2B-101",
+              engagement_name: "Acme Wellness Camp",
+              city: "Mumbai",
+              start_date: "2026-11-10",
+              end_date: "2026-11-14",
+              status: statusByBucket[bucket] || "running",
+              participant_count: 24,
+            },
+          ],
+          meta: {
+            period: "this_week",
+            page: 1,
+            limit: 20,
+            total: 1,
+            bucket,
+          },
+        }),
+      });
+      return;
+    }
+
+    if (url.includes("/engagements/by-code/")) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            engagement_id: 101,
+            engagement_code: "ENG-B2B-101",
+            engagement_name: "Acme Wellness Camp",
+            city: "Mumbai",
+            status: "running",
+          },
+          meta: {},
+        }),
+      });
+      return;
+    }
+
     // Intercept remaining API calls; let static assets continue.
     if (url.includes("/api/") || url.includes(":8000/")) {
       await route.fulfill({
@@ -178,6 +250,8 @@ export async function mockCommandApis(page: Page): Promise<ApiCounters> {
     getServerCalls: () => serverCalls,
     getNotifCalls: () => notifCalls,
     getPeopleCalls: () => peopleCalls,
+    getB2bSummaryCalls: () => b2bSummaryCalls,
+    getB2bEngagementsCalls: () => b2bEngagementsCalls,
   };
 }
 
