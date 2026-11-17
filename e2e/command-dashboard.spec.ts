@@ -34,11 +34,41 @@ test.describe("Command dashboard UI/UX", () => {
     await expect(questCard.getByTestId("audience-split")).toContainText("57");
     await expect(questCard.getByTestId("audience-split")).toContainText("30");
 
+    const bloodCard = page.getByTestId("card-blood_report_generated");
+    await expect(bloodCard.getByTestId("audience-split-total")).toHaveText("28");
+    await expect(bloodCard.getByTestId("audience-split")).toContainText("19");
+    await expect(bloodCard.getByTestId("audience-split")).toContainText("9");
+
+    const bioaiCard = page.getByTestId("card-bioai_report_generated");
+    await expect(bioaiCard.getByTestId("audience-split-total")).toHaveText("21");
+    await expect(bioaiCard.getByTestId("audience-split")).toContainText("14");
+    await expect(bioaiCard.getByTestId("audience-split")).toContainText("7");
+
+    const consultCard = page.getByTestId("card-consultation_done");
+    await expect(consultCard.getByTestId("audience-split-total")).toHaveText("15");
+    await expect(consultCard.getByTestId("audience-split")).toContainText("10");
+    await expect(consultCard.getByTestId("audience-split")).toContainText("5");
+
+    const openCard = page.getByTestId("card-open_engagement");
+    await expect(openCard.getByTestId("audience-split-total")).toHaveText("8");
+    await expect(openCard.getByTestId("audience-split")).toContainText("5");
+    await expect(openCard.getByTestId("audience-split")).toContainText("3");
+
+    const ticketsCard = page.getByTestId("card-tickets");
+    await expect(ticketsCard.getByTestId("tickets-raised-total")).toHaveText("15");
+    await expect(ticketsCard.getByTestId("tickets-slice-open")).toContainText("4");
+    await expect(ticketsCard.getByTestId("tickets-slice-solved")).toContainText("11");
+
     expect(counters.getServerCalls()).toBeGreaterThanOrEqual(1);
     expect(counters.getNotifCalls()).toBeGreaterThanOrEqual(1);
     expect(counters.getPeopleCalls()).toBeGreaterThanOrEqual(1);
     expect(counters.getTestsCalls()).toBeGreaterThanOrEqual(1);
     expect(counters.getQuestionnaireCalls()).toBeGreaterThanOrEqual(1);
+    expect(counters.getBloodReportCalls()).toBeGreaterThanOrEqual(1);
+    expect(counters.getBioaiReportCalls()).toBeGreaterThanOrEqual(1);
+    expect(counters.getConsultationDoneCalls()).toBeGreaterThanOrEqual(1);
+    expect(counters.getOpenEngagementCalls()).toBeGreaterThanOrEqual(1);
+    expect(counters.getTicketsCalls()).toBeGreaterThanOrEqual(1);
   });
 
   test("B2B tab is enabled; B2C stays inert; invalid tab normalizes to overview", async ({
@@ -75,6 +105,11 @@ test.describe("Command dashboard UI/UX", () => {
     const peopleBefore = counters.getPeopleCalls();
     const testsBefore = counters.getTestsCalls();
     const questBefore = counters.getQuestionnaireCalls();
+    const bloodBefore = counters.getBloodReportCalls();
+    const bioaiBefore = counters.getBioaiReportCalls();
+    const consultBefore = counters.getConsultationDoneCalls();
+    const openBefore = counters.getOpenEngagementCalls();
+    const ticketsBefore = counters.getTicketsCalls();
 
     await page.getByRole("button", { name: "This month", exact: true }).click();
     await expect(page).toHaveURL(/period=this_month/);
@@ -85,6 +120,15 @@ test.describe("Command dashboard UI/UX", () => {
     await expect
       .poll(() => counters.getQuestionnaireCalls())
       .toBeGreaterThan(questBefore);
+    await expect.poll(() => counters.getBloodReportCalls()).toBeGreaterThan(bloodBefore);
+    await expect.poll(() => counters.getBioaiReportCalls()).toBeGreaterThan(bioaiBefore);
+    await expect
+      .poll(() => counters.getConsultationDoneCalls())
+      .toBeGreaterThan(consultBefore);
+    await expect
+      .poll(() => counters.getOpenEngagementCalls())
+      .toBeGreaterThan(openBefore);
+    await expect.poll(() => counters.getTicketsCalls()).toBeGreaterThan(ticketsBefore);
     expect(counters.getServerCalls()).toBe(serverBefore);
   });
 
@@ -258,6 +302,120 @@ test.describe("Command dashboard UI/UX", () => {
     await page.goto("/?tab=overview&period=this_week&card=questionnaire_done");
     await expect(page.getByTestId("detail-questionnaire_done")).toBeVisible();
     await expect(page.getByTestId("tabs-hidden")).toBeAttached();
+  });
+
+  test("blood_report_generated shows B2B/B2C split and opens journey detail", async ({
+    page,
+  }) => {
+    await page.goto("/?tab=overview&period=this_week");
+    const card = page.getByTestId("card-blood_report_generated");
+    await expect(card).toHaveAttribute("type", "button");
+    await expect(card.getByTestId("audience-split-total")).toHaveText("28");
+    const splitText = (await card.getByTestId("audience-split").innerText()).replace(
+      /\s+/g,
+      " "
+    );
+    expect(splitText.indexOf("B2B")).toBeLessThan(splitText.indexOf("B2C"));
+
+    await card.click();
+    await expect(page).toHaveURL(/card=blood_report_generated/);
+    await expect(page.getByTestId("tabs-hidden")).toBeAttached();
+    const detail = page.getByTestId("detail-blood_report_generated");
+    await expect(detail).toBeVisible();
+    await expect(detail.getByRole("columnheader", { name: "Person", exact: true })).toBeVisible();
+    await expect(detail.getByRole("columnheader", { name: "Lab report", exact: true })).toBeVisible();
+    await expect(detail.getByText("Ada Lovelace")).toBeVisible();
+    await expect(detail.getByText("loaded")).toBeVisible();
+    const back = detail.getByRole("button", { name: "Back" });
+    await expect(back).toBeVisible();
+    await back.focus();
+    await expect(back).toBeFocused();
+    await back.click();
+    await expect(page).not.toHaveURL(/card=/);
+    await expect(page.getByTestId("overview-grid")).toBeVisible();
+  });
+
+  test("bioai_report_generated and consultation_done open new-page details", async ({
+    page,
+  }) => {
+    await page.goto("/?tab=overview&period=this_week");
+
+    await page.getByTestId("card-bioai_report_generated").click();
+    await expect(page).toHaveURL(/card=bioai_report_generated/);
+    await expect(page.getByTestId("detail-bioai_report_generated")).toBeVisible();
+    await expect(page.getByTestId("tabs-hidden")).toBeAttached();
+    await expect(page.getByText("Ada Lovelace")).toBeVisible();
+    await page.getByRole("button", { name: "Back" }).click();
+
+    await page.getByTestId("card-consultation_done").click();
+    await expect(page).toHaveURL(/card=consultation_done/);
+    await expect(page.getByTestId("detail-consultation_done")).toBeVisible();
+    await expect(page.getByText("Attended")).toBeVisible();
+    await page.getByRole("button", { name: "Back" }).click();
+    await expect(page.getByTestId("overview-grid")).toBeVisible();
+  });
+
+  test("open_engagement detail lists engagements and row navigates by code", async ({
+    page,
+  }) => {
+    await page.goto("/?tab=overview&period=this_week");
+    const card = page.getByTestId("card-open_engagement");
+    await expect(card.getByTestId("audience-split-total")).toHaveText("8");
+    await card.click();
+    await expect(page).toHaveURL(/card=open_engagement/);
+    await expect(page.getByTestId("tabs-hidden")).toBeAttached();
+
+    const detail = page.getByTestId("detail-open_engagement");
+    await expect(detail).toBeVisible();
+    for (const header of ["Engagement name", "Type", "City", "Package", "Duration"]) {
+      await expect(detail.getByRole("columnheader", { name: header, exact: true })).toBeVisible();
+    }
+    await expect(detail.getByText("Open Camp Alpha")).toBeVisible();
+    await expect(detail.getByText("Bengaluru")).toBeVisible();
+    await expect(detail.getByText("Full Body")).toBeVisible();
+
+    await page.getByTestId("open-engagement-row-ENG-OPEN-201").click();
+    await expect(page).toHaveURL(/\/engagements\/ENG-OPEN-201/);
+  });
+
+  test("tickets card shows open/solved and opens detail table", async ({ page }) => {
+    await page.goto("/?tab=overview&period=this_week");
+    const card = page.getByTestId("card-tickets");
+    await expect(card).toHaveAttribute("type", "button");
+    await expect(card.getByTestId("tickets-raised-total")).toHaveText("15");
+    await expect(card.getByTestId("tickets-slice-open")).toContainText("Open");
+    await expect(card.getByTestId("tickets-slice-open")).toContainText("4");
+    await expect(card.getByTestId("tickets-slice-solved")).toContainText("Solved");
+    await expect(card.getByTestId("tickets-slice-solved")).toContainText("11");
+
+    await card.click();
+    await expect(page).toHaveURL(/card=tickets/);
+    await expect(page.getByTestId("tabs-hidden")).toBeAttached();
+
+    const detail = page.getByTestId("detail-tickets");
+    await expect(detail).toBeVisible();
+    for (const header of ["Ticket ID", "Raised by", "Contact", "Query", "Raised at"]) {
+      await expect(detail.getByRole("columnheader", { name: header, exact: true })).toBeVisible();
+    }
+    await expect(detail.getByText("Ada Lovelace")).toBeVisible();
+    await expect(detail.getByText("Need help with booking")).toBeVisible();
+    await detail.getByRole("button", { name: "Back" }).click();
+    await expect(page).not.toHaveURL(/card=/);
+  });
+
+  test("direct URLs for cards 7-11 load details", async ({ page }) => {
+    for (const card of [
+      "blood_report_generated",
+      "bioai_report_generated",
+      "consultation_done",
+      "open_engagement",
+      "tickets",
+    ]) {
+      await page.goto(`/?tab=overview&period=this_week&card=${card}`);
+      await expect(page.getByTestId(`detail-${card}`)).toBeVisible();
+      await expect(page.getByTestId("tabs-hidden")).toBeAttached();
+      await expect(page.getByRole("tablist", { name: "Dashboard tabs" })).toHaveCount(0);
+    }
   });
 
   test("B2B shows three cards with counts and period refetch", async ({ page, counters }) => {

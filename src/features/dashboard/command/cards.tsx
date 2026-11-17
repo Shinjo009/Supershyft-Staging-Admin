@@ -1,7 +1,18 @@
-import { ClipboardList, Droplets, ListTodo, Loader2, Ticket } from "lucide-react";
+import {
+  ClipboardList,
+  Droplets,
+  FileText,
+  ListTodo,
+  Loader2,
+  Sparkles,
+  Stethoscope,
+  Ticket,
+  Tent,
+} from "lucide-react";
 import type {
   CommandAudienceSplitSummary,
   CommandNotificationHealth,
+  CommandTicketsSummary,
 } from "../../../lib/api";
 import { MiniDonut, MiniStat } from "./charts";
 import { MetricCard, type MetricCardVariant } from "./MetricCard";
@@ -206,6 +217,127 @@ export function QuestionnaireDoneCard({
   );
 }
 
+function AudienceSplitMetricCard({
+  title,
+  icon: Icon,
+  summary,
+  loading,
+  onOpen,
+  testId,
+}: {
+  title: string;
+  icon: typeof Droplets;
+  summary: CommandAudienceSplitSummary | null;
+  loading?: boolean;
+  onOpen: () => void;
+  testId: string;
+}) {
+  return (
+    <MetricCard
+      title={title}
+      icon={Icon}
+      variant="metric"
+      clickable
+      onClick={onOpen}
+      data-testid={testId}
+    >
+      {loading ? (
+        <Loader2 className="size-5 animate-spin text-zinc-400" aria-label="Loading" />
+      ) : (
+        <AudienceSplitBody
+          total={summary?.total ?? 0}
+          b2b={summary?.b2b ?? 0}
+          b2c={summary?.b2c ?? 0}
+        />
+      )}
+    </MetricCard>
+  );
+}
+
+export function BloodReportGeneratedCard({
+  summary,
+  loading,
+  onOpen,
+}: {
+  summary: CommandAudienceSplitSummary | null;
+  loading?: boolean;
+  onOpen: () => void;
+}) {
+  return (
+    <AudienceSplitMetricCard
+      title="Blood report generated"
+      icon={FileText}
+      summary={summary}
+      loading={loading}
+      onOpen={onOpen}
+      testId="card-blood_report_generated"
+    />
+  );
+}
+
+export function BioaiReportGeneratedCard({
+  summary,
+  loading,
+  onOpen,
+}: {
+  summary: CommandAudienceSplitSummary | null;
+  loading?: boolean;
+  onOpen: () => void;
+}) {
+  return (
+    <AudienceSplitMetricCard
+      title="BioAI report generated"
+      icon={Sparkles}
+      summary={summary}
+      loading={loading}
+      onOpen={onOpen}
+      testId="card-bioai_report_generated"
+    />
+  );
+}
+
+export function ConsultationDoneCard({
+  summary,
+  loading,
+  onOpen,
+}: {
+  summary: CommandAudienceSplitSummary | null;
+  loading?: boolean;
+  onOpen: () => void;
+}) {
+  return (
+    <AudienceSplitMetricCard
+      title="Consultation done"
+      icon={Stethoscope}
+      summary={summary}
+      loading={loading}
+      onOpen={onOpen}
+      testId="card-consultation_done"
+    />
+  );
+}
+
+export function OpenEngagementCard({
+  summary,
+  loading,
+  onOpen,
+}: {
+  summary: CommandAudienceSplitSummary | null;
+  loading?: boolean;
+  onOpen: () => void;
+}) {
+  return (
+    <AudienceSplitMetricCard
+      title="Open engagement"
+      icon={Tent}
+      summary={summary}
+      loading={loading}
+      onOpen={onOpen}
+      testId="card-open_engagement"
+    />
+  );
+}
+
 /** Soft tints matching supershyft-command warning/success opacity style */
 const TICKET_SLICES = [
   {
@@ -222,37 +354,65 @@ const TICKET_SLICES = [
   },
 ] as const;
 
-export function TicketsCard() {
+export function TicketsCard({
+  summary,
+  loading,
+  onOpen,
+}: {
+  summary?: CommandTicketsSummary | null;
+  loading?: boolean;
+  onOpen?: () => void;
+}) {
+  const open = summary?.open ?? 0;
+  const solved = summary?.solved ?? 0;
+  const total = summary?.total ?? open + solved;
+  const clickable = typeof onOpen === "function";
   return (
     <MetricCard
       title="Tickets"
       icon={Ticket}
       description={
-        <>
-          <span className="tabular-nums">—</span> raised
-        </>
+        loading ? (
+          <span className="text-zinc-400">Loading…</span>
+        ) : (
+          <>
+            <span className="tabular-nums" data-testid="tickets-raised-total">
+              {total}
+            </span>{" "}
+            raised
+          </>
+        )
       }
       variant="panel"
-      showViewAll
+      clickable={clickable}
+      onClick={onOpen}
+      showViewAll={clickable}
       bodyClassName="items-stretch p-0 overflow-hidden"
       data-testid="card-tickets"
     >
-      <div className="grid h-full min-h-0 w-full grid-cols-2 items-stretch gap-2 p-2.5">
-        {TICKET_SLICES.map((s) => (
-          <div
-            key={s.id}
-            className={`flex min-h-0 min-w-0 items-center justify-between gap-2 overflow-hidden rounded-lg border px-2.5 py-2 ${s.tint}`}
-          >
-            <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-zinc-500">
-              <span className={`size-2 shrink-0 rounded-full ${s.dot}`} aria-hidden />
-              <span className="truncate">{s.label}</span>
-            </span>
-            <span className="shrink-0 text-lg font-semibold tabular-nums leading-none text-zinc-900">
-              —
-            </span>
-          </div>
-        ))}
-      </div>
+      {loading ? (
+        <div className="flex h-full items-center justify-center p-2.5">
+          <Loader2 className="size-5 animate-spin text-zinc-400" aria-label="Loading" />
+        </div>
+      ) : (
+        <div className="grid h-full min-h-0 w-full grid-cols-2 items-stretch gap-2 p-2.5">
+          {TICKET_SLICES.map((s) => (
+            <div
+              key={s.id}
+              className={`flex min-h-0 min-w-0 items-center justify-between gap-2 overflow-hidden rounded-lg border px-2.5 py-2 ${s.tint}`}
+              data-testid={`tickets-slice-${s.id}`}
+            >
+              <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-zinc-500">
+                <span className={`size-2 shrink-0 rounded-full ${s.dot}`} aria-hidden />
+                <span className="truncate">{s.label}</span>
+              </span>
+              <span className="shrink-0 text-lg font-semibold tabular-nums leading-none text-zinc-900">
+                {s.id === "open" ? open : solved}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </MetricCard>
   );
 }
@@ -298,7 +458,6 @@ export function ActionCenterCard() {
 }
 
 export function PlaceholderCard({ title, id }: { title: string; id: string }) {
-  if (id === "tickets") return <TicketsCard />;
   if (id === "action_center") return <ActionCenterCard />;
   return (
     <MetricCard title={title} variant={variantFor(id)} data-testid={`card-${id}`}>

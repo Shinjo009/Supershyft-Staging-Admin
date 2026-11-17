@@ -6,15 +6,21 @@ import {
   serverHealthApi,
   type CommandAudienceSplitSummary,
   type CommandNotificationHealth,
+  type CommandTicketsSummary,
 } from "../../../lib/api";
 import { B2BGrid } from "./B2BGrid";
+import { BioaiReportGeneratedDetail } from "./BioaiReportGeneratedDetail";
+import { BloodReportGeneratedDetail } from "./BloodReportGeneratedDetail";
+import { ConsultationDoneDetail } from "./ConsultationDoneDetail";
 import { NotificationHealthDetail } from "./NotificationHealthDetail";
+import { OpenEngagementDetail } from "./OpenEngagementDetail";
 import { OverviewGrid } from "./OverviewGrid";
 import { PeriodFilter } from "./PeriodFilter";
 import { PeopleRegisteredDetail } from "./PeopleRegisteredDetail";
 import { QuestionnaireDoneDetail } from "./QuestionnaireDoneDetail";
 import { TabBar } from "./TabBar";
 import { TestsCompletedDetail } from "./TestsCompletedDetail";
+import { TicketsDetail } from "./TicketsDetail";
 import {
   DEFAULT_PERIOD,
   cardInteraction,
@@ -35,6 +41,14 @@ function buildPeriodParams(
     return { period, from, to };
   }
   return { period };
+}
+
+function splitFromMeta(meta?: { total?: number; b2b?: number; b2c?: number } | null) {
+  return {
+    total: meta?.total ?? 0,
+    b2b: meta?.b2b ?? 0,
+    b2c: meta?.b2c ?? 0,
+  };
 }
 
 export function CommandDashboard() {
@@ -147,6 +161,20 @@ export function CommandDashboard() {
   const [questionnaireSummary, setQuestionnaireSummary] =
     useState<CommandAudienceSplitSummary | null>(null);
   const [loadingQuestionnaire, setLoadingQuestionnaire] = useState(true);
+  const [bloodReportSummary, setBloodReportSummary] =
+    useState<CommandAudienceSplitSummary | null>(null);
+  const [loadingBloodReport, setLoadingBloodReport] = useState(true);
+  const [bioaiReportSummary, setBioaiReportSummary] =
+    useState<CommandAudienceSplitSummary | null>(null);
+  const [loadingBioaiReport, setLoadingBioaiReport] = useState(true);
+  const [consultationDoneSummary, setConsultationDoneSummary] =
+    useState<CommandAudienceSplitSummary | null>(null);
+  const [loadingConsultationDone, setLoadingConsultationDone] = useState(true);
+  const [openEngagementSummary, setOpenEngagementSummary] =
+    useState<CommandAudienceSplitSummary | null>(null);
+  const [loadingOpenEngagement, setLoadingOpenEngagement] = useState(true);
+  const [ticketsSummary, setTicketsSummary] = useState<CommandTicketsSummary | null>(null);
+  const [loadingTickets, setLoadingTickets] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -183,43 +211,59 @@ export function CommandDashboard() {
     setLoadingPeople(true);
     setLoadingTests(true);
     setLoadingQuestionnaire(true);
+    setLoadingBloodReport(true);
+    setLoadingBioaiReport(true);
+    setLoadingConsultationDone(true);
+    setLoadingOpenEngagement(true);
+    setLoadingTickets(true);
+
+    const summaryParams = {
+      ...periodParams,
+      include_rows: false as const,
+      page: 1,
+      limit: 1,
+    };
+
     Promise.all([
       commandDashboardApi.notificationHealth(periodParams),
-      commandDashboardApi.peopleRegistered({
-        ...periodParams,
-        include_rows: false,
-        page: 1,
-        limit: 1,
-      }),
-      commandDashboardApi.testsCompleted({
-        ...periodParams,
-        include_rows: false,
-        page: 1,
-        limit: 1,
-      }),
-      commandDashboardApi.questionnaireDone({
-        ...periodParams,
-        include_rows: false,
-        page: 1,
-        limit: 1,
-      }),
+      commandDashboardApi.peopleRegistered(summaryParams),
+      commandDashboardApi.testsCompleted(summaryParams),
+      commandDashboardApi.questionnaireDone(summaryParams),
+      commandDashboardApi.bloodReportGenerated(summaryParams),
+      commandDashboardApi.bioaiReportGenerated(summaryParams),
+      commandDashboardApi.consultationDone(summaryParams),
+      commandDashboardApi.openEngagements(summaryParams),
+      commandDashboardApi.tickets(summaryParams),
     ])
-      .then(([notifRes, peopleRes, testsRes, questRes]) => {
-        if (cancelled) return;
-        setNotif(notifRes.data.data);
-        setPeopleTotal(peopleRes.data.meta?.total ?? 0);
-        setTestsSummary({
-          total: testsRes.data.meta?.total ?? 0,
-          b2b: testsRes.data.meta?.b2b ?? 0,
-          b2c: testsRes.data.meta?.b2c ?? 0,
-        });
-        setQuestionnaireSummary({
-          total: questRes.data.meta?.total ?? 0,
-          b2b: questRes.data.meta?.b2b ?? 0,
-          b2c: questRes.data.meta?.b2c ?? 0,
-        });
-        setLoadError(null);
-      })
+      .then(
+        ([
+          notifRes,
+          peopleRes,
+          testsRes,
+          questRes,
+          bloodRes,
+          bioaiRes,
+          consultRes,
+          openRes,
+          ticketsRes,
+        ]) => {
+          if (cancelled) return;
+          setNotif(notifRes.data.data);
+          setPeopleTotal(peopleRes.data.meta?.total ?? 0);
+          setTestsSummary(splitFromMeta(testsRes.data.meta));
+          setQuestionnaireSummary(splitFromMeta(questRes.data.meta));
+          setBloodReportSummary(splitFromMeta(bloodRes.data.meta));
+          setBioaiReportSummary(splitFromMeta(bioaiRes.data.meta));
+          setConsultationDoneSummary(splitFromMeta(consultRes.data.meta));
+          setOpenEngagementSummary(splitFromMeta(openRes.data.meta));
+          setTicketsSummary({
+            open: ticketsRes.data.meta?.open ?? 0,
+            solved: ticketsRes.data.meta?.solved ?? 0,
+            total: ticketsRes.data.meta?.total ?? 0,
+          });
+          setLoadError(null);
+        }
+      )
       .catch((err) => {
         if (cancelled) return;
         setLoadError(getApiError(err));
@@ -230,6 +274,11 @@ export function CommandDashboard() {
           setLoadingPeople(false);
           setLoadingTests(false);
           setLoadingQuestionnaire(false);
+          setLoadingBloodReport(false);
+          setLoadingBioaiReport(false);
+          setLoadingConsultationDone(false);
+          setLoadingOpenEngagement(false);
+          setLoadingTickets(false);
         }
       });
     return () => {
@@ -277,6 +326,16 @@ export function CommandDashboard() {
         <TestsCompletedDetail periodParams={periodParams} onBack={closeCard} />
       ) : card === "questionnaire_done" ? (
         <QuestionnaireDoneDetail periodParams={periodParams} onBack={closeCard} />
+      ) : card === "blood_report_generated" ? (
+        <BloodReportGeneratedDetail periodParams={periodParams} onBack={closeCard} />
+      ) : card === "bioai_report_generated" ? (
+        <BioaiReportGeneratedDetail periodParams={periodParams} onBack={closeCard} />
+      ) : card === "consultation_done" ? (
+        <ConsultationDoneDetail periodParams={periodParams} onBack={closeCard} />
+      ) : card === "open_engagement" ? (
+        <OpenEngagementDetail periodParams={periodParams} onBack={closeCard} />
+      ) : card === "tickets" ? (
+        <TicketsDetail periodParams={periodParams} onBack={closeCard} />
       ) : (
         <OverviewGrid
           server={server}
@@ -284,11 +343,21 @@ export function CommandDashboard() {
           peopleTotal={peopleTotal}
           testsSummary={testsSummary}
           questionnaireSummary={questionnaireSummary}
+          bloodReportSummary={bloodReportSummary}
+          bioaiReportSummary={bioaiReportSummary}
+          consultationDoneSummary={consultationDoneSummary}
+          openEngagementSummary={openEngagementSummary}
+          ticketsSummary={ticketsSummary}
           loadingServer={loadingServer}
           loadingNotif={loadingNotif}
           loadingPeople={loadingPeople}
           loadingTests={loadingTests}
           loadingQuestionnaire={loadingQuestionnaire}
+          loadingBloodReport={loadingBloodReport}
+          loadingBioaiReport={loadingBioaiReport}
+          loadingConsultationDone={loadingConsultationDone}
+          loadingOpenEngagement={loadingOpenEngagement}
+          loadingTickets={loadingTickets}
           onOpenCard={(id) => openCard(id, "overview")}
         />
       )}

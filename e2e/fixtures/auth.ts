@@ -25,6 +25,11 @@ export type ApiCounters = {
   getPeopleCalls: () => number;
   getTestsCalls: () => number;
   getQuestionnaireCalls: () => number;
+  getBloodReportCalls: () => number;
+  getBioaiReportCalls: () => number;
+  getConsultationDoneCalls: () => number;
+  getOpenEngagementCalls: () => number;
+  getTicketsCalls: () => number;
   getB2bSummaryCalls: () => number;
   getB2bEngagementsCalls: () => number;
 };
@@ -49,6 +54,11 @@ export async function mockCommandApis(page: Page): Promise<ApiCounters> {
   let peopleCalls = 0;
   let testsCalls = 0;
   let questionnaireCalls = 0;
+  let bloodReportCalls = 0;
+  let bioaiReportCalls = 0;
+  let consultationDoneCalls = 0;
+  let openEngagementCalls = 0;
+  let ticketsCalls = 0;
   let b2bSummaryCalls = 0;
   let b2bEngagementsCalls = 0;
 
@@ -211,6 +221,146 @@ export async function mockCommandApis(page: Page): Promise<ApiCounters> {
       return;
     }
 
+    if (url.includes("/admin/dashboard/command/blood-report-generated")) {
+      bloodReportCalls += 1;
+      const parsed = new URL(url);
+      const includeRows = parsed.searchParams.get("include_rows") !== "false";
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: includeRows
+            ? [{ ...JOURNEY_DETAIL_ROW, lab_report: "loaded" }]
+            : [],
+          meta: {
+            period: "this_week",
+            page: 1,
+            limit: includeRows ? 20 : 1,
+            total: 28,
+            b2b: 19,
+            b2c: 9,
+          },
+        }),
+      });
+      return;
+    }
+
+    if (url.includes("/admin/dashboard/command/bioai-report-generated")) {
+      bioaiReportCalls += 1;
+      const parsed = new URL(url);
+      const includeRows = parsed.searchParams.get("include_rows") !== "false";
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: includeRows
+            ? [{ ...JOURNEY_DETAIL_ROW, bio_ai: "loaded" }]
+            : [],
+          meta: {
+            period: "this_week",
+            page: 1,
+            limit: includeRows ? 20 : 1,
+            total: 21,
+            b2b: 14,
+            b2c: 7,
+          },
+        }),
+      });
+      return;
+    }
+
+    if (url.includes("/admin/dashboard/command/consultation-done")) {
+      consultationDoneCalls += 1;
+      const parsed = new URL(url);
+      const includeRows = parsed.searchParams.get("include_rows") !== "false";
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: includeRows
+            ? [{ ...JOURNEY_DETAIL_ROW, consult: "Attended" }]
+            : [],
+          meta: {
+            period: "this_week",
+            page: 1,
+            limit: includeRows ? 20 : 1,
+            total: 15,
+            b2b: 10,
+            b2c: 5,
+          },
+        }),
+      });
+      return;
+    }
+
+    if (url.includes("/admin/dashboard/command/open-engagements")) {
+      openEngagementCalls += 1;
+      const parsed = new URL(url);
+      const includeRows = parsed.searchParams.get("include_rows") !== "false";
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: includeRows
+            ? [
+                {
+                  engagement_id: 201,
+                  engagement_code: "ENG-OPEN-201",
+                  engagement_name: "Open Camp Alpha",
+                  type: "B2B",
+                  city: "Bengaluru",
+                  package: "Full Body",
+                  start_date: "2026-11-10",
+                  end_date: "2026-11-20",
+                },
+              ]
+            : [],
+          meta: {
+            period: "this_week",
+            page: 1,
+            limit: includeRows ? 20 : 1,
+            total: 8,
+            b2b: 5,
+            b2c: 3,
+          },
+        }),
+      });
+      return;
+    }
+
+    if (url.includes("/admin/dashboard/command/tickets")) {
+      ticketsCalls += 1;
+      const parsed = new URL(url);
+      const includeRows = parsed.searchParams.get("include_rows") !== "false";
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: includeRows
+            ? [
+                {
+                  ticket_id: 501,
+                  raised_by: { name: "Ada Lovelace", phone: "9999999999" },
+                  contact: "9999999999",
+                  query: "Need help with booking",
+                  raised_at: "2026-11-15T10:00:00+00:00",
+                  status: "open",
+                },
+              ]
+            : [],
+          meta: {
+            period: "this_week",
+            page: 1,
+            limit: includeRows ? 20 : 1,
+            open: 4,
+            solved: 11,
+            total: 15,
+          },
+        }),
+      });
+      return;
+    }
+
     if (url.includes("/admin/dashboard/command/b2b/summary")) {
       b2bSummaryCalls += 1;
       await route.fulfill({
@@ -298,6 +448,11 @@ export async function mockCommandApis(page: Page): Promise<ApiCounters> {
     getPeopleCalls: () => peopleCalls,
     getTestsCalls: () => testsCalls,
     getQuestionnaireCalls: () => questionnaireCalls,
+    getBloodReportCalls: () => bloodReportCalls,
+    getBioaiReportCalls: () => bioaiReportCalls,
+    getConsultationDoneCalls: () => consultationDoneCalls,
+    getOpenEngagementCalls: () => openEngagementCalls,
+    getTicketsCalls: () => ticketsCalls,
     getB2bSummaryCalls: () => b2bSummaryCalls,
     getB2bEngagementsCalls: () => b2bEngagementsCalls,
   };

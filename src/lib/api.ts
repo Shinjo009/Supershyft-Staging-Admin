@@ -6314,6 +6314,41 @@ export interface CommandB2BEngagementRow {
   participant_count: number;
 }
 
+export interface CommandOpenEngagementRow {
+  engagement_id: number;
+  engagement_code: string;
+  engagement_name: string;
+  type: string;
+  city: string;
+  package: string;
+  start_date: string | null;
+  end_date: string | null;
+}
+
+export interface CommandTicketsMeta {
+  period: string;
+  page: number;
+  limit: number;
+  open: number;
+  solved: number;
+  total: number;
+}
+
+export interface CommandTicketsSummary {
+  open: number;
+  solved: number;
+  total: number;
+}
+
+export interface CommandTicketRow {
+  ticket_id: number;
+  raised_by: { name: string; phone: string };
+  contact: string;
+  query: string;
+  raised_at: string | null;
+  status: string;
+}
+
 export const commandDashboardApi = {
   notificationHealth: (params?: CommandPeriodParams) =>
     api.get<{ data: CommandNotificationHealth; meta: { period: string } }>(
@@ -6340,6 +6375,31 @@ export const commandDashboardApi = {
       data: CommandPeopleRegisteredRow[];
       meta: CommandAudienceSplitMeta;
     }>("/admin/dashboard/command/questionnaire-done", { params }),
+  bloodReportGenerated: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/blood-report-generated", { params }),
+  bioaiReportGenerated: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/bioai-report-generated", { params }),
+  consultationDone: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/consultation-done", { params }),
+  openEngagements: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandOpenEngagementRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/open-engagements", { params }),
+  tickets: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandTicketRow[];
+      meta: CommandTicketsMeta;
+    }>("/admin/dashboard/command/tickets", { params }),
   b2bSummary: (params?: CommandPeriodParams) =>
     api.get<{ data: CommandB2BSummary; meta: { period: string } }>(
       "/admin/dashboard/command/b2b/summary",

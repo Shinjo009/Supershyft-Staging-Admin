@@ -65,11 +65,11 @@ export const OVERVIEW_CARD_ORDER: {
   { id: "people_registered", title: "People registered", interaction: "new_page" },
   { id: "tests_completed", title: "Tests completed", interaction: "new_page" },
   { id: "questionnaire_done", title: "Questionnaire done", interaction: "new_page" },
-  { id: "blood_report_generated", title: "Blood report generated", interaction: "none" },
-  { id: "bioai_report_generated", title: "BioAI report generated", interaction: "none" },
-  { id: "consultation_done", title: "Consultation done", interaction: "none" },
-  { id: "open_engagement", title: "Open engagement", interaction: "none" },
-  { id: "tickets", title: "Tickets", interaction: "none" },
+  { id: "blood_report_generated", title: "Blood report generated", interaction: "new_page" },
+  { id: "bioai_report_generated", title: "BioAI report generated", interaction: "new_page" },
+  { id: "consultation_done", title: "Consultation done", interaction: "new_page" },
+  { id: "open_engagement", title: "Open engagement", interaction: "new_page" },
+  { id: "tickets", title: "Tickets", interaction: "new_page" },
   { id: "action_center", title: "Action center", interaction: "none" },
 ];
 
@@ -90,6 +90,11 @@ export const WIRED_CARDS = new Set<CardId>([
   "people_registered",
   "tests_completed",
   "questionnaire_done",
+  "blood_report_generated",
+  "bioai_report_generated",
+  "consultation_done",
+  "open_engagement",
+  "tickets",
   "ongoing",
   "upcoming",
   "completed",
@@ -100,6 +105,11 @@ const OVERVIEW_NEW_PAGE_CARDS = new Set<CardId>([
   "people_registered",
   "tests_completed",
   "questionnaire_done",
+  "blood_report_generated",
+  "bioai_report_generated",
+  "consultation_done",
+  "open_engagement",
+  "tickets",
 ]);
 
 const B2B_CARDS = new Set<CardId>(["ongoing", "upcoming", "completed"]);

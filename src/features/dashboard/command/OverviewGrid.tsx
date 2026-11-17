@@ -1,14 +1,20 @@
 import type {
   CommandAudienceSplitSummary,
   CommandNotificationHealth,
+  CommandTicketsSummary,
 } from "../../../lib/api";
 import {
+  BioaiReportGeneratedCard,
+  BloodReportGeneratedCard,
+  ConsultationDoneCard,
   NotificationHealthCard,
+  OpenEngagementCard,
   PeopleRegisteredCard,
   PlaceholderCard,
   QuestionnaireDoneCard,
   ServerLoadCard,
   TestsCompletedCard,
+  TicketsCard,
 } from "./cards";
 import { OVERVIEW_CARD_ORDER, WIRED_CARDS, type CardId } from "./period";
 
@@ -33,11 +39,21 @@ export function OverviewGrid({
   peopleTotal,
   testsSummary,
   questionnaireSummary,
+  bloodReportSummary,
+  bioaiReportSummary,
+  consultationDoneSummary,
+  openEngagementSummary,
+  ticketsSummary,
   loadingServer,
   loadingNotif,
   loadingPeople,
   loadingTests,
   loadingQuestionnaire,
+  loadingBloodReport,
+  loadingBioaiReport,
+  loadingConsultationDone,
+  loadingOpenEngagement,
+  loadingTickets,
   onOpenCard,
 }: {
   server: { cpu: number | null; memory: number | null; storage: number | null };
@@ -45,11 +61,21 @@ export function OverviewGrid({
   peopleTotal: number | null;
   testsSummary: CommandAudienceSplitSummary | null;
   questionnaireSummary: CommandAudienceSplitSummary | null;
+  bloodReportSummary: CommandAudienceSplitSummary | null;
+  bioaiReportSummary: CommandAudienceSplitSummary | null;
+  consultationDoneSummary: CommandAudienceSplitSummary | null;
+  openEngagementSummary: CommandAudienceSplitSummary | null;
+  ticketsSummary: CommandTicketsSummary | null;
   loadingServer?: boolean;
   loadingNotif?: boolean;
   loadingPeople?: boolean;
   loadingTests?: boolean;
   loadingQuestionnaire?: boolean;
+  loadingBloodReport?: boolean;
+  loadingBioaiReport?: boolean;
+  loadingConsultationDone?: boolean;
+  loadingOpenEngagement?: boolean;
+  loadingTickets?: boolean;
   onOpenCard: (id: CardId) => void;
 }) {
   const renderCard = (id: CardId) => {
@@ -102,6 +128,56 @@ export function OverviewGrid({
           summary={questionnaireSummary}
           loading={loadingQuestionnaire}
           onOpen={() => onOpenCard("questionnaire_done")}
+        />
+      );
+    }
+    if (id === "blood_report_generated") {
+      return (
+        <BloodReportGeneratedCard
+          key={id}
+          summary={bloodReportSummary}
+          loading={loadingBloodReport}
+          onOpen={() => onOpenCard("blood_report_generated")}
+        />
+      );
+    }
+    if (id === "bioai_report_generated") {
+      return (
+        <BioaiReportGeneratedCard
+          key={id}
+          summary={bioaiReportSummary}
+          loading={loadingBioaiReport}
+          onOpen={() => onOpenCard("bioai_report_generated")}
+        />
+      );
+    }
+    if (id === "consultation_done") {
+      return (
+        <ConsultationDoneCard
+          key={id}
+          summary={consultationDoneSummary}
+          loading={loadingConsultationDone}
+          onOpen={() => onOpenCard("consultation_done")}
+        />
+      );
+    }
+    if (id === "open_engagement") {
+      return (
+        <OpenEngagementCard
+          key={id}
+          summary={openEngagementSummary}
+          loading={loadingOpenEngagement}
+          onOpen={() => onOpenCard("open_engagement")}
+        />
+      );
+    }
+    if (id === "tickets") {
+      return (
+        <TicketsCard
+          key={id}
+          summary={ticketsSummary}
+          loading={loadingTickets}
+          onOpen={() => onOpenCard("tickets")}
         />
       );
     }
