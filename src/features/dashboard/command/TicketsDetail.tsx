@@ -14,6 +14,16 @@ function formatRaisedAt(value: string | null) {
   return d.toLocaleString();
 }
 
+/** Map support_tickets.status → Open | Solved for the detail table. */
+function formatTicketStatus(status: string | null | undefined) {
+  const key = String(status || "")
+    .trim()
+    .toLowerCase();
+  if (key === "open") return "Open";
+  if (key === "closed" || key === "resolved") return "Solved";
+  return status?.trim() || "—";
+}
+
 export function TicketsDetail({
   periodParams,
   onBack,
@@ -90,6 +100,7 @@ export function TicketsDetail({
                   <th className="px-3 py-2.5 font-medium">Contact</th>
                   <th className="px-3 py-2.5 font-medium">Query</th>
                   <th className="px-3 py-2.5 font-medium">Raised at</th>
+                  <th className="px-3 py-2.5 font-medium">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -107,6 +118,7 @@ export function TicketsDetail({
                       <span className="line-clamp-3">{row.query || "—"}</span>
                     </td>
                     <td className="px-3 py-2.5 text-zinc-700">{formatRaisedAt(row.raised_at)}</td>
+                    <td className="px-3 py-2.5 text-zinc-700">{formatTicketStatus(row.status)}</td>
                   </tr>
                 ))}
               </tbody>

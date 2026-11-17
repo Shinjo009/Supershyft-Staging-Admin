@@ -16,7 +16,11 @@ import type {
 } from "../../../lib/api";
 import { MiniDonut, MiniStat } from "./charts";
 import { MetricCard, type MetricCardVariant } from "./MetricCard";
-import type { CardId } from "./period";
+import {
+  ACTION_SUBCARD_ORDER,
+  type ActionSubcardId,
+  type CardId,
+} from "./period";
 
 function AudienceSplitBody({
   total,
@@ -421,16 +425,26 @@ export function TicketsCard({
  * Soft pastels matched to design screenshot / command info·danger·warning tones.
  * Explicit hex avoids Tailwind opacity utility quirks.
  */
-const ACTION_TILES = [
-  { label: "Upcoming collections", tone: "border-[#C5D0E0] bg-[#EEF2F7]" },
-  { label: "Overdue collections", tone: "border-[#F5C2C2] bg-[#FEF2F2]" },
-  { label: "Questionnaire pending", tone: "border-[#E8C9A0] bg-[#FFF7ED]" },
-  { label: "Blood reports pending", tone: "border-[#E8C9A0] bg-[#FFF7ED]" },
-  { label: "Bio-AI pending", tone: "border-[#E8C9A0] bg-[#FFF7ED]" },
-  { label: "Consultations pending", tone: "border-[#C5D0E0] bg-[#EEF2F7]" },
-] as const;
+const ACTION_TILE_TONES: Record<ActionSubcardId, string> = {
+  upcoming_collections: "border-[#C5D0E0] bg-[#EEF2F7]",
+  overdue_collections: "border-[#F5C2C2] bg-[#FEF2F2]",
+  questionnaire_pending: "border-[#E8C9A0] bg-[#FFF7ED]",
+  blood_reports_pending: "border-[#E8C9A0] bg-[#FFF7ED]",
+  bio_ai_pending: "border-[#E8C9A0] bg-[#FFF7ED]",
+  consultation_pending: "border-[#C5D0E0] bg-[#EEF2F7]",
+};
 
-export function ActionCenterCard() {
+export type ActionCenterCounts = Partial<Record<ActionSubcardId, number | null>>;
+
+export function ActionCenterCard({
+  counts,
+  loading,
+  onOpenSubcard,
+}: {
+  counts?: ActionCenterCounts;
+  loading?: boolean;
+  onOpenSubcard?: (id: ActionSubcardId) => void;
+}) {
   return (
     <MetricCard
       title="Action Center"
@@ -441,24 +455,34 @@ export function ActionCenterCard() {
     >
       {/* gap-3 ≈ 12px between tiles; p-3 outer inset — matches design gutters */}
       <div className="grid w-full grid-cols-3 gap-3 p-3">
-        {ACTION_TILES.map((tile) => (
-          <div
-            key={tile.label}
-            className={`flex min-h-[4.75rem] flex-col justify-center gap-1.5 overflow-hidden rounded-xl border px-3 py-2.5 text-left ${tile.tone}`}
-          >
-            <span className="text-xs font-medium leading-tight text-zinc-600">{tile.label}</span>
-            <span className="text-2xl font-semibold tabular-nums leading-none text-zinc-900">
-              —
-            </span>
-          </div>
-        ))}
+        {ACTION_SUBCARD_ORDER.map((tile) => {
+          const tone = ACTION_TILE_TONES[tile.id];
+          const value = counts?.[tile.id];
+          const display =
+            loading || value == null ? "—" : value.toLocaleString();
+          return (
+            <button
+              key={tile.id}
+              type="button"
+              data-testid={`action-tile-${tile.id}`}
+              onClick={() => onOpenSubcard?.(tile.id)}
+              className={`flex min-h-[4.75rem] flex-col justify-center gap-1.5 overflow-hidden rounded-xl border px-3 py-2.5 text-left transition-colors hover:brightness-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 ${tone}`}
+            >
+              <span className="text-xs font-medium leading-tight text-zinc-600">
+                {tile.label}
+              </span>
+              <span className="text-2xl font-semibold tabular-nums leading-none text-zinc-900">
+                {display}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </MetricCard>
   );
 }
 
 export function PlaceholderCard({ title, id }: { title: string; id: string }) {
-  if (id === "action_center") return <ActionCenterCard />;
   return (
     <MetricCard title={title} variant={variantFor(id)} data-testid={`card-${id}`}>
       <div className="w-full text-xs text-zinc-400" aria-hidden>

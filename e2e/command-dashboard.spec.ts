@@ -59,6 +59,25 @@ test.describe("Command dashboard UI/UX", () => {
     await expect(ticketsCard.getByTestId("tickets-slice-open")).toContainText("4");
     await expect(ticketsCard.getByTestId("tickets-slice-solved")).toContainText("11");
 
+    const actionCenter = page.getByTestId("card-action_center");
+    await expect(actionCenter).toBeVisible();
+    await expect(actionCenter.getByTestId("action-tile-upcoming_collections")).toContainText(
+      "11"
+    );
+    await expect(actionCenter.getByTestId("action-tile-overdue_collections")).toContainText(
+      "7"
+    );
+    await expect(actionCenter.getByTestId("action-tile-questionnaire_pending")).toContainText(
+      "14"
+    );
+    await expect(actionCenter.getByTestId("action-tile-blood_reports_pending")).toContainText(
+      "9"
+    );
+    await expect(actionCenter.getByTestId("action-tile-bio_ai_pending")).toContainText("6");
+    await expect(actionCenter.getByTestId("action-tile-consultation_pending")).toContainText(
+      "4"
+    );
+
     expect(counters.getServerCalls()).toBeGreaterThanOrEqual(1);
     expect(counters.getNotifCalls()).toBeGreaterThanOrEqual(1);
     expect(counters.getPeopleCalls()).toBeGreaterThanOrEqual(1);
@@ -69,6 +88,12 @@ test.describe("Command dashboard UI/UX", () => {
     expect(counters.getConsultationDoneCalls()).toBeGreaterThanOrEqual(1);
     expect(counters.getOpenEngagementCalls()).toBeGreaterThanOrEqual(1);
     expect(counters.getTicketsCalls()).toBeGreaterThanOrEqual(1);
+    expect(counters.getUpcomingCollectionsCalls()).toBeGreaterThanOrEqual(1);
+    expect(counters.getOverdueCollectionsCalls()).toBeGreaterThanOrEqual(1);
+    expect(counters.getQuestionnairePendingCalls()).toBeGreaterThanOrEqual(1);
+    expect(counters.getBloodReportsPendingCalls()).toBeGreaterThanOrEqual(1);
+    expect(counters.getBioaiPendingCalls()).toBeGreaterThanOrEqual(1);
+    expect(counters.getConsultationPendingCalls()).toBeGreaterThanOrEqual(1);
   });
 
   test("B2B tab is enabled; B2C stays inert; invalid tab normalizes to overview", async ({
@@ -110,6 +135,12 @@ test.describe("Command dashboard UI/UX", () => {
     const consultBefore = counters.getConsultationDoneCalls();
     const openBefore = counters.getOpenEngagementCalls();
     const ticketsBefore = counters.getTicketsCalls();
+    const upcomingBefore = counters.getUpcomingCollectionsCalls();
+    const overdueBefore = counters.getOverdueCollectionsCalls();
+    const questPendingBefore = counters.getQuestionnairePendingCalls();
+    const bloodPendingBefore = counters.getBloodReportsPendingCalls();
+    const bioaiPendingBefore = counters.getBioaiPendingCalls();
+    const consultPendingBefore = counters.getConsultationPendingCalls();
 
     await page.getByRole("button", { name: "This month", exact: true }).click();
     await expect(page).toHaveURL(/period=this_month/);
@@ -129,6 +160,24 @@ test.describe("Command dashboard UI/UX", () => {
       .poll(() => counters.getOpenEngagementCalls())
       .toBeGreaterThan(openBefore);
     await expect.poll(() => counters.getTicketsCalls()).toBeGreaterThan(ticketsBefore);
+    await expect
+      .poll(() => counters.getUpcomingCollectionsCalls())
+      .toBeGreaterThan(upcomingBefore);
+    await expect
+      .poll(() => counters.getOverdueCollectionsCalls())
+      .toBeGreaterThan(overdueBefore);
+    await expect
+      .poll(() => counters.getQuestionnairePendingCalls())
+      .toBeGreaterThan(questPendingBefore);
+    await expect
+      .poll(() => counters.getBloodReportsPendingCalls())
+      .toBeGreaterThan(bloodPendingBefore);
+    await expect
+      .poll(() => counters.getBioaiPendingCalls())
+      .toBeGreaterThan(bioaiPendingBefore);
+    await expect
+      .poll(() => counters.getConsultationPendingCalls())
+      .toBeGreaterThan(consultPendingBefore);
     expect(counters.getServerCalls()).toBe(serverBefore);
   });
 
@@ -394,11 +443,19 @@ test.describe("Command dashboard UI/UX", () => {
 
     const detail = page.getByTestId("detail-tickets");
     await expect(detail).toBeVisible();
-    for (const header of ["Ticket ID", "Raised by", "Contact", "Query", "Raised at"]) {
+    for (const header of [
+      "Ticket ID",
+      "Raised by",
+      "Contact",
+      "Query",
+      "Raised at",
+      "Status",
+    ]) {
       await expect(detail.getByRole("columnheader", { name: header, exact: true })).toBeVisible();
     }
     await expect(detail.getByText("Ada Lovelace")).toBeVisible();
     await expect(detail.getByText("Need help with booking")).toBeVisible();
+    await expect(detail.getByText("Open", { exact: true })).toBeVisible();
     await detail.getByRole("button", { name: "Back" }).click();
     await expect(page).not.toHaveURL(/card=/);
   });
@@ -493,4 +550,130 @@ test.describe("Command dashboard UI/UX", () => {
     await expect(page).not.toHaveURL(/card=/);
     await expect(page.getByTestId("overview-grid")).toBeVisible();
   });
+
+  const ACTION_SUBCARDS = [
+    {
+      id: "upcoming_collections",
+      label: "Upcoming collections",
+      count: "11",
+    },
+    {
+      id: "overdue_collections",
+      label: "Overdue collections",
+      count: "7",
+    },
+    {
+      id: "questionnaire_pending",
+      label: "Questionnaire pending",
+      count: "14",
+    },
+    {
+      id: "blood_reports_pending",
+      label: "Blood reports pending",
+      count: "9",
+    },
+    {
+      id: "bio_ai_pending",
+      label: "Bio-AI pending",
+      count: "6",
+    },
+    {
+      id: "consultation_pending",
+      label: "Consultations pending",
+      count: "4",
+    },
+  ] as const;
+
+  const JOURNEY_HEADERS = [
+    "Person",
+    "Type",
+    "Engagement",
+    "Package",
+    "Collection",
+    "Blood Collection",
+    "Questionnaire",
+    "Lab report",
+    "BIO-AI",
+    "Consult",
+  ] as const;
+
+  test("action center tiles show labels, counts, and are keyboard-focusable", async ({
+    page,
+  }) => {
+    await page.goto("/?tab=overview&period=this_week");
+    const actionCenter = page.getByTestId("card-action_center");
+    await expect(actionCenter).toBeVisible();
+
+    for (const tile of ACTION_SUBCARDS) {
+      const btn = actionCenter.getByTestId(`action-tile-${tile.id}`);
+      await expect(btn).toBeVisible();
+      await expect(btn).toHaveAttribute("type", "button");
+      await expect(btn).toContainText(tile.label);
+      await expect(btn).toContainText(tile.count);
+      await btn.focus();
+      await expect(btn).toBeFocused();
+    }
+  });
+
+  for (const tile of ACTION_SUBCARDS) {
+    test(`action tile ${tile.id} opens detail table and back clears params`, async ({
+      page,
+    }) => {
+      await page.goto("/?tab=overview&period=this_week");
+      await page.getByTestId(`action-tile-${tile.id}`).click();
+
+      await expect(page).toHaveURL(/tab=overview/);
+      await expect(page).toHaveURL(/card=action_center/);
+      await expect(page).toHaveURL(new RegExp(`subcard=${tile.id}`));
+      await expect(page.getByTestId("tabs-hidden")).toBeAttached();
+      await expect(page.getByRole("tablist", { name: "Dashboard tabs" })).toHaveCount(0);
+
+      const detail = page.getByTestId(`detail-action_center-${tile.id}`);
+      await expect(detail).toBeVisible();
+      await expect(detail.getByRole("heading", { name: tile.label })).toBeVisible();
+      await expect(detail).toContainText(`(${tile.count})`);
+
+      for (const header of JOURNEY_HEADERS) {
+        await expect(
+          detail.getByRole("columnheader", { name: header, exact: true })
+        ).toBeVisible();
+      }
+      await expect(detail.getByText("Ada Lovelace")).toBeVisible();
+      await expect(detail.getByText("9999999999")).toBeVisible();
+
+      await detail.getByRole("button", { name: "Back" }).click();
+      await expect(page).not.toHaveURL(/card=/);
+      await expect(page).not.toHaveURL(/subcard=/);
+      await expect(page.getByRole("tablist", { name: "Dashboard tabs" })).toBeVisible();
+      await expect(page.getByTestId("overview-grid")).toBeVisible();
+    });
+  }
+
+  test("invalid action_center subcard is stripped back to overview", async ({ page }) => {
+    await page.goto(
+      "/?tab=overview&period=this_week&card=action_center&subcard=not_a_real_tile"
+    );
+    await expect(page).not.toHaveURL(/card=/);
+    await expect(page).not.toHaveURL(/subcard=/);
+    await expect(page.getByTestId("overview-grid")).toBeVisible();
+    await expect(page.getByTestId("card-action_center")).toBeVisible();
+  });
+
+  test("action_center without subcard normalizes to overview", async ({ page }) => {
+    await page.goto("/?tab=overview&period=this_week&card=action_center");
+    await expect(page).not.toHaveURL(/card=/);
+    await expect(page.getByTestId("overview-grid")).toBeVisible();
+  });
+
+  test("direct action_center subcard URL loads detail without prior click", async ({
+    page,
+  }) => {
+    await page.goto(
+      "/?tab=overview&period=this_week&card=action_center&subcard=blood_reports_pending"
+    );
+    await expect(page.getByTestId("detail-action_center-blood_reports_pending")).toBeVisible();
+    await expect(page.getByTestId("tabs-hidden")).toBeAttached();
+    await expect(page.getByText("Ada Lovelace")).toBeVisible();
+  });
 });
+

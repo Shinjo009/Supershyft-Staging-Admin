@@ -8,9 +8,11 @@ import {
   type CommandNotificationHealth,
   type CommandTicketsSummary,
 } from "../../../lib/api";
+import { ActionCenterDetail } from "./ActionCenterDetail";
 import { B2BGrid } from "./B2BGrid";
 import { BioaiReportGeneratedDetail } from "./BioaiReportGeneratedDetail";
 import { BloodReportGeneratedDetail } from "./BloodReportGeneratedDetail";
+import type { ActionCenterCounts } from "./cards";
 import { ConsultationDoneDetail } from "./ConsultationDoneDetail";
 import { NotificationHealthDetail } from "./NotificationHealthDetail";
 import { OpenEngagementDetail } from "./OpenEngagementDetail";
@@ -26,7 +28,9 @@ import {
   cardInteraction,
   normalizeCard,
   normalizePeriod,
+  normalizeSubcard,
   normalizeTab,
+  type ActionSubcardId,
   type CardId,
   type DashboardTab,
   type PeriodPreset,
@@ -57,12 +61,14 @@ export function CommandDashboard() {
   const rawTab = searchParams.get("tab");
   const rawPeriod = searchParams.get("period");
   const rawCard = searchParams.get("card");
+  const rawSubcard = searchParams.get("subcard");
   const from = searchParams.get("from");
   const to = searchParams.get("to");
 
   const tab = normalizeTab(rawTab);
   const period = normalizePeriod(rawPeriod);
   const card = normalizeCard(rawCard, tab);
+  const subcard = card === "action_center" ? normalizeSubcard(rawSubcard) : null;
 
   // Normalize URL defaults / invalid values once they diverge
   useEffect(() => {
@@ -86,13 +92,43 @@ export function CommandDashboard() {
     }
     if (rawCard && !card) {
       next.delete("card");
+      next.delete("subcard");
+      changed = true;
+    }
+    // action_center requires a valid subcard; otherwise drop both
+    if (card === "action_center" && !subcard) {
+      next.delete("card");
+      next.delete("subcard");
+      changed = true;
+    }
+    // stray subcard without action_center card
+    if (rawSubcard && card !== "action_center") {
+      next.delete("subcard");
+      changed = true;
+    }
+    // invalid subcard value while on action_center
+    if (card === "action_center" && rawSubcard && !normalizeSubcard(rawSubcard)) {
+      next.delete("card");
+      next.delete("subcard");
       changed = true;
     }
 
     if (changed) setSearchParams(next, { replace: true });
     // Intentionally depend on raw query pieces, not the whole searchParams object.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawTab, rawPeriod, rawCard, tab, period, card, from, to, setSearchParams]);
+  }, [
+    rawTab,
+    rawPeriod,
+    rawCard,
+    rawSubcard,
+    tab,
+    period,
+    card,
+    subcard,
+    from,
+    to,
+    setSearchParams,
+  ]);
 
   const updateParams = useCallback(
     (patch: Record<string, string | null>) => {
@@ -112,7 +148,7 @@ export function CommandDashboard() {
   );
 
   const setTab = (nextTab: DashboardTab) => {
-    updateParams({ tab: nextTab, card: null });
+    updateParams({ tab: nextTab, card: null, subcard: null });
   };
 
   const setPeriod = (nextPeriod: PeriodPreset) => {
@@ -132,11 +168,19 @@ export function CommandDashboard() {
   };
 
   const openCard = (id: CardId, owningTab: DashboardTab = tab) => {
-    updateParams({ card: id, tab: owningTab });
+    updateParams({ card: id, tab: owningTab, subcard: null });
+  };
+
+  const openSubcard = (id: ActionSubcardId) => {
+    updateParams({
+      tab: "overview",
+      card: "action_center",
+      subcard: id,
+    });
   };
 
   const closeCard = () => {
-    updateParams({ card: null });
+    updateParams({ card: null, subcard: null });
   };
 
   const periodParams = useMemo(
@@ -175,6 +219,8 @@ export function CommandDashboard() {
   const [loadingOpenEngagement, setLoadingOpenEngagement] = useState(true);
   const [ticketsSummary, setTicketsSummary] = useState<CommandTicketsSummary | null>(null);
   const [loadingTickets, setLoadingTickets] = useState(true);
+  const [actionCenterCounts, setActionCenterCounts] = useState<ActionCenterCounts>({});
+  const [loadingActionCenter, setLoadingActionCenter] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -216,6 +262,7 @@ export function CommandDashboard() {
     setLoadingConsultationDone(true);
     setLoadingOpenEngagement(true);
     setLoadingTickets(true);
+    setLoadingActionCenter(true);
 
     const summaryParams = {
       ...periodParams,
@@ -234,6 +281,12 @@ export function CommandDashboard() {
       commandDashboardApi.consultationDone(summaryParams),
       commandDashboardApi.openEngagements(summaryParams),
       commandDashboardApi.tickets(summaryParams),
+      commandDashboardApi.upcomingCollections(summaryParams),
+      commandDashboardApi.overdueCollections(summaryParams),
+      commandDashboardApi.questionnairePending(summaryParams),
+      commandDashboardApi.bloodReportsPending(summaryParams),
+      commandDashboardApi.bioaiPending(summaryParams),
+      commandDashboardApi.consultationPending(summaryParams),
     ])
       .then(
         ([
@@ -246,6 +299,12 @@ export function CommandDashboard() {
           consultRes,
           openRes,
           ticketsRes,
+          upcomingRes,
+          overdueRes,
+          questPendingRes,
+          bloodPendingRes,
+          bioaiPendingRes,
+          consultPendingRes,
         ]) => {
           if (cancelled) return;
           setNotif(notifRes.data.data);
@@ -260,6 +319,14 @@ export function CommandDashboard() {
             open: ticketsRes.data.meta?.open ?? 0,
             solved: ticketsRes.data.meta?.solved ?? 0,
             total: ticketsRes.data.meta?.total ?? 0,
+          });
+          setActionCenterCounts({
+            upcoming_collections: upcomingRes.data.meta?.total ?? 0,
+            overdue_collections: overdueRes.data.meta?.total ?? 0,
+            questionnaire_pending: questPendingRes.data.meta?.total ?? 0,
+            blood_reports_pending: bloodPendingRes.data.meta?.total ?? 0,
+            bio_ai_pending: bioaiPendingRes.data.meta?.total ?? 0,
+            consultation_pending: consultPendingRes.data.meta?.total ?? 0,
           });
           setLoadError(null);
         }
@@ -279,6 +346,7 @@ export function CommandDashboard() {
           setLoadingConsultationDone(false);
           setLoadingOpenEngagement(false);
           setLoadingTickets(false);
+          setLoadingActionCenter(false);
         }
       });
     return () => {
@@ -336,6 +404,12 @@ export function CommandDashboard() {
         <OpenEngagementDetail periodParams={periodParams} onBack={closeCard} />
       ) : card === "tickets" ? (
         <TicketsDetail periodParams={periodParams} onBack={closeCard} />
+      ) : card === "action_center" && subcard ? (
+        <ActionCenterDetail
+          subcard={subcard}
+          periodParams={periodParams}
+          onBack={closeCard}
+        />
       ) : (
         <OverviewGrid
           server={server}
@@ -348,6 +422,7 @@ export function CommandDashboard() {
           consultationDoneSummary={consultationDoneSummary}
           openEngagementSummary={openEngagementSummary}
           ticketsSummary={ticketsSummary}
+          actionCenterCounts={actionCenterCounts}
           loadingServer={loadingServer}
           loadingNotif={loadingNotif}
           loadingPeople={loadingPeople}
@@ -358,7 +433,9 @@ export function CommandDashboard() {
           loadingConsultationDone={loadingConsultationDone}
           loadingOpenEngagement={loadingOpenEngagement}
           loadingTickets={loadingTickets}
+          loadingActionCenter={loadingActionCenter}
           onOpenCard={(id) => openCard(id, "overview")}
+          onOpenSubcard={openSubcard}
         />
       )}
     </div>

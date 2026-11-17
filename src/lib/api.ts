@@ -6400,6 +6400,36 @@ export const commandDashboardApi = {
       data: CommandTicketRow[];
       meta: CommandTicketsMeta;
     }>("/admin/dashboard/command/tickets", { params }),
+  upcomingCollections: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/upcoming-collections", { params }),
+  overdueCollections: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/overdue-collections", { params }),
+  questionnairePending: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/questionnaire-pending", { params }),
+  bloodReportsPending: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/blood-reports-pending", { params }),
+  bioaiPending: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/bioai-pending", { params }),
+  consultationPending: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/consultation-pending", { params }),
   b2bSummary: (params?: CommandPeriodParams) =>
     api.get<{ data: CommandB2BSummary; meta: { period: string } }>(
       "/admin/dashboard/command/b2b/summary",

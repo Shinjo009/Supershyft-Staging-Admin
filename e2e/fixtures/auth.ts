@@ -1,4 +1,4 @@
-import { test as base, expect, type Page } from "@playwright/test";
+import { test as base, expect, type Page, type Route } from "@playwright/test";
 
 export const ADMIN_PROFILE = {
   authKind: "employee",
@@ -30,6 +30,12 @@ export type ApiCounters = {
   getConsultationDoneCalls: () => number;
   getOpenEngagementCalls: () => number;
   getTicketsCalls: () => number;
+  getUpcomingCollectionsCalls: () => number;
+  getOverdueCollectionsCalls: () => number;
+  getQuestionnairePendingCalls: () => number;
+  getBloodReportsPendingCalls: () => number;
+  getBioaiPendingCalls: () => number;
+  getConsultationPendingCalls: () => number;
   getB2bSummaryCalls: () => number;
   getB2bEngagementsCalls: () => number;
 };
@@ -59,8 +65,32 @@ export async function mockCommandApis(page: Page): Promise<ApiCounters> {
   let consultationDoneCalls = 0;
   let openEngagementCalls = 0;
   let ticketsCalls = 0;
+  let upcomingCollectionsCalls = 0;
+  let overdueCollectionsCalls = 0;
+  let questionnairePendingCalls = 0;
+  let bloodReportsPendingCalls = 0;
+  let bioaiPendingCalls = 0;
+  let consultationPendingCalls = 0;
   let b2bSummaryCalls = 0;
   let b2bEngagementsCalls = 0;
+
+  const fulfillAudience = async (route: Route, total: number, includeRows: boolean) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: includeRows ? [JOURNEY_DETAIL_ROW] : [],
+        meta: {
+          period: "this_week",
+          page: 1,
+          limit: includeRows ? 20 : 1,
+          total,
+          b2b: Math.floor(total / 2),
+          b2c: total - Math.floor(total / 2),
+        },
+      }),
+    });
+  };
 
   await page.route("**/*", async (route) => {
     const url = route.request().url();
@@ -361,6 +391,48 @@ export async function mockCommandApis(page: Page): Promise<ApiCounters> {
       return;
     }
 
+    if (url.includes("/admin/dashboard/command/upcoming-collections")) {
+      upcomingCollectionsCalls += 1;
+      const includeRows = new URL(url).searchParams.get("include_rows") !== "false";
+      await fulfillAudience(route, 11, includeRows);
+      return;
+    }
+
+    if (url.includes("/admin/dashboard/command/overdue-collections")) {
+      overdueCollectionsCalls += 1;
+      const includeRows = new URL(url).searchParams.get("include_rows") !== "false";
+      await fulfillAudience(route, 7, includeRows);
+      return;
+    }
+
+    if (url.includes("/admin/dashboard/command/questionnaire-pending")) {
+      questionnairePendingCalls += 1;
+      const includeRows = new URL(url).searchParams.get("include_rows") !== "false";
+      await fulfillAudience(route, 14, includeRows);
+      return;
+    }
+
+    if (url.includes("/admin/dashboard/command/blood-reports-pending")) {
+      bloodReportsPendingCalls += 1;
+      const includeRows = new URL(url).searchParams.get("include_rows") !== "false";
+      await fulfillAudience(route, 9, includeRows);
+      return;
+    }
+
+    if (url.includes("/admin/dashboard/command/bioai-pending")) {
+      bioaiPendingCalls += 1;
+      const includeRows = new URL(url).searchParams.get("include_rows") !== "false";
+      await fulfillAudience(route, 6, includeRows);
+      return;
+    }
+
+    if (url.includes("/admin/dashboard/command/consultation-pending")) {
+      consultationPendingCalls += 1;
+      const includeRows = new URL(url).searchParams.get("include_rows") !== "false";
+      await fulfillAudience(route, 4, includeRows);
+      return;
+    }
+
     if (url.includes("/admin/dashboard/command/b2b/summary")) {
       b2bSummaryCalls += 1;
       await route.fulfill({
@@ -453,6 +525,12 @@ export async function mockCommandApis(page: Page): Promise<ApiCounters> {
     getConsultationDoneCalls: () => consultationDoneCalls,
     getOpenEngagementCalls: () => openEngagementCalls,
     getTicketsCalls: () => ticketsCalls,
+    getUpcomingCollectionsCalls: () => upcomingCollectionsCalls,
+    getOverdueCollectionsCalls: () => overdueCollectionsCalls,
+    getQuestionnairePendingCalls: () => questionnairePendingCalls,
+    getBloodReportsPendingCalls: () => bloodReportsPendingCalls,
+    getBioaiPendingCalls: () => bioaiPendingCalls,
+    getConsultationPendingCalls: () => consultationPendingCalls,
     getB2bSummaryCalls: () => b2bSummaryCalls,
     getB2bEngagementsCalls: () => b2bEngagementsCalls,
   };
