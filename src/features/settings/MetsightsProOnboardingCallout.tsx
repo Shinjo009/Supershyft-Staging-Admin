@@ -3,51 +3,11 @@ import { hormonePresenceRows } from "./b2cMetsightsProGate";
 
 type Props = {
   activeStatus: B2cTypeProGateStatus | undefined;
-  blockedTypes: B2cTypeProGateStatus[];
   parameterKeys: Set<string>;
-  onSelectType: (typeCode: string) => void;
 };
 
-export function MetsightsProOnboardingCallout({
-  activeStatus,
-  blockedTypes,
-  parameterKeys,
-  onSelectType,
-}: Props) {
-  if (!activeStatus?.isProSelected) {
-    if (blockedTypes.length === 0) return null;
-    const othersOnly = blockedTypes.filter((b) => b.typeCode !== activeStatus?.typeCode);
-    return (
-      <div
-        className="sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
-        role="status"
-      >
-        <p className="font-medium">This tab is OK — other Bio AI types still block save</p>
-        <p className="text-xs mt-1 text-amber-900/90">
-          Assessment here is not Metsights Pro. Fix the tabs below (or use &quot;Use MetSights Essentials on all Bio AI
-          types&quot; above), then save once.
-        </p>
-        <ul className="mt-2 list-disc pl-5 space-y-1">
-          {(othersOnly.length > 0 ? othersOnly : blockedTypes).map((row) => (
-            <li key={row.typeCode}>
-              <button
-                type="button"
-                className="text-left underline underline-offset-2 hover:text-amber-900"
-                onClick={() => onSelectType(row.typeCode)}
-              >
-                {row.displayName}
-              </button>
-              :{" "}
-              {row.missingLabels.length > 0
-                ? `missing ${row.missingLabels.join(", ")}`
-                : "select a diagnostic package"}{" "}
-              on {row.diagnosticPackageLabel}
-            </li>
-          ))}
-        </ul>
-      </div>
-    );
-  }
+export function MetsightsProOnboardingCallout({ activeStatus, parameterKeys }: Props) {
+  if (!activeStatus?.isProSelected) return null;
 
   const rows = hormonePresenceRows(parameterKeys);
   const scopeLabel =
@@ -57,7 +17,7 @@ export function MetsightsProOnboardingCallout({
 
   return (
     <div
-      className={`sm:col-span-2 rounded-lg border px-4 py-3 text-sm ${
+      className={`mt-3 rounded-lg border px-4 py-3 text-sm ${
         activeStatus.blocked
           ? "border-red-200 bg-red-50 text-red-950"
           : activeStatus.loading
@@ -81,9 +41,7 @@ export function MetsightsProOnboardingCallout({
           {rows.map((row) => (
             <li key={row.label} className="inline-flex items-center gap-1.5">
               <span
-                className={`inline-block w-2 h-2 rounded-full ${
-                  row.present ? "bg-emerald-600" : "bg-red-500"
-                }`}
+                className={`inline-block w-2 h-2 rounded-full ${row.present ? "bg-emerald-600" : "bg-red-500"}`}
                 aria-hidden
               />
               {row.label}
@@ -96,15 +54,6 @@ export function MetsightsProOnboardingCallout({
         <p className="mt-3 text-xs">
           Choose MetSights Essentials (or another non-Pro assessment), or switch to a diagnostic package that includes
           LH, FSH, and total testosterone (for example a female performance panel).
-        </p>
-      ) : null}
-      {blockedTypes.filter((b) => b.typeCode !== activeStatus.typeCode).length > 0 ? (
-        <p className="mt-3 text-xs font-medium">
-          Also fix:{" "}
-          {blockedTypes
-            .filter((b) => b.typeCode !== activeStatus.typeCode)
-            .map((b) => b.displayName)
-            .join(", ")}
         </p>
       ) : null}
     </div>

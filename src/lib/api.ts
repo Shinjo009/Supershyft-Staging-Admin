@@ -303,9 +303,14 @@ export interface B2cOnboardingTypeDefaults {
 }
 
 export interface B2cOnboardingDefaults {
-  defaults_by_engagement_type: Record<string, B2cOnboardingTypeDefaults>;
+  defaults_by_engagement_type?: Record<string, B2cOnboardingTypeDefaults>;
   default_engagement_type_code?: string;
 }
+
+export type B2cOnboardingDefaultsPatch = {
+  defaults_by_engagement_type?: Record<string, B2cOnboardingTypeDefaults>;
+  default_engagement_type_code?: string;
+};
 
 /** @deprecated Use NotificationDefaultItem[] via engagementNotificationsApi instead */
 export type EngagementNotificationDefaults = Record<string, unknown>;
@@ -382,7 +387,7 @@ export const platformSettingsApi = {
     }>("/platform-settings/bootstrap"),
   getB2cOnboarding: () =>
     api.get<{ data: B2cOnboardingDefaults; meta: Record<string, unknown> }>("/platform-settings/b2c-onboarding"),
-  patchB2cOnboarding: (payload: B2cOnboardingDefaults) =>
+  patchB2cOnboarding: (payload: B2cOnboardingDefaultsPatch) =>
     api.patch<{ data: B2cOnboardingDefaults; meta: Record<string, unknown> }>(
       "/platform-settings/b2c-onboarding",
       payload

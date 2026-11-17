@@ -1,49 +1,22 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Loader2, Pause, Play, RefreshCw, Save, ScrollText, Users } from "lucide-react";
 import { DuplicatedUsersModal } from "./DuplicatedUsersModal";
 import { MetsightsBloodMappingSection } from "./MetsightsBloodMappingSection";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { buildIntegrationLogsPath } from "../integration-logs/integrationSyncLogsUtils";
 import { usePermissions } from "../../contexts/PermissionContext";
 import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 import type { SettingsTabKey } from "./Settings";
-import { SettingsFormCard, SettingsSectionHeading, inputClass } from "./SettingsFormCard";
+import { SettingsFormCard } from "./SettingsFormCard";
+import { formatCount, shortProfileId, totalPagesFromCount } from "./settingsUtils";
+import { OnboardingSettings } from "./OnboardingSettings";
 import {
-  BLOOD_COLLECTION_TYPE_OPTIONS,
-  buildDefaultsByType,
-  formatCount,
-  labelAssessment,
-  shortProfileId,
-  totalPagesFromCount,
-  type B2cDefaultsByType,
-  emptyTypeDefaults,
-} from "./settingsUtils";
-import { DiagnosticPackageGroupProviderSelect } from "../diagnostics/DiagnosticPackageGroupProviderSelect";
-import { getTypeConfig, getTypeHint } from "../engagements/engagementTypeConfig";
-import {
-  DEFAULT_LOAD_PREV_QUESTIONNAIRE_CATEGORY_KEYS,
-  effectiveLoadPrevCategoryKeys,
-} from "../engagements/loadPrevQuestionnaireDefaults";
-import { METSIGHTS_PRO_PACKAGE_CODE } from "../engagements/metsightsProGate";
-import { useB2cOnboardingProGateStatuses, applyEssentialsToAllBioAiTypes, METSIGHTS_ESSENTIALS_PACKAGE_CODE, b2cTypeNeedsProGate } from "./b2cMetsightsProGate";
-import { B2cOnboardingProGateSummary } from "./B2cOnboardingProGateSummary";
-import { MetsightsProOnboardingCallout } from "./MetsightsProOnboardingCallout";
-import { questionnaireCategoriesApi, type QuestionnaireCategory } from "../../lib/api";
-import {
-  assessmentPackagesApi,
-  diagnosticPackagesApi,
-  engagementsApi,
   engagementNotificationsApi,
   engagementTypesApi,
   notificationsCatalogApi,
   notificationsApi,
   platformSettingsApi,
-  type AssessmentPackage,
-  type B2cOnboardingTypeDefaults,
-  type DiagnosticPackageBootstrapOption,
-  type DiagnosticPackageGroupListItem,
   type EngagementTypeItem,
-  type BloodCollectionType,
   type EngagementsSyncImportPageResult,
   type EngagementsSyncStats,
   type MetsightsProfilesImportPageResult,
@@ -61,8 +34,6 @@ import {
   normalizeNotificationServiceConfigs,
   validateNotificationServiceConfigs,
 } from "../../shared/ui/NotificationEventServicesInput";
-import { fetchAllPages } from "../../lib/fetchAllPages";
-
 const SYNC_STORAGE_KEY = "metsights-sync-v1";
 const ENG_SYNC_STORAGE_KEY = "engagements-sync-v1";
 
@@ -111,35 +82,13 @@ interface EngPageLogEntry {
 export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
   const { canEditTask, canViewTask } = usePermissions();
   const mayEditSettings = canEditTask("platform_settings", "settings");
-  const mayViewAssessments = canViewTask("assessments", "packages");
-  const mayViewDiagnostics = canViewTask("diagnostics", "packages");
   const mayViewNotifications = canViewTask("notifications", "defaults");
   const mayEditNotifications = canEditTask("notifications", "defaults");
   const mayEditUsers = canEditTask("users", "profiles");
   const mayViewIntegrations = canViewTask("assessments", "integrations");
   const mayViewSystemMonitoring = canViewTask("system_monitoring", "audit_logs");
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [defaultEngagementTypeCode, setDefaultEngagementTypeCode] = useState("bio_ai");
-  const [savedDefaultEngagementTypeCode, setSavedDefaultEngagementTypeCode] = useState("bio_ai");
-  const [loadPrevCategories, setLoadPrevCategories] = useState<QuestionnaireCategory[]>([]);
   const [savedGeocodingProvider, setSavedGeocodingProvider] = useState<GeocodingProvider>("google");
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saveOk, setSaveOk] = useState<string | null>(null);
-
-  const [assessmentPackages, setAssessmentPackages] = useState<AssessmentPackage[]>([]);
-  const [diagnosticPackageGroups, setDiagnosticPackageGroups] = useState<DiagnosticPackageGroupListItem[]>([]);
-  const [diagnosticBootstrapOptions, setDiagnosticBootstrapOptions] = useState<
-    DiagnosticPackageBootstrapOption[]
-  >([]);
-
-  const [b2cEngagementTypes, setB2cEngagementTypes] = useState<EngagementTypeItem[]>([]);
-  const [activeEngagementType, setActiveEngagementType] = useState<string>("bio_ai");
-  const [defaultsByType, setDefaultsByType] = useState<B2cDefaultsByType>(() => buildDefaultsByType(["bio_ai"], undefined));
-  const [savedDefaultsByType, setSavedDefaultsByType] = useState<B2cDefaultsByType>(() =>
-    buildDefaultsByType(["bio_ai"], undefined)
-  );
 
   const [notificationServices, setNotificationServices] = useState<NotificationServiceItem[]>([]);
 
@@ -205,92 +154,37 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
 
   const loadB2cPickers = useCallback(async () => {
     try {
-      const [notifServicesRes, aPkgs, dRes] = await Promise.all([
-        mayViewNotifications ? notificationsApi.listServices() : Promise.resolve(null),
-        mayViewAssessments
-          ? fetchAllPages<AssessmentPackage>((page, limit) =>
-              assessmentPackagesApi.list({ page, limit, status: "active" })
-            )
-          : Promise.resolve([]),
-        mayViewDiagnostics
-          ? Promise.all([
-              diagnosticPackagesApi.listGroups({ type: "public_package", package_for: "public" }),
-              engagementsApi.formBootstrap().catch(() => null),
-            ])
-          : Promise.resolve(null),
-      ]);
+      if (!mayViewNotifications) return;
+      const notifServicesRes = await notificationsApi.listServices();
       setNotificationServices(
         (notifServicesRes?.data.data ?? []).filter((s) => s.is_active !== false)
       );
-      setAssessmentPackages(aPkgs);
-      if (dRes) {
-        const [groupsRes, bootstrapRes] = dRes;
-        setDiagnosticPackageGroups(groupsRes.data.data ?? []);
-        setDiagnosticBootstrapOptions(bootstrapRes?.data?.data?.diagnostic_packages ?? []);
-      }
     } catch {
       // Pickers are optional until a settings control needs them.
     }
-  }, [mayViewAssessments, mayViewDiagnostics, mayViewNotifications]);
+  }, [mayViewNotifications]);
 
   const loadB2c = useCallback(async () => {
     setLoading(true);
-    setError(null);
-    setSaveOk(null);
     try {
       const bootstrapRes = await platformSettingsApi.bootstrap();
       const payload = bootstrapRes.data.data;
-
-      const types = payload.engagement_types ?? [];
-      const typeCodes = types.map((t) => t.code);
-      setB2cEngagementTypes(types);
-      const typeFromUrl = searchParams.get("type")?.trim();
-      const initialType =
-        typeFromUrl && typeCodes.includes(typeFromUrl)
-          ? typeFromUrl
-          : typeCodes.includes("bio_ai")
-            ? "bio_ai"
-            : typeCodes[0] ?? "bio_ai";
-      setActiveEngagementType(initialType);
-
-      const d = payload.b2c_onboarding;
-      const mapped = buildDefaultsByType(typeCodes, d.defaults_by_engagement_type);
-      setDefaultsByType(mapped);
-      setSavedDefaultsByType(mapped);
-      const defaultType = d.default_engagement_type_code ?? "bio_ai";
-      setDefaultEngagementTypeCode(defaultType);
-      setSavedDefaultEngagementTypeCode(defaultType);
       const support = payload.support_query_notification?.default_support_query_notification ?? null;
       setSupportQueryNotification(support);
       const geo = payload.geocoding_provider?.geocoding_provider ?? "google";
       setGeocodingProvider(geo);
       setSavedGeocodingProvider(geo);
-    } catch (err) {
-      setError(getApiError(err));
+    } catch {
+      /* platform/support settings optional until tab opened */
     } finally {
       setLoading(false);
     }
-  }, [searchParams]);
+  }, []);
 
   useEffect(() => {
     if (loading) return;
     void loadB2cPickers();
-    questionnaireCategoriesApi
-      .list()
-      .then((res) => setLoadPrevCategories(res.data.data ?? []))
-      .catch(() => setLoadPrevCategories([]));
   }, [loading, loadB2cPickers]);
-
-  useEffect(() => {
-    if (activeTab !== "onboarding") return;
-    const code = activeEngagementType;
-    if (!code) return;
-    const current = searchParams.get("type");
-    if (current === code) return;
-    const next = new URLSearchParams(searchParams);
-    next.set("type", code);
-    setSearchParams(next, { replace: true });
-  }, [activeEngagementType, activeTab, searchParams, setSearchParams]);
 
   const refreshMsStats = useCallback(async () => {
     setMsStatsLoading(true);
@@ -370,165 +264,6 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
       /* ignore */
     }
   }, [engSyncPhase, engNextPage, engProcessedUsers, engUsersTotal, engSyncTotals]);
-
-  function updateActiveDefaults(patch: Partial<B2cOnboardingTypeDefaults>) {
-    setDefaultsByType((prev) => ({
-      ...prev,
-      [activeEngagementType]: { ...(prev[activeEngagementType] ?? emptyTypeDefaults()), ...patch },
-    }));
-  }
-
-  const activeDefaults = defaultsByType[activeEngagementType] ?? emptyTypeDefaults();
-  const isTypeDirty = (kind: string) =>
-    JSON.stringify(defaultsByType[kind]) !== JSON.stringify(savedDefaultsByType[kind]);
-
-  const onboardingDefaultsDirty =
-    JSON.stringify(defaultsByType) !== JSON.stringify(savedDefaultsByType) ||
-    defaultEngagementTypeCode !== savedDefaultEngagementTypeCode;
-
-  const activeTypeConfig = getTypeConfig(activeEngagementType);
-  const activeTypeHint = getTypeHint(activeEngagementType);
-  const diagnosticSplitMode =
-    (activeDefaults.diagnostic_package_id_male ?? 0) > 0 ||
-    (activeDefaults.diagnostic_package_id_female ?? 0) > 0;
-
-  const applySettingsProGate =
-    activeTypeConfig.needsMetsights && activeTypeConfig.needsDiagnostic;
-  const settingsMetsightsProPackageId = useMemo(() => {
-    const row = assessmentPackages.find(
-      (p) => (p.package_code ?? "").trim() === METSIGHTS_PRO_PACKAGE_CODE
-    );
-    return row?.package_id ?? null;
-  }, [assessmentPackages]);
-
-  const diagnosticBootstrapById = useMemo(
-    () => new Map(diagnosticBootstrapOptions.map((p) => [p.diagnostic_package_id, p])),
-    [diagnosticBootstrapOptions]
-  );
-
-  const {
-    blockedTypes: proGateBlockedTypes,
-    firstBlockedTypeCode: proGateFirstBlockedTypeCode,
-    anyBlocked: proGateAnyBlocked,
-    anyLoading: proGateAnyLoading,
-    activeStatus: proGateActiveStatus,
-    keysByPackageId: proGateKeysByPackageId,
-    statuses: proGateStatuses,
-  } = useB2cOnboardingProGateStatuses({
-    engagementTypes: b2cEngagementTypes,
-    defaultsByType,
-    metsightsProPackageId: settingsMetsightsProPackageId,
-    diagnosticBootstrapById,
-  });
-
-  const activeProGate = proGateActiveStatus(activeEngagementType);
-  const activeProParameterKeys = useMemo(() => {
-    const id = activeProGate?.proGatePackageId;
-    if (!id) return new Set<string>();
-    return proGateKeysByPackageId.get(id) ?? new Set<string>();
-  }, [activeProGate?.proGatePackageId, proGateKeysByPackageId]);
-
-  const proGateSaveBlocked = proGateAnyBlocked || proGateAnyLoading;
-  const proGateSaveDisabledReason = proGateAnyLoading
-    ? "Waiting for Metsights Pro hormone checks on tabs that still use Pro…"
-    : proGateAnyBlocked
-      ? proGateBlockedTypes.length === 1
-        ? `Fix ${proGateBlockedTypes[0].displayName}: use MetSights Essentials or a diagnostic package with LH, FSH, and total testosterone.`
-        : `Fix ${proGateBlockedTypes.map((b) => b.displayName).join(" and ")} (see checklist above), or use MetSights Essentials on all Bio AI types.`
-      : null;
-
-  const essentialsPackageId = useMemo(() => {
-    const row = assessmentPackages.find(
-      (p) => (p.package_code ?? "").trim() === METSIGHTS_ESSENTIALS_PACKAGE_CODE
-    );
-    return row?.package_id ?? null;
-  }, [assessmentPackages]);
-
-  function applyEssentialsOnAllBioAiTypes() {
-    if (!essentialsPackageId) return;
-    const codes = b2cEngagementTypes.map((t) => t.code).filter((code) => b2cTypeNeedsProGate(code));
-    setDefaultsByType((prev) => applyEssentialsToAllBioAiTypes(prev, codes, essentialsPackageId));
-    setError(null);
-  }
-
-  const blockedTypeCodes = useMemo(
-    () => new Set(proGateBlockedTypes.map((b) => b.typeCode)),
-    [proGateBlockedTypes]
-  );
-
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    if (proGateAnyBlocked && proGateFirstBlockedTypeCode) {
-      setActiveEngagementType(proGateFirstBlockedTypeCode);
-      setError(
-        proGateBlockedTypes.length === 1
-          ? `${proGateBlockedTypes[0].displayName}: Metsights Pro needs LH, FSH, and total testosterone on the configured diagnostic package.`
-          : `Fix Metsights Pro on: ${proGateBlockedTypes.map((b) => b.displayName).join(", ")}.`
-      );
-      return;
-    }
-    const invalidType = b2cEngagementTypes.find((option) => {
-      const entry = defaultsByType[option.code];
-      return entry?.enroll_for_fitprint_full && !entry.create_profile_on_metsights;
-    });
-    if (invalidType) {
-      setError(
-        `FitPrint Full enrollment requires Metsights profile creation (${invalidType.display_name}).`
-      );
-      setActiveEngagementType(invalidType.code);
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    setSaveOk(null);
-    try {
-      const res = await platformSettingsApi.patchB2cOnboarding({
-        defaults_by_engagement_type: defaultsByType,
-        default_engagement_type_code: defaultEngagementTypeCode,
-      });
-      const typeCodes = b2cEngagementTypes.map((t) => t.code);
-      const mapped = buildDefaultsByType(typeCodes, res.data.data.defaults_by_engagement_type);
-      setDefaultsByType(mapped);
-      setSavedDefaultsByType(mapped);
-      const savedDefaultType = res.data.data.default_engagement_type_code ?? defaultEngagementTypeCode;
-      setDefaultEngagementTypeCode(savedDefaultType);
-      setSavedDefaultEngagementTypeCode(savedDefaultType);
-      setSaveOk("Saved. New B2C onboardings will use these per-type defaults.");
-    } catch (err) {
-      setError(getApiError(err));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const loadPrevCategoriesByGroup = useMemo(() => {
-    const metsights: QuestionnaireCategory[] = [];
-    const supershyft: QuestionnaireCategory[] = [];
-    for (const cat of loadPrevCategories) {
-      const key = (cat.category_key ?? "").trim();
-      if (!key) continue;
-      if ((cat.category_of ?? "").toLowerCase() === "metsights") metsights.push(cat);
-      else supershyft.push(cat);
-    }
-    return { metsights, supershyft };
-  }, [loadPrevCategories]);
-
-  const selectedLoadPrevCategoryKeys = effectiveLoadPrevCategoryKeys(
-    activeDefaults.load_prev_questionnaire_category_keys
-  );
-
-  function toggleLoadPrevCategoryKey(key: string) {
-    const current = effectiveLoadPrevCategoryKeys(activeDefaults.load_prev_questionnaire_category_keys);
-    const next = current.includes(key) ? current.filter((k) => k !== key) : [...current, key];
-    updateActiveDefaults({ load_prev_questionnaire_category_keys: next });
-  }
-
-  function discardOnboardingDefaults() {
-    setDefaultsByType({ ...savedDefaultsByType });
-    setDefaultEngagementTypeCode(savedDefaultEngagementTypeCode);
-    setError(null);
-    setSaveOk(null);
-  }
 
   async function handleSaveSupportQueryNotification(e: React.FormEvent) {
     e.preventDefault();
@@ -977,453 +712,8 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
         </PageHeaderActions>
       )}
 
-      {activeTab === "onboarding" && (
-        <div className="space-y-6">
-          {loading ? (
-            <div className="flex items-center gap-2 text-zinc-500 text-sm">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Loading…
-            </div>
-          ) : (
-            <>
-              <SettingsFormCard
-                title="B2C onboarding defaults"
-                description="Applies to new public, family, and admin-onboarded B2C users. Existing engagements are not changed."
-                error={error}
-                success={saveOk}
-                dirty={onboardingDefaultsDirty}
-                saving={saving}
-                readOnly={!mayEditSettings}
-                saveLabel="Save defaults"
-                saveDisabled={proGateSaveBlocked}
-                saveDisabledReason={proGateSaveDisabledReason}
-                onSubmit={handleSave}
-                onDiscard={discardOnboardingDefaults}
-              >
-                <div>
-                  <label className="block text-sm font-medium text-zinc-700 mb-1">
-                    Default engagement type when omitted
-                  </label>
-                  <select
-                    className={inputClass}
-                    value={defaultEngagementTypeCode}
-                    onChange={(ev) => setDefaultEngagementTypeCode(ev.target.value)}
-                    disabled={!mayEditSettings}
-                  >
-                    {b2cEngagementTypes.map((t) => (
-                      <option key={t.code} value={t.code}>{t.display_name}</option>
-                    ))}
-                  </select>
-                </div>
+      {activeTab === "onboarding" && <OnboardingSettings canEdit={mayEditSettings} />}
 
-                <div className="flex flex-wrap gap-1 border-b border-zinc-200 pb-2">
-                  {b2cEngagementTypes.map((option) => {
-                    const active = activeEngagementType === option.code;
-                    const dirty = isTypeDirty(option.code);
-                    const proBlocked = blockedTypeCodes.has(option.code);
-                    return (
-                      <button
-                        key={option.code}
-                        type="button"
-                        onClick={() => setActiveEngagementType(option.code)}
-                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap ${
-                          active
-                            ? "border-zinc-900 text-zinc-900"
-                            : proBlocked
-                              ? "border-red-300 text-red-700"
-                              : "border-transparent text-zinc-500 hover:text-zinc-700"
-                        }`}
-                      >
-                        {option.display_name}
-                        {proBlocked ? <span className="ml-1 text-red-500" aria-label="Metsights Pro blocked">!</span> : null}
-                        {dirty ? <span className="ml-1 opacity-70">•</span> : null}
-                      </button>
-                    );
-                  })}
-                </div>
-                {activeTypeHint ? <p className="text-xs text-zinc-500">{activeTypeHint}</p> : null}
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <SettingsSectionHeading>Packages</SettingsSectionHeading>
-
-                  {proGateStatuses.length > 0 ? (
-                    <B2cOnboardingProGateSummary
-                      statuses={proGateStatuses}
-                      activeTypeCode={activeEngagementType}
-                      onSelectType={setActiveEngagementType}
-                      onApplyEssentialsToAll={applyEssentialsOnAllBioAiTypes}
-                      essentialsAvailable={essentialsPackageId != null}
-                      readOnly={!mayEditSettings}
-                    />
-                  ) : null}
-
-                  {activeTypeConfig.needsDiagnostic ? (
-                    <div className="sm:col-span-2 space-y-3">
-                      <p className="text-sm font-medium text-zinc-700">Diagnostic packages</p>
-                      <div className="flex flex-wrap gap-4 text-sm text-zinc-700">
-                        <label className="inline-flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="diag-mode"
-                            checked={!diagnosticSplitMode}
-                            onChange={() =>
-                              updateActiveDefaults({
-                                diagnostic_package_id_male: null,
-                                diagnostic_package_id_female: null,
-                              })
-                            }
-                            disabled={!mayEditSettings}
-                          />
-                          One package
-                        </label>
-                        <label className="inline-flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="diag-mode"
-                            checked={diagnosticSplitMode}
-                            onChange={() =>
-                              updateActiveDefaults({
-                                diagnostic_package_id: null,
-                                diagnostic_package_id_male: activeDefaults.diagnostic_package_id_male ?? activeDefaults.diagnostic_package_id,
-                                diagnostic_package_id_female: activeDefaults.diagnostic_package_id_female,
-                              })
-                            }
-                            disabled={!mayEditSettings}
-                          />
-                          Male and female packages
-                        </label>
-                      </div>
-                      {!diagnosticSplitMode ? (
-                        <DiagnosticPackageGroupProviderSelect
-                          groups={diagnosticPackageGroups}
-                          value={activeDefaults.diagnostic_package_id}
-                          onChange={(id) =>
-                            updateActiveDefaults({
-                              diagnostic_package_id: id,
-                            })
-                          }
-                          bootstrapById={diagnosticBootstrapById}
-                          disabled={!mayEditSettings}
-                          groupLabel="Default diagnostic package"
-                          emptyGroupLabel="None"
-                          emptyProviderLabel="Select provider"
-                        />
-                      ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <DiagnosticPackageGroupProviderSelect
-                            groups={diagnosticPackageGroups}
-                            value={activeDefaults.diagnostic_package_id_male}
-                            onChange={(id) =>
-                              updateActiveDefaults({
-                                diagnostic_package_id: null,
-                                diagnostic_package_id_male: id,
-                              })
-                            }
-                            bootstrapById={diagnosticBootstrapById}
-                            genderFilter="male"
-                            disabled={!mayEditSettings}
-                            groupLabel="Male package"
-                            emptyGroupLabel="None"
-                          />
-                          <DiagnosticPackageGroupProviderSelect
-                            groups={diagnosticPackageGroups}
-                            value={activeDefaults.diagnostic_package_id_female}
-                            onChange={(id) =>
-                              updateActiveDefaults({
-                                diagnostic_package_id: null,
-                                diagnostic_package_id_female: id,
-                              })
-                            }
-                            bootstrapById={diagnosticBootstrapById}
-                            genderFilter="female"
-                            disabled={!mayEditSettings}
-                            groupLabel="Female package"
-                            emptyGroupLabel="None"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ) : null}
-
-                  {activeTypeConfig.needsAssessment ? (
-                    <div className="sm:col-span-2">
-                      <label htmlFor="b2c-assessment" className="block text-sm font-medium text-zinc-700 mb-1">
-                        Default assessment package
-                      </label>
-                      <select
-                        id="b2c-assessment"
-                        className={inputClass}
-                        value={activeDefaults.assessment_package_id || 0}
-                        onChange={(ev) =>
-                          updateActiveDefaults({ assessment_package_id: Number(ev.target.value) })
-                        }
-                        disabled={!mayEditSettings}
-                      >
-                        <option value={0}>Select package</option>
-                        {assessmentPackages.map((pkg) => {
-                          const isPro =
-                            (pkg.package_code ?? "").trim() === METSIGHTS_PRO_PACKAGE_CODE;
-                          const disabled =
-                            applySettingsProGate &&
-                            isPro &&
-                            activeProGate?.resolved &&
-                            !activeProGate.allowed;
-                          return (
-                            <option key={pkg.package_id} value={pkg.package_id} disabled={disabled}>
-                              {labelAssessment(pkg)}
-                              {disabled
-                                ? " (needs LH, FSH, total testosterone on diagnostic package)"
-                                : ""}
-                            </option>
-                          );
-                        })}
-                      </select>
-                      <MetsightsProOnboardingCallout
-                        activeStatus={activeProGate}
-                        blockedTypes={proGateBlockedTypes}
-                        parameterKeys={activeProParameterKeys}
-                        onSelectType={setActiveEngagementType}
-                      />
-                    </div>
-                  ) : null}
-
-                  <SettingsSectionHeading>Collection</SettingsSectionHeading>
-                  {activeTypeConfig.needsBloodCollection ? (
-                    <>
-                      <div>
-                        <label className="block text-sm font-medium text-zinc-700 mb-1">Blood collection type</label>
-                        <select
-                          className={inputClass}
-                          value={activeDefaults.blood_collection_type ?? ""}
-                          onChange={(ev) =>
-                            updateActiveDefaults({
-                              blood_collection_type: (ev.target.value || null) as BloodCollectionType | null,
-                            })
-                          }
-                          disabled={!mayEditSettings}
-                        >
-                          {BLOOD_COLLECTION_TYPE_OPTIONS.map((option) => (
-                            <option key={option.value || "none"} value={option.value}>{option.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-zinc-700 mb-1">Slot duration (minutes)</label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={480}
-                          className={inputClass}
-                          value={activeDefaults.slot_duration ?? 20}
-                          onChange={(ev) => updateActiveDefaults({ slot_duration: Number(ev.target.value) })}
-                          disabled={!mayEditSettings}
-                        />
-                      </div>
-                      {activeDefaults.blood_collection_type === "home_collection" ? (
-                        <div className="sm:col-span-2">
-                          <span className="block text-sm font-medium text-zinc-700 mb-1">Auto booking</span>
-                          <div className="flex gap-5 py-2">
-                            <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
-                              <input
-                                type="radio"
-                                checked={Boolean(activeDefaults.auto_booking)}
-                                onChange={() => updateActiveDefaults({ auto_booking: true })}
-                                disabled={!mayEditSettings}
-                              />
-                              Yes
-                            </label>
-                            <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
-                              <input
-                                type="radio"
-                                checked={!activeDefaults.auto_booking}
-                                onChange={() => updateActiveDefaults({ auto_booking: false })}
-                                disabled={!mayEditSettings}
-                              />
-                              No
-                            </label>
-                          </div>
-                        </div>
-                      ) : null}
-                    </>
-                  ) : null}
-
-                  {activeTypeConfig.needsConsultation ? (
-                    <>
-                      <SettingsSectionHeading>Consultation</SettingsSectionHeading>
-                      <div>
-                        <label className="block text-sm font-medium text-zinc-700 mb-1">Consultation mode</label>
-                        <select
-                          className={inputClass}
-                          value={activeDefaults.consultation_mode ?? "online"}
-                          onChange={(ev) =>
-                            updateActiveDefaults({
-                              consultation_mode: (ev.target.value || null) as "online" | "offline" | null,
-                            })
-                          }
-                          disabled={!mayEditSettings}
-                        >
-                          <option value="online">Online</option>
-                          <option value="offline">Offline</option>
-                        </select>
-                      </div>
-                    </>
-                  ) : null}
-
-                  <SettingsSectionHeading>Payment</SettingsSectionHeading>
-                  <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-zinc-700 mb-1">Payment type</label>
-                    <select
-                      className={inputClass}
-                      value={activeDefaults.payment_type ?? "paid_by_patient"}
-                      onChange={(ev) =>
-                        updateActiveDefaults({
-                          payment_type: ev.target.value as "paid_by_patient" | "paid_by_group",
-                        })
-                      }
-                      disabled={!mayEditSettings}
-                    >
-                      <option value="paid_by_patient">Paid by patient</option>
-                      <option value="paid_by_group">Paid by group</option>
-                    </select>
-                    {activeDefaults.payment_type === "paid_by_group" ? (
-                      <p className="text-xs text-amber-700 mt-1">Patients will not be prompted for payment on onboard.</p>
-                    ) : null}
-                  </div>
-
-                  <SettingsSectionHeading>Profiles</SettingsSectionHeading>
-                  {(activeTypeConfig.needsMetsights || activeTypeConfig.needsFitPrint) ? (
-                    <>
-                      {activeTypeConfig.needsMetsights ? (
-                        <div>
-                          <span className="block text-sm font-medium text-zinc-700 mb-1">Create profile on Metsights</span>
-                          <div className="flex gap-5 py-2">
-                            <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
-                              <input
-                                type="radio"
-                                checked={activeDefaults.create_profile_on_metsights}
-                                onChange={() => updateActiveDefaults({ create_profile_on_metsights: true })}
-                                disabled={!mayEditSettings}
-                              />
-                              Yes
-                            </label>
-                            <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
-                              <input
-                                type="radio"
-                                checked={!activeDefaults.create_profile_on_metsights}
-                                onChange={() => updateActiveDefaults({ create_profile_on_metsights: false })}
-                                disabled={!mayEditSettings}
-                              />
-                              No
-                            </label>
-                          </div>
-                        </div>
-                      ) : null}
-                      {activeTypeConfig.needsFitPrint ? (
-                        <div>
-                          <span className="block text-sm font-medium text-zinc-700 mb-1">Enroll for FitPrint Full</span>
-                          <div className="flex gap-5 py-2">
-                            <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
-                              <input
-                                type="radio"
-                                checked={activeDefaults.enroll_for_fitprint_full}
-                                onChange={() => updateActiveDefaults({ enroll_for_fitprint_full: true })}
-                                disabled={!mayEditSettings}
-                              />
-                              Yes
-                            </label>
-                            <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
-                              <input
-                                type="radio"
-                                checked={!activeDefaults.enroll_for_fitprint_full}
-                                onChange={() => updateActiveDefaults({ enroll_for_fitprint_full: false })}
-                                disabled={!mayEditSettings}
-                              />
-                              No
-                            </label>
-                          </div>
-                          {activeDefaults.enroll_for_fitprint_full && !activeDefaults.create_profile_on_metsights ? (
-                            <p className="text-xs text-red-600">FitPrint Full requires Metsights profile creation.</p>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </>
-                  ) : null}
-
-                  {activeTypeConfig.needsAssessment ? (
-                    <>
-                      <SettingsSectionHeading>Questionnaires</SettingsSectionHeading>
-                      <div className="sm:col-span-2">
-                        <span className="block text-sm font-medium text-zinc-700 mb-1">
-                          Load previous assessment questionnaires
-                        </span>
-                        <div className="flex gap-5 py-2">
-                          <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
-                            <input
-                              type="radio"
-                              checked={Boolean(activeDefaults.load_prev_assessment_questionnaires)}
-                              onChange={() =>
-                                updateActiveDefaults({
-                                  load_prev_assessment_questionnaires: true,
-                                  load_prev_questionnaire_category_keys:
-                                    activeDefaults.load_prev_questionnaire_category_keys?.length
-                                      ? activeDefaults.load_prev_questionnaire_category_keys
-                                      : [...DEFAULT_LOAD_PREV_QUESTIONNAIRE_CATEGORY_KEYS],
-                                })
-                              }
-                              disabled={!mayEditSettings}
-                            />
-                            Yes
-                          </label>
-                          <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
-                            <input
-                              type="radio"
-                              checked={!activeDefaults.load_prev_assessment_questionnaires}
-                              onChange={() =>
-                                updateActiveDefaults({ load_prev_assessment_questionnaires: false })
-                              }
-                              disabled={!mayEditSettings}
-                            />
-                            No
-                          </label>
-                        </div>
-                        {activeDefaults.load_prev_assessment_questionnaires ? (
-                          <div className="mt-3 space-y-3 rounded-lg border border-zinc-200 p-3">
-                            {(["metsights", "supershyft"] as const).map((group) => {
-                              const rows =
-                                group === "metsights"
-                                  ? loadPrevCategoriesByGroup.metsights
-                                  : loadPrevCategoriesByGroup.supershyft;
-                              if (rows.length === 0) return null;
-                              return (
-                                <div key={group}>
-                                  <p className="text-xs text-zinc-500 mb-1 capitalize">{group}</p>
-                                  <div className="flex flex-wrap gap-x-4 gap-y-2">
-                                    {rows.map((cat) => (
-                                      <label key={cat.category_id} className="inline-flex items-center gap-2 text-sm text-zinc-700">
-                                        <input
-                                          type="checkbox"
-                                          checked={selectedLoadPrevCategoryKeys.includes(cat.category_key)}
-                                          onChange={() => toggleLoadPrevCategoryKey(cat.category_key)}
-                                          disabled={!mayEditSettings}
-                                        />
-                                        {cat.display_name || cat.category_key}
-                                      </label>
-                                    ))}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : null}
-                      </div>
-                    </>
-                  ) : null}
-                </div>
-              </SettingsFormCard>
-            </>
-          )}
-        </div>
-      )}
 
       {activeTab === "notifications" && (
         <div className="space-y-6">
