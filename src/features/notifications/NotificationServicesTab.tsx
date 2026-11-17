@@ -204,6 +204,7 @@ export function NotificationServicesTab() {
                 : undefined
             }
             onDelete={handleDelete}
+            canDelete={(row) => row.can_delete}
             firstColumnClickableView
             mutationCategory="notifications"
             mutationTaskKey="services"

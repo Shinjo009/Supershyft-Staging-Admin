@@ -5549,6 +5549,7 @@ export interface NotificationServiceItem {
   service_key: string;
   display_name: string;
   channel: "email" | "whatsapp";
+  can_delete: boolean;
   is_active: boolean;
   require_blood_report_url: boolean;
   require_bio_ai_report_url: boolean;
