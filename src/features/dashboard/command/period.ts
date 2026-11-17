@@ -63,8 +63,8 @@ export const OVERVIEW_CARD_ORDER: {
   { id: "notification_health", title: "Notification health", interaction: "new_page" },
   { id: "booking_issues", title: "Booking issues", interaction: "none" },
   { id: "people_registered", title: "People registered", interaction: "new_page" },
-  { id: "tests_completed", title: "Tests completed", interaction: "none" },
-  { id: "questionnaire_done", title: "Questionnaire done", interaction: "none" },
+  { id: "tests_completed", title: "Tests completed", interaction: "new_page" },
+  { id: "questionnaire_done", title: "Questionnaire done", interaction: "new_page" },
   { id: "blood_report_generated", title: "Blood report generated", interaction: "none" },
   { id: "bioai_report_generated", title: "BioAI report generated", interaction: "none" },
   { id: "consultation_done", title: "Consultation done", interaction: "none" },
@@ -88,6 +88,8 @@ export const WIRED_CARDS = new Set<CardId>([
   "server_load",
   "notification_health",
   "people_registered",
+  "tests_completed",
+  "questionnaire_done",
   "ongoing",
   "upcoming",
   "completed",
@@ -96,6 +98,8 @@ export const WIRED_CARDS = new Set<CardId>([
 const OVERVIEW_NEW_PAGE_CARDS = new Set<CardId>([
   "notification_health",
   "people_registered",
+  "tests_completed",
+  "questionnaire_done",
 ]);
 
 const B2B_CARDS = new Set<CardId>(["ongoing", "upcoming", "completed"]);

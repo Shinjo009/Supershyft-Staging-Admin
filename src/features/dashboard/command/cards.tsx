@@ -1,8 +1,45 @@
-import { ListTodo, Loader2, Ticket } from "lucide-react";
-import type { CommandNotificationHealth } from "../../../lib/api";
+import { ClipboardList, Droplets, ListTodo, Loader2, Ticket } from "lucide-react";
+import type {
+  CommandAudienceSplitSummary,
+  CommandNotificationHealth,
+} from "../../../lib/api";
 import { MiniDonut, MiniStat } from "./charts";
 import { MetricCard, type MetricCardVariant } from "./MetricCard";
 import type { CardId } from "./period";
+
+function AudienceSplitBody({
+  total,
+  b2b,
+  b2c,
+}: {
+  total: number;
+  b2b: number;
+  b2c: number;
+}) {
+  return (
+    <div className="w-full">
+      <div
+        className="text-4xl font-semibold tabular-nums leading-none text-zinc-900"
+        data-testid="audience-split-total"
+      >
+        {total}
+      </div>
+      <div
+        className="mt-3 flex w-full items-baseline justify-between gap-4"
+        data-testid="audience-split"
+      >
+        <div className="flex min-w-0 items-baseline gap-1.5">
+          <span className="text-xs font-medium text-zinc-500">B2B</span>
+          <span className="text-sm font-semibold tabular-nums text-zinc-900">{b2b}</span>
+        </div>
+        <div className="flex min-w-0 items-baseline gap-1.5">
+          <span className="text-xs font-medium text-zinc-500">B2C</span>
+          <span className="text-sm font-semibold tabular-nums text-zinc-900">{b2c}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const FEATURE_IDS = new Set<CardId>(["booking_issues"]);
 
@@ -107,6 +144,68 @@ export function PeopleRegisteredCard({
   );
 }
 
+export function TestsCompletedCard({
+  summary,
+  loading,
+  onOpen,
+}: {
+  summary: CommandAudienceSplitSummary | null;
+  loading?: boolean;
+  onOpen: () => void;
+}) {
+  return (
+    <MetricCard
+      title="Tests completed"
+      icon={Droplets}
+      variant="metric"
+      clickable
+      onClick={onOpen}
+      data-testid="card-tests_completed"
+    >
+      {loading ? (
+        <Loader2 className="size-5 animate-spin text-zinc-400" aria-label="Loading" />
+      ) : (
+        <AudienceSplitBody
+          total={summary?.total ?? 0}
+          b2b={summary?.b2b ?? 0}
+          b2c={summary?.b2c ?? 0}
+        />
+      )}
+    </MetricCard>
+  );
+}
+
+export function QuestionnaireDoneCard({
+  summary,
+  loading,
+  onOpen,
+}: {
+  summary: CommandAudienceSplitSummary | null;
+  loading?: boolean;
+  onOpen: () => void;
+}) {
+  return (
+    <MetricCard
+      title="Questionnaire done"
+      icon={ClipboardList}
+      variant="metric"
+      clickable
+      onClick={onOpen}
+      data-testid="card-questionnaire_done"
+    >
+      {loading ? (
+        <Loader2 className="size-5 animate-spin text-zinc-400" aria-label="Loading" />
+      ) : (
+        <AudienceSplitBody
+          total={summary?.total ?? 0}
+          b2b={summary?.b2b ?? 0}
+          b2c={summary?.b2c ?? 0}
+        />
+      )}
+    </MetricCard>
+  );
+}
+
 /** Soft tints matching supershyft-command warning/success opacity style */
 const TICKET_SLICES = [
   {
@@ -135,7 +234,7 @@ export function TicketsCard() {
       }
       variant="panel"
       showViewAll
-      bodyClassName="p-0 overflow-hidden"
+      bodyClassName="items-stretch p-0 overflow-hidden"
       data-testid="card-tickets"
     >
       <div className="grid h-full min-h-0 w-full grid-cols-2 items-stretch gap-2 p-2.5">
@@ -177,7 +276,7 @@ export function ActionCenterCard() {
       title="Action Center"
       icon={ListTodo}
       variant="panel"
-      bodyClassName="p-0 overflow-hidden"
+      bodyClassName="items-stretch p-0 overflow-hidden"
       data-testid="card-action_center"
     >
       {/* gap-3 ≈ 12px between tiles; p-3 outer inset — matches design gutters */}

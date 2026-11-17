@@ -23,14 +23,32 @@ export type ApiCounters = {
   getServerCalls: () => number;
   getNotifCalls: () => number;
   getPeopleCalls: () => number;
+  getTestsCalls: () => number;
+  getQuestionnaireCalls: () => number;
   getB2bSummaryCalls: () => number;
   getB2bEngagementsCalls: () => number;
+};
+
+const JOURNEY_DETAIL_ROW = {
+  user_id: 1,
+  person: { name: "Ada Lovelace", phone: "9999999999" },
+  type: "B2C",
+  engagement: "Camp Alpha",
+  package: "Full Body",
+  collection: "2026-11-20 09:00:00",
+  blood_collection: "done",
+  questionnaire: "completed",
+  lab_report: "pending",
+  bio_ai: "pending",
+  consult: "Not Booked",
 };
 
 export async function mockCommandApis(page: Page): Promise<ApiCounters> {
   let serverCalls = 0;
   let notifCalls = 0;
   let peopleCalls = 0;
+  let testsCalls = 0;
+  let questionnaireCalls = 0;
   let b2bSummaryCalls = 0;
   let b2bEngagementsCalls = 0;
 
@@ -137,28 +155,56 @@ export async function mockCommandApis(page: Page): Promise<ApiCounters> {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          data: includeRows
-            ? [
-                {
-                  user_id: 1,
-                  person: { name: "Ada Lovelace", phone: "9999999999" },
-                  type: "B2C",
-                  engagement: "Camp Alpha",
-                  package: "Full Body",
-                  collection: "2026-11-20 09:00:00",
-                  blood_collection: "pending",
-                  questionnaire: "completed",
-                  lab_report: "pending",
-                  bio_ai: "pending",
-                  consult: "Not Booked",
-                },
-              ]
-            : [],
+          data: includeRows ? [{ ...JOURNEY_DETAIL_ROW, blood_collection: "pending" }] : [],
           meta: {
             period: "this_week",
             page: 1,
             limit: includeRows ? 20 : 1,
             total: 42,
+          },
+        }),
+      });
+      return;
+    }
+
+    if (url.includes("/admin/dashboard/command/tests-completed")) {
+      testsCalls += 1;
+      const parsed = new URL(url);
+      const includeRows = parsed.searchParams.get("include_rows") !== "false";
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: includeRows ? [JOURNEY_DETAIL_ROW] : [],
+          meta: {
+            period: "this_week",
+            page: 1,
+            limit: includeRows ? 20 : 1,
+            total: 63,
+            b2b: 46,
+            b2c: 17,
+          },
+        }),
+      });
+      return;
+    }
+
+    if (url.includes("/admin/dashboard/command/questionnaire-done")) {
+      questionnaireCalls += 1;
+      const parsed = new URL(url);
+      const includeRows = parsed.searchParams.get("include_rows") !== "false";
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: includeRows ? [JOURNEY_DETAIL_ROW] : [],
+          meta: {
+            period: "this_week",
+            page: 1,
+            limit: includeRows ? 20 : 1,
+            total: 87,
+            b2b: 57,
+            b2c: 30,
           },
         }),
       });
@@ -250,6 +296,8 @@ export async function mockCommandApis(page: Page): Promise<ApiCounters> {
     getServerCalls: () => serverCalls,
     getNotifCalls: () => notifCalls,
     getPeopleCalls: () => peopleCalls,
+    getTestsCalls: () => testsCalls,
+    getQuestionnaireCalls: () => questionnaireCalls,
     getB2bSummaryCalls: () => b2bSummaryCalls,
     getB2bEngagementsCalls: () => b2bEngagementsCalls,
   };

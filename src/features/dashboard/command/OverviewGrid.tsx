@@ -1,9 +1,14 @@
-import type { CommandNotificationHealth } from "../../../lib/api";
+import type {
+  CommandAudienceSplitSummary,
+  CommandNotificationHealth,
+} from "../../../lib/api";
 import {
   NotificationHealthCard,
   PeopleRegisteredCard,
   PlaceholderCard,
+  QuestionnaireDoneCard,
   ServerLoadCard,
+  TestsCompletedCard,
 } from "./cards";
 import { OVERVIEW_CARD_ORDER, WIRED_CARDS, type CardId } from "./period";
 
@@ -26,17 +31,25 @@ export function OverviewGrid({
   server,
   notificationHealth,
   peopleTotal,
+  testsSummary,
+  questionnaireSummary,
   loadingServer,
   loadingNotif,
   loadingPeople,
+  loadingTests,
+  loadingQuestionnaire,
   onOpenCard,
 }: {
   server: { cpu: number | null; memory: number | null; storage: number | null };
   notificationHealth: CommandNotificationHealth | null;
   peopleTotal: number | null;
+  testsSummary: CommandAudienceSplitSummary | null;
+  questionnaireSummary: CommandAudienceSplitSummary | null;
   loadingServer?: boolean;
   loadingNotif?: boolean;
   loadingPeople?: boolean;
+  loadingTests?: boolean;
+  loadingQuestionnaire?: boolean;
   onOpenCard: (id: CardId) => void;
 }) {
   const renderCard = (id: CardId) => {
@@ -69,6 +82,26 @@ export function OverviewGrid({
           total={peopleTotal}
           loading={loadingPeople}
           onOpen={() => onOpenCard("people_registered")}
+        />
+      );
+    }
+    if (id === "tests_completed") {
+      return (
+        <TestsCompletedCard
+          key={id}
+          summary={testsSummary}
+          loading={loadingTests}
+          onOpen={() => onOpenCard("tests_completed")}
+        />
+      );
+    }
+    if (id === "questionnaire_done") {
+      return (
+        <QuestionnaireDoneCard
+          key={id}
+          summary={questionnaireSummary}
+          loading={loadingQuestionnaire}
+          onOpen={() => onOpenCard("questionnaire_done")}
         />
       );
     }

@@ -22,9 +22,23 @@ test.describe("Command dashboard UI/UX", () => {
     await expect(page.getByTestId("card-notification_health")).toContainText("100");
     await expect(page.getByTestId("card-people_registered")).toContainText("42");
 
+    const testsCard = page.getByTestId("card-tests_completed");
+    await expect(testsCard).toContainText("63");
+    await expect(testsCard.getByTestId("audience-split")).toContainText("B2B");
+    await expect(testsCard.getByTestId("audience-split")).toContainText("46");
+    await expect(testsCard.getByTestId("audience-split")).toContainText("B2C");
+    await expect(testsCard.getByTestId("audience-split")).toContainText("17");
+
+    const questCard = page.getByTestId("card-questionnaire_done");
+    await expect(questCard).toContainText("87");
+    await expect(questCard.getByTestId("audience-split")).toContainText("57");
+    await expect(questCard.getByTestId("audience-split")).toContainText("30");
+
     expect(counters.getServerCalls()).toBeGreaterThanOrEqual(1);
     expect(counters.getNotifCalls()).toBeGreaterThanOrEqual(1);
     expect(counters.getPeopleCalls()).toBeGreaterThanOrEqual(1);
+    expect(counters.getTestsCalls()).toBeGreaterThanOrEqual(1);
+    expect(counters.getQuestionnaireCalls()).toBeGreaterThanOrEqual(1);
   });
 
   test("B2B tab is enabled; B2C stays inert; invalid tab normalizes to overview", async ({
@@ -59,12 +73,18 @@ test.describe("Command dashboard UI/UX", () => {
     const serverBefore = counters.getServerCalls();
     const notifBefore = counters.getNotifCalls();
     const peopleBefore = counters.getPeopleCalls();
+    const testsBefore = counters.getTestsCalls();
+    const questBefore = counters.getQuestionnaireCalls();
 
     await page.getByRole("button", { name: "This month", exact: true }).click();
     await expect(page).toHaveURL(/period=this_month/);
 
     await expect.poll(() => counters.getNotifCalls()).toBeGreaterThan(notifBefore);
     await expect.poll(() => counters.getPeopleCalls()).toBeGreaterThan(peopleBefore);
+    await expect.poll(() => counters.getTestsCalls()).toBeGreaterThan(testsBefore);
+    await expect
+      .poll(() => counters.getQuestionnaireCalls())
+      .toBeGreaterThan(questBefore);
     expect(counters.getServerCalls()).toBe(serverBefore);
   });
 
@@ -138,6 +158,106 @@ test.describe("Command dashboard UI/UX", () => {
     }
     await expect(detail.getByText("Ada Lovelace")).toBeVisible();
     await expect(detail.getByText("9999999999")).toBeVisible();
+  });
+
+  test("tests_completed shows B2B/B2C split and opens new-page detail", async ({
+    page,
+  }) => {
+    await page.goto("/?tab=overview&period=this_week");
+    const card = page.getByTestId("card-tests_completed");
+    await expect(card).toHaveAttribute("type", "button");
+    await expect(card.getByTestId("audience-split-total")).toHaveText("63");
+    await expect(card.getByTestId("audience-split")).toBeVisible();
+    await expect(card.getByTestId("audience-split-divider")).toHaveCount(0);
+
+    // Footer layout: B2B then B2C left-to-right
+    const splitText = (await card.getByTestId("audience-split").innerText()).replace(
+      /\s+/g,
+      " "
+    );
+    expect(splitText.indexOf("B2B")).toBeLessThan(splitText.indexOf("B2C"));
+
+    await card.click();
+    await expect(page).toHaveURL(/tab=overview/);
+    await expect(page).toHaveURL(/card=tests_completed/);
+    await expect(page.getByTestId("tabs-hidden")).toBeAttached();
+    await expect(page.getByRole("tablist", { name: "Dashboard tabs" })).toHaveCount(0);
+
+    const detail = page.getByTestId("detail-tests_completed");
+    await expect(detail).toBeVisible();
+    for (const header of [
+      "Person",
+      "Type",
+      "Engagement",
+      "Package",
+      "Collection",
+      "Blood Collection",
+      "Questionnaire",
+      "Lab report",
+      "BIO-AI",
+      "Consult",
+    ]) {
+      await expect(detail.getByRole("columnheader", { name: header, exact: true })).toBeVisible();
+    }
+    await expect(detail.getByText("Ada Lovelace")).toBeVisible();
+    await expect(detail.getByText("done")).toBeVisible();
+
+    await detail.getByRole("button", { name: "Back" }).click();
+    await expect(page).not.toHaveURL(/card=/);
+    await expect(page.getByRole("tablist", { name: "Dashboard tabs" })).toBeVisible();
+    await expect(page.getByTestId("overview-grid")).toBeVisible();
+  });
+
+  test("questionnaire_done shows B2B/B2C split and opens new-page detail", async ({
+    page,
+  }) => {
+    await page.goto("/?tab=overview&period=this_week");
+    const card = page.getByTestId("card-questionnaire_done");
+    await expect(card).toHaveAttribute("type", "button");
+    await expect(card.getByTestId("audience-split-total")).toHaveText("87");
+    await expect(card.getByTestId("audience-split-divider")).toHaveCount(0);
+    await expect(card.getByTestId("audience-split")).toContainText("B2B");
+    await expect(card.getByTestId("audience-split")).toContainText("B2C");
+
+    await card.click();
+    await expect(page).toHaveURL(/tab=overview/);
+    await expect(page).toHaveURL(/card=questionnaire_done/);
+    await expect(page.getByTestId("tabs-hidden")).toBeAttached();
+
+    const detail = page.getByTestId("detail-questionnaire_done");
+    await expect(detail).toBeVisible();
+    for (const header of [
+      "Person",
+      "Type",
+      "Engagement",
+      "Package",
+      "Collection",
+      "Blood Collection",
+      "Questionnaire",
+      "Lab report",
+      "BIO-AI",
+      "Consult",
+    ]) {
+      await expect(detail.getByRole("columnheader", { name: header, exact: true })).toBeVisible();
+    }
+    await expect(detail.getByText("Ada Lovelace")).toBeVisible();
+    await expect(detail.getByText("completed")).toBeVisible();
+
+    await detail.getByRole("button", { name: "Back" }).click();
+    await expect(page).not.toHaveURL(/card=/);
+    await expect(page.getByTestId("overview-grid")).toBeVisible();
+  });
+
+  test("direct URL card=tests_completed and card=questionnaire_done load details", async ({
+    page,
+  }) => {
+    await page.goto("/?tab=overview&period=this_week&card=tests_completed");
+    await expect(page.getByTestId("detail-tests_completed")).toBeVisible();
+    await expect(page.getByRole("tablist", { name: "Dashboard tabs" })).toHaveCount(0);
+
+    await page.goto("/?tab=overview&period=this_week&card=questionnaire_done");
+    await expect(page.getByTestId("detail-questionnaire_done")).toBeVisible();
+    await expect(page.getByTestId("tabs-hidden")).toBeAttached();
   });
 
   test("B2B shows three cards with counts and period refetch", async ({ page, counters }) => {

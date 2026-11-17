@@ -4,6 +4,7 @@ import {
   commandDashboardApi,
   getApiError,
   serverHealthApi,
+  type CommandAudienceSplitSummary,
   type CommandNotificationHealth,
 } from "../../../lib/api";
 import { B2BGrid } from "./B2BGrid";
@@ -11,7 +12,9 @@ import { NotificationHealthDetail } from "./NotificationHealthDetail";
 import { OverviewGrid } from "./OverviewGrid";
 import { PeriodFilter } from "./PeriodFilter";
 import { PeopleRegisteredDetail } from "./PeopleRegisteredDetail";
+import { QuestionnaireDoneDetail } from "./QuestionnaireDoneDetail";
 import { TabBar } from "./TabBar";
+import { TestsCompletedDetail } from "./TestsCompletedDetail";
 import {
   DEFAULT_PERIOD,
   cardInteraction,
@@ -137,6 +140,13 @@ export function CommandDashboard() {
   const [loadingNotif, setLoadingNotif] = useState(true);
   const [peopleTotal, setPeopleTotal] = useState<number | null>(null);
   const [loadingPeople, setLoadingPeople] = useState(true);
+  const [testsSummary, setTestsSummary] = useState<CommandAudienceSplitSummary | null>(
+    null
+  );
+  const [loadingTests, setLoadingTests] = useState(true);
+  const [questionnaireSummary, setQuestionnaireSummary] =
+    useState<CommandAudienceSplitSummary | null>(null);
+  const [loadingQuestionnaire, setLoadingQuestionnaire] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -171,6 +181,8 @@ export function CommandDashboard() {
     let cancelled = false;
     setLoadingNotif(true);
     setLoadingPeople(true);
+    setLoadingTests(true);
+    setLoadingQuestionnaire(true);
     Promise.all([
       commandDashboardApi.notificationHealth(periodParams),
       commandDashboardApi.peopleRegistered({
@@ -179,11 +191,33 @@ export function CommandDashboard() {
         page: 1,
         limit: 1,
       }),
+      commandDashboardApi.testsCompleted({
+        ...periodParams,
+        include_rows: false,
+        page: 1,
+        limit: 1,
+      }),
+      commandDashboardApi.questionnaireDone({
+        ...periodParams,
+        include_rows: false,
+        page: 1,
+        limit: 1,
+      }),
     ])
-      .then(([notifRes, peopleRes]) => {
+      .then(([notifRes, peopleRes, testsRes, questRes]) => {
         if (cancelled) return;
         setNotif(notifRes.data.data);
         setPeopleTotal(peopleRes.data.meta?.total ?? 0);
+        setTestsSummary({
+          total: testsRes.data.meta?.total ?? 0,
+          b2b: testsRes.data.meta?.b2b ?? 0,
+          b2c: testsRes.data.meta?.b2c ?? 0,
+        });
+        setQuestionnaireSummary({
+          total: questRes.data.meta?.total ?? 0,
+          b2b: questRes.data.meta?.b2b ?? 0,
+          b2c: questRes.data.meta?.b2c ?? 0,
+        });
         setLoadError(null);
       })
       .catch((err) => {
@@ -194,6 +228,8 @@ export function CommandDashboard() {
         if (!cancelled) {
           setLoadingNotif(false);
           setLoadingPeople(false);
+          setLoadingTests(false);
+          setLoadingQuestionnaire(false);
         }
       });
     return () => {
@@ -237,14 +273,22 @@ export function CommandDashboard() {
         <NotificationHealthDetail periodParams={periodParams} onBack={closeCard} />
       ) : card === "people_registered" ? (
         <PeopleRegisteredDetail periodParams={periodParams} onBack={closeCard} />
+      ) : card === "tests_completed" ? (
+        <TestsCompletedDetail periodParams={periodParams} onBack={closeCard} />
+      ) : card === "questionnaire_done" ? (
+        <QuestionnaireDoneDetail periodParams={periodParams} onBack={closeCard} />
       ) : (
         <OverviewGrid
           server={server}
           notificationHealth={notif}
           peopleTotal={peopleTotal}
+          testsSummary={testsSummary}
+          questionnaireSummary={questionnaireSummary}
           loadingServer={loadingServer}
           loadingNotif={loadingNotif}
           loadingPeople={loadingPeople}
+          loadingTests={loadingTests}
+          loadingQuestionnaire={loadingQuestionnaire}
           onOpenCard={(id) => openCard(id, "overview")}
         />
       )}

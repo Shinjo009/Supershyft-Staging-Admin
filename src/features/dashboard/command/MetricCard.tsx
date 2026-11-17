@@ -40,8 +40,10 @@ export function MetricCard({
   const headerPad = "px-3 py-2";
   const defaultBodyPad =
     variant === "panel" ? "p-2.5" : variant === "feature" ? "px-3 py-2.5" : "px-3.5 py-3";
-  const bodyPad = bodyClassName ?? defaultBodyPad;
   const bodyAlign = variant === "panel" ? "items-stretch" : "items-center";
+  const bodyClass = `flex min-h-0 flex-1 ${
+    bodyClassName ?? `${bodyAlign} ${defaultBodyPad}`
+  }`;
 
   const body = (
     <>
@@ -67,7 +69,7 @@ export function MetricCard({
           <span className="shrink-0 pt-0.5 text-xs font-medium text-zinc-500">View all</span>
         ) : null}
       </div>
-      <div className={`flex min-h-0 flex-1 ${bodyAlign} ${bodyPad}`}>{children}</div>
+      <div className={bodyClass}>{children}</div>
     </>
   );
 

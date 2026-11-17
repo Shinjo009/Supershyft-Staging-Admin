@@ -6280,6 +6280,21 @@ export type CommandPeriodParams = {
   include_rows?: boolean;
 };
 
+export interface CommandAudienceSplitMeta {
+  period: string;
+  page: number;
+  limit: number;
+  total: number;
+  b2b: number;
+  b2c: number;
+}
+
+export interface CommandAudienceSplitSummary {
+  total: number;
+  b2b: number;
+  b2c: number;
+}
+
 export interface CommandB2BSummary {
   ongoing: number;
   upcoming: number;
@@ -6315,6 +6330,16 @@ export const commandDashboardApi = {
       data: CommandPeopleRegisteredRow[];
       meta: { period: string; page: number; limit: number; total: number };
     }>("/admin/dashboard/command/people-registered", { params }),
+  testsCompleted: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/tests-completed", { params }),
+  questionnaireDone: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/questionnaire-done", { params }),
   b2bSummary: (params?: CommandPeriodParams) =>
     api.get<{ data: CommandB2BSummary; meta: { period: string } }>(
       "/admin/dashboard/command/b2b/summary",
