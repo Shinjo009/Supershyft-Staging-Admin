@@ -15,6 +15,7 @@ test.describe("B2C onboarding settings", () => {
     await expect(page.getByText("Metsights Pro checks", { exact: false })).toHaveCount(0);
     await expect(page.getByText("Default engagement type when omitted", { exact: false })).toHaveCount(0);
     await expect(page.getByRole("navigation", { name: "Journey types" })).toBeVisible();
+    await expect(page.getByLabel("Engagement duration (days)")).toBeVisible();
   });
 
   test("type save button is scoped to active journey type", async ({ page }) => {

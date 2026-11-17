@@ -401,6 +401,31 @@ export function OnboardingSettings({ canEdit }: OnboardingSettingsProps) {
             {activeTypeHint ? <p className="text-xs text-zinc-500">{activeTypeHint}</p> : null}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <SettingsSectionHeading>Schedule</SettingsSectionHeading>
+              <div className="sm:col-span-2">
+                <label htmlFor="b2c-engagement-duration" className="block text-sm font-medium text-zinc-700 mb-1">
+                  Engagement duration (days)
+                </label>
+                <input
+                  id="b2c-engagement-duration"
+                  type="number"
+                  min={1}
+                  max={90}
+                  className={inputClass}
+                  value={activeDefaults.engagement_duration_days ?? 3}
+                  onChange={(ev) =>
+                    updateActiveDefaults({
+                      engagement_duration_days: Math.min(90, Math.max(1, Number(ev.target.value) || 3)),
+                    })
+                  }
+                  disabled={!canEdit}
+                />
+                <p className="text-xs text-zinc-500 mt-1">
+                  How long the engagement runs from the start date (inclusive). Example: 3 means the start date through
+                  two days after.
+                </p>
+              </div>
+
               <SettingsSectionHeading>Packages</SettingsSectionHeading>
 
               {activeTypeConfig.needsDiagnostic ? (

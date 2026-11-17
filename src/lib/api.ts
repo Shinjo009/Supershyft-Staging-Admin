@@ -300,6 +300,7 @@ export interface B2cOnboardingTypeDefaults {
   consultation_mode?: ConsultationMode | null;
   auto_booking?: boolean;
   payment_type?: EngagementPaymentType;
+  engagement_duration_days?: number;
 }
 
 export interface B2cOnboardingDefaults {

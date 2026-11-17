@@ -42,6 +42,7 @@ export function emptyTypeDefaults(assessmentId = 1, diagnosticId: number | null 
     consultation_mode: null,
     auto_booking: false,
     payment_type: "paid_by_patient",
+    engagement_duration_days: 3,
   };
 }
 
@@ -72,6 +73,7 @@ export function buildDefaultsByType(
           consultation_mode: entry.consultation_mode ?? null,
           auto_booking: Boolean(entry.auto_booking),
           payment_type: entry.payment_type ?? "paid_by_patient",
+          engagement_duration_days: entry.engagement_duration_days ?? 3,
         }
       : { ...fallback };
   }
