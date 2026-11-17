@@ -7,6 +7,7 @@ import {
   engagementNotificationsApi,
   getApiError,
 } from "../../lib/api";
+import { normalizeRecipientTypeForWizard } from "../notifications/notificationsUiShared";
 
 export type EngagementNotificationProfileParams = {
   engagement_kind: string;
@@ -116,7 +117,15 @@ export function EngagementNotificationSetupPanel({
   const wizardLinkState = useMemo(() => ({ returnTo }), [returnTo]);
 
   const wizardPath = useCallback(
-    (eventCode: string, extra?: { engagementBindingId?: number; step?: number }) => {
+    (
+      eventCode: string,
+      extra?: {
+        engagementBindingId?: number;
+        step?: number;
+        recipient_type?: string;
+        delivery_channel?: string;
+      }
+    ) => {
       const q = new URLSearchParams({
         mode: "engagement",
         engagementId: String(resolvedEngagementId ?? ""),
@@ -127,6 +136,17 @@ export function EngagementNotificationSetupPanel({
       }
       if (extra?.step) {
         q.set("step", String(extra.step));
+      }
+      const recipient = extra?.recipient_type?.trim();
+      if (recipient) {
+        const normalized = normalizeRecipientTypeForWizard(recipient);
+        if (normalized) {
+          q.set("recipient", normalized);
+        }
+      }
+      const channel = extra?.delivery_channel?.trim().toLowerCase();
+      if (channel === "whatsapp" || channel === "email") {
+        q.set("channel", channel);
       }
       return `/notifications/notifications/new?${q.toString()}`;
     },
@@ -162,11 +182,19 @@ export function EngagementNotificationSetupPanel({
     const data = await ensureEngagementCopies();
     if (!data) return;
     const ev = data.events.find((e) => e.event_code === eventCode);
-    const bindingId = ev?.engagement_bindings[0]?.id;
-    if (bindingId) {
-      navigate(wizardPath(eventCode, { engagementBindingId: bindingId, step: 2 }), {
-        state: wizardLinkState,
-      });
+    const first = ev?.engagement_bindings[0];
+    if (first?.id) {
+      navigate(
+        wizardPath(eventCode, {
+          engagementBindingId: first.id,
+          step: 2,
+          recipient_type: first.recipient_type,
+          delivery_channel: first.delivery_channel,
+        }),
+        {
+          state: wizardLinkState,
+        }
+      );
     }
   };
 
@@ -259,6 +287,8 @@ export function EngagementNotificationSetupPanel({
                                   to={wizardPath(event.event_code, {
                                     engagementBindingId: b.id,
                                     step: 2,
+                                    recipient_type: b.recipient_type,
+                                    delivery_channel: b.delivery_channel,
                                   })}
                                   state={wizardLinkState}
                                   className="text-zinc-500 hover:text-zinc-900"

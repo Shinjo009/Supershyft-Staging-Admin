@@ -16,6 +16,7 @@ import {
 } from "../../lib/api";
 import {
   RECIPIENT_LABELS,
+  applyWizardBindingRow,
   catalogEventForBinding,
   defaultRecipientForWizard,
   filterChipClass,
@@ -208,7 +209,10 @@ export function NotificationBindingWizard() {
   const [selectedEvent, setSelectedEvent] = useState<CatalogEventItem | null>(null);
   const [bindingEventCode, setBindingEventCode] = useState("");
   const [recipientType, setRecipientType] = useState(() =>
-    bindingId ? prefilledRecipient : ""
+    bindingId ||
+    (mode === "engagement" && engagementId > 0 && Boolean(engagementBindingId))
+      ? prefilledRecipient
+      : ""
   );
   const [customPhones, setCustomPhones] = useState("");
   const [customEmails, setCustomEmails] = useState("");
@@ -234,6 +238,8 @@ export function NotificationBindingWizard() {
   const [editingServiceId, setEditingServiceId] = useState<number | null>(null);
 
   const isEdit = Boolean(bindingId);
+  const isEngagementSlotEdit =
+    mode === "engagement" && engagementId > 0 && Boolean(engagementBindingId);
 
   const filteredEvents = useMemo(() => {
     const q = eventSearch.trim().toLowerCase();
@@ -490,32 +496,38 @@ export function NotificationBindingWizard() {
       setEvents(catalog);
       setServices(svcRes.data.data);
 
+      const hydrateCtx = {
+        prefilledRecipient,
+        services: svcRes.data.data,
+        selectServiceForReuse,
+        setServiceMode,
+        setBindingEventCode,
+        setRecipientType,
+        setCustomPhones,
+        setCustomEmails,
+        setPayloadPath,
+        setEmitWhenMode,
+        setEmitConditionOp,
+        setEmitConditionValue,
+      };
+
       if (bindingId) {
         const row = await notificationBindingsApi.getForWizard(Number(bindingId));
         const ev = catalogEventForBinding(catalog, row);
-        setBindingEventCode(row.event_code);
         setSelectedEvent(ev);
-        const normalizedRecipient =
-          normalizeRecipientTypeForWizard(row.recipient_type) || prefilledRecipient;
-        setRecipientType(normalizedRecipient);
-        setCustomPhones((row.recipient_config?.phones ?? []).join("\n"));
-        setCustomEmails((row.recipient_config?.emails ?? []).join("\n"));
-        setPayloadPath(row.recipient_config?.payload_path ?? "");
-        if (row.emit_condition?.op) {
-          setEmitWhenMode("conditional");
-          setEmitConditionOp(row.emit_condition.op);
-          setEmitConditionValue(row.emit_condition.value ?? "");
-        } else {
-          setEmitWhenMode("always");
-          setEmitConditionOp("equals");
-          setEmitConditionValue("");
+        applyWizardBindingRow(row, hydrateCtx);
+        setStep(parseWizardStepParam(wizardStepParam) ?? 2);
+      } else if (mode === "engagement" && engagementId > 0 && engagementBindingId) {
+        const row = await engagementNotificationsApi.getBindingForWizard(
+          engagementId,
+          engagementBindingId
+        );
+        const ev = catalogEventForBinding(catalog, row);
+        setSelectedEvent(ev);
+        if (ev) {
+          setDisplayName(ev.name);
         }
-        const sk = row.service_key ?? row.notification_services[0]?.service_key;
-        const svc = sk ? svcRes.data.data.find((s) => s.service_key === sk) : undefined;
-        setServiceMode("reuse");
-        if (svc) {
-          selectServiceForReuse(svc);
-        }
+        applyWizardBindingRow(row, hydrateCtx);
         setStep(parseWizardStepParam(wizardStepParam) ?? 2);
       } else if (presetEventCode) {
         const ev =
@@ -534,16 +546,26 @@ export function NotificationBindingWizard() {
     } finally {
       setLoading(false);
     }
-  }, [bindingId, prefilledRecipient, presetEventCode, selectServiceForReuse, wizardStepParam]);
+  }, [
+    bindingId,
+    engagementBindingId,
+    engagementId,
+    mode,
+    prefilledRecipient,
+    presetEventCode,
+    selectServiceForReuse,
+    wizardStepParam,
+  ]);
 
   useEffect(() => {
     loadInitial();
   }, [loadInitial]);
 
   useEffect(() => {
-    if (!isEdit || !prefilledRecipient) return;
+    if (!prefilledRecipient) return;
+    if (!isEdit && !isEngagementSlotEdit) return;
     setRecipientType((prev) => prev || prefilledRecipient);
-  }, [isEdit, prefilledRecipient]);
+  }, [isEdit, isEngagementSlotEdit, prefilledRecipient]);
 
   useEffect(() => {
     if (recipientType !== "payload") return;

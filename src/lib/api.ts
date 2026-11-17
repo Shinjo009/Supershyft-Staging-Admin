@@ -1,4 +1,8 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
+import {
+  engagementNotificationToBindingItem,
+  pickEngagementBindingById,
+} from "./engagementNotificationBindings";
 import { authStorage, loginPathWithRedirect } from "./authStorage";
 import type {
   EmployeeRole,
@@ -6092,6 +6096,11 @@ export interface EngagementNotificationItem {
   event_code: string;
   notification_services: NotificationServiceConfigItem[];
   event_display_name?: string;
+  recipient_type?: string;
+  delivery_channel?: string;
+  recipient_config?: NotificationBindingItem["recipient_config"];
+  condition_key?: string;
+  emit_condition?: EmitConditionPayload | null;
 }
 
 export interface EngagementNotificationSetupEventRow {
@@ -6146,6 +6155,19 @@ export const engagementNotificationsApi = {
     api.get<{ data: EngagementNotificationItem[]; meta: Record<string, unknown> }>(
       `/engagements/${engagementId}/notifications`
     ),
+  getBindingForWizard: async (
+    engagementId: number,
+    bindingId: number
+  ): Promise<NotificationBindingItem> => {
+    const res = await api.get<{ data: EngagementNotificationItem[]; meta: Record<string, unknown> }>(
+      `/engagements/${engagementId}/notifications`
+    );
+    const slot = pickEngagementBindingById(res.data.data, bindingId);
+    if (!slot) {
+      throw new Error("Notification binding not found");
+    }
+    return engagementNotificationToBindingItem(slot);
+  },
   upsertForEngagement: (
     engagementId: number,
     notifications: { event_code: string; notification_services: NotificationServiceConfigItem[] }[]

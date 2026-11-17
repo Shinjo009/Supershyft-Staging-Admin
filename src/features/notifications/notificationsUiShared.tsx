@@ -1,8 +1,10 @@
 import type {
   CatalogEventItem,
+  EmitConditionOp,
   NotificationBindingItem,
   NotificationItem,
   NotificationRecipient,
+  NotificationServiceItem,
 } from "../../lib/api";
 
 /** Stored DB values that map to a wizard recipient card (uniform edit UI). */
@@ -191,6 +193,52 @@ export function recipientTypeFromEditLocation(
   const fromUrl = (searchParams.get("recipient") ?? "").trim();
   const fromState = (locationState?.editBinding?.recipient_type ?? "").trim();
   return normalizeRecipientTypeForWizard(fromUrl || fromState);
+}
+
+export type ApplyWizardBindingContext = {
+  prefilledRecipient: string;
+  services: NotificationServiceItem[];
+  selectServiceForReuse: (svc: NotificationServiceItem) => void;
+  setServiceMode: (mode: "reuse" | "create") => void;
+  setBindingEventCode: (code: string) => void;
+  setRecipientType: (rt: string) => void;
+  setCustomPhones: (v: string) => void;
+  setCustomEmails: (v: string) => void;
+  setPayloadPath: (v: string) => void;
+  setEmitWhenMode: (m: "always" | "conditional") => void;
+  setEmitConditionOp: (op: EmitConditionOp) => void;
+  setEmitConditionValue: (v: string) => void;
+};
+
+/** Apply stored binding fields to wizard state (global or engagement slot). */
+export function applyWizardBindingRow(
+  row: NotificationBindingItem,
+  ctx: ApplyWizardBindingContext
+): void {
+  const normalizedRecipient =
+    normalizeRecipientTypeForWizard(row.recipient_type) || ctx.prefilledRecipient;
+  ctx.setBindingEventCode(row.event_code);
+  ctx.setRecipientType(normalizedRecipient);
+  ctx.setCustomPhones((row.recipient_config?.phones ?? []).join("\n"));
+  ctx.setCustomEmails((row.recipient_config?.emails ?? []).join("\n"));
+  ctx.setPayloadPath(row.recipient_config?.payload_path ?? "");
+  if (row.emit_condition?.op) {
+    ctx.setEmitWhenMode("conditional");
+    ctx.setEmitConditionOp(row.emit_condition.op);
+    ctx.setEmitConditionValue(row.emit_condition.value ?? "");
+  } else {
+    ctx.setEmitWhenMode("always");
+    ctx.setEmitConditionOp("equals");
+    ctx.setEmitConditionValue("");
+  }
+  const sk = row.service_key ?? row.notification_services[0]?.service_key;
+  const svc = sk ? ctx.services.find((s) => s.service_key === sk) : undefined;
+  ctx.setServiceMode("reuse");
+  if (svc) {
+    ctx.selectServiceForReuse(svc);
+  } else {
+    ctx.setServiceMode("create");
+  }
 }
 
 export type NotificationEventGroupRow = {

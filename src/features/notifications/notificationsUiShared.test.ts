@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CatalogEventItem } from "../../lib/api";
 import {
+  applyWizardBindingRow,
   canonicalCatalogEventCode,
   catalogEventForEventCode,
   groupNotificationBindingsByEvent,
@@ -142,5 +143,67 @@ describe("formatBindingEmitConditionLabel", () => {
         emit_condition: { op: "is_empty" },
       })
     ).toBe("No discount");
+  });
+});
+
+describe("applyWizardBindingRow", () => {
+  it("normalizes ops recipient and selects reuse when service is known", () => {
+    const calls: string[] = [];
+    let recipient = "";
+    let mode: "reuse" | "create" = "create";
+    applyWizardBindingRow(
+      {
+        ...bindingStub({ id: 6519 }),
+        event_code: "users.onboarded",
+        recipient_type: "departments.ops",
+        delivery_channel: "whatsapp",
+        notification_services: [{ service_key: "users-onboarded-whatsapp" }],
+        service_key: "users-onboarded-whatsapp",
+      },
+      {
+        prefilledRecipient: "",
+        services: [
+          {
+            notification_service_id: 7,
+            service_key: "users-onboarded-whatsapp",
+            display_name: "Users onboarded WA",
+            channel: "whatsapp",
+            can_delete: true,
+            is_active: true,
+            require_blood_report_url: false,
+            require_bio_ai_report_url: false,
+            require_participant_detail: false,
+            require_otp: false,
+            require_session_details: false,
+            require_external_link: false,
+            template_name: "test_tpl",
+            template_variables: null,
+            email_subject: null,
+            email_body: null,
+            email_html: null,
+            created_at: null,
+          },
+        ],
+        selectServiceForReuse: (svc) => {
+          calls.push(svc.service_key);
+        },
+        setServiceMode: (m) => {
+          mode = m;
+        },
+        setBindingEventCode: () => {},
+        setRecipientType: (rt) => {
+          recipient = rt;
+        },
+        setCustomPhones: () => {},
+        setCustomEmails: () => {},
+        setPayloadPath: () => {},
+        setEmitWhenMode: () => {},
+        setEmitConditionOp: () => {},
+        setEmitConditionValue: () => {},
+      }
+    );
+    expect(recipient).toBe("departments.ops");
+    expect(mode).toBe("reuse");
+    expect(calls).toEqual(["users-onboarded-whatsapp"]);
   });
 });
