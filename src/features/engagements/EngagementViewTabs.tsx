@@ -13,6 +13,7 @@ import type {
   Engagement,
   EngagementDataCompletenessResponse,
   EngagementTypeItem,
+  NotificationServiceItem,
 } from "../../lib/api";
 import {
   engagementDataCompletenessApi,
@@ -421,7 +422,10 @@ export function EngagementDetailsTab({
 
 export function EngagementNotificationsTab({
   engagement,
-}: Pick<SharedProps, "engagement">) {
+  notificationServices,
+}: Pick<SharedProps, "engagement"> & {
+  notificationServices?: NotificationServiceItem[];
+}) {
   const [engagementTypes, setEngagementTypes] = useState<EngagementTypeItem[]>([]);
 
   useEffect(() => {
@@ -462,6 +466,7 @@ export function EngagementNotificationsTab({
         engagementId={engagement.engagement_id}
         profileParams={profileParams}
         returnTo={returnTo}
+        notificationServices={notificationServices}
       />
     </div>
   );

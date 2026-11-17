@@ -2,13 +2,18 @@ import { describe, expect, it } from "vitest";
 import type { CatalogEventItem } from "../../lib/api";
 import {
   applyWizardBindingRow,
+  buildNotificationServicesByKey,
   canonicalCatalogEventCode,
   catalogEventForEventCode,
+  channelLabel,
+  formatBindingRecipientLabel,
   groupNotificationBindingsByEvent,
   formatBindingEmitConditionLabel,
   normalizeRecipientTypeForWizard,
+  resolveServiceLabel,
   wizardRecipientOptionsForEvent,
 } from "./notificationsUiShared";
+import type { NotificationServiceItem } from "../../lib/api";
 import type { NotificationBindingItem } from "../../lib/api";
 
 const catalog: CatalogEventItem[] = [
@@ -205,5 +210,56 @@ describe("applyWizardBindingRow", () => {
     expect(recipient).toBe("departments.ops");
     expect(mode).toBe("reuse");
     expect(calls).toEqual(["users-onboarded-whatsapp"]);
+  });
+});
+
+const serviceCatalog: NotificationServiceItem[] = [
+  {
+    notification_service_id: 1,
+    service_key: "pretest-whatsapp",
+    display_name: "Pretest guidelines (WhatsApp)",
+    channel: "whatsapp",
+    can_delete: true,
+    is_active: true,
+    require_blood_report_url: false,
+    require_bio_ai_report_url: false,
+    require_participant_detail: false,
+    require_otp: false,
+    require_session_details: false,
+    require_external_link: false,
+    template_name: null,
+    template_variables: null,
+    email_subject: null,
+    email_body: null,
+    email_html: null,
+    created_at: null,
+  },
+];
+
+describe("channelLabel", () => {
+  it("title-cases known channels", () => {
+    expect(channelLabel("whatsapp")).toBe("WhatsApp");
+    expect(channelLabel("email")).toBe("Email");
+    expect(channelLabel("push")).toBe("push");
+    expect(channelLabel("")).toBe("—");
+  });
+});
+
+describe("resolveServiceLabel", () => {
+  const byKey = buildNotificationServicesByKey(serviceCatalog);
+
+  it("returns display_name when catalog has a match", () => {
+    expect(resolveServiceLabel("pretest-whatsapp", byKey)).toBe("Pretest guidelines (WhatsApp)");
+  });
+
+  it("falls back to service_key when unknown", () => {
+    expect(resolveServiceLabel("missing-key", byKey)).toBe("missing-key");
+    expect(resolveServiceLabel(null, byKey)).toBe("—");
+  });
+});
+
+describe("formatBindingRecipientLabel", () => {
+  it("maps user to Participant", () => {
+    expect(formatBindingRecipientLabel({ recipient_type: "user" })).toBe("Participant");
   });
 });

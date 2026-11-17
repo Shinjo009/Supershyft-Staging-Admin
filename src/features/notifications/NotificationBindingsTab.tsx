@@ -6,17 +6,12 @@ import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate } from "../../contexts/PermissionContext";
 import { notificationBindingsApi, type NotificationBindingItem, getApiError } from "../../lib/api";
 import {
+  channelLabel,
   formatBindingRecipientLabel,
   RECIPIENT_LABELS,
   groupNotificationBindingsByEvent,
   type NotificationEventGroupRow,
 } from "./notificationsUiShared";
-
-function channelLabel(ch: string): string {
-  if (ch === "whatsapp") return "WhatsApp";
-  if (ch === "email") return "Email";
-  return ch || "—";
-}
 
 function uniqueRecipientLabels(bindings: NotificationBindingItem[]): string {
   const labels = [

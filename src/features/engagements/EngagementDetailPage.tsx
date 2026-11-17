@@ -337,7 +337,10 @@ export function EngagementDetailPage() {
             ) : null}
 
             {resolvedTab === "notifications" ? (
-              <EngagementNotificationsTab engagement={engagement} />
+              <EngagementNotificationsTab
+                engagement={engagement}
+                notificationServices={notificationServices}
+              />
             ) : null}
 
             {resolvedTab === "operations" ? (

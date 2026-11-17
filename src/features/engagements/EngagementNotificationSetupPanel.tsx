@@ -4,10 +4,17 @@ import { Loader2, Plus, Settings2, Trash2 } from "lucide-react";
 
 import {
   type EngagementNotificationSetup,
+  type NotificationBindingItem,
+  type NotificationServiceItem,
   engagementNotificationsApi,
   getApiError,
+  notificationsApi,
 } from "../../lib/api";
-import { normalizeRecipientTypeForWizard } from "../notifications/notificationsUiShared";
+import {
+  BindingSummaryRow,
+  buildNotificationServicesByKey,
+  normalizeRecipientTypeForWizard,
+} from "../notifications/notificationsUiShared";
 
 export type EngagementNotificationProfileParams = {
   engagement_kind: string;
@@ -17,11 +24,18 @@ export type EngagementNotificationProfileParams = {
   auto_booking?: boolean | null;
 };
 
+type BindingLike = Pick<
+  NotificationBindingItem,
+  "recipient_type" | "delivery_channel" | "recipient_config" | "notification_services"
+>;
+
 type Props = {
   engagementId?: number | null;
   profileParams: EngagementNotificationProfileParams | null;
   returnTo: string;
   onSetupLoaded?: (setup: EngagementNotificationSetup) => void;
+  /** When provided, skips fetching GET /notifications/services */
+  notificationServices?: NotificationServiceItem[];
 };
 
 function coerceEngagementId(value: number | null | undefined): number | null {
@@ -31,25 +45,12 @@ function coerceEngagementId(value: number | null | undefined): number | null {
   return null;
 }
 
-function bindingSummary(binding: {
-  recipient_type?: string;
-  delivery_channel?: string;
-  notification_services?: { service_key?: string }[];
-}): string {
-  const keys = (binding.notification_services ?? [])
-    .map((s) => s.service_key)
-    .filter(Boolean)
-    .join(", ");
-  const rt = binding.recipient_type ?? "—";
-  const ch = binding.delivery_channel ?? "—";
-  return `${rt} · ${ch}${keys ? ` · ${keys}` : ""}`;
-}
-
 export function EngagementNotificationSetupPanel({
   engagementId,
   profileParams,
   returnTo,
   onSetupLoaded,
+  notificationServices: notificationServicesProp,
 }: Props) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -57,7 +58,36 @@ export function EngagementNotificationSetupPanel({
   const [error, setError] = useState<string | null>(null);
   const [setup, setSetup] = useState<EngagementNotificationSetup | null>(null);
   const [addEventCode, setAddEventCode] = useState("");
+  const [catalogServices, setCatalogServices] = useState<NotificationServiceItem[]>(
+    () => notificationServicesProp ?? []
+  );
   const resolvedEngagementId = coerceEngagementId(engagementId ?? null);
+
+  const servicesByKey = useMemo(
+    () => buildNotificationServicesByKey(catalogServices),
+    [catalogServices]
+  );
+
+  useEffect(() => {
+    if (notificationServicesProp !== undefined) {
+      setCatalogServices(notificationServicesProp);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await notificationsApi.listServices();
+        if (!cancelled) {
+          setCatalogServices(res.data.data ?? []);
+        }
+      } catch {
+        if (!cancelled) setCatalogServices([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [notificationServicesProp]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -249,7 +279,7 @@ export function EngagementNotificationSetupPanel({
             <thead className="bg-zinc-50 text-left text-xs uppercase text-zinc-500">
               <tr>
                 <th className="px-4 py-2 font-medium">Event</th>
-                <th className="px-4 py-2 font-medium hidden sm:table-cell">Bindings</th>
+                <th className="px-4 py-2 font-medium hidden sm:table-cell">Who · channel · message</th>
                 <th className="px-4 py-2 font-medium w-36">Actions</th>
               </tr>
             </thead>
@@ -264,12 +294,20 @@ export function EngagementNotificationSetupPanel({
                         Extra
                       </span>
                     ) : null}
-                    <ul className="sm:hidden mt-2 space-y-1 text-xs text-zinc-600">
+                    <ul className="sm:hidden mt-3 space-y-2">
                       {(event.engagement_bindings.length
                         ? event.engagement_bindings
                         : event.global_bindings
                       ).map((b, i) => (
-                        <li key={i}>{bindingSummary(b)}</li>
+                        <li key={"id" in b && b.id ? b.id : `mobile-${i}`}>
+                          <BindingSummaryRow
+                            binding={b as BindingLike}
+                            servicesByKey={servicesByKey}
+                            platformDefault={
+                              event.engagement_bindings.length === 0 && event.global_bindings.length > 0
+                            }
+                          />
+                        </li>
                       ))}
                     </ul>
                   </td>
@@ -277,67 +315,73 @@ export function EngagementNotificationSetupPanel({
                     {event.engagement_bindings.length === 0 && event.global_bindings.length === 0 ? (
                       <span className="text-zinc-400">No defaults configured</span>
                     ) : (
-                      <ul className="space-y-1.5">
+                      <ul className="space-y-2">
                         {event.engagement_bindings.map((b) => (
-                          <li key={b.id} className="flex items-start justify-between gap-2 text-zinc-700">
-                            <span>{bindingSummary(b)}</span>
-                            {resolvedEngagementId ? (
-                              <div className="flex gap-1 shrink-0">
-                                <Link
-                                  to={wizardPath(event.event_code, {
-                                    engagementBindingId: b.id,
-                                    step: 2,
-                                    recipient_type: b.recipient_type,
-                                    delivery_channel: b.delivery_channel,
-                                  })}
-                                  state={wizardLinkState}
-                                  className="text-zinc-500 hover:text-zinc-900"
-                                  title="Edit"
-                                >
-                                  <Settings2 className="w-4 h-4" />
-                                </Link>
-                                <button
-                                  type="button"
-                                  onClick={() => void handleDeleteBinding(b.id)}
-                                  className="text-zinc-400 hover:text-red-600"
-                                  title="Remove"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            ) : null}
+                          <li key={b.id}>
+                            <BindingSummaryRow
+                              binding={b}
+                              servicesByKey={servicesByKey}
+                              actions={
+                                resolvedEngagementId ? (
+                                  <>
+                                    <Link
+                                      to={wizardPath(event.event_code, {
+                                        engagementBindingId: b.id,
+                                        step: 2,
+                                        recipient_type: b.recipient_type,
+                                        delivery_channel: b.delivery_channel,
+                                      })}
+                                      state={wizardLinkState}
+                                      className="text-zinc-500 hover:text-zinc-900 p-1"
+                                      title="Edit binding"
+                                    >
+                                      <Settings2 className="w-4 h-4" />
+                                    </Link>
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleDeleteBinding(b.id)}
+                                      className="text-zinc-400 hover:text-red-600 p-1"
+                                      title="Remove binding"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </>
+                                ) : undefined
+                              }
+                            />
                           </li>
                         ))}
                         {event.engagement_bindings.length === 0
                           ? event.global_bindings.map((b, i) => (
-                              <li
-                                key={i}
-                                className="flex items-start justify-between gap-2 text-zinc-500"
-                              >
-                                <span>
-                                  {bindingSummary(b)}
-                                  <span className="text-zinc-400"> (platform default)</span>
-                                </span>
-                                {resolvedEngagementId ? (
-                                  <div className="flex gap-1 shrink-0">
-                                    <button
-                                      type="button"
-                                      onClick={() => void handleCustomizeEvent(event.event_code)}
-                                      className="text-zinc-500 hover:text-zinc-900"
-                                      title="Customize for this engagement"
-                                    >
-                                      <Settings2 className="w-4 h-4" />
-                                    </button>
-                                    <Link
-                                      to={wizardPath(event.event_code, { step: 2 })}
-                                      state={wizardLinkState}
-                                      className="text-zinc-500 hover:text-zinc-900"
-                                      title="Add engagement binding"
-                                    >
-                                      <Plus className="w-4 h-4" />
-                                    </Link>
-                                  </div>
-                                ) : null}
+                              <li key={`global-${i}`}>
+                                <BindingSummaryRow
+                                  binding={b}
+                                  servicesByKey={servicesByKey}
+                                  platformDefault
+                                  className="opacity-90"
+                                  actions={
+                                    resolvedEngagementId ? (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() => void handleCustomizeEvent(event.event_code)}
+                                          className="text-zinc-500 hover:text-zinc-900 p-1"
+                                          title="Customize for this engagement"
+                                        >
+                                          <Settings2 className="w-4 h-4" />
+                                        </button>
+                                        <Link
+                                          to={wizardPath(event.event_code, { step: 2 })}
+                                          state={wizardLinkState}
+                                          className="text-zinc-500 hover:text-zinc-900 p-1"
+                                          title="Add engagement binding"
+                                        >
+                                          <Plus className="w-4 h-4" />
+                                        </Link>
+                                      </>
+                                    ) : undefined
+                                  }
+                                />
                               </li>
                             ))
                           : null}

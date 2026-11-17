@@ -10,18 +10,22 @@ import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
 import {
   notificationBindingsApi,
+  notificationsApi,
   notificationsCatalogApi,
   type CatalogEventItem,
   type NotificationBindingItem,
-  type NotificationServiceConfigItem,
+  type NotificationServiceItem,
   getApiError,
 } from "../../lib/api";
 import {
+  buildNotificationServicesByKey,
+  channelLabel,
   formatBindingEmitConditionLabel,
   formatBindingRecipientLabel,
-  RECIPIENT_LABELS,
   bindingEditPath,
   catalogEventForEventCode,
+  NotificationServiceChips,
+  RECIPIENT_LABELS,
 } from "./notificationsUiShared";
 
 function decodeEventCode(raw: string | undefined): string {
@@ -31,24 +35,6 @@ function decodeEventCode(raw: string | undefined): string {
   } catch {
     return raw;
   }
-}
-
-function ServiceChips({ services }: { services: NotificationServiceConfigItem[] }) {
-  if (!services.length) {
-    return <span className="text-zinc-400 text-sm">—</span>;
-  }
-  return (
-    <div className="flex flex-wrap gap-1">
-      {services.map((s) => (
-        <span
-          key={`${s.service_key}-${s.external_link ?? ""}`}
-          className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-violet-50 text-violet-700 border-violet-200"
-        >
-          {s.service_key}
-        </span>
-      ))}
-    </div>
-  );
 }
 
 export function NotificationEventDetailPage() {
@@ -61,6 +47,7 @@ export function NotificationEventDetailPage() {
 
   const [catalogEvent, setCatalogEvent] = useState<CatalogEventItem | null>(null);
   const [bindings, setBindings] = useState<NotificationBindingItem[]>([]);
+  const [catalogServices, setCatalogServices] = useState<NotificationServiceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [eventMissing, setEventMissing] = useState(false);
@@ -71,9 +58,10 @@ export function NotificationEventDetailPage() {
     setError(null);
     setEventMissing(false);
     try {
-      const [catalogRes, bindingsRes] = await Promise.all([
+      const [catalogRes, bindingsRes, servicesRes] = await Promise.all([
         notificationsCatalogApi.getEvents(),
         notificationBindingsApi.list({ event_code: eventCode }),
+        notificationsApi.listServices(),
       ]);
       const catalog = catalogRes.data.data;
       const bindingRows = bindingsRes.data.data;
@@ -87,11 +75,13 @@ export function NotificationEventDetailPage() {
       }
       setCatalogEvent(ev);
       setBindings(bindingRows);
+      setCatalogServices(servicesRes.data.data ?? []);
       setEventMissing(!ev && bindingRows.length === 0);
     } catch (err) {
       setError(getApiError(err));
       setCatalogEvent(null);
       setBindings([]);
+      setCatalogServices([]);
       setEventMissing(false);
     } finally {
       setLoading(false);
@@ -111,6 +101,11 @@ export function NotificationEventDetailPage() {
     }
     return keys.size;
   }, [bindings]);
+
+  const servicesByKey = useMemo(
+    () => buildNotificationServicesByKey(catalogServices),
+    [catalogServices]
+  );
 
   const headerTitle =
     bindings[0]?.event_name && bindings[0].event_code === eventCode
@@ -149,13 +144,10 @@ export function NotificationEventDetailPage() {
     });
   };
 
-  const channelLabel = (ch: string) =>
-    ch === "whatsapp" ? "WhatsApp" : ch === "email" ? "Email" : ch;
-
   const handleDelete = async (row: NotificationBindingItem) => {
     if (
       !window.confirm(
-        `Delete this ${channelLabel(row.delivery_channel)} binding for recipient “${row.recipient_type}”?`
+        `Delete this ${channelLabel(row.delivery_channel)} binding for ${formatBindingRecipientLabel(row)}?`
       )
     )
       return;
@@ -202,7 +194,9 @@ export function NotificationEventDetailPage() {
       key: "notification_services",
       label: "Service",
       sortable: false,
-      render: (r) => <ServiceChips services={r.notification_services} />,
+      render: (r) => (
+        <NotificationServiceChips services={r.notification_services} servicesByKey={servicesByKey} />
+      ),
     },
     {
       key: "engagement_type_id",
