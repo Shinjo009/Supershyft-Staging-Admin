@@ -366,6 +366,10 @@ export interface EngagementsSyncImportPageResult {
   skipped_items: { metsights_profile_id: string; reason: string }[];
 }
 
+export interface NotificationResolutionSettings {
+  strict_engagement_notification_bindings: boolean;
+}
+
 export interface NotificationDefaultItem {
   id: number;
   engagement_type_id: number;
@@ -383,6 +387,7 @@ export const platformSettingsApi = {
         b2c_onboarding: B2cOnboardingDefaults;
         support_query_notification: SupportQueryNotification;
         geocoding_provider: GeocodingProviderSettings;
+        notification_resolution: NotificationResolutionSettings;
         engagement_types: EngagementTypeItem[];
       };
     }>("/platform-settings/bootstrap"),
@@ -422,6 +427,15 @@ export const platformSettingsApi = {
   patchGeocodingProvider: (payload: GeocodingProviderSettings) =>
     api.patch<{ data: GeocodingProviderSettings; meta: Record<string, unknown> }>(
       "/platform-settings/geocoding-provider",
+      payload
+    ),
+  getNotificationResolution: () =>
+    api.get<{ data: NotificationResolutionSettings; meta: Record<string, unknown> }>(
+      "/platform-settings/notification-resolution"
+    ),
+  patchNotificationResolution: (payload: NotificationResolutionSettings) =>
+    api.patch<{ data: NotificationResolutionSettings; meta: Record<string, unknown> }>(
+      "/platform-settings/notification-resolution",
       payload
     ),
   getMetsightsProfileStats: () =>

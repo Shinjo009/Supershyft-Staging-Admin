@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Loader2, Pause, Play, RefreshCw, Save, ScrollText, Users } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, Pause, Play, RefreshCw, ScrollText, Users } from "lucide-react";
 import { DuplicatedUsersModal } from "./DuplicatedUsersModal";
 import { MetsightsBloodMappingSection } from "./MetsightsBloodMappingSection";
 import { useNavigate } from "react-router-dom";
@@ -10,30 +10,16 @@ import type { SettingsTabKey } from "./Settings";
 import { SettingsFormCard } from "./SettingsFormCard";
 import { formatCount, shortProfileId, totalPagesFromCount } from "./settingsUtils";
 import { OnboardingSettings } from "./OnboardingSettings";
+import { NotificationResolutionSettings } from "./NotificationResolutionSettings";
 import {
-  engagementNotificationsApi,
-  engagementTypesApi,
-  notificationsCatalogApi,
-  notificationsApi,
   platformSettingsApi,
-  type EngagementTypeItem,
   type EngagementsSyncImportPageResult,
   type EngagementsSyncStats,
   type MetsightsProfilesImportPageResult,
   type MetsightsProfilesStats,
-  type NotificationDefaultItem,
-  type NotificationServiceConfigItem,
-  type NotificationServiceItem,
-  type SupportQueryNotification,
   type GeocodingProvider,
   getApiError,
 } from "../../lib/api";
-import { NotificationServiceChipInput } from "../../shared/ui/NotificationServiceChipInput";
-import {
-  NotificationEventServicesInput,
-  normalizeNotificationServiceConfigs,
-  validateNotificationServiceConfigs,
-} from "../../shared/ui/NotificationEventServicesInput";
 const SYNC_STORAGE_KEY = "metsights-sync-v1";
 const ENG_SYNC_STORAGE_KEY = "engagements-sync-v1";
 
@@ -82,33 +68,10 @@ interface EngPageLogEntry {
 export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
   const { canEditTask, canViewTask } = usePermissions();
   const mayEditSettings = canEditTask("platform_settings", "settings");
-  const mayViewNotifications = canViewTask("notifications", "defaults");
-  const mayEditNotifications = canEditTask("notifications", "defaults");
   const mayEditUsers = canEditTask("users", "profiles");
   const mayViewIntegrations = canViewTask("assessments", "integrations");
   const mayViewSystemMonitoring = canViewTask("system_monitoring", "audit_logs");
   const [savedGeocodingProvider, setSavedGeocodingProvider] = useState<GeocodingProvider>("google");
-  const [loading, setLoading] = useState(true);
-
-  const [notificationServices, setNotificationServices] = useState<NotificationServiceItem[]>([]);
-
-  const [notifTypes, setNotifTypes] = useState<EngagementTypeItem[]>([]);
-  const [activeNotifType, setActiveNotifType] = useState<number | null>(null);
-  const [notifEvents, setNotifEvents] = useState<{ event_code: string; display_name: string }[]>([]);
-  const [notifEventsLoading, setNotifEventsLoading] = useState(false);
-  const [notifDefaults, setNotifDefaults] = useState<Record<string, NotificationServiceConfigItem[]>>({});
-  const [, setNotifDefaultsOriginal] = useState<Record<number, NotificationServiceConfigItem[]>>({});
-  const [notifSaving, setNotifSaving] = useState(false);
-  const [notifError, setNotifError] = useState<string | null>(null);
-  const [notifSuccess, setNotifSuccess] = useState(false);
-  const notifDraftsRef = useRef<Record<number, Record<string, NotificationServiceConfigItem[]>>>({});
-  const notifOriginalsRef = useRef<Record<number, Record<string, NotificationServiceConfigItem[]>>>({});
-
-  const [supportQueryNotification, setSupportQueryNotification] = useState<string | null>(null);
-  const [savingSupportQueryNotification, setSavingSupportQueryNotification] = useState(false);
-  const [supportQueryNotificationError, setSupportQueryNotificationError] = useState<string | null>(null);
-  const [supportQueryNotificationSaveOk, setSupportQueryNotificationSaveOk] = useState<string | null>(null);
-
   const [geocodingProvider, setGeocodingProvider] = useState<GeocodingProvider>("google");
   const [savingGeocodingProvider, setSavingGeocodingProvider] = useState(false);
   const [geocodingProviderError, setGeocodingProviderError] = useState<string | null>(null);
@@ -152,39 +115,17 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
   const engAbortRef = useRef<AbortController | null>(null);
   const engRunningRef = useRef(false);
 
-  const loadB2cPickers = useCallback(async () => {
-    try {
-      if (!mayViewNotifications) return;
-      const notifServicesRes = await notificationsApi.listServices();
-      setNotificationServices(
-        (notifServicesRes?.data.data ?? []).filter((s) => s.is_active !== false)
-      );
-    } catch {
-      // Pickers are optional until a settings control needs them.
-    }
-  }, [mayViewNotifications]);
-
   const loadB2c = useCallback(async () => {
-    setLoading(true);
     try {
       const bootstrapRes = await platformSettingsApi.bootstrap();
       const payload = bootstrapRes.data.data;
-      const support = payload.support_query_notification?.default_support_query_notification ?? null;
-      setSupportQueryNotification(support);
       const geo = payload.geocoding_provider?.geocoding_provider ?? "google";
       setGeocodingProvider(geo);
       setSavedGeocodingProvider(geo);
     } catch {
-      /* platform/support settings optional until tab opened */
-    } finally {
-      setLoading(false);
+      /* platform settings optional until tab opened */
     }
   }, []);
-
-  useEffect(() => {
-    if (loading) return;
-    void loadB2cPickers();
-  }, [loading, loadB2cPickers]);
 
   const refreshMsStats = useCallback(async () => {
     setMsStatsLoading(true);
@@ -265,27 +206,6 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
     }
   }, [engSyncPhase, engNextPage, engProcessedUsers, engUsersTotal, engSyncTotals]);
 
-  async function handleSaveSupportQueryNotification(e: React.FormEvent) {
-    e.preventDefault();
-    setSavingSupportQueryNotification(true);
-    setSupportQueryNotificationError(null);
-    setSupportQueryNotificationSaveOk(null);
-    try {
-      const payload: SupportQueryNotification = {
-        default_support_query_notification: supportQueryNotification,
-      };
-      const res = await platformSettingsApi.patchSupportQueryNotification(payload);
-      setSupportQueryNotification(res.data.data?.default_support_query_notification ?? null);
-      setSupportQueryNotificationSaveOk(
-        "Saved. Ops department staff will be notified with these services when a support query is submitted (via support.ticket_created binding)."
-      );
-    } catch (err) {
-      setSupportQueryNotificationError(getApiError(err));
-    } finally {
-      setSavingSupportQueryNotification(false);
-    }
-  }
-
   async function handleSaveGeocodingProvider(e: React.FormEvent) {
     e.preventDefault();
     setSavingGeocodingProvider(true);
@@ -301,147 +221,6 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
       setGeocodingProviderError(getApiError(err));
     } finally {
       setSavingGeocodingProvider(false);
-    }
-  }
-
-  useEffect(() => {
-    engagementTypesApi.list({ is_active: true }).then((res) => {
-      const types = res.data.data ?? [];
-      setNotifTypes(types);
-      if (types.length > 0) setActiveNotifType(types[0].id);
-    }).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (activeNotifType === null || !mayViewNotifications) return;
-    let cancelled = false;
-    setNotifEvents([]);
-    setNotifEventsLoading(true);
-    setNotifError(null);
-    setNotifSuccess(false);
-
-    const cached = notifDraftsRef.current[activeNotifType];
-    if (cached) {
-      setNotifDefaults(cached);
-      setNotifDefaultsOriginal(notifOriginalsRef.current[activeNotifType] ?? cached);
-      engagementNotificationsApi
-        .getDefaults(activeNotifType)
-        .then(async (defaultsRes) => {
-          if (cancelled) return;
-          const catalogRes = await notificationsCatalogApi.getEvents();
-          const catalog = catalogRes.data.data ?? [];
-          const defaults = defaultsRes.data.data ?? [];
-          setNotifEvents(
-            defaults.map((d) => ({
-              event_code: d.event_code,
-              display_name:
-                d.event_display_name ??
-                catalog.find((c) => c.code === d.event_code)?.name ??
-                d.event_code,
-            }))
-          );
-        })
-        .catch((err) => {
-          if (cancelled) return;
-          setNotifError(getApiError(err));
-        })
-        .finally(() => {
-          if (!cancelled) setNotifEventsLoading(false);
-        });
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    Promise.all([
-      notificationsCatalogApi.getEvents(),
-      engagementNotificationsApi.getDefaults(activeNotifType),
-    ])
-      .then(([catalogRes, defaultsRes]) => {
-        if (cancelled) return;
-        const catalog = Array.isArray(catalogRes.data.data) ? catalogRes.data.data : [];
-        const defaultsList = Array.isArray(defaultsRes.data.data)
-          ? (defaultsRes.data.data as NotificationDefaultItem[])
-          : [];
-        setNotifEvents(
-          defaultsList.map((d) => ({
-            event_code: d.event_code,
-            display_name:
-              d.event_display_name ??
-              catalog.find((c) => c.code === d.event_code)?.name ??
-              d.event_code,
-          }))
-        );
-        const defaults: Record<string, NotificationServiceConfigItem[]> = {};
-        for (const d of defaultsList) {
-          defaults[d.event_code] = normalizeNotificationServiceConfigs(d.notification_services);
-        }
-        setNotifDefaults(defaults);
-        setNotifDefaultsOriginal({ ...defaults });
-        notifDraftsRef.current[activeNotifType] = { ...defaults };
-        notifOriginalsRef.current[activeNotifType] = { ...defaults };
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setNotifError(getApiError(err));
-      })
-      .finally(() => {
-        if (!cancelled) setNotifEventsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeNotifType, mayViewNotifications]);
-
-  function isNotifTypeDirty(typeId: number): boolean {
-    const draft = notifDraftsRef.current[typeId];
-    const original = notifOriginalsRef.current[typeId];
-    if (!draft || !original) return false;
-    return JSON.stringify(draft) !== JSON.stringify(original);
-  }
-
-  function updateNotifDefault(eventCode: string, value: NotificationServiceConfigItem[]) {
-    setNotifDefaults((prev) => {
-      const next = { ...prev, [eventCode]: value };
-      if (activeNotifType !== null) notifDraftsRef.current[activeNotifType] = next;
-      return next;
-    });
-  }
-
-  async function handleSaveNotifDefaults(e: React.FormEvent) {
-    e.preventDefault();
-    if (activeNotifType === null) return;
-    setNotifSaving(true);
-    setNotifError(null);
-    setNotifSuccess(false);
-    try {
-      const payload = Object.entries(notifDefaults)
-        .map(([eventCode, services]) => ({
-          event_code: eventCode,
-          notification_services: services.filter((item) => item.service_key.trim()),
-        }))
-        .filter((item) => item.notification_services.length > 0);
-
-      for (const item of payload) {
-        const validationError = validateNotificationServiceConfigs(
-          item.notification_services,
-          notificationServices
-        );
-        if (validationError) {
-          setNotifError(validationError);
-          return;
-        }
-      }
-
-      await engagementNotificationsApi.upsertDefaults(activeNotifType, payload);
-      setNotifDefaultsOriginal({ ...notifDefaults });
-      notifOriginalsRef.current[activeNotifType] = { ...notifDefaults };
-      setNotifSuccess(true);
-    } catch (err) {
-      setNotifError(getApiError(err));
-    } finally {
-      setNotifSaving(false);
     }
   }
 
@@ -716,145 +495,7 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabKey }) {
 
 
       {activeTab === "notifications" && (
-        <div className="space-y-6">
-      {!loading ? (
-        <form
-          onSubmit={(e) => void handleSaveSupportQueryNotification(e)}
-          className="bg-white border border-zinc-200 rounded-xl p-5 space-y-4"
-        >
-          <h2 className="text-sm font-semibold text-zinc-900">Support alerts</h2>
-          <p className="text-xs text-zinc-500 -mt-2">
-            Notification services used to alert default onboarding assistants when a support
-            query is submitted.
-          </p>
-
-          <NotificationServiceChipInput
-            label="Support query notification"
-            value={supportQueryNotification}
-            onChange={setSupportQueryNotification}
-            services={notificationServices}
-          />
-
-          {supportQueryNotificationError ? (
-            <p className="text-sm text-red-600" role="alert">
-              {supportQueryNotificationError}
-            </p>
-          ) : null}
-          {supportQueryNotificationSaveOk ? (
-            <p className="text-sm text-emerald-700">{supportQueryNotificationSaveOk}</p>
-          ) : null}
-
-          <button
-            type="submit"
-            disabled={savingSupportQueryNotification}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-50 disabled:pointer-events-none"
-          >
-            {savingSupportQueryNotification ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            Save support notification
-          </button>
-        </form>
-      ) : null}
-
-      {!loading ? (
-        <form
-          onSubmit={(e) => void handleSaveNotifDefaults(e)}
-          onSubmitCapture={mayEditNotifications ? undefined : (event) => event.preventDefault()}
-          onChangeCapture={mayEditNotifications ? undefined : (event) => event.stopPropagation()}
-          className={`bg-white border border-zinc-200 rounded-xl p-5 space-y-4 ${
-            mayEditNotifications
-              ? ""
-              : "[&_button]:hidden [&_input]:pointer-events-none [&_select]:pointer-events-none"
-          }`}
-        >
-          <h2 className="text-sm font-semibold text-zinc-900">Engagement notification defaults</h2>
-          <p className="text-xs text-zinc-500 -mt-2">
-            Configure default notification services for each engagement type. These are auto-applied
-            when creating new engagements.
-          </p>
-
-          {notifTypes.length > 0 ? (
-            <div className="flex flex-wrap gap-1 border-b border-zinc-200 pb-2">
-              {notifTypes.map((t) => {
-                const active = activeNotifType === t.id;
-                const dirty = isNotifTypeDirty(t.id);
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setActiveNotifType(t.id)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                      active
-                        ? "bg-zinc-900 text-white"
-                        : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
-                    }`}
-                  >
-                    {t.display_name}
-                    {dirty ? <span className="ml-1 opacity-70">•</span> : null}
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-xs text-zinc-400">Loading engagement types…</p>
-          )}
-
-          {activeNotifType !== null && notifEventsLoading ? (
-            <div className="flex items-center gap-2 text-zinc-500 text-sm py-2">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Loading events…
-            </div>
-          ) : activeNotifType !== null && notifEvents.length > 0 ? (
-            <div className="space-y-4">
-              {notifEvents.map((ev) => (
-                <div key={ev.event_code} className="space-y-1">
-                  <NotificationEventServicesInput
-                    label={ev.display_name}
-                    value={notifDefaults[ev.event_code] ?? []}
-                    onChange={(next) => updateNotifDefault(ev.event_code, next)}
-                    services={notificationServices}
-                  />
-                  <a
-                    href={`/notifications/notifications/new?event_code=${encodeURIComponent(ev.event_code)}&engagementTypeId=${activeNotifType}`}
-                    className="text-xs text-zinc-600 hover:text-zinc-900"
-                  >
-                    Configure with wizard
-                  </a>
-                </div>
-              ))}
-            </div>
-          ) : activeNotifType !== null ? (
-            <p className="text-sm text-zinc-500 py-2">
-              No notification defaults are configured for this engagement type. Add bindings under
-              Notifications → Notifications, or use the wizard from a type default row.
-            </p>
-          ) : null}
-
-          {notifError ? (
-            <p className="text-sm text-red-600" role="alert">
-              {notifError}
-            </p>
-          ) : null}
-          {notifSuccess ? (
-            <p className="text-sm text-emerald-700">
-              Saved. New engagements will use these notification defaults.
-            </p>
-          ) : null}
-
-          <button
-            type="submit"
-            disabled={notifSaving || notifEventsLoading || activeNotifType === null || notifEvents.length === 0}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-50 disabled:pointer-events-none"
-          >
-            {notifSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Save notification defaults
-          </button>
-        </form>
-      ) : null}
-        </div>
+        <NotificationResolutionSettings canEdit={mayEditSettings} />
       )}
 
       {activeTab === "integrations" && (
