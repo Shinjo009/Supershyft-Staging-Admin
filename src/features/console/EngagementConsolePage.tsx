@@ -445,7 +445,7 @@ export function EngagementConsolePage() {
         result.booking_created !== false &&
         Boolean((result.booking_id ?? "").trim());
 
-      if (!bookingCreated) {
+      if (!bookingCreated && result.internal_failure === true) {
         const notice =
           (result.message ?? "").trim() ||
           "Barcode collected. You can proceed with the next booking.";
@@ -468,6 +468,13 @@ export function EngagementConsolePage() {
         return;
       }
 
+      if (!bookingCreated) {
+        setBookingError(
+          (result.message ?? "").trim() || "Booking could not be created."
+        );
+        return;
+      }
+
       setParticipants((prev) =>
         prev.map((p) =>
           p.user_id === userId ? applyBookingToParticipant(p, result) : p
@@ -485,7 +492,18 @@ export function EngagementConsolePage() {
         if (updated) setSelectedParticipant(updated);
       });
     } catch (err) {
-      setBookingError(getApiError(err));
+      const details = getApiErrorDetails(err);
+      if (details.barcode_saved) {
+        const saved = details.barcode ?? trimmed;
+        setParticipants((prev) =>
+          prev.map((p) => (p.user_id === userId ? { ...p, barcode: saved } : p))
+        );
+        setSelectedParticipant((prev) =>
+          prev ? { ...prev, barcode: saved } : prev
+        );
+        void reloadParticipants();
+      }
+      setBookingError(details.message);
     } finally {
       setBookingLoading(false);
     }

@@ -181,7 +181,14 @@ export function getApiError(err: unknown, context?: "auth" | "import"): string {
 export function getApiErrorDetails(
   err: unknown,
   context?: "auth" | "import"
-): { code?: string; message: string; status?: number; question_id?: number } {
+): {
+  code?: string;
+  message: string;
+  status?: number;
+  question_id?: number;
+  barcode_saved?: boolean;
+  barcode?: string;
+} {
   if (axios.isAxiosError(err)) {
     const status = err.response?.status;
     if (err.code === "ECONNABORTED") {
@@ -206,16 +213,30 @@ export function getApiErrorDetails(
         message?: string;
         error_code?: string;
         question_id?: number;
+        barcode_saved?: boolean;
+        barcode?: string;
       };
       const questionId =
         typeof d.question_id === "number" && Number.isFinite(d.question_id)
           ? d.question_id
           : undefined;
+      const barcodeSaved = d.barcode_saved === true;
+      const savedBarcode =
+        typeof d.barcode === "string" && d.barcode.trim()
+          ? d.barcode.trim()
+          : undefined;
       let message = d.message || "Request failed";
       if (questionId != null) {
         message = `${message} (question_id=${questionId})`;
       }
-      return { status, code: d.error_code, message, question_id: questionId };
+      return {
+        status,
+        code: d.error_code,
+        message,
+        question_id: questionId,
+        barcode_saved: barcodeSaved,
+        barcode: savedBarcode,
+      };
     }
     if (err.message === "Network Error" || err.code === "ERR_NETWORK") {
       if (context === "auth") {
@@ -3951,6 +3972,7 @@ export interface ConsoleParticipantBookResponse {
   status?: boolean;
   booking_created?: boolean;
   barcode_saved?: boolean;
+  internal_failure?: boolean;
   partner_error?: string | null;
   message?: string | null;
   lead_id?: number | null;
