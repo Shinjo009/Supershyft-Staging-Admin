@@ -2843,6 +2843,18 @@ export const engagementsApi = {
     api.get<{ data: Engagement }>(`/engagements/${id}`),
   getByCode: (code: string) =>
     api.get<{ data: Engagement }>(`/engagements/by-code/${encodeURIComponent(code)}`),
+  progressReport: (engagementId: number) =>
+    api.get<{ data: EngagementProgressReport }>(
+      `/engagements/${engagementId}/progress-report`
+    ),
+  dayWiseSummary: (
+    engagementId: number,
+    params?: { section?: "blood_collection" | "consultation" | "both"; date?: string }
+  ) =>
+    api.get<{ data: EngagementDayWiseSummary }>(
+      `/engagements/${engagementId}/day-wise-summary`,
+      { params }
+    ),
   listFeedback: (
     engagementId: number,
     params?: { page?: number; limit?: number }
@@ -3385,6 +3397,33 @@ export interface EngagementBookingSummary {
   pending_booking_count: number;
   cancelled_booking_count: number;
   as_of_date: string;
+}
+
+export interface EngagementProgressReport {
+  total_registered: number;
+  blood_collected: number;
+  questionnaire_filled: number;
+  blood_report_sent: number;
+  bio_ai_report_sent: number;
+  consultation_done: number;
+}
+
+export interface DayWiseBloodMetrics {
+  expected_collection: number;
+  sample_collected: number;
+  questionnaire_completed: number;
+}
+
+export interface DayWiseConsultationMetrics {
+  consultation_want: number;
+  consultation_done: number;
+}
+
+export interface EngagementDayWiseSummary {
+  blood_collection_dates: string[];
+  consultation_dates: string[];
+  blood_collection: Record<string, DayWiseBloodMetrics>;
+  consultation: Record<string, DayWiseConsultationMetrics>;
 }
 
 export interface ParticipantListQueryParams {

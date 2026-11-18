@@ -21,6 +21,7 @@ import {
 } from "../../lib/api";
 import { EngagementNotificationSetupPanel } from "./EngagementNotificationSetupPanel";
 import { ConsoleUrlActions } from "./consoleUrlActions";
+import { CampOverviewMetrics } from "./CampOverviewMetrics";
 import { EngagementBookingSummaryCards } from "./EngagementBookingSummary";
 import {
   formatBloodCollectionLabel,
@@ -116,7 +117,11 @@ export function EngagementOverviewTab({
         </div>
       </div>
 
-      <EngagementBookingSummaryCards engagementId={engagement.engagement_id} />
+      {b2b && engagement.blood_collection_type === "camp_collection" ? (
+        <CampOverviewMetrics engagement={engagement} />
+      ) : (
+        <EngagementBookingSummaryCards engagementId={engagement.engagement_id} />
+      )}
 
       <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-4">
         <div className="flex flex-wrap items-center gap-2 text-xs">
