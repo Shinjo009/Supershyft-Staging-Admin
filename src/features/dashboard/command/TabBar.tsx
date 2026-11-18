@@ -3,7 +3,7 @@ import type { DashboardTab } from "./period";
 const TABS: { id: DashboardTab; label: string; enabled: boolean }[] = [
   { id: "overview", label: "Overview", enabled: true },
   { id: "b2b", label: "B2B", enabled: true },
-  { id: "b2c", label: "B2C", enabled: false },
+  { id: "b2c", label: "B2C", enabled: true },
 ];
 
 export function TabBar({
