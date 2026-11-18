@@ -6171,6 +6171,15 @@ export const engagementNotificationsApi = {
     api.delete<{ data: { deleted: number }; meta: Record<string, unknown> }>(
       `/engagements/${engagementId}/notifications/bindings/${bindingId}`
     ),
+  removeBindingService: (engagementId: number, bindingId: number, serviceKey: string) =>
+    api.delete<{
+      data: { binding_id: number; service_key: string; removed: boolean };
+      meta: Record<string, unknown>;
+    }>(
+      `/engagements/${engagementId}/notifications/bindings/${bindingId}/services/${encodeURIComponent(
+        serviceKey
+      )}`
+    ),
   getForEngagement: (engagementId: number) =>
     api.get<{ data: EngagementNotificationItem[]; meta: Record<string, unknown> }>(
       `/engagements/${engagementId}/notifications`

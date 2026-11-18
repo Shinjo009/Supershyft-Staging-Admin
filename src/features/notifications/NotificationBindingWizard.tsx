@@ -190,6 +190,7 @@ export function NotificationBindingWizard() {
   const prefilledRecipient = recipientTypeFromEditLocation(searchParams, locationState);
   const presetEventCode =
     searchParams.get("event_code") || locationState?.editBinding?.event_code || "";
+  const presetServiceKey = (searchParams.get("service_key") ?? "").trim();
   const wizardStepParam = searchParams.get("step");
 
   const [step, setStep] = useState<Step>(() => {
@@ -515,7 +516,7 @@ export function NotificationBindingWizard() {
         const row = await notificationBindingsApi.getForWizard(Number(bindingId));
         const ev = catalogEventForBinding(catalog, row);
         setSelectedEvent(ev);
-        applyWizardBindingRow(row, hydrateCtx);
+        applyWizardBindingRow(row, hydrateCtx, presetServiceKey || undefined);
         setStep(parseWizardStepParam(wizardStepParam) ?? 2);
       } else if (mode === "engagement" && engagementId > 0 && engagementBindingId) {
         const row = await engagementNotificationsApi.getBindingForWizard(
@@ -527,7 +528,7 @@ export function NotificationBindingWizard() {
         if (ev) {
           setDisplayName(ev.name);
         }
-        applyWizardBindingRow(row, hydrateCtx);
+        applyWizardBindingRow(row, hydrateCtx, presetServiceKey || undefined);
         setStep(parseWizardStepParam(wizardStepParam) ?? 2);
       } else if (presetEventCode) {
         const ev =

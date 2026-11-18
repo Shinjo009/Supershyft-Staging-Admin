@@ -391,7 +391,8 @@ export type ApplyWizardBindingContext = {
 /** Apply stored binding fields to wizard state (global or engagement slot). */
 export function applyWizardBindingRow(
   row: NotificationBindingItem,
-  ctx: ApplyWizardBindingContext
+  ctx: ApplyWizardBindingContext,
+  preferredServiceKey?: string | null
 ): void {
   const normalizedRecipient =
     normalizeRecipientTypeForWizard(row.recipient_type) || ctx.prefilledRecipient;
@@ -409,7 +410,14 @@ export function applyWizardBindingRow(
     ctx.setEmitConditionOp("equals");
     ctx.setEmitConditionValue("");
   }
-  const sk = row.service_key ?? row.notification_services[0]?.service_key;
+  const preferred = (preferredServiceKey ?? "").trim();
+  const fromPreferred = row.notification_services.find((s) => s.service_key === preferred)?.service_key;
+  const sk =
+    fromPreferred ||
+    preferred ||
+    row.service_key ||
+    row.notification_services[0]?.service_key ||
+    "";
   const svc = sk ? ctx.services.find((s) => s.service_key === sk) : undefined;
   ctx.setServiceMode("reuse");
   if (svc) {

@@ -24,13 +24,16 @@ const MOCK_NOTIFICATION_SETUP = {
           event_code: "reports.bioai_ready",
           recipient_type: "user",
           delivery_channel: "whatsapp",
-          notification_services: [{ service_key: "bioai-report-wa" }],
+          notification_services: [
+            { service_key: "bioai-report-wa" },
+            { service_key: "bioai-report-email" },
+          ],
         },
       ],
     },
     {
-      event_code: "reports.blood_ready",
-      name: "Blood report ready",
+      event_code: "users.onboarded",
+      name: "User onboarded to engagement",
       is_applicable: true,
       is_extra: false,
       global_bindings: [],
@@ -38,14 +41,10 @@ const MOCK_NOTIFICATION_SETUP = {
         {
           id: 11,
           engagement_id: ENGAGEMENT_ID,
-          event_code: "reports.blood_ready",
+          event_code: "users.onboarded",
           recipient_type: "user",
           delivery_channel: "whatsapp",
-          notification_services: [
-            { service_key: "send-blood-report-email-1plus1-v1" },
-            { service_key: "send-blood-report-whatsapp-1plus1-v1" },
-            { service_key: "send-blood-report-whatsapp" },
-          ],
+          notification_services: [{ service_key: "welcome-wa" }],
         },
       ],
     },
@@ -116,11 +115,8 @@ async function mockEngagementNotificationApis(page: Page) {
             diagnostic_packages: [],
             notification_services: [
               { service_key: "bioai-report-wa", display_name: "BioAI Report", channel: "whatsapp" },
-              {
-                service_key: "send-blood-report-whatsapp",
-                display_name: "Blood Report",
-                channel: "whatsapp",
-              },
+              { service_key: "bioai-report-email", display_name: "BioAI & Blood Report", channel: "email" },
+              { service_key: "welcome-wa", display_name: "Welcome", channel: "whatsapp" },
             ],
           },
           meta: {},
@@ -184,41 +180,37 @@ test.describe("Engagement notifications setup UI", () => {
     await mockEngagementNotificationApis(page);
   });
 
-  test("view tab lists events only; detail is read-only", async ({ page }) => {
+  test("view tab uses plain summary and modal without actions", async ({ page }) => {
     await openNotificationsViewTab(page);
 
-    await expect(page.getByText("BioAI report ready")).toBeVisible();
-    await expect(page.getByText("Blood report ready")).toBeVisible();
-    await expect(page.getByTestId("engagement-notification-add-binding")).toHaveCount(0);
-    await expect(page.getByTestId("engagement-notification-edit-binding")).toHaveCount(0);
-    await expect(page.getByText("Add event outside profile")).toHaveCount(0);
+    await expect(page.getByText(/notifications triggered/i).first()).toBeVisible();
+    await expect(page.getByText(/bindings/i)).toHaveCount(0);
 
-    await page.getByText("Blood report ready").click();
-    await expect(page.getByTestId("engagement-notification-event-detail")).toBeVisible();
-    await expect(page.getByText(/messages on this binding/i)).toBeVisible();
-    await expect(page.getByTestId("engagement-notification-add-binding")).toHaveCount(0);
-    await expect(page.getByTestId("engagement-notification-edit-binding")).toHaveCount(0);
-    await expect(page.getByTestId("engagement-notification-remove-binding")).toHaveCount(0);
+    await page.getByText("BioAI report ready").click();
+    await expect(page.getByTestId("engagement-event-notifications-modal")).toBeVisible();
+    await expect(page.getByTestId("engagement-notification-trigger-row")).toHaveCount(2);
+    await expect(page.getByTestId("engagement-notification-edit-row")).toHaveCount(0);
+    await expect(page.getByTestId("engagement-notifications-events-list")).toBeVisible();
   });
 
-  test("back returns from event detail to events list", async ({ page }) => {
+  test("modal closes back to event list", async ({ page }) => {
     await openNotificationsViewTab(page);
     await page.getByText("BioAI report ready").click();
-    await expect(page.getByTestId("engagement-notification-event-detail")).toBeVisible();
-    await page.getByTestId("engagement-notification-back").click();
-    await expect(page.getByTestId("engagement-notifications-events-list")).toBeVisible();
-    await expect(page.getByTestId("engagement-notification-event-detail")).toHaveCount(0);
+    await expect(page.getByTestId("engagement-event-notifications-modal")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("engagement-event-notifications-modal")).toHaveCount(0);
   });
 
-  test("edit notifications step shows binding actions", async ({ page }) => {
+  test("edit step shows per-notification row actions", async ({ page }) => {
     await page.goto(`/engagements/${ENGAGEMENT_CODE}/edit?step=notifications`);
     await expect(page.getByTestId("engagement-notifications-events-list")).toBeVisible({
       timeout: 60_000,
     });
-    await page.getByText("Blood report ready").click();
+    await page.getByText("BioAI report ready").click();
+    await expect(page.getByTestId("engagement-event-notifications-modal")).toBeVisible();
+    await expect(page.getByTestId("engagement-notification-trigger-row")).toHaveCount(2);
+    await expect(page.getByTestId("engagement-notification-edit-row")).toHaveCount(2);
+    await expect(page.getByTestId("engagement-notification-delete-row")).toHaveCount(2);
     await expect(page.getByTestId("engagement-notification-add-binding")).toBeVisible();
-    await expect(page.getByTestId("engagement-notification-edit-binding")).toBeVisible();
-    await expect(page.getByTestId("engagement-notification-remove-binding")).toBeVisible();
-    await expect(page.getByText(/messages on this binding/i)).toBeVisible();
   });
 });
