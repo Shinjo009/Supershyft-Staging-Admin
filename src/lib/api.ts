@@ -3897,7 +3897,7 @@ export interface CreatePhleboExistingPartner {
   status?: string | null;
 }
 
-export type CreatePhleboResponse =
+export type CreateAssistantByPhoneResponse =
   | {
       status: "confirmation_required";
       existing_partner: CreatePhleboExistingPartner;
@@ -3915,6 +3915,9 @@ export type CreatePhleboResponse =
       role?: string | null;
       partner_status?: string | null;
     };
+
+/** @deprecated Use CreateAssistantByPhoneResponse */
+export type CreatePhleboResponse = CreateAssistantByPhoneResponse;
 
 // Occupied Slots
 export interface OccupiedSlots {
@@ -4199,8 +4202,22 @@ export const onboardingAssistantsApi = {
     engagementId: number,
     payload: { name: string; phone: string; confirm_existing?: boolean }
   ) =>
-    api.post<{ data: CreatePhleboResponse }>(
+    api.post<{ data: CreateAssistantByPhoneResponse }>(
       `/engagements/${engagementId}/onboarding-assistants/create-phlebo`,
+      payload
+    ),
+  createExpert: (
+    engagementId: number,
+    payload: {
+      name: string;
+      phone: string;
+      specialization: string;
+      expert_type: string;
+      confirm_existing?: boolean;
+    }
+  ) =>
+    api.post<{ data: CreateAssistantByPhoneResponse }>(
+      `/engagements/${engagementId}/onboarding-assistants/create-expert`,
       payload
     ),
 };
