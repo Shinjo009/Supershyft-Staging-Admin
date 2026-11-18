@@ -2867,6 +2867,18 @@ export const engagementsApi = {
     api.get<{ data: Engagement }>(`/engagements/${id}`),
   getByCode: (code: string) =>
     api.get<{ data: Engagement }>(`/engagements/by-code/${encodeURIComponent(code)}`),
+  progressReport: (engagementId: number) =>
+    api.get<{ data: EngagementProgressReport }>(
+      `/engagements/${engagementId}/progress-report`
+    ),
+  dayWiseSummary: (
+    engagementId: number,
+    params?: { section?: "blood_collection" | "consultation" | "both"; date?: string }
+  ) =>
+    api.get<{ data: EngagementDayWiseSummary }>(
+      `/engagements/${engagementId}/day-wise-summary`,
+      { params }
+    ),
   listFeedback: (
     engagementId: number,
     params?: { page?: number; limit?: number }
@@ -3409,6 +3421,33 @@ export interface EngagementBookingSummary {
   pending_booking_count: number;
   cancelled_booking_count: number;
   as_of_date: string;
+}
+
+export interface EngagementProgressReport {
+  total_registered: number;
+  blood_collected: number;
+  questionnaire_filled: number;
+  blood_report_sent: number;
+  bio_ai_report_sent: number;
+  consultation_done: number;
+}
+
+export interface DayWiseBloodMetrics {
+  expected_collection: number;
+  sample_collected: number;
+  questionnaire_completed: number;
+}
+
+export interface DayWiseConsultationMetrics {
+  consultation_want: number;
+  consultation_done: number;
+}
+
+export interface EngagementDayWiseSummary {
+  blood_collection_dates: string[];
+  consultation_dates: string[];
+  blood_collection: Record<string, DayWiseBloodMetrics>;
+  consultation: Record<string, DayWiseConsultationMetrics>;
 }
 
 export interface ParticipantListQueryParams {
@@ -6379,6 +6418,21 @@ export type CommandPeriodParams = {
   include_rows?: boolean;
 };
 
+export interface CommandAudienceSplitMeta {
+  period: string;
+  page: number;
+  limit: number;
+  total: number;
+  b2b: number;
+  b2c: number;
+}
+
+export interface CommandAudienceSplitSummary {
+  total: number;
+  b2b: number;
+  b2c: number;
+}
+
 export interface CommandB2BSummary {
   ongoing: number;
   upcoming: number;
@@ -6398,6 +6452,41 @@ export interface CommandB2BEngagementRow {
   participant_count: number;
 }
 
+export interface CommandOpenEngagementRow {
+  engagement_id: number;
+  engagement_code: string;
+  engagement_name: string;
+  type: string;
+  city: string;
+  package: string;
+  start_date: string | null;
+  end_date: string | null;
+}
+
+export interface CommandTicketsMeta {
+  period: string;
+  page: number;
+  limit: number;
+  open: number;
+  solved: number;
+  total: number;
+}
+
+export interface CommandTicketsSummary {
+  open: number;
+  solved: number;
+  total: number;
+}
+
+export interface CommandTicketRow {
+  ticket_id: number;
+  raised_by: { name: string; phone: string };
+  contact: string;
+  query: string;
+  raised_at: string | null;
+  status: string;
+}
+
 export const commandDashboardApi = {
   notificationHealth: (params?: CommandPeriodParams) =>
     api.get<{ data: CommandNotificationHealth; meta: { period: string } }>(
@@ -6414,6 +6503,71 @@ export const commandDashboardApi = {
       data: CommandPeopleRegisteredRow[];
       meta: { period: string; page: number; limit: number; total: number };
     }>("/admin/dashboard/command/people-registered", { params }),
+  testsCompleted: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/tests-completed", { params }),
+  questionnaireDone: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/questionnaire-done", { params }),
+  bloodReportGenerated: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/blood-report-generated", { params }),
+  bioaiReportGenerated: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/bioai-report-generated", { params }),
+  consultationDone: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/consultation-done", { params }),
+  openEngagements: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandOpenEngagementRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/open-engagements", { params }),
+  tickets: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandTicketRow[];
+      meta: CommandTicketsMeta;
+    }>("/admin/dashboard/command/tickets", { params }),
+  upcomingCollections: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/upcoming-collections", { params }),
+  overdueCollections: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/overdue-collections", { params }),
+  questionnairePending: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/questionnaire-pending", { params }),
+  bloodReportsPending: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/blood-reports-pending", { params }),
+  bioaiPending: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/bioai-pending", { params }),
+  consultationPending: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandPeopleRegisteredRow[];
+      meta: CommandAudienceSplitMeta;
+    }>("/admin/dashboard/command/consultation-pending", { params }),
   b2bSummary: (params?: CommandPeriodParams) =>
     api.get<{ data: CommandB2BSummary; meta: { period: string } }>(
       "/admin/dashboard/command/b2b/summary",

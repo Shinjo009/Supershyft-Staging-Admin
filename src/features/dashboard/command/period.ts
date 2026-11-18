@@ -63,14 +63,14 @@ export const OVERVIEW_CARD_ORDER: {
   { id: "notification_health", title: "Notification health", interaction: "new_page" },
   { id: "booking_issues", title: "Booking issues", interaction: "none" },
   { id: "people_registered", title: "People registered", interaction: "new_page" },
-  { id: "tests_completed", title: "Tests completed", interaction: "none" },
-  { id: "questionnaire_done", title: "Questionnaire done", interaction: "none" },
-  { id: "blood_report_generated", title: "Blood report generated", interaction: "none" },
-  { id: "bioai_report_generated", title: "BioAI report generated", interaction: "none" },
-  { id: "consultation_done", title: "Consultation done", interaction: "none" },
-  { id: "open_engagement", title: "Open engagement", interaction: "none" },
-  { id: "tickets", title: "Tickets", interaction: "none" },
-  { id: "action_center", title: "Action center", interaction: "none" },
+  { id: "tests_completed", title: "Tests completed", interaction: "new_page" },
+  { id: "questionnaire_done", title: "Questionnaire done", interaction: "new_page" },
+  { id: "blood_report_generated", title: "Blood report generated", interaction: "new_page" },
+  { id: "bioai_report_generated", title: "BioAI report generated", interaction: "new_page" },
+  { id: "consultation_done", title: "Consultation done", interaction: "new_page" },
+  { id: "open_engagement", title: "Open engagement", interaction: "new_page" },
+  { id: "tickets", title: "Tickets", interaction: "new_page" },
+  { id: "action_center", title: "Action center", interaction: "new_page" },
 ];
 
 export const B2B_CARD_ORDER: {
@@ -84,10 +84,80 @@ export const B2B_CARD_ORDER: {
   { id: "completed", title: "Completed", interaction: "current_page", hint: "Past camps" },
 ];
 
+export type ActionSubcardId =
+  | "upcoming_collections"
+  | "overdue_collections"
+  | "questionnaire_pending"
+  | "blood_reports_pending"
+  | "bio_ai_pending"
+  | "consultation_pending";
+
+export const ACTION_SUBCARD_ORDER: {
+  id: ActionSubcardId;
+  label: string;
+  title: string;
+  emptyLabel: string;
+}[] = [
+  {
+    id: "upcoming_collections",
+    label: "Upcoming collections",
+    title: "Upcoming collections",
+    emptyLabel: "No upcoming collections in this period.",
+  },
+  {
+    id: "overdue_collections",
+    label: "Overdue collections",
+    title: "Overdue collections",
+    emptyLabel: "No overdue collections in this period.",
+  },
+  {
+    id: "questionnaire_pending",
+    label: "Questionnaire pending",
+    title: "Questionnaire pending",
+    emptyLabel: "No pending questionnaires in this period.",
+  },
+  {
+    id: "blood_reports_pending",
+    label: "Blood reports pending",
+    title: "Blood reports pending",
+    emptyLabel: "No pending blood reports in this period.",
+  },
+  {
+    id: "bio_ai_pending",
+    label: "Bio-AI pending",
+    title: "Bio-AI pending",
+    emptyLabel: "No pending Bio-AI reports in this period.",
+  },
+  {
+    id: "consultation_pending",
+    label: "Consultations pending",
+    title: "Consultations pending",
+    emptyLabel: "No pending consultations in this period.",
+  },
+];
+
+const VALID_ACTION_SUBCARDS = new Set<ActionSubcardId>(
+  ACTION_SUBCARD_ORDER.map((s) => s.id)
+);
+
+export function normalizeSubcard(raw: string | null): ActionSubcardId | null {
+  if (!raw) return null;
+  const id = raw.trim() as ActionSubcardId;
+  return VALID_ACTION_SUBCARDS.has(id) ? id : null;
+}
+
 export const WIRED_CARDS = new Set<CardId>([
   "server_load",
   "notification_health",
   "people_registered",
+  "tests_completed",
+  "questionnaire_done",
+  "blood_report_generated",
+  "bioai_report_generated",
+  "consultation_done",
+  "open_engagement",
+  "tickets",
+  "action_center",
   "ongoing",
   "upcoming",
   "completed",
@@ -96,6 +166,14 @@ export const WIRED_CARDS = new Set<CardId>([
 const OVERVIEW_NEW_PAGE_CARDS = new Set<CardId>([
   "notification_health",
   "people_registered",
+  "tests_completed",
+  "questionnaire_done",
+  "blood_report_generated",
+  "bioai_report_generated",
+  "consultation_done",
+  "open_engagement",
+  "tickets",
+  "action_center",
 ]);
 
 const B2B_CARDS = new Set<CardId>(["ongoing", "upcoming", "completed"]);

@@ -99,7 +99,10 @@ export function EngagementBookingSummaryCards({ engagementId }: { engagementId: 
   }, [engagementId]);
 
   return (
-    <section className="bg-white border border-zinc-200 rounded-xl p-4 space-y-3">
+    <section
+      data-testid="booking-summary"
+      className="bg-white border border-zinc-200 rounded-xl p-4 space-y-3"
+    >
       <div className="flex items-baseline justify-between gap-2">
         <h2 className="text-xs font-medium text-zinc-500">Booking summary</h2>
         {summary?.as_of_date ? (
