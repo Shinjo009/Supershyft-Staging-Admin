@@ -96,18 +96,12 @@ test.describe("Command dashboard UI/UX", () => {
     expect(counters.getConsultationPendingCalls()).toBeGreaterThanOrEqual(1);
   });
 
-  test("B2B tab is enabled; B2C stays inert; invalid tab normalizes to overview", async ({
+  test("B2B and B2C tabs are enabled; invalid tab normalizes to overview", async ({
     page,
   }) => {
     await page.goto("/?tab=foo&period=this_week");
     await expect(page).toHaveURL(/tab=overview/);
     await expect(page.getByTestId("overview-grid")).toBeVisible();
-
-    await page.goto("/?tab=b2c&period=this_week");
-    await expect(page).toHaveURL(/tab=overview/);
-
-    const b2c = page.getByRole("tab", { name: "B2C" });
-    await expect(b2c).toBeDisabled();
 
     await page.goto("/?tab=b2b&period=this_week");
     await expect(page).toHaveURL(/tab=b2b/);
@@ -116,6 +110,15 @@ test.describe("Command dashboard UI/UX", () => {
     const b2b = page.getByRole("tab", { name: "B2B" });
     await expect(b2b).toBeEnabled();
     await expect(b2b).toHaveAttribute("aria-selected", "true");
+
+    await page.goto("/?tab=b2c&period=this_week");
+    await expect(page).toHaveURL(/tab=b2c/);
+    await expect(page).toHaveURL(/sub_tab=overview/);
+    await expect(page.getByTestId("b2c-grid")).toBeVisible();
+
+    const b2c = page.getByRole("tab", { name: "B2C" });
+    await expect(b2c).toBeEnabled();
+    await expect(b2c).toHaveAttribute("aria-selected", "true");
   });
 
   test("period chips update URL and refetch period-scoped data; server load does not refetch", async ({
@@ -674,6 +677,130 @@ test.describe("Command dashboard UI/UX", () => {
     await expect(page.getByTestId("detail-action_center-blood_reports_pending")).toBeVisible();
     await expect(page.getByTestId("tabs-hidden")).toBeAttached();
     await expect(page.getByText("Ada Lovelace")).toBeVisible();
+  });
+});
+
+test.describe("Command dashboard B2C UI/UX", () => {
+  test("overview sub-tab shows KPI grid, tomorrow panel, package and coupon sections", async ({
+    page,
+    counters,
+  }) => {
+    await page.goto("/?tab=b2c&period=this_week");
+    await expect(page.getByTestId("b2c-panel")).toBeVisible();
+    await expect(page.getByTestId("b2c-grid")).toBeVisible();
+    await expect(page.getByRole("tablist", { name: "B2C sub tabs" })).toBeVisible();
+    await expect(page.getByTestId("b2c-subtab-overview")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+
+    await expect(page.getByTestId("card-total_bookings")).toContainText("18");
+    await expect(page.getByTestId("card-collection_tomorrow")).toContainText("4");
+    await expect(page.getByTestId("card-tests_completed")).toContainText("11");
+    await expect(page.getByTestId("card-lab_report_delivered")).toBeVisible();
+    await expect(page.getByTestId("card-bio_ai_reports")).toContainText("7");
+    await expect(page.getByTestId("card-consultation_done")).toContainText("5");
+
+    await expect(page.getByTestId("card-tomorrows_collection")).toContainText("Ada Lovelace");
+    await expect(page.getByTestId("card-tomorrows_collection")).toContainText("Grace Hopper");
+    await expect(page.getByTestId("card-package_performance")).toContainText(
+      "SuperShyft Core+"
+    );
+    await expect(page.getByTestId("card-coupon_usage")).toContainText("WELCOME10");
+
+    expect(counters.getB2cSummaryCalls()).toBeGreaterThanOrEqual(1);
+  });
+
+  test("switching to users hides period filter and loads users table", async ({
+    page,
+    counters,
+  }) => {
+    await page.goto("/?tab=b2c&period=this_week&sub_tab=overview");
+    await expect(page.getByRole("group", { name: "Date period" })).toBeVisible();
+
+    await page.getByTestId("b2c-subtab-users").click();
+    await expect(page).toHaveURL(/sub_tab=users/);
+    await expect(page.getByTestId("b2c-users-tab")).toBeVisible();
+    await expect(page.getByTestId("period-hidden")).toBeAttached();
+    await expect(page.getByTestId("b2c-users-table")).toContainText("Ada Lovelace");
+    await expect(page.getByTestId("b2c-users-table")).toContainText("ada@example.com");
+    await expect(page.getByTestId("b2c-users-table")).toContainText("healthians");
+    await expect.poll(() => counters.getB2cUsersCalls()).toBeGreaterThanOrEqual(1);
+  });
+
+  test("total_bookings card opens new-page detail and hides main tabs", async ({
+    page,
+    counters,
+  }) => {
+    await page.goto("/?tab=b2c&period=this_week&sub_tab=overview");
+    await page.getByTestId("card-total_bookings").click();
+
+    await expect(page).toHaveURL(/tab=b2c/);
+    await expect(page).toHaveURL(/card=total_bookings/);
+    await expect(page.getByTestId("tabs-hidden")).toBeAttached();
+    await expect(page.getByTestId("b2c-detail-total_bookings")).toBeVisible();
+    await expect(page.getByTestId("b2c-detail-table-total_bookings")).toContainText(
+      "Ada Lovelace"
+    );
+    await expect.poll(() => counters.getB2cTotalBookingsCalls()).toBeGreaterThanOrEqual(1);
+
+    await page.getByRole("button", { name: "Back" }).click();
+    await expect(page).not.toHaveURL(/card=/);
+    await expect(page.getByRole("tablist", { name: "Dashboard tabs" })).toBeVisible();
+    await expect(page.getByTestId("b2c-grid")).toBeVisible();
+  });
+
+  test("package and coupon rows drill into filtered user details", async ({ page }) => {
+    await page.goto("/?tab=b2c&period=this_week&sub_tab=overview");
+
+    await page.getByTestId("package-row-10").click();
+    await expect(page).toHaveURL(/card=package_performance/);
+    await expect(page).toHaveURL(/package_id=10/);
+    await expect(page.getByTestId("tabs-hidden")).toBeAttached();
+    await expect(page.getByTestId("b2c-detail-package_performance")).toBeVisible();
+    await expect(page.getByText("Ada Lovelace")).toBeVisible();
+
+    await page.getByRole("button", { name: "Back" }).click();
+    await expect(page.getByTestId("b2c-grid")).toBeVisible();
+
+    await page.getByTestId("coupon-row-21").click();
+    await expect(page).toHaveURL(/card=coupon_usage/);
+    await expect(page).toHaveURL(/discount_code_id=21/);
+    await expect(page.getByTestId("b2c-detail-coupon_usage")).toBeVisible();
+  });
+
+  test("period change refetches B2C summary; users tab does not use period", async ({
+    page,
+    counters,
+  }) => {
+    await page.goto("/?tab=b2c&period=this_week&sub_tab=overview");
+    await expect(page.getByTestId("b2c-grid")).toBeVisible();
+    const before = counters.getB2cSummaryCalls();
+
+    await page.getByRole("button", { name: "This month", exact: true }).click();
+    await expect(page).toHaveURL(/period=this_month/);
+    await expect.poll(() => counters.getB2cSummaryCalls()).toBeGreaterThan(before);
+
+    await page.getByTestId("b2c-subtab-users").click();
+    await expect(page.getByTestId("period-hidden")).toBeAttached();
+    await expect(page).not.toHaveURL(/card=/);
+  });
+
+  test("direct B2C card URL loads detail; invalid package_id is stripped", async ({
+    page,
+  }) => {
+    await page.goto(
+      "/?tab=b2c&period=this_week&sub_tab=overview&card=collection_tomorrow"
+    );
+    await expect(page.getByTestId("b2c-detail-collection_tomorrow")).toBeVisible();
+    await expect(page.getByTestId("tabs-hidden")).toBeAttached();
+
+    await page.goto(
+      "/?tab=b2c&period=this_week&sub_tab=overview&card=package_performance&package_id=abc"
+    );
+    await expect(page).not.toHaveURL(/card=/);
+    await expect(page).not.toHaveURL(/package_id=/);
+    await expect(page.getByTestId("b2c-grid")).toBeVisible();
   });
 });
 

@@ -6298,16 +6298,50 @@ export interface CommandFailedNotificationRow {
 
 export interface CommandPeopleRegisteredRow {
   user_id: number;
-  person: { name: string; phone: string };
+  person: { name: string; phone: string; email?: string };
   type: string;
   engagement: string;
   package: string;
   collection: string;
   blood_collection: string;
   questionnaire: string;
+  lab_partner?: string;
   lab_report: string;
   bio_ai: string;
   consult: string;
+}
+
+export type CommandB2CUserRow = CommandPeopleRegisteredRow;
+
+export interface CommandB2CTomorrowRow {
+  user_id: number;
+  collection_time: string;
+  name: string;
+  phone: string;
+  address: string;
+}
+
+export interface CommandB2CPackageRow {
+  package_id: number;
+  package_name: string;
+  user_count: number;
+}
+
+export interface CommandB2CCouponRow {
+  discount_code_id: number;
+  discount_code: string;
+  user_count: number;
+}
+
+export interface CommandB2CSummary {
+  total_bookings: number;
+  collection_tomorrow: number;
+  tests_completed: number;
+  bio_ai_reports: number;
+  consultation_done: number;
+  packages: CommandB2CPackageRow[];
+  coupons: CommandB2CCouponRow[];
+  tomorrows_collection: CommandB2CTomorrowRow[];
 }
 
 export type CommandPeriodParams = {
@@ -6487,5 +6521,76 @@ export const commandDashboardApi = {
         bucket: string;
       };
     }>("/admin/dashboard/command/b2b/engagements", { params }),
+  b2cSummary: (params?: CommandPeriodParams) =>
+    api.get<{ data: CommandB2CSummary; meta: { period: string } }>(
+      "/admin/dashboard/command/b2c/summary",
+      { params }
+    ),
+  b2cTotalBookings: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandB2CUserRow[];
+      meta: { period: string; page: number; limit: number; total: number };
+    }>("/admin/dashboard/command/b2c/total-bookings", { params }),
+  b2cCollectionTomorrow: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandB2CUserRow[];
+      meta: { period: string; page: number; limit: number; total: number };
+    }>("/admin/dashboard/command/b2c/collection-tomorrow", { params }),
+  b2cTestsCompleted: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandB2CUserRow[];
+      meta: { period: string; page: number; limit: number; total: number };
+    }>("/admin/dashboard/command/b2c/tests-completed", { params }),
+  b2cBioAiReports: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandB2CUserRow[];
+      meta: { period: string; page: number; limit: number; total: number };
+    }>("/admin/dashboard/command/b2c/bio-ai-reports", { params }),
+  b2cConsultationDone: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandB2CUserRow[];
+      meta: { period: string; page: number; limit: number; total: number };
+    }>("/admin/dashboard/command/b2c/consultation-done", { params }),
+  b2cPackagePerformance: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandB2CPackageRow[];
+      meta: { period: string; total: number };
+    }>("/admin/dashboard/command/b2c/package-performance", { params }),
+  b2cPackageUsers: (
+    params: CommandPeriodParams & { package_id: number }
+  ) =>
+    api.get<{
+      data: CommandB2CUserRow[];
+      meta: {
+        period: string;
+        page: number;
+        limit: number;
+        total: number;
+        package_id: number;
+      };
+    }>("/admin/dashboard/command/b2c/package-performance/users", { params }),
+  b2cCouponUsage: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandB2CCouponRow[];
+      meta: { period: string; total: number };
+    }>("/admin/dashboard/command/b2c/coupon-usage", { params }),
+  b2cCouponUsers: (
+    params: CommandPeriodParams & { discount_code_id: number }
+  ) =>
+    api.get<{
+      data: CommandB2CUserRow[];
+      meta: {
+        period: string;
+        page: number;
+        limit: number;
+        total: number;
+        discount_code_id: number;
+      };
+    }>("/admin/dashboard/command/b2c/coupon-usage/users", { params }),
+  b2cUsers: (params?: { page?: number; limit?: number }) =>
+    api.get<{
+      data: CommandB2CUserRow[];
+      meta: { page: number; limit: number; total: number };
+    }>("/admin/dashboard/command/b2c/users", { params }),
 };
 

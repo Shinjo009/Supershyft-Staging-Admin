@@ -38,20 +38,61 @@ export type ApiCounters = {
   getConsultationPendingCalls: () => number;
   getB2bSummaryCalls: () => number;
   getB2bEngagementsCalls: () => number;
+  getB2cSummaryCalls: () => number;
+  getB2cUsersCalls: () => number;
+  getB2cTotalBookingsCalls: () => number;
 };
 
 const JOURNEY_DETAIL_ROW = {
   user_id: 1,
-  person: { name: "Ada Lovelace", phone: "9999999999" },
+  person: { name: "Ada Lovelace", phone: "9999999999", email: "ada@example.com" },
   type: "B2C",
   engagement: "Camp Alpha",
   package: "Full Body",
   collection: "2026-11-20 09:00:00",
   blood_collection: "done",
   questionnaire: "completed",
+  lab_partner: "healthians",
   lab_report: "pending",
   bio_ai: "pending",
   consult: "Not Booked",
+};
+
+const B2C_USER_ROW = {
+  ...JOURNEY_DETAIL_ROW,
+  type: "B2C",
+};
+
+const B2C_SUMMARY = {
+  total_bookings: 18,
+  collection_tomorrow: 4,
+  tests_completed: 11,
+  bio_ai_reports: 7,
+  consultation_done: 5,
+  packages: [
+    { package_id: 10, package_name: "SuperShyft Core+", user_count: 9 },
+    { package_id: 11, package_name: "Essential", user_count: 3 },
+  ],
+  coupons: [
+    { discount_code_id: 21, discount_code: "WELCOME10", user_count: 6 },
+    { discount_code_id: 22, discount_code: "HEALTH20", user_count: 2 },
+  ],
+  tomorrows_collection: [
+    {
+      user_id: 1,
+      collection_time: "09:00:00",
+      name: "Ada Lovelace",
+      phone: "9999999999",
+      address: "12 Baker St, Mumbai, 400001",
+    },
+    {
+      user_id: 2,
+      collection_time: "11:30:00",
+      name: "Grace Hopper",
+      phone: "8888888888",
+      address: "44 Marine Drive, Mumbai, 400002",
+    },
+  ],
 };
 
 export async function mockCommandApis(page: Page): Promise<ApiCounters> {
@@ -73,6 +114,25 @@ export async function mockCommandApis(page: Page): Promise<ApiCounters> {
   let consultationPendingCalls = 0;
   let b2bSummaryCalls = 0;
   let b2bEngagementsCalls = 0;
+  let b2cSummaryCalls = 0;
+  let b2cUsersCalls = 0;
+  let b2cTotalBookingsCalls = 0;
+
+  const fulfillB2cUsers = async (route: Route, total: number, includeRows: boolean) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: includeRows ? [B2C_USER_ROW] : [],
+        meta: {
+          period: "this_week",
+          page: 1,
+          limit: includeRows ? 20 : 1,
+          total,
+        },
+      }),
+    });
+  };
 
   const fulfillAudience = async (route: Route, total: number, includeRows: boolean) => {
     await route.fulfill({
@@ -483,6 +543,99 @@ export async function mockCommandApis(page: Page): Promise<ApiCounters> {
       return;
     }
 
+    if (url.includes("/admin/dashboard/command/b2c/summary")) {
+      b2cSummaryCalls += 1;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: B2C_SUMMARY,
+          meta: { period: "this_week" },
+        }),
+      });
+      return;
+    }
+
+    if (url.includes("/admin/dashboard/command/b2c/package-performance/users")) {
+      const includeRows = new URL(url).searchParams.get("include_rows") !== "false";
+      await fulfillB2cUsers(route, 9, includeRows);
+      return;
+    }
+
+    if (url.includes("/admin/dashboard/command/b2c/package-performance")) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: B2C_SUMMARY.packages,
+          meta: { period: "this_week", total: B2C_SUMMARY.packages.length },
+        }),
+      });
+      return;
+    }
+
+    if (url.includes("/admin/dashboard/command/b2c/coupon-usage/users")) {
+      const includeRows = new URL(url).searchParams.get("include_rows") !== "false";
+      await fulfillB2cUsers(route, 6, includeRows);
+      return;
+    }
+
+    if (url.includes("/admin/dashboard/command/b2c/coupon-usage")) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: B2C_SUMMARY.coupons,
+          meta: { period: "this_week", total: B2C_SUMMARY.coupons.length },
+        }),
+      });
+      return;
+    }
+
+    if (url.includes("/admin/dashboard/command/b2c/total-bookings")) {
+      b2cTotalBookingsCalls += 1;
+      const includeRows = new URL(url).searchParams.get("include_rows") !== "false";
+      await fulfillB2cUsers(route, 18, includeRows);
+      return;
+    }
+
+    if (url.includes("/admin/dashboard/command/b2c/collection-tomorrow")) {
+      const includeRows = new URL(url).searchParams.get("include_rows") !== "false";
+      await fulfillB2cUsers(route, 4, includeRows);
+      return;
+    }
+
+    if (url.includes("/admin/dashboard/command/b2c/tests-completed")) {
+      const includeRows = new URL(url).searchParams.get("include_rows") !== "false";
+      await fulfillB2cUsers(route, 11, includeRows);
+      return;
+    }
+
+    if (url.includes("/admin/dashboard/command/b2c/bio-ai-reports")) {
+      const includeRows = new URL(url).searchParams.get("include_rows") !== "false";
+      await fulfillB2cUsers(route, 7, includeRows);
+      return;
+    }
+
+    if (url.includes("/admin/dashboard/command/b2c/consultation-done")) {
+      const includeRows = new URL(url).searchParams.get("include_rows") !== "false";
+      await fulfillB2cUsers(route, 5, includeRows);
+      return;
+    }
+
+    if (url.includes("/admin/dashboard/command/b2c/users")) {
+      b2cUsersCalls += 1;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [B2C_USER_ROW],
+          meta: { page: 1, limit: 20, total: 1 },
+        }),
+      });
+      return;
+    }
+
     if (url.includes("/engagements/by-code/")) {
       await route.fulfill({
         status: 200,
@@ -533,6 +686,9 @@ export async function mockCommandApis(page: Page): Promise<ApiCounters> {
     getConsultationPendingCalls: () => consultationPendingCalls,
     getB2bSummaryCalls: () => b2bSummaryCalls,
     getB2bEngagementsCalls: () => b2bEngagementsCalls,
+    getB2cSummaryCalls: () => b2cSummaryCalls,
+    getB2cUsersCalls: () => b2cUsersCalls,
+    getB2cTotalBookingsCalls: () => b2cTotalBookingsCalls,
   };
 }
 

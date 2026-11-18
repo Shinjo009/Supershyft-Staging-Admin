@@ -11,6 +11,8 @@ export function MetricCard({
   onClick,
   clickable,
   showViewAll,
+  hideViewAll,
+  wrapTitle,
   variant = "feature",
   className = "",
   bodyClassName,
@@ -24,6 +26,10 @@ export function MetricCard({
   clickable?: boolean;
   /** Show “View all” without requiring click wiring (UI shell). */
   showViewAll?: boolean;
+  /** Hide “View all” even when the card is clickable (compact KPI layouts). */
+  hideViewAll?: boolean;
+  /** Allow the title to wrap instead of truncating with ellipsis. */
+  wrapTitle?: boolean;
   variant?: MetricCardVariant;
   className?: string;
   /** Overrides default body padding when set. */
@@ -44,28 +50,35 @@ export function MetricCard({
   const bodyClass = `flex min-h-0 flex-1 ${
     bodyClassName ?? `${bodyAlign} ${defaultBodyPad}`
   }`;
+  const showViewAllLabel = (clickable || showViewAll) && !hideViewAll;
 
   const body = (
     <>
       <div
         className={`flex shrink-0 items-start justify-between gap-2 border-b border-zinc-100 ${headerPad}`}
       >
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h3
-            className={`flex min-w-0 items-center gap-1.5 font-semibold text-zinc-900 ${
-              variant === "metric" ? "text-[13px]" : "text-sm"
-            }`}
+            className={`flex min-w-0 gap-1.5 font-semibold text-zinc-900 ${
+              wrapTitle ? "items-start" : "items-center"
+            } ${variant === "metric" ? "text-[13px]" : "text-sm"}`}
           >
             {Icon ? (
-              <Icon className="size-3.5 shrink-0 text-zinc-500" aria-hidden strokeWidth={1.75} />
+              <Icon
+                className="mt-0.5 size-3.5 shrink-0 text-zinc-500"
+                aria-hidden
+                strokeWidth={1.75}
+              />
             ) : null}
-            <span className="truncate">{title}</span>
+            <span className={wrapTitle ? "leading-snug break-words" : "truncate"}>
+              {title}
+            </span>
           </h3>
           {description ? (
             <p className="mt-0.5 truncate text-xs text-zinc-500">{description}</p>
           ) : null}
         </div>
-        {clickable || showViewAll ? (
+        {showViewAllLabel ? (
           <span className="shrink-0 pt-0.5 text-xs font-medium text-zinc-500">View all</span>
         ) : null}
       </div>

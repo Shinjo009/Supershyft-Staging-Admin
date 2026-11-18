@@ -30,8 +30,15 @@ export function normalizePeriod(raw: string | null): PeriodPreset {
 export type DashboardTab = "overview" | "b2b" | "b2c";
 
 export function normalizeTab(raw: string | null): DashboardTab {
-  // B2C reserved but not active yet.
-  if (raw === "overview" || raw === "b2b") return raw;
+  if (raw === "overview" || raw === "b2b" || raw === "b2c") return raw;
+  return "overview";
+}
+
+export type B2CSubTab = "overview" | "users";
+
+export function normalizeSubTab(raw: string | null, tab: DashboardTab): B2CSubTab {
+  if (tab !== "b2c") return "overview";
+  if (raw === "users") return "users";
   return "overview";
 }
 
@@ -52,7 +59,14 @@ export type CardId =
   | "action_center"
   | "ongoing"
   | "upcoming"
-  | "completed";
+  | "completed"
+  | "total_bookings"
+  | "collection_tomorrow"
+  | "lab_report_delivered"
+  | "bio_ai_reports"
+  | "tomorrows_collection"
+  | "package_performance"
+  | "coupon_usage";
 
 export const OVERVIEW_CARD_ORDER: {
   id: CardId;
@@ -82,6 +96,19 @@ export const B2B_CARD_ORDER: {
   { id: "ongoing", title: "Ongoing", interaction: "current_page", hint: "Running camps" },
   { id: "upcoming", title: "Upcoming", interaction: "current_page", hint: "Scheduled" },
   { id: "completed", title: "Completed", interaction: "current_page", hint: "Past camps" },
+];
+
+export const B2C_KPI_CARD_ORDER: {
+  id: CardId;
+  title: string;
+  interaction: CardInteraction;
+}[] = [
+  { id: "total_bookings", title: "Total bookings", interaction: "new_page" },
+  { id: "collection_tomorrow", title: "Collection tomorrow", interaction: "new_page" },
+  { id: "tests_completed", title: "Tests completed", interaction: "new_page" },
+  { id: "lab_report_delivered", title: "Lab report delivered", interaction: "none" },
+  { id: "bio_ai_reports", title: "Bio-AI reports generated", interaction: "new_page" },
+  { id: "consultation_done", title: "Consultation done", interaction: "new_page" },
 ];
 
 export type ActionSubcardId =
@@ -161,6 +188,11 @@ export const WIRED_CARDS = new Set<CardId>([
   "ongoing",
   "upcoming",
   "completed",
+  "total_bookings",
+  "collection_tomorrow",
+  "bio_ai_reports",
+  "package_performance",
+  "coupon_usage",
 ]);
 
 const OVERVIEW_NEW_PAGE_CARDS = new Set<CardId>([
@@ -178,8 +210,25 @@ const OVERVIEW_NEW_PAGE_CARDS = new Set<CardId>([
 
 const B2B_CARDS = new Set<CardId>(["ongoing", "upcoming", "completed"]);
 
-export function cardInteraction(id: CardId | null): CardInteraction {
+const B2C_NEW_PAGE_CARDS = new Set<CardId>([
+  "total_bookings",
+  "collection_tomorrow",
+  "tests_completed",
+  "bio_ai_reports",
+  "consultation_done",
+  "package_performance",
+  "coupon_usage",
+]);
+
+export function cardInteraction(
+  id: CardId | null,
+  tab: DashboardTab = "overview"
+): CardInteraction {
   if (!id) return "none";
+  if (tab === "b2c") {
+    if (B2C_NEW_PAGE_CARDS.has(id)) return "new_page";
+    return "none";
+  }
   if (OVERVIEW_NEW_PAGE_CARDS.has(id)) return "new_page";
   if (B2B_CARDS.has(id)) return "current_page";
   const overview = OVERVIEW_CARD_ORDER.find((c) => c.id === id);
@@ -194,6 +243,9 @@ export function normalizeCard(
   const id = raw.trim() as CardId;
   if (tab === "b2b") {
     return B2B_CARDS.has(id) ? id : null;
+  }
+  if (tab === "b2c") {
+    return B2C_NEW_PAGE_CARDS.has(id) ? id : null;
   }
   if (tab === "overview") {
     return OVERVIEW_NEW_PAGE_CARDS.has(id) ? id : null;

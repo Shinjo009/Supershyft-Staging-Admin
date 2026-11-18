@@ -10,6 +10,7 @@ import {
 } from "../../../lib/api";
 import { ActionCenterDetail } from "./ActionCenterDetail";
 import { B2BGrid } from "./B2BGrid";
+import { B2CPanel } from "./B2CPanel";
 import { BioaiReportGeneratedDetail } from "./BioaiReportGeneratedDetail";
 import { BloodReportGeneratedDetail } from "./BloodReportGeneratedDetail";
 import type { ActionCenterCounts } from "./cards";
@@ -28,9 +29,11 @@ import {
   cardInteraction,
   normalizeCard,
   normalizePeriod,
+  normalizeSubTab,
   normalizeSubcard,
   normalizeTab,
   type ActionSubcardId,
+  type B2CSubTab,
   type CardId,
   type DashboardTab,
   type PeriodPreset,
@@ -55,6 +58,12 @@ function splitFromMeta(meta?: { total?: number; b2b?: number; b2c?: number } | n
   };
 }
 
+function parsePositiveInt(raw: string | null): number | null {
+  if (!raw) return null;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 export function CommandDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -62,13 +71,19 @@ export function CommandDashboard() {
   const rawPeriod = searchParams.get("period");
   const rawCard = searchParams.get("card");
   const rawSubcard = searchParams.get("subcard");
+  const rawSubTab = searchParams.get("sub_tab");
   const from = searchParams.get("from");
   const to = searchParams.get("to");
+  const rawPackageId = searchParams.get("package_id");
+  const rawDiscountCodeId = searchParams.get("discount_code_id");
 
   const tab = normalizeTab(rawTab);
   const period = normalizePeriod(rawPeriod);
   const card = normalizeCard(rawCard, tab);
+  const subTab = normalizeSubTab(rawSubTab, tab);
   const subcard = card === "action_center" ? normalizeSubcard(rawSubcard) : null;
+  const packageId = parsePositiveInt(rawPackageId);
+  const discountCodeId = parsePositiveInt(rawDiscountCodeId);
 
   // Normalize URL defaults / invalid values once they diverge
   useEffect(() => {
@@ -93,6 +108,8 @@ export function CommandDashboard() {
     if (rawCard && !card) {
       next.delete("card");
       next.delete("subcard");
+      next.delete("package_id");
+      next.delete("discount_code_id");
       changed = true;
     }
     // action_center requires a valid subcard; otherwise drop both
@@ -113,6 +130,44 @@ export function CommandDashboard() {
       changed = true;
     }
 
+    if (tab === "b2c") {
+      if (rawSubTab !== subTab) {
+        next.set("sub_tab", subTab);
+        changed = true;
+      }
+      if (card !== "package_performance" && next.has("package_id")) {
+        next.delete("package_id");
+        changed = true;
+      }
+      if (card !== "coupon_usage" && next.has("discount_code_id")) {
+        next.delete("discount_code_id");
+        changed = true;
+      }
+      if (card === "package_performance" && !packageId) {
+        next.delete("package_id");
+        next.delete("card");
+        changed = true;
+      }
+      if (card === "coupon_usage" && !discountCodeId) {
+        next.delete("discount_code_id");
+        next.delete("card");
+        changed = true;
+      }
+    } else {
+      if (next.has("sub_tab")) {
+        next.delete("sub_tab");
+        changed = true;
+      }
+      if (next.has("package_id")) {
+        next.delete("package_id");
+        changed = true;
+      }
+      if (next.has("discount_code_id")) {
+        next.delete("discount_code_id");
+        changed = true;
+      }
+    }
+
     if (changed) setSearchParams(next, { replace: true });
     // Intentionally depend on raw query pieces, not the whole searchParams object.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -121,10 +176,16 @@ export function CommandDashboard() {
     rawPeriod,
     rawCard,
     rawSubcard,
+    rawSubTab,
+    rawPackageId,
+    rawDiscountCodeId,
     tab,
     period,
     card,
     subcard,
+    subTab,
+    packageId,
+    discountCodeId,
     from,
     to,
     setSearchParams,
@@ -148,7 +209,23 @@ export function CommandDashboard() {
   );
 
   const setTab = (nextTab: DashboardTab) => {
-    updateParams({ tab: nextTab, card: null, subcard: null });
+    updateParams({
+      tab: nextTab,
+      card: null,
+      subcard: null,
+      package_id: null,
+      discount_code_id: null,
+      sub_tab: nextTab === "b2c" ? "overview" : null,
+    });
+  };
+
+  const setSubTab = (next: B2CSubTab) => {
+    updateParams({
+      sub_tab: next,
+      card: null,
+      package_id: null,
+      discount_code_id: null,
+    });
   };
 
   const setPeriod = (nextPeriod: PeriodPreset) => {
@@ -168,7 +245,36 @@ export function CommandDashboard() {
   };
 
   const openCard = (id: CardId, owningTab: DashboardTab = tab) => {
-    updateParams({ card: id, tab: owningTab, subcard: null });
+    updateParams({
+      card: id,
+      tab: owningTab,
+      subcard: null,
+      package_id: null,
+      discount_code_id: null,
+      ...(owningTab === "b2c" ? { sub_tab: "overview" } : {}),
+    });
+  };
+
+  const openPackage = (id: number) => {
+    updateParams({
+      tab: "b2c",
+      sub_tab: "overview",
+      card: "package_performance",
+      package_id: String(id),
+      discount_code_id: null,
+      subcard: null,
+    });
+  };
+
+  const openCoupon = (id: number) => {
+    updateParams({
+      tab: "b2c",
+      sub_tab: "overview",
+      card: "coupon_usage",
+      discount_code_id: String(id),
+      package_id: null,
+      subcard: null,
+    });
   };
 
   const openSubcard = (id: ActionSubcardId) => {
@@ -180,7 +286,7 @@ export function CommandDashboard() {
   };
 
   const closeCard = () => {
-    updateParams({ card: null, subcard: null });
+    updateParams({ card: null, subcard: null, package_id: null, discount_code_id: null });
   };
 
   const periodParams = useMemo(
@@ -354,8 +460,9 @@ export function CommandDashboard() {
     };
   }, [tab, periodParams.period, periodParams.from, periodParams.to]);
 
-  const interaction = cardInteraction(card);
+  const interaction = cardInteraction(card, tab);
   const showTabs = !(card && interaction === "new_page");
+  const showPeriod = !(tab === "b2c" && subTab === "users" && !card);
 
   return (
     <div className="min-w-0 space-y-4" data-testid="command-dashboard">
@@ -365,13 +472,17 @@ export function CommandDashboard() {
         ) : (
           <div data-testid="tabs-hidden" aria-hidden className="h-9" />
         )}
-        <PeriodFilter
-          period={period || DEFAULT_PERIOD}
-          from={from}
-          to={to}
-          onPeriodChange={setPeriod}
-          onCustomApply={setCustom}
-        />
+        {showPeriod ? (
+          <PeriodFilter
+            period={period || DEFAULT_PERIOD}
+            from={from}
+            to={to}
+            onPeriodChange={setPeriod}
+            onCustomApply={setCustom}
+          />
+        ) : (
+          <div data-testid="period-hidden" aria-hidden className="h-9" />
+        )}
       </div>
 
       {loadError && tab === "overview" && interaction !== "new_page" ? (
@@ -385,6 +496,19 @@ export function CommandDashboard() {
           periodParams={periodParams}
           selectedCard={card}
           onOpenCard={(id) => openCard(id, "b2b")}
+        />
+      ) : tab === "b2c" ? (
+        <B2CPanel
+          subTab={subTab}
+          card={card}
+          packageId={packageId}
+          discountCodeId={discountCodeId}
+          periodParams={periodParams}
+          onSubTabChange={setSubTab}
+          onOpenCard={(id) => openCard(id, "b2c")}
+          onOpenPackage={openPackage}
+          onOpenCoupon={openCoupon}
+          onBack={closeCard}
         />
       ) : card === "notification_health" ? (
         <NotificationHealthDetail periodParams={periodParams} onBack={closeCard} />
