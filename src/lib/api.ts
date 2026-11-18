@@ -5602,6 +5602,8 @@ export interface NotificationRecipient {
 
 export interface NotificationItem {
   notification_id: number;
+  event_code?: string | null;
+  event_display_name?: string | null;
   service_key: string;
   service_display_name?: string | null;
   status: "pending" | "sent" | "failed";
@@ -5760,6 +5762,7 @@ export const notificationsApi = {
     limit?: number;
     status?: string;
     service_key?: string;
+    event_code?: string;
     channel?: string;
     user_id?: number;
     engagement_id?: number;

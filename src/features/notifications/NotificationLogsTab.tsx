@@ -7,6 +7,8 @@ import { EngagementSearchPicker } from "../../shared/ui/EngagementSearchPicker";
 import { usePermissions } from "../../contexts/PermissionContext";
 import {
   notificationsApi,
+  notificationsCatalogApi,
+  type CatalogEventItem,
   type NotificationItem,
   type NotificationServiceItem,
   getApiError,
@@ -43,6 +45,7 @@ export function NotificationLogsTab() {
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [serviceKeyFilter, setServiceKeyFilter] = useState("");
+  const [eventCodeFilter, setEventCodeFilter] = useState("");
   const [channelFilter, setChannelFilter] = useState("");
   const [userIdFilter, setUserIdFilter] = useState(0);
   const [engagementIdFilter, setEngagementIdFilter] = useState(0);
@@ -60,14 +63,17 @@ export function NotificationLogsTab() {
   const [debouncedCustomFrom, setDebouncedCustomFrom] = useState("");
   const [debouncedCustomTo, setDebouncedCustomTo] = useState("");
   const [debouncedServiceKey, setDebouncedServiceKey] = useState("");
+  const [debouncedEventCode, setDebouncedEventCode] = useState("");
   const [debouncedChannel, setDebouncedChannel] = useState("");
   const [debouncedUserId, setDebouncedUserId] = useState(0);
   const [debouncedEngagementId, setDebouncedEngagementId] = useState(0);
 
   const [services, setServices] = useState<NotificationServiceItem[]>([]);
+  const [catalogEvents, setCatalogEvents] = useState<CatalogEventItem[]>([]);
 
   useEffect(() => {
     notificationsApi.listServices().then((r) => setServices(r.data.data)).catch(() => {});
+    notificationsCatalogApi.getEvents().then((r) => setCatalogEvents(r.data.data)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -77,6 +83,7 @@ export function NotificationLogsTab() {
       setDebouncedCustomFrom(customFrom);
       setDebouncedCustomTo(customTo);
       setDebouncedServiceKey(serviceKeyFilter);
+      setDebouncedEventCode(eventCodeFilter);
       setDebouncedChannel(channelFilter);
       setDebouncedUserId(userIdFilter);
       setDebouncedEngagementId(engagementIdFilter);
@@ -88,6 +95,7 @@ export function NotificationLogsTab() {
     customFrom,
     customTo,
     serviceKeyFilter,
+    eventCodeFilter,
     channelFilter,
     userIdFilter,
     engagementIdFilter,
@@ -100,6 +108,7 @@ export function NotificationLogsTab() {
       limit,
       status: debouncedStatusFilters.length ? debouncedStatusFilters.join(",") : undefined,
       service_key: debouncedServiceKey || undefined,
+      event_code: debouncedEventCode || undefined,
       channel: debouncedChannel || undefined,
       user_id: debouncedUserId > 0 ? debouncedUserId : undefined,
       engagement_id: debouncedEngagementId > 0 ? debouncedEngagementId : undefined,
@@ -110,6 +119,7 @@ export function NotificationLogsTab() {
     limit,
     debouncedStatusFilters,
     debouncedServiceKey,
+    debouncedEventCode,
     debouncedChannel,
     debouncedUserId,
     debouncedEngagementId,
@@ -152,6 +162,7 @@ export function NotificationLogsTab() {
     setCustomFrom("");
     setCustomTo("");
     setServiceKeyFilter("");
+    setEventCodeFilter("");
     setChannelFilter("");
     setUserIdFilter(0);
     setEngagementIdFilter(0);
@@ -162,6 +173,7 @@ export function NotificationLogsTab() {
     statusFilters.length > 0 ||
     (timePreset !== "" && timePreset !== DEFAULT_TIME_PRESET) ||
     serviceKeyFilter !== "" ||
+    eventCodeFilter !== "" ||
     channelFilter !== "" ||
     userIdFilter > 0 ||
     engagementIdFilter > 0;
@@ -179,6 +191,10 @@ export function NotificationLogsTab() {
       const svc = services.find((s) => s.service_key === serviceKeyFilter);
       labels.push(`Service: ${svc?.display_name ?? serviceKeyFilter}`);
     }
+    if (eventCodeFilter) {
+      const ev = catalogEvents.find((e) => e.code === eventCodeFilter);
+      labels.push(`Event: ${ev?.name ?? eventCodeFilter}`);
+    }
     if (channelFilter) labels.push(`Channel: ${channelFilter}`);
     if (userIdFilter > 0) labels.push(`User #${userIdFilter}`);
     if (engagementIdFilter > 0) labels.push(`Engagement #${engagementIdFilter}`);
@@ -189,10 +205,12 @@ export function NotificationLogsTab() {
     customFrom,
     customTo,
     serviceKeyFilter,
+    eventCodeFilter,
     channelFilter,
     userIdFilter,
     engagementIdFilter,
     services,
+    catalogEvents,
   ]);
 
   const handleDelete = async (row: NotificationItem) => {
@@ -300,6 +318,23 @@ export function NotificationLogsTab() {
       render: (r) => (
         <span className="text-xs text-zinc-600">{r.queue_id != null ? r.queue_id : "—"}</span>
       ),
+    },
+    {
+      key: "event_code",
+      label: "Event",
+      sortable: false,
+      hideOnMobile: true,
+      render: (r) => {
+        if (!r.event_code) {
+          return <span className="text-zinc-400">—</span>;
+        }
+        const display = r.event_display_name || r.event_code;
+        return (
+          <span className="font-medium" title={r.event_code}>
+            {display}
+          </span>
+        );
+      },
     },
     {
       key: "service_display_name",
@@ -466,6 +501,24 @@ export function NotificationLogsTab() {
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3 items-end">
+          <label className="block">
+            <span className="text-xs text-zinc-500">Event</span>
+            <select
+              value={eventCodeFilter}
+              onChange={(e) => {
+                setEventCodeFilter(e.target.value);
+                resetPage();
+              }}
+              className="mt-1 w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
+            >
+              <option value="">All events</option>
+              {catalogEvents.map((e) => (
+                <option key={e.code} value={e.code}>
+                  {e.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="block">
             <span className="text-xs text-zinc-500">Service</span>
             <select
