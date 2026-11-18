@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   Search,
@@ -29,7 +29,12 @@ import {
   type Participant,
   type ConsoleEngagementListItem,
   type ConsoleParticipantBookResponse,
+  type ConsoleParticipantFilterFacets,
+  type ConsoleParticipantListParams,
 } from "../../lib/api";
+
+const CONSOLE_PAGE_SIZE = 10;
+const CONSOLE_SEARCH_LIMIT = 25;
 import { diagnosticProviderLabel } from "./homeCollectionUi";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -129,6 +134,16 @@ export function EngagementConsolePage() {
 
   const [engagement, setEngagement] = useState<ConsoleEngagementListItem | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [listLimit, setListLimit] = useState(CONSOLE_PAGE_SIZE);
+  const [filterFacets, setFilterFacets] =
+    useState<ConsoleParticipantFilterFacets | null>(null);
+  const [listLoading, setListLoading] = useState(false);
+  const listReadyRef = useRef(false);
+  const skipNextPageFetchRef = useRef(false);
+  const prevSearchRef = useRef<string | null>(null);
+  const filtersPrimedRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorKind, setErrorKind] = useState<"not_running" | "forbidden" | "generic" | null>(null);
@@ -152,23 +167,69 @@ export function EngagementConsolePage() {
   const [barcodeScannerOpen, setBarcodeScannerOpen] = useState(false);
   const [pageNotice, setPageNotice] = useState<string | null>(null);
 
+  const buildListParams = useCallback(
+    (targetPage: number): ConsoleParticipantListParams => {
+      const q = search.trim();
+      const limit = q ? CONSOLE_SEARCH_LIMIT : CONSOLE_PAGE_SIZE;
+      return {
+        page: targetPage,
+        limit,
+        ...(q ? { search: q } : {}),
+        ...(dateFilter ? { engagement_date: dateFilter } : {}),
+        ...(departmentFilter ? { department: departmentFilter } : {}),
+      };
+    },
+    [search, dateFilter, departmentFilter]
+  );
+
+  const fetchParticipantPage = useCallback(
+    async (targetPage: number): Promise<Participant[]> => {
+      if (!engId || isNaN(engId)) return [];
+      setListLoading(true);
+      try {
+        const res = await consoleApi.listParticipants(
+          engId,
+          buildListParams(targetPage)
+        );
+        const parts = res.data.data;
+        setParticipants(parts);
+        setTotal(res.data.meta.total);
+        setPage(res.data.meta.page);
+        setListLimit(res.data.meta.limit);
+        return parts;
+      } finally {
+        setListLoading(false);
+      }
+    },
+    [engId, buildListParams]
+  );
+
   const reloadParticipants = useCallback(async (): Promise<Participant[]> => {
-    if (!engId || isNaN(engId)) return [];
-    const res = await consoleApi.bootstrap(engId, { page: 1, limit: 100 });
-    const parts = res.data.data.participants;
-    setParticipants(parts);
-    return parts;
-  }, [engId]);
+    return fetchParticipantPage(page);
+  }, [fetchParticipantPage, page]);
 
   const fetchData = useCallback(async () => {
     if (!engId || isNaN(engId)) return;
     setLoading(true);
     setError(null);
     setErrorKind(null);
+    listReadyRef.current = false;
+    prevSearchRef.current = null;
+    filtersPrimedRef.current = false;
     try {
-      const res = await consoleApi.bootstrap(engId, { page: 1, limit: 100 });
+      const res = await consoleApi.bootstrap(engId, {
+        page: 1,
+        limit: CONSOLE_PAGE_SIZE,
+      });
       setEngagement(res.data.data.engagement);
       setParticipants(res.data.data.participants);
+      setTotal(res.data.meta.total);
+      setPage(res.data.meta.page);
+      setListLimit(res.data.meta.limit);
+      setFilterFacets(res.data.data.filter_facets ?? null);
+      skipNextPageFetchRef.current = true;
+      listReadyRef.current = true;
+      prevSearchRef.current = search;
     } catch (err) {
       const details = getApiErrorDetails(err);
       if (details.code === "ENGAGEMENT_NOT_RUNNING") {
@@ -196,46 +257,51 @@ export function EngagementConsolePage() {
     fetchData();
   }, [fetchData]);
 
-  const dateOptions = useMemo(() => {
-    const dates = new Set<string>();
-    participants.forEach((p) => {
-      if (p.engagement_date) dates.add(p.engagement_date);
-    });
-    return Array.from(dates).sort();
-  }, [participants]);
-
-  const departmentOptions = useMemo(() => {
-    const deps = new Set<string>();
-    participants.forEach((p) => {
-      if (p.participant_department) deps.add(p.participant_department);
-    });
-    return Array.from(deps).sort();
-  }, [participants]);
-
-  const filtered = useMemo(() => {
-    let rows = participants;
-
-    if (dateFilter) {
-      rows = rows.filter((p) => (p.engagement_date ?? "") === dateFilter);
+  useEffect(() => {
+    if (!listReadyRef.current) return;
+    if (skipNextPageFetchRef.current) {
+      skipNextPageFetchRef.current = false;
+      return;
     }
-    if (departmentFilter) {
-      rows = rows.filter(
-        (p) => (p.participant_department ?? "") === departmentFilter
-      );
-    }
+    void fetchParticipantPage(page);
+  }, [page, fetchParticipantPage]);
 
-    const q = search.trim().toLowerCase();
-    if (q) {
-      rows = rows.filter(
-        (p) =>
-          fullName(p).toLowerCase().includes(q) ||
-          (p.phone ?? "").includes(q) ||
-          (p.email ?? "").toLowerCase().includes(q)
-      );
+  useEffect(() => {
+    if (!listReadyRef.current) return;
+    if (!filtersPrimedRef.current) {
+      filtersPrimedRef.current = true;
+      return;
     }
+    setPage(1);
+    skipNextPageFetchRef.current = true;
+    void fetchParticipantPage(1);
+  }, [dateFilter, departmentFilter, fetchParticipantPage]);
 
-    return rows;
-  }, [participants, search, dateFilter, departmentFilter]);
+  useEffect(() => {
+    if (!listReadyRef.current) return;
+    if (prevSearchRef.current === null) {
+      prevSearchRef.current = search;
+      return;
+    }
+    if (prevSearchRef.current === search) return;
+    prevSearchRef.current = search;
+    const delay = search.trim() ? 300 : 0;
+    const handle = window.setTimeout(() => {
+      setPage(1);
+      skipNextPageFetchRef.current = true;
+      void fetchParticipantPage(1);
+    }, delay);
+    return () => window.clearTimeout(handle);
+  }, [search, fetchParticipantPage]);
+
+  const dateOptions = filterFacets?.collection_dates ?? [];
+  const departmentOptions = filterFacets?.departments ?? [];
+
+  const showingFrom =
+    total === 0 ? 0 : (page - 1) * listLimit + 1;
+  const showingTo = Math.min(page * listLimit, total);
+  const canGoPrev = page > 1;
+  const canGoNext = page * listLimit < total;
 
   const openDetail = (p: Participant) => {
     setSelectedParticipant(p);
@@ -322,7 +388,7 @@ export function EngagementConsolePage() {
 
   const actionMenuParticipant =
     actionMenuRow !== null
-      ? filtered.find(
+      ? participants.find(
           (row) =>
             (row.engagement_participant_id ?? row.user_id) === actionMenuRow
         ) ?? null
@@ -536,11 +602,16 @@ export function EngagementConsolePage() {
             <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-500">
               <Users className="w-4 h-4" />
               <span>
-                {filtered.length}
-                {filtered.length !== participants.length &&
-                  ` / ${participants.length}`}{" "}
-                participant{participants.length !== 1 ? "s" : ""}
+                {search.trim()
+                  ? `${total} match${total !== 1 ? "es" : ""}`
+                  : `${total} participant${total !== 1 ? "s" : ""}`}
+                {total > 0 &&
+                  !search.trim() &&
+                  ` · showing ${showingFrom}–${showingTo}`}
               </span>
+              {listLoading && (
+                <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
+              )}
               {isHomeCollection && engagement?.diagnostic_provider && (
                 <span className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-2.5 py-0.5 text-xs font-medium text-zinc-700">
                   Home collection · {diagnosticProviderLabel(engagement.diagnostic_provider)}
@@ -621,7 +692,7 @@ export function EngagementConsolePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
-                {filtered.length === 0 ? (
+                {participants.length === 0 ? (
                   <tr>
                     <td
                       colSpan={8}
@@ -631,7 +702,7 @@ export function EngagementConsolePage() {
                     </td>
                   </tr>
                 ) : (
-                  filtered.map((p) => (
+                  participants.map((p) => (
                     <tr
                       key={
                         p.engagement_participant_id ??
@@ -700,6 +771,31 @@ export function EngagementConsolePage() {
               </tbody>
             </table>
           </div>
+          {total > listLimit && !search.trim() && (
+            <div className="flex items-center justify-between gap-3 text-sm text-zinc-600">
+              <span>
+                Page {page} · {showingFrom}–{showingTo} of {total}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={!canGoPrev || listLoading}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="px-3 py-1.5 rounded-lg border border-zinc-300 hover:bg-zinc-50 disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  disabled={!canGoNext || listLoading}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="px-3 py-1.5 rounded-lg border border-zinc-300 hover:bg-zinc-50 disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
           <PortalMenu
             open={actionMenuRow !== null}
             anchorRef={actionMenuAnchorRef}

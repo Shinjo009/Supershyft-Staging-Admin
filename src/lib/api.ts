@@ -4017,17 +4017,34 @@ export interface ConsoleQuestionnairePayload {
   questions: ConsoleQuestionnaireQuestion[];
 }
 
+export interface ConsoleParticipantFilterFacets {
+  collection_dates: string[];
+  departments: string[];
+}
+
+export type ConsoleParticipantListParams = {
+  page?: number;
+  limit?: number;
+  search?: string;
+  department?: string;
+  engagement_date?: string;
+};
+
 export const consoleApi = {
   listEngagements: () =>
     api.get<{ data: ConsoleEngagementListItem[] }>("/engagements/console/engagements"),
-  bootstrap: (id: number, params?: { page?: number; limit?: number }) =>
+  bootstrap: (id: number, params?: ConsoleParticipantListParams) =>
     api.get<{
-      data: { engagement: ConsoleEngagementListItem; participants: Participant[] };
+      data: {
+        engagement: ConsoleEngagementListItem;
+        participants: Participant[];
+        filter_facets?: ConsoleParticipantFilterFacets;
+      };
       meta: { page: number; limit: number; total: number };
     }>(`/engagements/${id}/console/bootstrap`, { params }),
   getEngagement: (id: number) =>
     api.get<{ data: ConsoleEngagementListItem }>(`/engagements/${id}/console`),
-  listParticipants: (id: number, params?: { page?: number; limit?: number }) =>
+  listParticipants: (id: number, params?: ConsoleParticipantListParams) =>
     api.get<{ data: Participant[]; meta: { page: number; limit: number; total: number } }>(
       `/engagements/${id}/console/participants`,
       { params }
