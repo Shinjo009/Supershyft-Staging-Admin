@@ -467,6 +467,7 @@ export function EngagementNotificationsTab({
         profileParams={profileParams}
         returnTo={returnTo}
         notificationServices={notificationServices}
+        readOnly
       />
     </div>
   );
