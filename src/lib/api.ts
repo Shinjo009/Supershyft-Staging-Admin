@@ -5972,6 +5972,37 @@ export interface ServerHealthCurrent {
   cpu_alert?: ServerHealthCpuAlert | null;
 }
 
+export interface ApiTrafficEndpointStat {
+  method: string;
+  path: string;
+  count: number;
+  error_4xx: number;
+  error_5xx: number;
+  p50_s?: number | null;
+  p95_s?: number | null;
+  max_s?: number | null;
+}
+
+export interface ApiTrafficTotals {
+  requests: number;
+  error_4xx: number;
+  error_5xx: number;
+  error_rate: number;
+  p50_s?: number | null;
+  p95_s?: number | null;
+  lines_in_window?: number | null;
+  lines_missing_rt?: number | null;
+}
+
+export interface ApiTrafficSummary {
+  generated_at: string;
+  window_seconds: number;
+  totals: ApiTrafficTotals;
+  top_endpoints: ApiTrafficEndpointStat[];
+  slowest_endpoints: ApiTrafficEndpointStat[];
+  error_endpoints: ApiTrafficEndpointStat[];
+}
+
 export const serverHealthApi = {
   overview: (params?: { limit?: number }) =>
     api.get<{
@@ -5984,6 +6015,7 @@ export const serverHealthApi = {
       "/server-health/history",
       { params }
     ),
+  apiTraffic: () => api.get<{ data: ApiTrafficSummary }>("/server-health/api-traffic"),
 };
 
 // --- Engagement Types ---

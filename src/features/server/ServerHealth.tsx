@@ -13,6 +13,8 @@ import {
   type ServerHealthLatestMetrics,
 } from "../../lib/api";
 import { VitalMonitors } from "./VitalMonitors";
+import { ApiTrafficPanel } from "./ApiTrafficPanel";
+import type { ApiTrafficSummary } from "../../lib/api";
 const REFRESH_MS = 60_000;
 
 function categoryHasIssues(checks: HealthCheck[]): boolean {
@@ -216,6 +218,9 @@ export function ServerHealth() {
   const [loadingCurrent, setLoadingCurrent] = useState(true);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [apiTraffic, setApiTraffic] = useState<ApiTrafficSummary | null>(null);
+  const [loadingApiTraffic, setLoadingApiTraffic] = useState(true);
+  const [apiTrafficError, setApiTrafficError] = useState<string | null>(null);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
 
   const fetchCurrent = useCallback(async (silent = false) => {
@@ -229,6 +234,19 @@ export function ServerHealth() {
       setError(getApiError(err));
     } finally {
       if (!silent) setLoadingCurrent(false);
+    }
+  }, []);
+
+  const fetchApiTraffic = useCallback(async (silent = false) => {
+    if (!silent) setLoadingApiTraffic(true);
+    try {
+      const res = await serverHealthApi.apiTraffic();
+      setApiTraffic(res.data.data);
+      setApiTrafficError(null);
+    } catch (err) {
+      setApiTrafficError(getApiError(err));
+    } finally {
+      if (!silent) setLoadingApiTraffic(false);
     }
   }, []);
 
@@ -254,8 +272,8 @@ export function ServerHealth() {
   }, []);
 
   const refreshAll = useCallback(async (silent = false) => {
-    await loadOverview(silent);
-  }, [loadOverview]);
+    await Promise.all([loadOverview(silent), fetchApiTraffic(silent)]);
+  }, [loadOverview, fetchApiTraffic]);
 
   useEffect(() => {
     void refreshAll();
@@ -264,9 +282,10 @@ export function ServerHealth() {
   useEffect(() => {
     const interval = window.setInterval(() => {
       void fetchCurrent(true);
+      void fetchApiTraffic(true);
     }, REFRESH_MS);
     return () => window.clearInterval(interval);
-  }, [fetchCurrent]);
+  }, [fetchCurrent, fetchApiTraffic]);
 
   const historyColumns = useMemo<Column<HealthRun>[]>(
     () => [
@@ -355,10 +374,10 @@ export function ServerHealth() {
         <button
           type="button"
           onClick={() => void refreshAll()}
-          disabled={loadingCurrent || loadingHistory}
+          disabled={loadingCurrent || loadingHistory || loadingApiTraffic}
           className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-zinc-200 bg-white text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
         >
-          {loadingCurrent || loadingHistory ? (
+          {loadingCurrent || loadingHistory || loadingApiTraffic ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
             <RefreshCw className="w-4 h-4" />
@@ -395,6 +414,8 @@ export function ServerHealth() {
         latestMetrics={current?.latest_metrics}
         thresholdPct={current?.cpu_alert?.threshold_pct ?? 75}
       />
+
+      <ApiTrafficPanel data={apiTraffic} loading={loadingApiTraffic} error={apiTrafficError} />
 
       <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden">
         <div className="px-4 sm:px-5 py-4 border-b border-zinc-100">
