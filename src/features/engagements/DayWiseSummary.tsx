@@ -192,7 +192,7 @@ export function DayWiseSummary({
             {section === "blood_collection"
               ? BLOOD_CARDS.map((card) => {
                   const Icon = card.icon;
-                  if (loading || !bloodMetrics) {
+                  if (loading) {
                     return <MetricSkeleton key={card.key} />;
                   }
                   return (
@@ -212,14 +212,14 @@ export function DayWiseSummary({
                         </span>
                       </div>
                       <div className="text-lg font-semibold tabular-nums text-zinc-900 leading-none">
-                        {bloodMetrics[card.key] ?? 0}
+                        {bloodMetrics?.[card.key] ?? 0}
                       </div>
                     </article>
                   );
                 })
               : CONSULT_CARDS.map((card) => {
                   const Icon = card.icon;
-                  if (loading || !consultMetrics) {
+                  if (loading) {
                     return <MetricSkeleton key={card.key} />;
                   }
                   return (
@@ -239,7 +239,7 @@ export function DayWiseSummary({
                         </span>
                       </div>
                       <div className="text-lg font-semibold tabular-nums text-zinc-900 leading-none">
-                        {consultMetrics[card.key] ?? 0}
+                        {consultMetrics?.[card.key] ?? 0}
                       </div>
                     </article>
                   );

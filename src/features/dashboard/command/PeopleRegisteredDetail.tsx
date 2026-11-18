@@ -22,6 +22,10 @@ export function PeopleRegisteredDetail({
   const limit = 20;
 
   useEffect(() => {
+    setPage(1);
+  }, [periodParams.period, periodParams.from, periodParams.to]);
+
+  useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
