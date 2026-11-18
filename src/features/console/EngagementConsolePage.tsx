@@ -150,6 +150,7 @@ export function EngagementConsolePage() {
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [barcodeScannerOpen, setBarcodeScannerOpen] = useState(false);
+  const [pageNotice, setPageNotice] = useState<string | null>(null);
 
   const reloadParticipants = useCallback(async (): Promise<Participant[]> => {
     if (!engId || isNaN(engId)) return [];
@@ -366,6 +367,7 @@ export function EngagementConsolePage() {
     }
     setBookingLoading(true);
     setBookingError(null);
+    setPageNotice(null);
     const userId = selectedParticipant.user_id;
     try {
       const res = await consoleApi.bookParticipant(engId, userId, {
@@ -373,6 +375,32 @@ export function EngagementConsolePage() {
         ...(syncCollectionToNow ? { sync_collection_to_now: true } : {}),
       });
       const result = res.data.data;
+      const bookingCreated =
+        result.booking_created !== false &&
+        Boolean((result.booking_id ?? "").trim());
+
+      if (!bookingCreated) {
+        const notice =
+          (result.message ?? "").trim() ||
+          "Barcode collected. You can proceed with the next booking.";
+        setParticipants((prev) =>
+          prev.map((p) =>
+            p.user_id === userId
+              ? { ...p, barcode: result.barcode ?? trimmed }
+              : p
+          )
+        );
+        setSelectedParticipant((prev) =>
+          prev ? { ...prev, barcode: result.barcode ?? trimmed } : prev
+        );
+        setBarcode("");
+        setSyncCollectionToNow(false);
+        setModalMode(null);
+        setPageNotice(notice);
+        setSelectedParticipant(null);
+        void reloadParticipants();
+        return;
+      }
 
       setParticipants((prev) =>
         prev.map((p) =>
@@ -391,14 +419,6 @@ export function EngagementConsolePage() {
         if (updated) setSelectedParticipant(updated);
       });
     } catch (err) {
-      // Barcode is persisted server-side even when Healthians booking fails;
-      // keep it on the local participant row so the console reflects it immediately.
-      setParticipants((prev) =>
-        prev.map((p) => (p.user_id === userId ? { ...p, barcode: trimmed } : p))
-      );
-      setSelectedParticipant((prev) =>
-        prev ? { ...prev, barcode: trimmed } : prev
-      );
       setBookingError(getApiError(err));
     } finally {
       setBookingLoading(false);
@@ -494,6 +514,21 @@ export function EngagementConsolePage() {
           {isNotRunning && (
             <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
               This engagement is not running — read-only view.
+            </div>
+          )}
+          {pageNotice && (
+            <div
+              className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-sm flex items-start justify-between gap-3"
+              role="status"
+            >
+              <span>{pageNotice}</span>
+              <button
+                type="button"
+                onClick={() => setPageNotice(null)}
+                className="text-emerald-800 text-xs font-medium hover:underline shrink-0"
+              >
+                Dismiss
+              </button>
             </div>
           )}
           {/* Toolbar */}

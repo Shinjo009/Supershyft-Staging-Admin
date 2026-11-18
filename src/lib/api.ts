@@ -3949,6 +3949,9 @@ export interface ConsoleEngagementListItem {
 
 export interface ConsoleParticipantBookResponse {
   status?: boolean;
+  booking_created?: boolean;
+  barcode_saved?: boolean;
+  partner_error?: string | null;
   message?: string | null;
   lead_id?: number | null;
   booking_id?: string | null;
