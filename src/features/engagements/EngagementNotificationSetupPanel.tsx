@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ChevronRight, Loader2 } from "lucide-react";
 
@@ -10,6 +10,7 @@ import {
   notificationsApi,
 } from "../../lib/api";
 import {
+  engagementHasCustomNotificationSlots,
   flattenEngagementEventNotifications,
   formatEngagementEventTriggerSummary,
   type EngagementNotificationTriggerRow,
@@ -64,6 +65,8 @@ export function EngagementNotificationSetupPanel({
   const [catalogServices, setCatalogServices] = useState<NotificationServiceItem[]>(
     () => notificationServicesProp ?? []
   );
+  /** After the user removes a slot, never auto-reseed empties back from globals. */
+  const skipAutoSeedRef = useRef(false);
   const resolvedEngagementId = coerceEngagementId(engagementId ?? null);
   const editable = !readOnly && resolvedEngagementId != null;
 
@@ -125,10 +128,16 @@ export function EngagementNotificationSetupPanel({
       setSetup(data);
       onSetupLoaded?.(data);
 
-      const needsEngagementBindings = data.events.some(
-        (e) => e.global_bindings.length > 0 && e.engagement_bindings.length === 0
-      );
-      if (resolvedEngagementId && needsEngagementBindings) {
+      // Only auto-seed when the engagement has never been customized. Seeding
+      // whenever *some* event is empty re-created slots right after delete.
+      const hasCustomSlots = engagementHasCustomNotificationSlots(data.events);
+      const hasPlatformDefaults = data.events.some((e) => e.global_bindings.length > 0);
+      const shouldAutoSeed =
+        resolvedEngagementId != null &&
+        !skipAutoSeedRef.current &&
+        !hasCustomSlots &&
+        hasPlatformDefaults;
+      if (shouldAutoSeed) {
         setSeeding(true);
         try {
           const seedRes = await engagementNotificationsApi.seedFromDefaults(resolvedEngagementId);
@@ -165,13 +174,23 @@ export function EngagementNotificationSetupPanel({
   const modalEvent =
     modalEventCode != null ? setup?.events.find((e) => e.event_code === modalEventCode) ?? null : null;
 
+  const engagementCustomized = useMemo(
+    () => (setup ? engagementHasCustomNotificationSlots(setup.events) : false),
+    [setup]
+  );
+
   const modalRows = useMemo(() => {
     if (!modalEvent) return [];
-    return flattenEngagementEventNotifications(modalEvent, servicesByKey);
-  }, [modalEvent, servicesByKey]);
+    return flattenEngagementEventNotifications(modalEvent, servicesByKey, {
+      engagementCustomized,
+    });
+  }, [modalEvent, servicesByKey, engagementCustomized]);
 
   const platformDefaultsOnly = Boolean(
-    modalEvent && modalEvent.engagement_bindings.length === 0 && modalEvent.global_bindings.length > 0
+    modalEvent &&
+      !engagementCustomized &&
+      modalEvent.engagement_bindings.length === 0 &&
+      modalEvent.global_bindings.length > 0
   );
 
   const wizardLinkState = useMemo(
@@ -224,10 +243,15 @@ export function EngagementNotificationSetupPanel({
   );
 
   const handleDeleteRow = async (row: EngagementNotificationTriggerRow) => {
-    if (!resolvedEngagementId || readOnly || !row.bindingId) return;
+    if (!resolvedEngagementId || readOnly) return;
+    if (!row.bindingId) {
+      setError("Cannot remove this notification: missing binding id.");
+      return;
+    }
     const label = row.notificationLabel;
     if (!window.confirm(`Remove "${label}" for ${row.recipientLabel} on this engagement?`)) return;
     try {
+      skipAutoSeedRef.current = true;
       if (row.servicesOnBinding <= 1) {
         await engagementNotificationsApi.deleteBinding(resolvedEngagementId, row.bindingId);
       } else {
@@ -279,9 +303,12 @@ export function EngagementNotificationSetupPanel({
 
   const eventSummaries = useMemo(() => {
     if (!setup) return new Map<string, string>();
+    const customized = engagementHasCustomNotificationSlots(setup.events);
     const map = new Map<string, string>();
     for (const event of setup.events) {
-      const rows = flattenEngagementEventNotifications(event, servicesByKey);
+      const rows = flattenEngagementEventNotifications(event, servicesByKey, {
+        engagementCustomized: customized,
+      });
       map.set(event.event_code, formatEngagementEventTriggerSummary(rows));
     }
     return map;
@@ -302,22 +329,28 @@ export function EngagementNotificationSetupPanel({
     return <p className="text-sm text-zinc-500">Select an engagement type in Type & basics first.</p>;
   }
 
-  if (error) {
+  if (!setup) {
     return (
-      <div className="text-sm text-red-600" role="alert">
-        {error}
+      <div className="space-y-2">
+        {error ? (
+          <div className="text-sm text-red-600" role="alert">
+            {error}
+          </div>
+        ) : null}
+        <p className="text-sm text-zinc-500">Unable to load notification setup.</p>
       </div>
     );
-  }
-
-  if (!setup) {
-    return <p className="text-sm text-zinc-500">Unable to load notification setup.</p>;
   }
 
   const events = setup.events;
 
   return (
     <div className="space-y-4">
+      {error ? (
+        <div className="text-sm text-red-600" role="alert">
+          {error}
+        </div>
+      ) : null}
       <p className="text-sm text-zinc-600" title={setup.profile_key}>
         <span className="font-medium text-zinc-900">{setup.profile_label}</span>
         <span className="text-zinc-400 mx-2">·</span>

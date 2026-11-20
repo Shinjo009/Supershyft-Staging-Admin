@@ -213,4 +213,171 @@ test.describe("Engagement notifications setup UI", () => {
     await expect(page.getByTestId("engagement-notification-delete-row")).toHaveCount(2);
     await expect(page.getByTestId("engagement-notification-add-binding")).toBeVisible();
   });
+
+  test("deleting the last binding for an event does not restore platform defaults", async ({
+    page,
+  }) => {
+    let setup = structuredClone(MOCK_NOTIFICATION_SETUP);
+    let seedCalls = 0;
+
+    await page.unroute("**/*");
+    await seedAdminSession(page);
+    await page.route("**/*", async (route) => {
+      const url = route.request().url();
+      const method = route.request().method();
+
+      if (method === "OPTIONS") {
+        await route.fulfill({ status: 204 });
+        return;
+      }
+
+      if (url.includes("/employees/auth/me")) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            data: {
+              employee_id: 9001,
+              name: "E2E Admin",
+              role: "admin",
+              permissions: null,
+              pending_task_count: 0,
+            },
+            meta: {},
+          }),
+        });
+        return;
+      }
+
+      if (url.includes(`/engagements/by-code/${ENGAGEMENT_CODE}`) && method === "GET") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ data: MOCK_ENGAGEMENT, meta: {} }),
+        });
+        return;
+      }
+
+      if (url.includes("/engagements/form-bootstrap")) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            data: {
+              organizations: [{ organization_id: 1, name: "Acme" }],
+              assessment_packages: [],
+              diagnostic_packages: [],
+              notification_services: [
+                { service_key: "welcome-wa", display_name: "Welcome", channel: "whatsapp" },
+              ],
+            },
+            meta: {},
+          }),
+        });
+        return;
+      }
+
+      if (url.includes("/engagement-types")) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            data: [{ id: 1, code: "b2b_camp", display_name: "B2B Camp" }],
+            meta: {},
+          }),
+        });
+        return;
+      }
+
+      if (url.includes("/engagements/notification-setup")) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ data: setup, meta: {} }),
+        });
+        return;
+      }
+
+      if (url.includes("/notifications/seed-from-defaults") && method === "POST") {
+        seedCalls += 1;
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ data: { ...setup, seeded_slots: 0 }, meta: {} }),
+        });
+        return;
+      }
+
+      if (
+        url.includes(`/engagements/${ENGAGEMENT_ID}/notifications/bindings/11`) &&
+        method === "DELETE" &&
+        !url.includes("/services/")
+      ) {
+        setup = {
+          ...setup,
+          events: setup.events.map((ev) =>
+            ev.event_code === "users.onboarded"
+              ? {
+                  ...ev,
+                  engagement_bindings: [],
+                  global_bindings: [
+                    {
+                      id: 501,
+                      event_code: "users.onboarded",
+                      event_name: "User onboarded to engagement",
+                      recipient_type: "user",
+                      delivery_channel: "whatsapp",
+                      notification_services: [{ service_key: "welcome-wa" }],
+                      engagement_type_id: null,
+                    },
+                  ],
+                }
+              : ev
+          ),
+        };
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ data: { deleted: 11 }, meta: {} }),
+        });
+        return;
+      }
+
+      if (url.includes("/engagements") && url.includes("/checklists")) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ data: [], meta: {} }),
+        });
+        return;
+      }
+
+      if (url.includes("/notifications/services") && method === "GET") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ data: [], meta: {} }),
+        });
+        return;
+      }
+
+      await route.continue();
+    });
+
+    page.on("dialog", (dialog) => void dialog.accept());
+
+    await page.goto(`/engagements/${ENGAGEMENT_CODE}/edit?step=notifications`);
+    await expect(page.getByTestId("engagement-notifications-events-list")).toBeVisible({
+      timeout: 60_000,
+    });
+    await page.getByText("User onboarded to engagement").click();
+    await expect(page.getByTestId("engagement-event-notifications-modal")).toBeVisible();
+    await expect(page.getByTestId("engagement-notification-trigger-row")).toHaveCount(1);
+
+    await page.getByTestId("engagement-notification-delete-row").click();
+
+    await expect(page.getByText(/No notifications configured for this event/i)).toBeVisible();
+    await expect(page.getByTestId("engagement-notification-trigger-row")).toHaveCount(0);
+    expect(seedCalls).toBe(0);
+  });
 });
