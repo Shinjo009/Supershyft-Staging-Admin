@@ -1507,14 +1507,18 @@ export function EngagementOperationsPanel({ engagement, active, onEngagementUpda
           {!draftBloodResult && !draftBloodError && !draftingBlood && (
             <>
               <p className="text-sm text-zinc-700">
-                Draft Metsights blood-parameter answers from each participant&apos;s individual health
-                report into questionnaire responses for{" "}
+                Draft Metsights blood-parameter answers from each participant&apos;s Healthians blood
+                booking into questionnaire responses for{" "}
                 <span className="font-semibold">{engagement?.engagement_name ?? "this engagement"}</span>.
               </p>
               <ul className="text-xs text-zinc-500 space-y-1 list-disc pl-4">
-                <li>Only Metsights Basic and Pro assessments are included.</li>
-                <li>Participants without a blood report or Metsights record are skipped.</li>
-                <li>Existing answers for matched parameters are overwritten as drafts.</li>
+                <li>
+                  Includes Metsights Essentials, Basic, and Pro blood package instances for this
+                  engagement.
+                </li>
+                <li>Participants without lab blood data or a Metsights record are skipped.</li>
+                <li>Existing answers for matched parameters are overwritten.</li>
+                <li>Completed assessments are included (camp remediation).</li>
                 <li>Each assessment is processed one at a time to avoid timeouts.</li>
               </ul>
             </>

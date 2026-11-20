@@ -1,6 +1,10 @@
 export type PushCategoryOption = { key: string; label: string };
 
-export const METSIGHTS_BLOOD_PACKAGE_CODES = new Set(["METSIGHTS_BASIC", "METSIGHTS_PRO"]);
+export const METSIGHTS_BLOOD_PACKAGE_CODES = new Set([
+  "METSIGHTS_BASIC",
+  "METSIGHTS_ESSENTIALS",
+  "METSIGHTS_PRO",
+]);
 
 export const MET_PUSH_CATEGORIES: PushCategoryOption[] = [
   { key: "physical-measurement", label: "Physical Measurement" },
