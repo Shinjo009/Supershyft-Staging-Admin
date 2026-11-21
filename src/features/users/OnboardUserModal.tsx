@@ -3,6 +3,7 @@ import { Calendar, CheckCircle2, Loader2, UserRound } from "lucide-react";
 import { Modal } from "../../shared/ui/Modal";
 import { UserSearchPicker } from "../../shared/ui/UserSearchPicker";
 import { getTypeConfig } from "../engagements/engagementTypeConfig";
+import { validateNewAccountAge } from "./userAgeValidation";
 import {
   diagnosticPackagesApi,
   engagementTypesApi,
@@ -260,13 +261,9 @@ export function OnboardUserModal({ open, mode, userId, onClose, onSuccess }: Pro
       setStep1Error("Phone is required.");
       return false;
     }
-    const ageNum = Number(createForm.age);
-    if (!createForm.age.trim() || !Number.isFinite(ageNum)) {
-      setStep1Error("Age is required.");
-      return false;
-    }
-    if (ageNum < 1 || ageNum > 120) {
-      setStep1Error("Age must be between 1 and 120.");
+    const ageError = validateNewAccountAge(createForm.age);
+    if (ageError) {
+      setStep1Error(ageError);
       return false;
     }
     return true;

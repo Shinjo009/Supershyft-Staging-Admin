@@ -21,6 +21,7 @@ import {
 } from "../../lib/api";
 import { isMaskedContact } from "../../lib/isMaskedContact";
 import { HeaderActionButton, HeaderInfoButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
+import { validateNewAccountAgeNumber } from "./userAgeValidation";
 function hasMetsightsProfileId(user: UserListItem): boolean {
   return Boolean((user.metsights_profile_id ?? "").trim());
 }
@@ -401,7 +402,13 @@ export function Users() {
       setError("Phone number is required");
       return;
     }
-    if (
+    if (modalMode === "add") {
+      const ageError = validateNewAccountAgeNumber(formData.age);
+      if (ageError) {
+        setError(ageError);
+        return;
+      }
+    } else if (
       formData.age != null &&
       formData.age > 0 &&
       (!Number.isFinite(formData.age) || formData.age < 1 || formData.age > 120)
@@ -431,8 +438,8 @@ export function Users() {
         is_participant: formData.is_participant,
         status: formData.status,
       };
-      if (formData.age != null && formData.age > 0) {
-        payload.age = Math.trunc(formData.age);
+      if (modalMode === "add" || (formData.age != null && formData.age > 0)) {
+        payload.age = Math.trunc(Number(formData.age));
       }
       if (modalMode === "add") {
         if (isMaskedContact(phoneValue) || isMaskedContact(emailValue)) {
