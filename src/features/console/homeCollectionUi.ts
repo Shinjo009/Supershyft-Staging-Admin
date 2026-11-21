@@ -25,6 +25,7 @@ export function diagnosticProviderLabel(provider?: string | null): string {
   const normalized = (provider ?? "").trim().toLowerCase();
   if (normalized === "orange_health") return "Orange Health";
   if (normalized === "healthians") return "Healthians";
+  if (normalized === "redcliffe") return "Redcliffe";
   if (!normalized) return "Diagnostic partner";
   return (provider ?? "").trim();
 }
