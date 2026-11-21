@@ -61,6 +61,7 @@ export function DiagnosticTestGroupFormFields({
           <option value="">Select</option>
           <option value="Healthians">Healthians</option>
           <option value="orange_health">Orange Health</option>
+          <option value="redcliffe">Redcliffe</option>
         </select>
       </div>
       <div>

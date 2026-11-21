@@ -8,6 +8,10 @@ export function isOrangeHealthProvider(provider: string | null | undefined): boo
   return (provider ?? "").trim().toLowerCase() === "orange_health";
 }
 
+export function isRedcliffeProvider(provider: string | null | undefined): boolean {
+  return (provider ?? "").trim().toLowerCase() === "redcliffe";
+}
+
 /** Human-readable provider name for labels (Healthians, Orange Health, Generic, …). */
 export function diagnosticProviderDisplayLabel(provider: string | null | undefined): string {
   const raw = (provider ?? "").trim();
@@ -16,6 +20,7 @@ export function diagnosticProviderDisplayLabel(provider: string | null | undefin
   if (normalized === "orange_health") return "Orange Health";
   if (normalized === "healthians") return "Healthians";
   if (normalized === "healthlabs") return "HealthLabs";
+  if (normalized === "redcliffe") return "Redcliffe";
   return raw
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());

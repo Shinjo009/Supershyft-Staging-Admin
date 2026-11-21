@@ -24,6 +24,7 @@ export function normalizeDiagnosticProviderForForm(provider: string | null | und
   if (lower === "healthians") return "Healthians";
   if (lower === "orange_health") return "orange_health";
   if (lower === "healthlabs") return "HealthLabs";
+  if (lower === "redcliffe") return "redcliffe";
   return raw;
 }
 
