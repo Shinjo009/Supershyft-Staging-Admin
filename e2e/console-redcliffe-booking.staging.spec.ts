@@ -19,38 +19,42 @@ test.describe("staging redcliffe home collection", () => {
     test.setTimeout(180_000);
 
     await page.goto("/login");
-    await page.getByPlaceholder(/phone/i).fill(phone);
-    await page.getByRole("button", { name: /send otp|continue|verify/i }).click();
+    await page.getByLabel("Phone number").fill(phone);
+    await page.getByRole("button", { name: "Send OTP" }).click();
 
-    await page.getByPlaceholder(/otp|code/i).fill(otp);
-    await page.getByRole("button", { name: /verify|login|sign in/i }).click();
+    await page.getByLabel("Verification code").fill(otp);
+    await page.getByRole("button", { name: "Verify & Sign in" }).click();
 
-    await page.waitForURL(/engagements|dashboard/i, { timeout: 60_000 });
+    await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 60_000 });
 
     await page.goto(`/engagements/${engagementId}/console`);
-    await expect(page.getByText(/Redcliffe/i).first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/Home collection · Redcliffe/i)).toBeVisible({ timeout: 30_000 });
 
-    const bookButton = page.getByRole("button", { name: /book home collection|book collection|book/i }).first();
-    await bookButton.click();
+    const participantRow = page.getByRole("row").filter({ hasText: "Pratheek Test" });
+    await participantRow.getByLabel("Actions").click();
+    await page.getByRole("button", { name: "Book", exact: true }).click();
 
-    await page.getByPlaceholder(/address/i).first().fill("Mumbai 400069");
-    await page.getByPlaceholder(/city/i).fill("Mumbai");
-    await page.getByPlaceholder(/pincode/i).fill("400069");
-    await page.getByRole("button", { name: /check availability/i }).click();
+    await expect(page.getByRole("heading", { name: "Home Collection Booking" })).toBeVisible();
 
-    await expect(page.getByText(/select date/i)).toBeVisible({ timeout: 60_000 });
+    await page.getByPlaceholder("Enter full address").fill("Mumbai 400069");
+    await page.getByPlaceholder("City").fill("Mumbai");
+    await page.getByPlaceholder("Pincode").fill("400069");
+    await page.getByRole("button", { name: "Check Availability" }).click();
 
-    const dateButton = page.locator("button").filter({ hasText: /Nov|Mon|Tue|Wed|Thu|Fri|Sat|Sun/ }).first();
+    await expect(page.getByText("Select Date")).toBeVisible({ timeout: 60_000 });
+
+    const dateButton = page.locator("button").filter({ hasText: /\d/ }).first();
     await dateButton.click();
 
     const slotButton = page.locator("button").filter({ hasText: /AM|PM|:/ }).first();
     await expect(slotButton).toBeVisible({ timeout: 60_000 });
     await slotButton.click();
 
-    await page.getByRole("button", { name: /confirm slot|lock/i }).click();
-    await expect(page.getByText(/book/i)).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("button", { name: "Lock Slot" }).click();
+    await expect(page.getByText("Booking Summary")).toBeVisible({ timeout: 30_000 });
 
-    await page.getByRole("button", { name: /^book$/i }).click();
-    await expect(page.getByText(/booking/i)).toBeVisible({ timeout: 120_000 });
+    await page.getByRole("button", { name: "Confirm Booking" }).click();
+    await expect(page.getByText("Booking Created")).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByText("Booking ID")).toBeVisible();
   });
 });
