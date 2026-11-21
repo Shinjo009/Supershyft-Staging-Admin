@@ -291,3 +291,48 @@ export function validateAnthropometryScaleAnswer(
   }
   return null;
 }
+
+/** Whether the API marks this question's answer as load-prev / not yet reviewed. */
+export function isQuestionCarriedForward(question: ConsoleQuestionnaireQuestion): boolean {
+  if (question.is_carried_forward === true) return true;
+  return String(question.answer_source ?? "").trim().toLowerCase() === "carried_forward";
+}
+
+const CARRIED_FORWARD_LABEL = "Carried forward from last camp";
+
+/** Visible label when answer is carried forward; API has no source-camp fields — generic only. */
+export function carriedForwardLabelForQuestion(question: ConsoleQuestionnaireQuestion): string | null {
+  return isQuestionCarriedForward(question) ? CARRIED_FORWARD_LABEL : null;
+}
+
+function rawAnswerForQuestion(
+  question: ConsoleQuestionnaireQuestion,
+  answers: Record<number, unknown>
+): unknown {
+  if (Object.prototype.hasOwnProperty.call(answers, question.question_id)) {
+    return answers[question.question_id];
+  }
+  return question.answer;
+}
+
+/**
+ * Opening step for the per-category questionnaire wizard (visible question order):
+ * 1) first carried-forward (needs review), 2) first empty answer, 3) first question when all committed.
+ */
+export function computeWizardLandingStepIndex(
+  questions: ConsoleQuestionnaireQuestion[],
+  answers: Record<number, unknown>
+): number {
+  if (questions.length === 0) return 0;
+
+  const carriedIdx = questions.findIndex((q) => isQuestionCarriedForward(q));
+  if (carriedIdx >= 0) return carriedIdx;
+
+  const unansweredIdx = questions.findIndex((q) => {
+    const normalized = normalizeAnswerForQuestion(q, rawAnswerForQuestion(q, answers));
+    return isAnswerEmpty(normalized);
+  });
+  if (unansweredIdx >= 0) return unansweredIdx;
+
+  return 0;
+}

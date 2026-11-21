@@ -4028,6 +4028,7 @@ export interface ConsoleQuestionnaireQuestion {
   is_visible?: boolean;
   answer?: unknown;
   answer_source?: string | null;
+  is_carried_forward?: boolean;
 }
 
 export interface ConsoleQuestionnairePayload {

@@ -7,8 +7,11 @@ import {
   type ConsoleQuestionnaireQuestion,
 } from "../../lib/api";
 import {
+  carriedForwardLabelForQuestion,
+  computeWizardLandingStepIndex,
   getVisibleQuestions,
   isAnswerEmpty,
+  isQuestionCarriedForward,
   normalizeAnswerForQuestion,
   validateAnthropometryScaleAnswer,
 } from "./consoleQuestionnaireUtils";
@@ -24,20 +27,6 @@ type QuestionnaireQuestionWizardProps = {
   onBack: () => void;
   onSubmitted: () => void;
 };
-
-function initialStepIndex(
-  questions: ConsoleQuestionnaireQuestion[],
-  answers: Record<number, unknown>
-): number {
-  const firstUnansweredRequired = questions.findIndex((q) => {
-    if (!q.is_required) return false;
-    const normalized = normalizeAnswerForQuestion(q, answers[q.question_id]);
-    return isAnswerEmpty(normalized);
-  });
-  // All required answered → land on submit step (index === questions.length)
-  if (firstUnansweredRequired === -1) return questions.length;
-  return firstUnansweredRequired;
-}
 
 export function QuestionnaireQuestionWizard({
   engagementId,
@@ -83,7 +72,7 @@ export function QuestionnaireQuestionWizard({
         });
         setQuestions(visible);
         setAnswers(initial);
-        setStepIndex(initialStepIndex(visible, initial));
+        setStepIndex(computeWizardLandingStepIndex(visible, initial));
       })
       .catch((err) => {
         if (!cancelled) setError(getApiError(err));
@@ -107,6 +96,11 @@ export function QuestionnaireQuestionWizard({
     if (!currentQuestion) return undefined;
     return answers[currentQuestion.question_id];
   }, [answers, currentQuestion]);
+
+  const carriedForwardLabel = useMemo(() => {
+    if (!currentQuestion) return null;
+    return carriedForwardLabelForQuestion(currentQuestion);
+  }, [currentQuestion]);
 
   const setCurrentAnswer = (value: unknown) => {
     if (!currentQuestion) return;
@@ -156,6 +150,15 @@ export function QuestionnaireQuestionWizard({
     setError(null);
     try {
       await saveCurrentAnswer();
+      if (currentQuestion && isQuestionCarriedForward(currentQuestion)) {
+        setQuestions((prev) =>
+          prev.map((q) =>
+            q.question_id === currentQuestion.question_id
+              ? { ...q, is_carried_forward: false, answer_source: "draft" }
+              : q
+          )
+        );
+      }
       goToNextStep();
     } catch (err) {
       setError(getApiError(err));
@@ -319,6 +322,11 @@ export function QuestionnaireQuestionWizard({
           {currentQuestion?.help_text && (
             <p className="mt-2 text-sm text-zinc-500 bg-zinc-50 rounded-lg px-3 py-2">
               {currentQuestion.help_text}
+            </p>
+          )}
+          {carriedForwardLabel && (
+            <p className="mt-2 text-xs font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              {carriedForwardLabel}
             </p>
           )}
         </div>
