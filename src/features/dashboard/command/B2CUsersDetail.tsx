@@ -13,6 +13,7 @@ type FetchKind =
   | "total_bookings"
   | "collection_tomorrow"
   | "tests_completed"
+  | "lab_report_delivered"
   | "bio_ai_reports"
   | "consultation_done"
   | "package_performance"
@@ -22,6 +23,7 @@ const TITLES: Record<FetchKind, string> = {
   total_bookings: "Total bookings",
   collection_tomorrow: "Collection tomorrow",
   tests_completed: "Tests completed",
+  lab_report_delivered: "Lab report delivered",
   bio_ai_reports: "Bio-AI reports generated",
   consultation_done: "Consultation done",
   package_performance: "Package performance",
@@ -32,6 +34,7 @@ const EMPTY: Record<FetchKind, string> = {
   total_bookings: "No B2C bookings in this period.",
   collection_tomorrow: "No collections scheduled for tomorrow.",
   tests_completed: "No completed tests in this period.",
+  lab_report_delivered: "No lab reports delivered in this period.",
   bio_ai_reports: "No Bio-AI reports in this period.",
   consultation_done: "No consultations done in this period.",
   package_performance: "No users for this package in this period.",
@@ -43,6 +46,7 @@ function kindFromCard(card: CardId): FetchKind | null {
     card === "total_bookings" ||
     card === "collection_tomorrow" ||
     card === "tests_completed" ||
+    card === "lab_report_delivered" ||
     card === "bio_ai_reports" ||
     card === "consultation_done" ||
     card === "package_performance" ||
@@ -94,6 +98,8 @@ export function B2CUsersDetail({
           return commandDashboardApi.b2cCollectionTomorrow(params);
         case "tests_completed":
           return commandDashboardApi.b2cTestsCompleted(params);
+        case "lab_report_delivered":
+          return commandDashboardApi.b2cLabReportDelivered(params);
         case "bio_ai_reports":
           return commandDashboardApi.b2cBioAiReports(params);
         case "consultation_done":

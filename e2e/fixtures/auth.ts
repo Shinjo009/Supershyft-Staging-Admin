@@ -41,6 +41,7 @@ export type ApiCounters = {
   getB2cSummaryCalls: () => number;
   getB2cUsersCalls: () => number;
   getB2cTotalBookingsCalls: () => number;
+  getB2cLabReportDeliveredCalls: () => number;
 };
 
 const JOURNEY_DETAIL_ROW = {
@@ -63,10 +64,16 @@ const B2C_USER_ROW = {
   type: "B2C",
 };
 
+const B2C_LAB_REPORT_ROW = {
+  ...B2C_USER_ROW,
+  lab_report: "sent",
+};
+
 const B2C_SUMMARY = {
   total_bookings: 18,
   collection_tomorrow: 4,
   tests_completed: 11,
+  lab_report_delivered: 9,
   bio_ai_reports: 7,
   consultation_done: 5,
   packages: [
@@ -117,6 +124,7 @@ export async function mockCommandApis(page: Page): Promise<ApiCounters> {
   let b2cSummaryCalls = 0;
   let b2cUsersCalls = 0;
   let b2cTotalBookingsCalls = 0;
+  let b2cLabReportDeliveredCalls = 0;
 
   const fulfillB2cUsers = async (route: Route, total: number, includeRows: boolean) => {
     await route.fulfill({
@@ -611,6 +619,25 @@ export async function mockCommandApis(page: Page): Promise<ApiCounters> {
       return;
     }
 
+    if (url.includes("/admin/dashboard/command/b2c/lab-report-delivered")) {
+      b2cLabReportDeliveredCalls += 1;
+      const includeRows = new URL(url).searchParams.get("include_rows") !== "false";
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: includeRows ? [B2C_LAB_REPORT_ROW] : [],
+          meta: {
+            period: "this_week",
+            page: 1,
+            limit: includeRows ? 20 : 1,
+            total: 9,
+          },
+        }),
+      });
+      return;
+    }
+
     if (url.includes("/admin/dashboard/command/b2c/bio-ai-reports")) {
       const includeRows = new URL(url).searchParams.get("include_rows") !== "false";
       await fulfillB2cUsers(route, 7, includeRows);
@@ -689,6 +716,7 @@ export async function mockCommandApis(page: Page): Promise<ApiCounters> {
     getB2cSummaryCalls: () => b2cSummaryCalls,
     getB2cUsersCalls: () => b2cUsersCalls,
     getB2cTotalBookingsCalls: () => b2cTotalBookingsCalls,
+    getB2cLabReportDeliveredCalls: () => b2cLabReportDeliveredCalls,
   };
 }
 

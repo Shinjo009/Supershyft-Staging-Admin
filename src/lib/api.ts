@@ -6456,6 +6456,7 @@ export interface CommandB2CSummary {
   total_bookings: number;
   collection_tomorrow: number;
   tests_completed: number;
+  lab_report_delivered: number;
   bio_ai_reports: number;
   consultation_done: number;
   packages: CommandB2CPackageRow[];
@@ -6660,6 +6661,11 @@ export const commandDashboardApi = {
       data: CommandB2CUserRow[];
       meta: { period: string; page: number; limit: number; total: number };
     }>("/admin/dashboard/command/b2c/tests-completed", { params }),
+  b2cLabReportDelivered: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandB2CUserRow[];
+      meta: { period: string; page: number; limit: number; total: number };
+    }>("/admin/dashboard/command/b2c/lab-report-delivered", { params }),
   b2cBioAiReports: (params?: CommandPeriodParams) =>
     api.get<{
       data: CommandB2CUserRow[];
