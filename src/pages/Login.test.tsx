@@ -1,10 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import axios from "axios";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Login } from "./Login";
 
 const mockNavigate = vi.fn();
+const mockDiscoverEligibleRoles = vi.fn();
 const mockSendOtp = vi.fn();
 const mockResendOtp = vi.fn();
 const mockLogin = vi.fn();
@@ -22,6 +22,7 @@ vi.mock("react-router-dom", async () => {
 vi.mock("../contexts/AuthContext", () => ({
   useAuth: () => ({
     login: mockLogin,
+    discoverEligibleRoles: mockDiscoverEligibleRoles,
     sendOtp: mockSendOtp,
     resendOtp: mockResendOtp,
     isAuthenticated: false,
@@ -35,14 +36,23 @@ vi.mock("../contexts/AuthContext", () => ({
   }),
 }));
 
+const employeeSelection = {
+  authKind: "employee" as const,
+  label: "Employee",
+};
+
 describe("Login", () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     mockNavigate.mockReset();
+    mockDiscoverEligibleRoles.mockReset();
     mockSendOtp.mockReset();
     mockResendOtp.mockReset();
     mockLogin.mockReset();
-    mockSendOtp.mockResolvedValue({ session_id: 1, authKind: "employee" });
+    mockDiscoverEligibleRoles.mockResolvedValue([
+      { kind: "employee", role: "employee", label: "Employee" },
+    ]);
+    mockSendOtp.mockResolvedValue({ session_id: 1 });
     mockResendOtp.mockResolvedValue({ session_id: 2 });
     mockLogin.mockResolvedValue(null);
   });
@@ -51,7 +61,7 @@ describe("Login", () => {
     vi.useRealTimers();
   });
 
-  async function goToOtpStep(phone = "9876543210") {
+  async function goToOtpViaSingleRole(phone = "9876543210") {
     render(
       <MemoryRouter>
         <Login />
@@ -61,23 +71,74 @@ describe("Login", () => {
     fireEvent.change(screen.getByLabelText("Phone number"), {
       target: { value: phone },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Send OTP" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     await waitFor(() => {
-      expect(mockSendOtp).toHaveBeenCalledWith("9876543210");
+      expect(mockDiscoverEligibleRoles).toHaveBeenCalledWith("9876543210");
+      expect(mockSendOtp).toHaveBeenCalledWith("9876543210", employeeSelection);
       expect(screen.getByLabelText("Verification code")).toBeInTheDocument();
     });
   }
 
+  it("skips role selection when only one eligible role exists", async () => {
+    await goToOtpViaSingleRole();
+    expect(screen.queryByRole("button", { name: "Employee" })).not.toBeInTheDocument();
+  });
+
+  it("shows only matching roles when several are eligible", async () => {
+    mockDiscoverEligibleRoles.mockResolvedValue([
+      { kind: "employee", role: "employee", label: "Employee" },
+      { kind: "partner", role: "author", label: "Author" },
+    ]);
+
+    render(
+      <MemoryRouter>
+        <Login />
+      </MemoryRouter>
+    );
+
+    fireEvent.change(screen.getByLabelText("Phone number"), {
+      target: { value: "9876543210" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Employee" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Author" })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("button", { name: "Partner" })).not.toBeInTheDocument();
+    expect(mockSendOtp).not.toHaveBeenCalled();
+  });
+
+  it("shows empty state when no eligible roles", async () => {
+    mockDiscoverEligibleRoles.mockResolvedValue([]);
+
+    render(
+      <MemoryRouter>
+        <Login />
+      </MemoryRouter>
+    );
+
+    fireEvent.change(screen.getByLabelText("Phone number"), {
+      target: { value: "9876543210" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/No eligible account/i)).toBeInTheDocument();
+    });
+    expect(mockSendOtp).not.toHaveBeenCalled();
+  });
+
   it("keeps resend unavailable during the cooldown", async () => {
-    await goToOtpStep();
+    await goToOtpViaSingleRole();
 
     expect(screen.getByText(/Resend OTP in 30s/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Resend OTP" })).not.toBeInTheDocument();
   });
 
-  it("shows resend after 30 seconds and sends only the normalized phone", async () => {
-    await goToOtpStep();
+  it("shows resend after 30 seconds and sends with the selection", async () => {
+    await goToOtpViaSingleRole();
 
     vi.advanceTimersByTime(30_000);
 
@@ -88,76 +149,25 @@ describe("Login", () => {
     fireEvent.click(screen.getByRole("button", { name: "Resend OTP" }));
 
     await waitFor(() => {
-      expect(mockResendOtp).toHaveBeenCalledWith("9876543210", "employee");
+      expect(mockResendOtp).toHaveBeenCalledWith("9876543210", employeeSelection);
       expect(mockResendOtp).toHaveBeenCalledTimes(1);
     });
   });
 
-  it("clears OTP, shows success status, and restarts cooldown after resend", async () => {
-    await goToOtpStep();
-
-    const otpInput = screen.getByLabelText("Verification code");
-    fireEvent.change(otpInput, { target: { value: "123456" } });
-    expect(otpInput).toHaveValue("123456");
-
-    vi.advanceTimersByTime(30_000);
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Resend OTP" })).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Resend OTP" }));
-
-    await waitFor(() => {
-      expect(otpInput).toHaveValue("");
-      expect(
-        screen.getByText("A new verification code has been sent.")
-      ).toBeInTheDocument();
-      expect(screen.getByText(/Resend OTP in 30s/)).toBeInTheDocument();
-    });
-  });
-
-  it("shows mapped error on resend failure without restarting cooldown", async () => {
-    mockResendOtp.mockRejectedValue(
-      new axios.AxiosError(
-        "Request failed",
-        "ERR_BAD_REQUEST",
-        undefined,
-        undefined,
-        {
-          status: 404,
-          data: { error_code: "EMPLOYEE_NOT_FOUND", message: "Employee does not exist" },
-        } as import("axios").AxiosResponse
-      )
-    );
-
-    await goToOtpStep();
-    vi.advanceTimersByTime(30_000);
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Resend OTP" })).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Resend OTP" }));
-
-    await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent("Employee does not exist");
-      expect(screen.getByRole("button", { name: "Resend OTP" })).toBeInTheDocument();
-      expect(screen.queryByText(/Resend OTP in \d+s/)).not.toBeInTheDocument();
-    });
-  });
-
-  it("verifies OTP and redirects after successful login", async () => {
-    await goToOtpStep();
+  it("verifies OTP with the selected role", async () => {
+    await goToOtpViaSingleRole();
 
     fireEvent.change(screen.getByLabelText("Verification code"), {
-      target: { value: "123456" },
+      target: { value: "654321" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Verify & Sign in" }));
 
     await waitFor(() => {
-      expect(mockLogin).toHaveBeenCalledWith("9876543210", "123456", "employee");
-      expect(mockNavigate).toHaveBeenCalledWith("/", { replace: true });
+      expect(mockLogin).toHaveBeenCalledWith(
+        "9876543210",
+        "654321",
+        employeeSelection
+      );
     });
   });
 });

@@ -617,10 +617,18 @@ export const employeesAuthApi = {
   me: () => api.get<{ data: EmployeeAuthMeResponse }>("/employees/auth/me"),
 };
 
+/** Partner login roles (kept near auth clients; full export also at PartnerRoleValue below). */
+type StaffPartnerRoleValue = "phlebo" | "expert" | "organization_manager" | "author";
+
 export const partnersAuthApi = {
-  sendOtp: (payload: { phone?: string; email?: string }) =>
+  sendOtp: (payload: { phone?: string; email?: string; role?: StaffPartnerRoleValue }) =>
     authHttp.post<{ data: { session_id: number } }>("/partners/auth/send-otp", payload),
-  verifyOtp: (payload: { phone?: string; email?: string; otp: string }) =>
+  verifyOtp: (payload: {
+    phone?: string;
+    email?: string;
+    role?: StaffPartnerRoleValue;
+    otp: string;
+  }) =>
     authHttp.post<{ data: PartnerAuthVerifyResponse }>("/partners/auth/verify-otp", payload),
   refreshToken: (refreshToken: string) =>
     authHttp.post<{
@@ -631,36 +639,67 @@ export const partnersAuthApi = {
   me: () => api.get<{ data: PartnerAuthMeResponse }>("/partners/auth/me"),
 };
 
-/** Unified admin login: try employee OTP first, then partner. */
+export type StaffEligibleRole = {
+  kind: "employee" | "partner";
+  role: "employee" | StaffPartnerRoleValue;
+  label: string;
+};
+
+export type StaffLoginSelection = {
+  authKind: "employee" | "partner";
+  partnerRole?: StaffPartnerRoleValue;
+  label: string;
+};
+
+/** Matching-role admin login: discover eligible roles, then role-scoped OTP. */
 export const staffAuthApi = {
-  sendOtp: async (phone: string): Promise<{ session_id: number; authKind: "employee" | "partner" }> => {
-    try {
-      const res = await employeesAuthApi.sendOtp({ phone });
-      return { session_id: res.data.data.session_id, authKind: "employee" };
-    } catch (err) {
-      if (!isNotFoundAuthError(err)) throw err;
-      const res = await partnersAuthApi.sendOtp({ phone });
-      return { session_id: res.data.data.session_id, authKind: "partner" };
+  discoverEligibleRoles: async (phone: string): Promise<StaffEligibleRole[]> => {
+    const res = await authHttp.post<{ data: { roles: StaffEligibleRole[] } }>(
+      "/staff/auth/eligible-roles",
+      { phone }
+    );
+    return res.data.data.roles ?? [];
+  },
+  sendOtp: async (
+    phone: string,
+    selection: StaffLoginSelection
+  ): Promise<{ session_id: number }> => {
+    if (selection.authKind === "partner") {
+      if (!selection.partnerRole) {
+        throw new Error("Partner role is required");
+      }
+      const res = await partnersAuthApi.sendOtp({
+        phone,
+        role: selection.partnerRole,
+      });
+      return res.data.data;
     }
+    const res = await employeesAuthApi.sendOtp({ phone });
+    return res.data.data;
   },
   resendOtp: async (
     phone: string,
-    authKind: "employee" | "partner"
+    selection: StaffLoginSelection
   ): Promise<{ session_id: number }> => {
-    const apiClient = authKind === "partner" ? partnersAuthApi : employeesAuthApi;
-    const res = await apiClient.sendOtp({ phone });
-    return res.data.data;
+    return staffAuthApi.sendOtp(phone, selection);
   },
   verifyOtp: async (
     phone: string,
     otp: string,
-    authKind: "employee" | "partner"
+    selection: StaffLoginSelection
   ): Promise<
     | { authKind: "employee"; data: EmployeeAuthVerifyResponse }
     | { authKind: "partner"; data: PartnerAuthVerifyResponse }
   > => {
-    if (authKind === "partner") {
-      const res = await partnersAuthApi.verifyOtp({ phone, otp });
+    if (selection.authKind === "partner") {
+      if (!selection.partnerRole) {
+        throw new Error("Partner role is required");
+      }
+      const res = await partnersAuthApi.verifyOtp({
+        phone,
+        role: selection.partnerRole,
+        otp,
+      });
       return { authKind: "partner", data: res.data.data };
     }
     const res = await employeesAuthApi.verifyOtp({ phone, otp });
@@ -676,6 +715,17 @@ export const staffAuthApi = {
     }
   },
 };
+
+export function toStaffLoginSelection(role: StaffEligibleRole): StaffLoginSelection {
+  if (role.kind === "employee") {
+    return { authKind: "employee", label: role.label };
+  }
+  return {
+    authKind: "partner",
+    partnerRole: role.role as StaffPartnerRoleValue,
+    label: role.label,
+  };
+}
 
 // Full user detail (employee view)
 export interface UserDetail {

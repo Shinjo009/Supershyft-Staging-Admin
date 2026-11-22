@@ -1,24 +1,42 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { getApiError } from "../lib/api";
-import { resolvePostLoginPath, type AuthKind } from "../lib/authStorage";
+import {
+  getApiError,
+  toStaffLoginSelection,
+  type StaffEligibleRole,
+  type StaffLoginSelection,
+} from "../lib/api";
+import { resolvePostLoginPath } from "../lib/authStorage";
 import { Loader2 } from "lucide-react";
 
 const RESEND_COOLDOWN_SECONDS = 30;
 
+type LoginStep = "phone" | "role" | "otp" | "empty";
+
 export function Login() {
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
-  const [step, setStep] = useState<"phone" | "otp">("phone");
-  const [authKind, setAuthKind] = useState<AuthKind | null>(null);
+  const [step, setStep] = useState<LoginStep>("phone");
+  const [eligibleRoles, setEligibleRoles] = useState<StaffEligibleRole[]>([]);
+  const [selection, setSelection] = useState<StaffLoginSelection | null>(null);
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resendStatus, setResendStatus] = useState<string | null>(null);
   const [resendAvailableAt, setResendAvailableAt] = useState<number | null>(null);
   const [resendSecondsLeft, setResendSecondsLeft] = useState(0);
-  const { login, sendOtp, resendOtp, isAuthenticated, isLoading, employeeRole, authKind: sessionAuthKind } = useAuth();
+  const otpSendGuard = useRef<string | null>(null);
+  const {
+    login,
+    discoverEligibleRoles,
+    sendOtp,
+    resendOtp,
+    isAuthenticated,
+    isLoading,
+    employeeRole,
+    authKind: sessionAuthKind,
+  } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectTarget = searchParams.get("redirect");
@@ -50,14 +68,16 @@ export function Login() {
     setResendSecondsLeft(RESEND_COOLDOWN_SECONDS);
   };
 
-  const resetOtpStep = () => {
+  const resetToPhone = () => {
     setStep("phone");
     setOtp("");
-    setAuthKind(null);
+    setEligibleRoles([]);
+    setSelection(null);
     setResendStatus(null);
     setResendAvailableAt(null);
     setResendSecondsLeft(0);
     setError(null);
+    otpSendGuard.current = null;
   };
 
   useEffect(() => {
@@ -74,7 +94,37 @@ export function Login() {
     navigate,
   ]);
 
-  const handleSendOtp = async (e: React.FormEvent) => {
+  const beginOtpForSelection = async (
+    normalizedPhone: string,
+    nextSelection: StaffLoginSelection,
+    options?: { fallbackStep?: LoginStep }
+  ) => {
+    const fallbackStep = options?.fallbackStep ?? "phone";
+    const guardKey = `${normalizedPhone}:${nextSelection.authKind}:${nextSelection.partnerRole ?? "employee"}`;
+    if (otpSendGuard.current === guardKey) {
+      return;
+    }
+    otpSendGuard.current = guardKey;
+    setSelection(nextSelection);
+    setLoading(true);
+    setError(null);
+    setResendStatus(null);
+    try {
+      await sendOtp(normalizedPhone, nextSelection);
+      setPhone(normalizedPhone);
+      setStep("otp");
+      setOtp("");
+      startResendCooldown();
+    } catch (err) {
+      otpSendGuard.current = null;
+      setError(getApiError(err, "auth"));
+      setStep(fallbackStep);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDiscover = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setResendStatus(null);
@@ -84,13 +134,26 @@ export function Login() {
       return;
     }
     setLoading(true);
+    otpSendGuard.current = null;
     try {
-      const result = await sendOtp(normalizedPhone);
+      const roles = await discoverEligibleRoles(normalizedPhone);
       setPhone(normalizedPhone);
-      setAuthKind(result.authKind);
-      setStep("otp");
-      setOtp("");
-      startResendCooldown();
+      setEligibleRoles(roles);
+      if (roles.length === 0) {
+        setSelection(null);
+        setStep("empty");
+        return;
+      }
+      if (roles.length === 1) {
+        await beginOtpForSelection(
+          normalizedPhone,
+          toStaffLoginSelection(roles[0]),
+          { fallbackStep: "phone" }
+        );
+        return;
+      }
+      setSelection(null);
+      setStep("role");
     } catch (err) {
       setError(getApiError(err, "auth"));
     } finally {
@@ -98,13 +161,18 @@ export function Login() {
     }
   };
 
+  const handleSelectRole = async (role: StaffEligibleRole) => {
+    const next = toStaffLoginSelection(role);
+    await beginOtpForSelection(phone, next, { fallbackStep: "role" });
+  };
+
   const handleResendOtp = async () => {
-    if (resendLoading || resendSecondsLeft > 0 || !authKind) return;
+    if (resendLoading || resendSecondsLeft > 0 || !selection) return;
     setError(null);
     setResendStatus(null);
     setResendLoading(true);
     try {
-      await resendOtp(phone, authKind);
+      await resendOtp(phone, selection);
       setOtp("");
       setResendStatus("A new verification code has been sent.");
       startResendCooldown();
@@ -123,14 +191,16 @@ export function Login() {
       setError("Please enter the OTP");
       return;
     }
-    if (!authKind) {
+    if (!selection) {
       setError("Please request a new OTP");
       return;
     }
     setLoading(true);
     try {
-      const role = await login(phone.replace(/\D/g, ""), otp.trim(), authKind);
-      navigate(resolvePostLoginPath(role, redirectTarget, authKind), { replace: true });
+      const role = await login(phone.replace(/\D/g, ""), otp.trim(), selection);
+      navigate(resolvePostLoginPath(role, redirectTarget, selection.authKind), {
+        replace: true,
+      });
     } catch (err) {
       setError(getApiError(err, "auth"));
     } finally {
@@ -170,8 +240,8 @@ export function Login() {
           </div>
         )}
 
-        {step === "phone" ? (
-          <form onSubmit={handleSendOtp} className="space-y-4">
+        {step === "phone" && (
+          <form onSubmit={handleDiscover} className="space-y-4">
             <div>
               <label
                 htmlFor="phone"
@@ -198,14 +268,60 @@ export function Login() {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Sending...
+                  Checking...
                 </>
               ) : (
-                "Send OTP"
+                "Continue"
               )}
             </button>
           </form>
-        ) : (
+        )}
+
+        {step === "empty" && (
+          <div className="space-y-4">
+            <p className="text-sm text-zinc-600 text-center">
+              No eligible account for this phone number.
+            </p>
+            <button
+              type="button"
+              onClick={resetToPhone}
+              className="w-full text-sm text-zinc-500 hover:text-zinc-700"
+            >
+              Change phone number
+            </button>
+          </div>
+        )}
+
+        {step === "role" && (
+          <div className="space-y-4">
+            <p className="text-sm text-zinc-600 text-center">
+              Continue as
+            </p>
+            <div className="space-y-2">
+              {eligibleRoles.map((role) => (
+                <button
+                  key={`${role.kind}:${role.role}`}
+                  type="button"
+                  disabled={loading}
+                  onClick={() => void handleSelectRole(role)}
+                  className="w-full py-2.5 px-4 rounded-lg border border-zinc-300 text-zinc-900 font-medium hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {role.label}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={resetToPhone}
+              disabled={loading}
+              className="w-full text-sm text-zinc-500 hover:text-zinc-700 disabled:opacity-50"
+            >
+              Change phone number
+            </button>
+          </div>
+        )}
+
+        {step === "otp" && selection && (
           <form onSubmit={handleVerifyOtp} className="space-y-4">
             <div>
               <label
@@ -226,7 +342,7 @@ export function Login() {
                 autoFocus
               />
               <p className="mt-1 text-xs text-zinc-500">
-                Code sent to {phone}
+                Code sent to {phone} · {selection.label}
               </p>
               {resendStatus && (
                 <p role="status" aria-live="polite" className="mt-1 text-xs text-green-700">
@@ -266,7 +382,7 @@ export function Login() {
             </button>
             <button
               type="button"
-              onClick={resetOtpStep}
+              onClick={resetToPhone}
               disabled={isOtpActionDisabled}
               className="w-full text-sm text-zinc-500 hover:text-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >

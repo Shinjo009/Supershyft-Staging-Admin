@@ -11,6 +11,8 @@ import {
   partnersAuthApi,
   staffAuthApi,
   PERMISSIONS_STALE_EVENT,
+  type StaffEligibleRole,
+  type StaffLoginSelection,
 } from "../lib/api";
 import {
   authStorage,
@@ -49,14 +51,18 @@ interface AuthContextValue extends AuthState {
   login: (
     phone: string,
     otp: string,
-    authKind: AuthKind
+    selection: StaffLoginSelection
   ) => Promise<SessionRole | null>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
-  sendOtp: (phone: string) => Promise<{ session_id: number; authKind: AuthKind }>;
+  discoverEligibleRoles: (phone: string) => Promise<StaffEligibleRole[]>;
+  sendOtp: (
+    phone: string,
+    selection: StaffLoginSelection
+  ) => Promise<{ session_id: number }>;
   resendOtp: (
     phone: string,
-    authKind: AuthKind
+    selection: StaffLoginSelection
   ) => Promise<{ session_id: number }>;
   error: string | null;
   clearError: () => void;
@@ -127,19 +133,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const clearError = useCallback(() => setError(null), []);
 
-  const sendOtp = useCallback(async (phone: string) => {
+  const discoverEligibleRoles = useCallback(async (phone: string) => {
     setError(null);
-    return staffAuthApi.sendOtp(phone);
+    return staffAuthApi.discoverEligibleRoles(phone);
   }, []);
 
-  const resendOtp = useCallback(async (phone: string, authKind: AuthKind) => {
+  const sendOtp = useCallback(async (phone: string, selection: StaffLoginSelection) => {
     setError(null);
-    return staffAuthApi.resendOtp(phone, authKind);
+    return staffAuthApi.sendOtp(phone, selection);
   }, []);
 
-  const login = useCallback(async (phone: string, otp: string, authKind: AuthKind) => {
+  const resendOtp = useCallback(async (phone: string, selection: StaffLoginSelection) => {
     setError(null);
-    const result = await staffAuthApi.verifyOtp(phone, otp, authKind);
+    return staffAuthApi.resendOtp(phone, selection);
+  }, []);
+
+  const login = useCallback(async (phone: string, otp: string, selection: StaffLoginSelection) => {
+    setError(null);
+    const result = await staffAuthApi.verifyOtp(phone, otp, selection);
     const tokens = result.data.tokens;
     authStorage.setTokens(tokens.access_token, tokens.refresh_token);
 
@@ -332,6 +343,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     logout,
     refreshProfile,
+    discoverEligibleRoles,
     sendOtp,
     resendOtp,
     error,
