@@ -576,18 +576,6 @@ export interface PartnerAuthMeResponse {
   status?: string | null;
 }
 
-function isNotFoundAuthError(err: unknown): boolean {
-  if (!axios.isAxiosError(err)) return false;
-  const status = err.response?.status;
-  const code = (err.response?.data as { error_code?: string } | undefined)?.error_code;
-  return (
-    status === 404 &&
-    (code === "EMPLOYEE_NOT_FOUND" ||
-      code === "PARTNER_NOT_FOUND" ||
-      code === "USER_NOT_FOUND")
-  );
-}
-
 export const authApi = {
   sendOtp: (phone: string) =>
     authHttp.post<{ data: { session_id: number } }>("/auth/send-otp", { phone }),
