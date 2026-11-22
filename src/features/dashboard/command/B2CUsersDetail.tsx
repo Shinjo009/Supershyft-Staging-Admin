@@ -1,4 +1,3 @@
-import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   commandDashboardApi,
@@ -7,6 +6,7 @@ import {
   type CommandPeriodParams,
 } from "../../../lib/api";
 import { B2CUserTable } from "./B2CUserTable";
+import { DetailPageHeader, useDebouncedDetailSearch } from "./DetailPageHeader";
 import type { CardId } from "./period";
 
 type FetchKind =
@@ -74,12 +74,15 @@ export function B2CUsersDetail({
   const [rows, setRows] = useState<CommandB2CUserRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedDetailSearch(search);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const limit = 20;
 
   useEffect(() => {
     setPage(1);
+    setSearch("");
   }, [card, packageId, discountCodeId, periodParams.period, periodParams.from, periodParams.to]);
 
   useEffect(() => {
@@ -88,7 +91,13 @@ export function B2CUsersDetail({
     setLoading(true);
     setError(null);
 
-    const params = { ...periodParams, page, limit, include_rows: true as const };
+    const params = {
+      ...periodParams,
+      page,
+      limit,
+      include_rows: true as const,
+      search: debouncedSearch || undefined,
+    };
 
     const fetchPromise = (() => {
       switch (kind) {
@@ -157,6 +166,7 @@ export function B2CUsersDetail({
     periodParams.period,
     periodParams.from,
     periodParams.to,
+    debouncedSearch,
   ]);
 
   if (!kind) return null;
@@ -166,18 +176,16 @@ export function B2CUsersDetail({
 
   return (
     <div className="space-y-3" data-testid={`b2c-detail-${kind}`}>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
-        >
-          <ArrowLeft className="size-4" aria-hidden />
-          Back
-        </button>
-        <h2 className="text-lg font-semibold text-zinc-900">{title}</h2>
-        <span className="text-sm text-zinc-500">({total})</span>
-      </div>
+      <DetailPageHeader
+        title={title}
+        total={total}
+        onBack={onBack}
+        search={search}
+        onSearchChange={(value) => {
+          setSearch(value);
+          setPage(1);
+        }}
+      />
 
       <B2CUserTable
         rows={rows}

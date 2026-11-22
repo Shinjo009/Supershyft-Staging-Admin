@@ -6471,6 +6471,7 @@ export type CommandPeriodParams = {
   page?: number;
   limit?: number;
   include_rows?: boolean;
+  search?: string;
 };
 
 export interface CommandAudienceSplitMeta {
