@@ -3450,6 +3450,7 @@ export interface EngagementParticipantUpdatePayload {
   participant_department?: string | null;
   consultations?: Record<string, ConsultationPreference | boolean | null> | null;
   booking_id?: string | null;
+  paid?: boolean;
   engagement_date?: string | null;
   slot_start_time?: string | null;
   blood_collection_cabin?: string | null;
@@ -3461,6 +3462,7 @@ export interface EngagementParticipantUpdateResponse {
   participant_department?: string | null;
   consultations?: Record<string, ConsultationPreference | boolean | null> | null;
   booking_id?: string | null;
+  paid?: boolean;
   engagement_date?: string | null;
   slot_start_time?: string | null;
   blood_collection_cabin?: string | null;

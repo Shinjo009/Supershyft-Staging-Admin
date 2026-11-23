@@ -394,6 +394,8 @@ const BOOL_SELECT_OPTIONS: { value: string; label: string; bool: boolean | null 
   { value: "unset", label: "—", bool: null },
 ];
 
+const PAID_SELECT_OPTIONS = BOOL_SELECT_OPTIONS.filter((opt) => opt.value !== "unset");
+
 function boolToSelectValue(value: boolean | null | undefined): string {
   if (value === true) return "yes";
   if (value === false) return "no";
@@ -983,6 +985,9 @@ export function ParticipantsModal({
   const [collectedAtEditMode, setCollectedAtEditMode] = useState(false);
   const [collectedAtUpdateLoading, setCollectedAtUpdateLoading] = useState<number | null>(null);
   const [collectedAtUpdateError, setCollectedAtUpdateError] = useState<string | null>(null);
+  const [paidEditMode, setPaidEditMode] = useState(false);
+  const [paidUpdateLoading, setPaidUpdateLoading] = useState<number | null>(null);
+  const [paidUpdateError, setPaidUpdateError] = useState<string | null>(null);
   const [engagementDateEditMode, setEngagementDateEditMode] = useState(false);
   const [slotStartTimeEditMode, setSlotStartTimeEditMode] = useState(false);
   const [bloodCollectionCabinEditMode, setBloodCollectionCabinEditMode] = useState(false);
@@ -1360,6 +1365,7 @@ export function ParticipantsModal({
   const canEditConsultation = mayEditEngagements && source.kind === "engagement-id";
   const canEditBookingId = mayEditEngagements && source.kind === "engagement-id";
   const canEditCollectedAt = canEditBookingId;
+  const canEditPaid = mayEditEngagements && source.kind === "engagement-id" && showPaidColumn;
   const canEditSchedule =
     mayEditEngagements &&
     source.kind === "engagement-id" &&
@@ -1502,6 +1508,33 @@ export function ParticipantsModal({
       setConsultationUpdateError(getApiError(err));
     } finally {
       setConsultationUpdateLoading(null);
+    }
+  };
+
+  const handlePaidUpdate = async (participant: Participant, nextValue: boolean) => {
+    if (!engagementIdForDepartment || !participant.user_id) return;
+
+    const current = Boolean(participant.paid);
+    if (current === nextValue) return;
+
+    try {
+      setPaidUpdateLoading(participant.user_id);
+      setPaidUpdateError(null);
+      const res = await participantsApi.updateParticipant(
+        engagementIdForDepartment,
+        participant.user_id,
+        { paid: nextValue }
+      );
+      const saved = res.data.data.paid ?? nextValue;
+      setParticipants((prevRows) =>
+        prevRows.map((row) =>
+          row.user_id === participant.user_id ? { ...row, paid: saved } : row
+        )
+      );
+    } catch (err) {
+      setPaidUpdateError(getApiError(err));
+    } finally {
+      setPaidUpdateLoading(null);
     }
   };
 
@@ -2705,6 +2738,7 @@ export function ParticipantsModal({
             {collectedAtUpdateError && (
               <p className="text-sm text-red-600 mb-3">{collectedAtUpdateError}</p>
             )}
+            {paidUpdateError && <p className="text-sm text-red-600 mb-3">{paidUpdateError}</p>}
             {bookingIdEditMode && canEditBookingId && (
               <p className="text-xs text-zinc-500 mb-3">
                 Updates the current active collection&apos;s Healthians booking ID (same as in Blood
@@ -2715,6 +2749,11 @@ export function ParticipantsModal({
               <p className="text-xs text-zinc-500 mb-3">
                 Sets when the sample was collected (IST) on the current active collection. Clear the
                 field to remove collected time.
+              </p>
+            )}
+            {paidEditMode && canEditPaid && (
+              <p className="text-xs text-zinc-500 mb-3">
+                Marks whether this participant has paid for a patient-paid engagement.
               </p>
             )}
             {scheduleUpdateError && (
@@ -2909,7 +2948,13 @@ export function ParticipantsModal({
                     )}
                     {showPaidColumn && (
                     <th className="px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap">
-                      Paid
+                      <EditableColumnHeader
+                        label="Paid"
+                        editable={canEditPaid}
+                        isEditing={paidEditMode}
+                        onToggleEdit={() => setPaidEditMode((v) => !v)}
+                        editTitle="paid status"
+                      />
                     </th>
                     )}
                     <th className="px-3 sm:px-4 py-3 text-left font-medium text-zinc-600 whitespace-nowrap">
@@ -3156,8 +3201,33 @@ export function ParticipantsModal({
                         </td>
                         )}
                         {showPaidColumn && (
-                        <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-zinc-600 whitespace-nowrap">
-                          {p.paid ? "Yes" : "No"}
+                        <td
+                          className="px-3 sm:px-4 py-2.5 sm:py-3 text-zinc-600 whitespace-nowrap"
+                          onClick={(ev) => {
+                            if (paidEditMode && canEditPaid) ev.stopPropagation();
+                          }}
+                        >
+                          {paidEditMode && canEditPaid ? (
+                            <select
+                              value={boolToSelectValue(p.paid ?? false)}
+                              disabled={paidUpdateLoading === p.user_id}
+                              onChange={(e) => {
+                                const nextValue = selectValueToBool(e.target.value);
+                                if (nextValue === null) return;
+                                if (Boolean(p.paid) === nextValue) return;
+                                void handlePaidUpdate(p, nextValue);
+                              }}
+                              className="max-w-[100px] px-2 py-1 rounded-lg border border-zinc-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-zinc-900 disabled:opacity-50"
+                            >
+                              {PAID_SELECT_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span>{p.paid ? "Yes" : "No"}</span>
+                          )}
                         </td>
                         )}
                         <td
