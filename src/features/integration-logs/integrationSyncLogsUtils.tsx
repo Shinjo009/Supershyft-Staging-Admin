@@ -193,7 +193,22 @@ export function summarizeEndpoint(log: IntegrationSyncLog): string {
     try {
       const pathname = new URL(url).pathname;
       const tail = pathname.split("/").filter(Boolean).pop();
-      return tail ?? url;
+      const method =
+        log.request_payload &&
+        typeof log.request_payload === "object" &&
+        !Array.isArray(log.request_payload) &&
+        typeof (log.request_payload as Record<string, unknown>).http_method === "string"
+          ? String((log.request_payload as Record<string, unknown>).http_method).toUpperCase()
+          : pathname.toLowerCase().endsWith("/reschedule") ||
+              pathname.toLowerCase().endsWith("/cancel")
+            ? "PATCH"
+            : pathname.toLowerCase().endsWith("/order")
+              ? "POST"
+              : pathname.toLowerCase().includes("serviceability")
+                ? "GET"
+                : null;
+      const label = tail ?? url;
+      return method ? `${method} ${label}` : label;
     } catch {
       return parseWebhookFromUrl(url);
     }

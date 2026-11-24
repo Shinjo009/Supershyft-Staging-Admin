@@ -3,6 +3,7 @@ import type { IntegrationSyncLog } from "../../lib/api";
 export type IntegrationLogDetailView = {
   method: string;
   apiName: string;
+  query: unknown;
   sent: unknown;
   received: unknown;
   error: string | null;
@@ -16,6 +17,38 @@ function apiNameFromUrl(url: string): string {
   } catch {
     return url;
   }
+}
+
+function inferHttpMethodForUrl(url: string, provider: string): string | null {
+  if (provider === "orange_health" || provider === "healthians") {
+    try {
+      const path = new URL(url).pathname.toLowerCase();
+      if (path.endsWith("/reschedule") || path.endsWith("/cancel")) return "PATCH";
+      if (path.endsWith("/order")) return "POST";
+      if (path.includes("serviceability")) return "GET";
+    } catch {
+      /* ignore */
+    }
+  }
+  return null;
+}
+
+function fullApiUrl(log: IntegrationSyncLog): string {
+  const req = log.request_payload;
+  if (req && typeof req === "object" && !Array.isArray(req)) {
+    const record = req as Record<string, unknown>;
+    if (typeof record.url === "string" && record.url.trim()) return record.url.trim();
+  }
+  return (log.api_endpoint_url || "").trim();
+}
+
+function pickQuery(log: IntegrationSyncLog): unknown {
+  const req = log.request_payload;
+  if (req && typeof req === "object" && !Array.isArray(req)) {
+    const query = (req as Record<string, unknown>).query;
+    if (query !== undefined) return query;
+  }
+  return null;
 }
 
 function pickSent(log: IntegrationSyncLog): unknown {
@@ -65,12 +98,16 @@ function pickMethod(log: IntegrationSyncLog): string {
     const method = (res as Record<string, unknown>).http_method;
     if (typeof method === "string" && method.trim()) return method.trim().toUpperCase();
   }
+  const inferred = inferHttpMethodForUrl(log.api_endpoint_url, log.provider);
+  if (inferred) return inferred;
   if (log.api_endpoint_url.includes("message_templates")) return "GET";
   if (log.api_endpoint_url.endsWith("/messages")) return "POST";
   return "—";
 }
 
 function pickApiName(log: IntegrationSyncLog): string {
+  const full = fullApiUrl(log);
+  if (full) return full;
   const req = log.request_payload;
   if (req && typeof req === "object" && !Array.isArray(req)) {
     const name = (req as Record<string, unknown>).api_name;
@@ -83,6 +120,7 @@ export function buildIntegrationLogDetailView(log: IntegrationSyncLog): Integrat
   return {
     method: pickMethod(log),
     apiName: pickApiName(log),
+    query: pickQuery(log),
     sent: pickSent(log),
     received: pickReceived(log),
     error: log.error_message ?? null,
