@@ -10,6 +10,7 @@ import { Dashboard } from "./features/dashboard/Dashboard";
 import { PublicServiceabilityPage } from "./features/serviceability/PublicServiceabilityPage";
 
 import { loginPathWithRedirect } from "./lib/authStorage";
+import { ChunkLoadErrorBoundary } from "./components/ChunkLoadErrorBoundary";
 
 const Organisations = lazy(() =>
   import("./features/organisations/Organisations").then((m) => ({ default: m.Organisations }))
@@ -351,6 +352,7 @@ function PermissionRoute({
 function AppRoutes() {
   const location = useLocation();
   return (
+    <ChunkLoadErrorBoundary>
     <Suspense fallback={<RouteFallback />}>
     <Routes key={location.pathname}>
       <Route path="/login" element={<Login />} />
@@ -699,6 +701,7 @@ function AppRoutes() {
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     </Suspense>
+    </ChunkLoadErrorBoundary>
   );
 }
 
