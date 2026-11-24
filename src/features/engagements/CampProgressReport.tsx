@@ -12,8 +12,6 @@ type ProgressMetric = {
   bar: string;
   /** When true, show only the count (no /total, no pending footer). */
   countOnly?: boolean;
-  /** When true, hide counts until backend rules are defined. */
-  placeholder?: boolean;
 };
 
 const METRICS: ProgressMetric[] = [
@@ -45,7 +43,6 @@ const METRICS: ProgressMetric[] = [
     icon: FileText,
     iconWrap: "bg-violet-50 text-violet-700",
     bar: "bg-violet-500",
-    placeholder: true,
   },
   {
     key: "bio_ai_report_sent",
@@ -53,7 +50,6 @@ const METRICS: ProgressMetric[] = [
     icon: Sparkles,
     iconWrap: "bg-amber-50 text-amber-700",
     bar: "bg-amber-500",
-    placeholder: true,
   },
   {
     key: "consultation_done",
@@ -111,9 +107,7 @@ export function CampProgressReport({
               ? total > 0
                 ? 100
                 : 0
-              : metric.placeholder
-                ? 0
-                : pct(done, total);
+              : pct(done, total);
             const pending = Math.max(0, total - done);
             return (
               <article
@@ -130,11 +124,7 @@ export function CampProgressReport({
                   <span className="text-xs leading-tight text-zinc-500">{metric.label}</span>
                 </div>
                 <div className="text-xl font-semibold tabular-nums text-zinc-900 leading-none">
-                  {metric.placeholder ? (
-                    <span className="text-zinc-300" aria-hidden>
-                      —
-                    </span>
-                  ) : metric.countOnly ? (
+                  {metric.countOnly ? (
                     done
                   ) : (
                     <>
@@ -150,7 +140,7 @@ export function CampProgressReport({
                     data-testid={`camp-progress-bar-${metric.key}`}
                   />
                 </div>
-                {!metric.countOnly && !metric.placeholder ? (
+                {!metric.countOnly ? (
                   <div className="text-[11px] text-zinc-500">
                     {percent}% · {pending} pending
                   </div>

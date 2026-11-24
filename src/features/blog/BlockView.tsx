@@ -4,10 +4,15 @@ import {
   blockAlign,
   blockText,
   codeLanguage,
+  ctaAlignment,
+  ctaBorderCss,
+  ctaHref,
+  ctaStyle,
   fontFamilyCss,
   fontSizeCss,
   fontWeightCss,
   headingTag,
+  isCtaButton,
   isTaskList,
   listTag,
   mediaAlt,
@@ -312,5 +317,36 @@ export function BlockView({ block }: { block: StoryBlock }) {
     );
   }
   if (tag === "hr") return <hr className="border-zinc-200" />;
+  if (isCtaButton(block)) {
+    const label = blockText(block).trim();
+    const href = safeHref(ctaHref(block));
+    if (!label || !href) return null;
+    const style = ctaStyle(block);
+    const alignment = ctaAlignment(block);
+    const border = ctaBorderCss(style);
+    return (
+      <div style={{ textAlign: alignment }}>
+        <a
+          href={href}
+          target={block.attributes?.target === "_blank" ? "_blank" : undefined}
+          rel="noopener noreferrer"
+          style={{
+            display: "inline-block",
+            backgroundColor: style.backgroundColor,
+            color: style.color,
+            fontSize: style.fontSize,
+            fontWeight: Number(style.fontWeight) || 600,
+            borderRadius: style.borderRadius,
+            padding: style.padding,
+            textDecoration: "none",
+            lineHeight: 1.2,
+            border: border || "0 solid transparent",
+          }}
+        >
+          {label}
+        </a>
+      </div>
+    );
+  }
   return null;
 }

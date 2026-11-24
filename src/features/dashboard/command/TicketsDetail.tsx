@@ -1,4 +1,4 @@
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   commandDashboardApi,
@@ -6,6 +6,7 @@ import {
   type CommandPeriodParams,
   type CommandTicketRow,
 } from "../../../lib/api";
+import { DetailPageHeader, useDebouncedDetailSearch } from "./DetailPageHeader";
 
 function formatRaisedAt(value: string | null) {
   if (!value) return "—";
@@ -34,6 +35,8 @@ export function TicketsDetail({
   const [rows, setRows] = useState<CommandTicketRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedDetailSearch(search);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const limit = 20;
@@ -47,7 +50,13 @@ export function TicketsDetail({
     setLoading(true);
     setError(null);
     commandDashboardApi
-      .tickets({ ...periodParams, page, limit, include_rows: true })
+      .tickets({
+        ...periodParams,
+        page,
+        limit,
+        include_rows: true,
+        search: debouncedSearch || undefined,
+      })
       .then((res) => {
         if (cancelled) return;
         setRows(res.data.data ?? []);
@@ -64,24 +73,22 @@ export function TicketsDetail({
     return () => {
       cancelled = true;
     };
-  }, [periodParams.period, periodParams.from, periodParams.to, page]);
+  }, [periodParams.period, periodParams.from, periodParams.to, page, debouncedSearch]);
 
   const pages = Math.max(1, Math.ceil(total / limit));
 
   return (
     <div className="space-y-3" data-testid="detail-tickets">
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
-        >
-          <ArrowLeft className="size-4" aria-hidden />
-          Back
-        </button>
-        <h2 className="text-lg font-semibold text-zinc-900">Tickets</h2>
-        <span className="text-sm text-zinc-500">({total})</span>
-      </div>
+      <DetailPageHeader
+        title="Tickets"
+        total={total}
+        onBack={onBack}
+        search={search}
+        onSearchChange={(value) => {
+          setSearch(value);
+          setPage(1);
+        }}
+      />
 
       <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
         {loading ? (

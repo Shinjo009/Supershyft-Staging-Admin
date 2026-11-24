@@ -1,10 +1,11 @@
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   getApiError,
   type CommandPeopleRegisteredRow,
   type CommandPeriodParams,
 } from "../../../lib/api";
+import { DetailPageHeader, useDebouncedDetailSearch } from "./DetailPageHeader";
 
 type FetchFn = (params: CommandPeriodParams & {
   page: number;
@@ -35,6 +36,8 @@ export function JourneyPeopleDetail({
   const [rows, setRows] = useState<CommandPeopleRegisteredRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedDetailSearch(search);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const limit = 20;
@@ -47,7 +50,13 @@ export function JourneyPeopleDetail({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetchRows({ ...periodParams, page, limit, include_rows: true })
+    fetchRows({
+      ...periodParams,
+      page,
+      limit,
+      include_rows: true,
+      search: debouncedSearch || undefined,
+    })
       .then((res) => {
         if (cancelled) return;
         setRows(res.data.data ?? []);
@@ -64,24 +73,29 @@ export function JourneyPeopleDetail({
     return () => {
       cancelled = true;
     };
-  }, [periodParams.period, periodParams.from, periodParams.to, page, fetchRows]);
+  }, [
+    periodParams.period,
+    periodParams.from,
+    periodParams.to,
+    page,
+    debouncedSearch,
+    fetchRows,
+  ]);
 
   const pages = Math.max(1, Math.ceil(total / limit));
 
   return (
     <div className="space-y-3" data-testid={testId}>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
-        >
-          <ArrowLeft className="size-4" aria-hidden />
-          Back
-        </button>
-        <h2 className="text-lg font-semibold text-zinc-900">{title}</h2>
-        <span className="text-sm text-zinc-500">({total})</span>
-      </div>
+      <DetailPageHeader
+        title={title}
+        total={total}
+        onBack={onBack}
+        search={search}
+        onSearchChange={(value) => {
+          setSearch(value);
+          setPage(1);
+        }}
+      />
 
       <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
         {loading ? (

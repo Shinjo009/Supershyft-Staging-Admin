@@ -29,15 +29,17 @@ test.describe("Engagement Overview — camp progress + day-wise", () => {
     await expect(page.getByTestId("camp-progress-total_registered")).not.toContainText("/ 8");
     await expect(page.getByTestId("camp-progress-blood_collected")).toContainText("1 / 8");
     await expect(page.getByTestId("camp-progress-questionnaire_filled")).toContainText("8 / 8");
-    await expect(page.getByTestId("camp-progress-blood_report_sent")).not.toContainText("/");
-    await expect(page.getByTestId("camp-progress-blood_report_sent")).not.toContainText("pending");
-    await expect(page.getByTestId("camp-progress-bio_ai_report_sent")).not.toContainText("/");
-    await expect(page.getByTestId("camp-progress-bio_ai_report_sent")).not.toContainText("pending");
+    await expect(page.getByTestId("camp-progress-blood_report_sent")).toContainText("2 / 8");
+    await expect(page.getByTestId("camp-progress-blood_report_sent")).toContainText("6 pending");
+    await expect(page.getByTestId("camp-progress-bio_ai_report_sent")).toContainText("1 / 8");
+    await expect(page.getByTestId("camp-progress-bio_ai_report_sent")).toContainText("7 pending");
     await expect(page.getByTestId("camp-progress-consultation_done")).toContainText("0 / 8");
 
     await expect(page.getByTestId("camp-progress-blood_collected")).toContainText("13%");
     await expect(page.getByTestId("camp-progress-blood_collected")).toContainText("7 pending");
     await expect(page.getByTestId("camp-progress-bar-blood_collected")).toBeVisible();
+    await expect(page.getByTestId("camp-progress-bar-blood_report_sent")).toBeVisible();
+    await expect(page.getByTestId("camp-progress-bar-bio_ai_report_sent")).toBeVisible();
 
     // Six progress metric cards (exclude progress-bar testids).
     await expect(page.locator("article[data-testid^='camp-progress-']")).toHaveCount(6);

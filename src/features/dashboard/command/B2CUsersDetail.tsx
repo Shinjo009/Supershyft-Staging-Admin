@@ -1,4 +1,3 @@
-import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   commandDashboardApi,
@@ -7,12 +6,14 @@ import {
   type CommandPeriodParams,
 } from "../../../lib/api";
 import { B2CUserTable } from "./B2CUserTable";
+import { DetailPageHeader, useDebouncedDetailSearch } from "./DetailPageHeader";
 import type { CardId } from "./period";
 
 type FetchKind =
   | "total_bookings"
   | "collection_tomorrow"
   | "tests_completed"
+  | "lab_report_delivered"
   | "bio_ai_reports"
   | "consultation_done"
   | "package_performance"
@@ -22,6 +23,7 @@ const TITLES: Record<FetchKind, string> = {
   total_bookings: "Total bookings",
   collection_tomorrow: "Collection tomorrow",
   tests_completed: "Tests completed",
+  lab_report_delivered: "Lab report delivered",
   bio_ai_reports: "Bio-AI reports generated",
   consultation_done: "Consultation done",
   package_performance: "Package performance",
@@ -32,6 +34,7 @@ const EMPTY: Record<FetchKind, string> = {
   total_bookings: "No B2C bookings in this period.",
   collection_tomorrow: "No collections scheduled for tomorrow.",
   tests_completed: "No completed tests in this period.",
+  lab_report_delivered: "No lab reports delivered in this period.",
   bio_ai_reports: "No Bio-AI reports in this period.",
   consultation_done: "No consultations done in this period.",
   package_performance: "No users for this package in this period.",
@@ -43,6 +46,7 @@ function kindFromCard(card: CardId): FetchKind | null {
     card === "total_bookings" ||
     card === "collection_tomorrow" ||
     card === "tests_completed" ||
+    card === "lab_report_delivered" ||
     card === "bio_ai_reports" ||
     card === "consultation_done" ||
     card === "package_performance" ||
@@ -70,12 +74,15 @@ export function B2CUsersDetail({
   const [rows, setRows] = useState<CommandB2CUserRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedDetailSearch(search);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const limit = 20;
 
   useEffect(() => {
     setPage(1);
+    setSearch("");
   }, [card, packageId, discountCodeId, periodParams.period, periodParams.from, periodParams.to]);
 
   useEffect(() => {
@@ -84,7 +91,13 @@ export function B2CUsersDetail({
     setLoading(true);
     setError(null);
 
-    const params = { ...periodParams, page, limit, include_rows: true as const };
+    const params = {
+      ...periodParams,
+      page,
+      limit,
+      include_rows: true as const,
+      search: debouncedSearch || undefined,
+    };
 
     const fetchPromise = (() => {
       switch (kind) {
@@ -94,6 +107,8 @@ export function B2CUsersDetail({
           return commandDashboardApi.b2cCollectionTomorrow(params);
         case "tests_completed":
           return commandDashboardApi.b2cTestsCompleted(params);
+        case "lab_report_delivered":
+          return commandDashboardApi.b2cLabReportDelivered(params);
         case "bio_ai_reports":
           return commandDashboardApi.b2cBioAiReports(params);
         case "consultation_done":
@@ -151,6 +166,7 @@ export function B2CUsersDetail({
     periodParams.period,
     periodParams.from,
     periodParams.to,
+    debouncedSearch,
   ]);
 
   if (!kind) return null;
@@ -160,18 +176,16 @@ export function B2CUsersDetail({
 
   return (
     <div className="space-y-3" data-testid={`b2c-detail-${kind}`}>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400"
-        >
-          <ArrowLeft className="size-4" aria-hidden />
-          Back
-        </button>
-        <h2 className="text-lg font-semibold text-zinc-900">{title}</h2>
-        <span className="text-sm text-zinc-500">({total})</span>
-      </div>
+      <DetailPageHeader
+        title={title}
+        total={total}
+        onBack={onBack}
+        search={search}
+        onSearchChange={(value) => {
+          setSearch(value);
+          setPage(1);
+        }}
+      />
 
       <B2CUserTable
         rows={rows}

@@ -697,7 +697,7 @@ test.describe("Command dashboard B2C UI/UX", () => {
     await expect(page.getByTestId("card-total_bookings")).toContainText("18");
     await expect(page.getByTestId("card-collection_tomorrow")).toContainText("4");
     await expect(page.getByTestId("card-tests_completed")).toContainText("11");
-    await expect(page.getByTestId("card-lab_report_delivered")).toBeVisible();
+    await expect(page.getByTestId("card-lab_report_delivered")).toContainText("9");
     await expect(page.getByTestId("card-bio_ai_reports")).toContainText("7");
     await expect(page.getByTestId("card-consultation_done")).toContainText("5");
 
@@ -750,6 +750,35 @@ test.describe("Command dashboard B2C UI/UX", () => {
     await expect(page.getByTestId("b2c-grid")).toBeVisible();
   });
 
+  test("lab_report_delivered card opens detail with sent users", async ({
+    page,
+    counters,
+  }) => {
+    await page.goto("/?tab=b2c&period=this_week&sub_tab=overview");
+    const card = page.getByTestId("card-lab_report_delivered");
+    await expect(card).toHaveAttribute("type", "button");
+    await card.click();
+
+    await expect(page).toHaveURL(/tab=b2c/);
+    await expect(page).toHaveURL(/sub_tab=overview/);
+    await expect(page).toHaveURL(/card=lab_report_delivered/);
+    await expect(page.getByTestId("tabs-hidden")).toBeAttached();
+    await expect(page.getByTestId("b2c-detail-lab_report_delivered")).toBeVisible();
+    const table = page.getByTestId("b2c-detail-table-lab_report_delivered");
+    await expect(table).toContainText("Ada Lovelace");
+    await expect(table).toContainText("ada@example.com");
+    await expect(table).toContainText("sent");
+    await expect(table.getByText("Customer", { exact: true })).toBeVisible();
+    await expect(table.getByText("Lab report", { exact: true })).toBeVisible();
+    await expect
+      .poll(() => counters.getB2cLabReportDeliveredCalls())
+      .toBeGreaterThanOrEqual(1);
+
+    await page.getByRole("button", { name: "Back" }).click();
+    await expect(page).not.toHaveURL(/card=/);
+    await expect(page.getByTestId("b2c-grid")).toBeVisible();
+  });
+
   test("package and coupon rows drill into filtered user details", async ({ page }) => {
     await page.goto("/?tab=b2c&period=this_week&sub_tab=overview");
 
@@ -794,6 +823,12 @@ test.describe("Command dashboard B2C UI/UX", () => {
     );
     await expect(page.getByTestId("b2c-detail-collection_tomorrow")).toBeVisible();
     await expect(page.getByTestId("tabs-hidden")).toBeAttached();
+
+    await page.goto(
+      "/?tab=b2c&period=this_week&sub_tab=overview&card=lab_report_delivered"
+    );
+    await expect(page.getByTestId("b2c-detail-lab_report_delivered")).toBeVisible();
+    await expect(page).toHaveURL(/card=lab_report_delivered/);
 
     await page.goto(
       "/?tab=b2c&period=this_week&sub_tab=overview&card=package_performance&package_id=abc"

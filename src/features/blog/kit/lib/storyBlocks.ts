@@ -246,30 +246,68 @@ export type Mark = {
 /** Always an object so list/table cells stay uniform in the database. */
 export type RichCell = { text: string; marks: Mark[]; /** Task list items only */ checked?: boolean }
 
+export type CtaAlignment = 'left' | 'center' | 'right'
+
+export type CtaStyle = {
+  backgroundColor?: string
+  color?: string
+  fontSize?: string
+  fontWeight?: string
+  borderRadius?: string
+  padding?: string
+  /** Present only when border width > 0. */
+  borderWidth?: string
+  borderColor?: string
+}
+
 export type StoryAttributes = {
   style?: {
     textAlign?: TextAlign
     backgroundColor?: string
-  }
+  } & CtaStyle
   src?: string
   alt?: string
   language?: string
   listType?: 'task'
+  href?: string
+  target?: string
 }
 
+/** Default brand styles for CTA button blocks. */
+export const CTA_DEFAULT_STYLE: Required<Omit<CtaStyle, 'borderWidth' | 'borderColor'>> & {
+  borderWidth: string
+  borderColor: string
+} = {
+  backgroundColor: '#0B2C2A',
+  color: '#FFFFFF',
+  fontSize: '16px',
+  fontWeight: '600',
+  borderRadius: '8px',
+  padding: '14px 28px',
+  borderWidth: '0px',
+  borderColor: '#0B2C2A',
+}
+
+export const CTA_FONT_WEIGHTS = ['400', '500', '600', '700'] as const
+
 /**
- * Tag-only story block stored in posts.content.
- * Discriminator is `tag` (HTML tags + section/video/audio). No `type` field.
+ * Tag-based story block stored in posts.content.
+ * Discriminator is usually `tag` (HTML tags + section/video/audio).
+ * CTA buttons also store `type: "button"` and optional top-level `alignment`.
  */
 export type StoryBlock = {
   tag: string
-  /** Text body for p / heading / blockquote / pre. */
+  /** CTA discriminator (`button`). Other blocks omit this. */
+  type?: 'button'
+  /** Text body for p / heading / blockquote / pre / CTA. */
   text?: string
   /** Nested blocks for section only. Legacy posts may still store a string here. */
   content?: string | StoryBlock[]
   /** Always present on text blocks; empty array when unmarked. */
   marks?: Mark[]
   attributes?: StoryAttributes
+  /** CTA button alignment (left omitted when stored). */
+  alignment?: CtaAlignment
   /** @deprecated Prefer `checked` on each task item. Kept for reading legacy posts. */
   checked?: boolean[]
   items?: RichCell[]
@@ -330,6 +368,105 @@ export function codeLanguage(block: StoryBlock | null | undefined): string {
 export function withAlign(align: TextAlign | undefined): StoryAttributes | undefined {
   if (!align) return undefined
   return { style: { textAlign: align } }
+}
+
+export function isCtaButton(block: StoryBlock | null | undefined): boolean {
+  if (!block) return false
+  const tag = (block.tag || '').trim().toLowerCase()
+  return tag === 'a' && block.type === 'button'
+}
+
+export function ctaHref(block: StoryBlock | null | undefined): string {
+  return String(block?.attributes?.href || '').trim()
+}
+
+export function ctaAlignment(block: StoryBlock | null | undefined): CtaAlignment {
+  const align = String(block?.alignment || '').trim().toLowerCase()
+  return align === 'center' || align === 'right' ? align : 'left'
+}
+
+export type ResolvedCtaStyle = {
+  backgroundColor: string
+  color: string
+  fontSize: string
+  fontWeight: string
+  borderRadius: string
+  padding: string
+  borderWidth: string
+  borderColor: string
+}
+
+export function ctaStyle(block: StoryBlock | null | undefined): ResolvedCtaStyle {
+  const style = block?.attributes?.style || {}
+  return {
+    backgroundColor: String(style.backgroundColor || CTA_DEFAULT_STYLE.backgroundColor),
+    color: String(style.color || CTA_DEFAULT_STYLE.color),
+    fontSize: String(style.fontSize || CTA_DEFAULT_STYLE.fontSize),
+    fontWeight: String(style.fontWeight || CTA_DEFAULT_STYLE.fontWeight),
+    borderRadius: String(style.borderRadius || CTA_DEFAULT_STYLE.borderRadius),
+    padding: String(style.padding || CTA_DEFAULT_STYLE.padding),
+    borderWidth: String(style.borderWidth || CTA_DEFAULT_STYLE.borderWidth),
+    borderColor: String(style.borderColor || CTA_DEFAULT_STYLE.borderColor),
+  }
+}
+
+/** Style object stored on the StoryBlock (omits zero-width border). */
+export function packCtaStyle(style: Partial<ResolvedCtaStyle> | null | undefined): CtaStyle {
+  const resolved = {
+    backgroundColor: String(style?.backgroundColor || CTA_DEFAULT_STYLE.backgroundColor),
+    color: String(style?.color || CTA_DEFAULT_STYLE.color),
+    fontSize: String(style?.fontSize || CTA_DEFAULT_STYLE.fontSize),
+    fontWeight: String(style?.fontWeight || CTA_DEFAULT_STYLE.fontWeight),
+    borderRadius: String(style?.borderRadius || CTA_DEFAULT_STYLE.borderRadius),
+    padding: String(style?.padding || CTA_DEFAULT_STYLE.padding),
+    borderWidth: String(style?.borderWidth || CTA_DEFAULT_STYLE.borderWidth),
+    borderColor: String(style?.borderColor || CTA_DEFAULT_STYLE.borderColor),
+  }
+  const out: CtaStyle = {
+    backgroundColor: resolved.backgroundColor,
+    color: resolved.color,
+    fontSize: resolved.fontSize,
+    fontWeight: resolved.fontWeight,
+    borderRadius: resolved.borderRadius,
+    padding: resolved.padding,
+  }
+  const widthPx = Number.parseFloat(resolved.borderWidth)
+  if (Number.isFinite(widthPx) && widthPx > 0) {
+    out.borderWidth = `${widthPx}px`
+    out.borderColor = resolved.borderColor
+  }
+  return out
+}
+
+export function parseCtaPadding(padding: string | undefined): { vertical: number; horizontal: number } {
+  const parts = String(padding || CTA_DEFAULT_STYLE.padding)
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map((part) => Number.parseFloat(part))
+    .filter((value) => Number.isFinite(value))
+  if (parts.length >= 2) return { vertical: parts[0], horizontal: parts[1] }
+  if (parts.length === 1) return { vertical: parts[0], horizontal: parts[0] }
+  return { vertical: 14, horizontal: 28 }
+}
+
+export function formatCtaPadding(vertical: number, horizontal: number): string {
+  const v = Math.max(0, Math.min(96, Math.round(vertical)))
+  const h = Math.max(0, Math.min(96, Math.round(horizontal)))
+  return `${v}px ${h}px`
+}
+
+export function ctaBorderCss(style: Pick<ResolvedCtaStyle, 'borderWidth' | 'borderColor'>): string | undefined {
+  const widthPx = Number.parseFloat(style.borderWidth || '0')
+  if (!Number.isFinite(widthPx) || widthPx <= 0) return undefined
+  return `${widthPx}px solid ${style.borderColor || CTA_DEFAULT_STYLE.borderColor}`
+}
+
+export function normalizeCtaUrl(url: string): string {
+  const raw = url.trim()
+  if (!raw) return ''
+  if (/^https?:\/\//i.test(raw)) return raw
+  return `https://${raw.replace(/^\/+/, '')}`
 }
 
 export type EditorBlock =
