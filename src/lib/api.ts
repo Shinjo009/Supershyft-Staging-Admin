@@ -4652,6 +4652,7 @@ export interface DiagnosticPackageListItem {
   has_cancer_screening?: boolean | null;
   complementary_consultation?: Record<string, boolean> | null;
   gender_suitability?: string | null;
+  package_for?: "public" | "camp" | "both" | null;
   display_order?: number | null;
   tags?: DiagnosticTag[];
   filter_chips?: PackageFilterChip[];

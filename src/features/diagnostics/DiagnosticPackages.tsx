@@ -39,6 +39,14 @@ function rowSortKey(row: DiagnosticPackageGroupListItem): number {
   return row.package_group_id ?? row.diagnostic_package_id;
 }
 
+function packageTypeLabel(packageFor: string | null | undefined): string {
+  const value = (packageFor ?? "").toLowerCase();
+  if (value === "public") return "B2C";
+  if (value === "camp") return "B2B";
+  if (value === "both") return "B2B / B2C";
+  return "—";
+}
+
 export function DiagnosticPackages() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -273,7 +281,16 @@ export function DiagnosticPackages() {
         ),
       hideOnTablet: true,
     },
-    { key: "collection_type", label: "Collection", render: (row) => row.collection_type ?? "—", hideOnTablet: true },
+    {
+      key: "package_for",
+      label: "Type",
+      render: (row) => (
+        <span data-testid={`diag-packages-type-${row.diagnostic_package_id}`}>
+          {packageTypeLabel(row.package_for)}
+        </span>
+      ),
+      hideOnTablet: true,
+    },
   ];
 
   return (
@@ -389,6 +406,9 @@ export function DiagnosticPackages() {
                 onDelete={requestDeletePackage}
                 onReorder={mayEditDiagnostics ? handleReorder : undefined}
                 mutationTaskKey="packages"
+                actionsLayout="inline"
+                actionsIconOnly
+                actionTestIdPrefix="diag-packages"
                 firstColumnClickableView
                 pagination={{
                   page,

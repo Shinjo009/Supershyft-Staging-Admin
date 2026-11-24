@@ -82,6 +82,12 @@ interface DataTableProps<T> {
   onReorder?: (newOrderKeys: (string | number)[]) => void;
   mutationCategory?: PermissionCategory;
   mutationTaskKey?: string;
+  /** Default "menu" keeps the kebab portal. "inline" shows View/Edit/Delete side-by-side. */
+  actionsLayout?: "menu" | "inline";
+  /** When inline, hide text labels and keep icons only (with aria-label/title). */
+  actionsIconOnly?: boolean;
+  /** Prefix for inline action data-testid values, e.g. "diag-packages" → diag-packages-action-view. */
+  actionTestIdPrefix?: string;
   pagination?: {
     page: number;
     limit: number;
@@ -118,6 +124,9 @@ interface SortableRowProps<T> {
   setOpenActionsRow: (val: string | number | null | ((curr: string | number | null) => string | number | null)) => void;
   visibilityClass: (col: Column<T>) => string;
   onReorder?: boolean;
+  actionsLayout: "menu" | "inline";
+  actionsIconOnly: boolean;
+  actionTestIdPrefix?: string;
 }
 
 function SortableRow<T extends object>(props: SortableRowProps<T>) {
@@ -178,82 +187,157 @@ function SortableRow<T extends object>(props: SortableRowProps<T>) {
       })}
       {hasActions && (
         <td className="px-2 sm:px-4 py-2.5 sm:py-3">
-          <div className="flex justify-end">
-            <button
-              ref={actionsButtonRef}
-              type="button"
-              onClick={() => setOpenActionsRow((curr) => (curr === rowKey ? null : rowKey))}
-              className="p-1.5 sm:p-2 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
-              title="Actions"
-              aria-haspopup="menu"
-              aria-expanded={menuOpen}
-            >
-              <MoreHorizontal className="w-4 h-4" />
-            </button>
-            <PortalMenu
-              open={menuOpen}
-              anchorRef={actionsButtonRef}
-              onClose={closeMenu}
-              width={208}
+          {props.actionsLayout === "inline" ? (
+            <div
+              className="flex flex-wrap items-center justify-end gap-1 sm:gap-1.5"
+              data-testid={
+                props.actionTestIdPrefix
+                  ? `${props.actionTestIdPrefix}-actions-${rowKey}`
+                  : undefined
+              }
             >
               {props.onView && (
-                <button onClick={() => { props.onView!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2">
-                  <Eye className="w-4 h-4" /> View
+                <button
+                  type="button"
+                  onClick={() => props.onView!(row)}
+                  className={
+                    props.actionsIconOnly
+                      ? "inline-flex items-center justify-center p-1.5 rounded-md text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+                      : "inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs sm:text-sm text-zinc-700 hover:bg-zinc-100"
+                  }
+                  title="View"
+                  aria-label="View"
+                  data-testid={
+                    props.actionTestIdPrefix
+                      ? `${props.actionTestIdPrefix}-action-view`
+                      : undefined
+                  }
+                >
+                  <Eye className="w-4 h-4" />
+                  {!props.actionsIconOnly ? <span>View</span> : null}
                 </button>
               )}
               {props.onEdit && (
-                <button onClick={() => { props.onEdit!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2">
-                  <Pencil className="w-4 h-4" /> Edit
-                </button>
-              )}
-              {props.onDuplicate && (
-                <button onClick={() => { props.onDuplicate!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2">
-                  <Copy className="w-4 h-4" /> Duplicate
-                </button>
-              )}
-              {props.onParticipants && (
-                <button onClick={() => { props.onParticipants!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2">
-                  <Users className="w-4 h-4" /> View Participants
-                </button>
-              )}
-              {props.onOccupiedSlots && (
-                <button onClick={() => { props.onOccupiedSlots!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2">
-                  <CalendarClock className="w-4 h-4" /> View Occupied Slots
-                </button>
-              )}
-              {props.onManageChecklists && (
-                <button onClick={() => { props.onManageChecklists!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2">
-                  <ClipboardCheck className="w-4 h-4" /> {props.onManageChecklistsLabel}
-                </button>
-              )}
-              {props.onViewEngagements && (
-                <button onClick={() => { props.onViewEngagements!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2">
-                  <CalendarDays className="w-4 h-4" /> View Engagements
-                </button>
-              )}
-              {props.onViewDepartments && (
-                <button onClick={() => { props.onViewDepartments!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2">
-                  <Building2 className="w-4 h-4" /> View Departments
-                </button>
-              )}
-              {props.renderExtraMenuItems?.(row, closeMenu)}
-              {props.onQuestions && (
-                <button onClick={() => { props.onQuestions!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2">
-                  <ListChecks className="w-4 h-4" /> {props.onQuestionsLabel}
-                </button>
-              )}
-              {props.onSendMessage && (
-                <button onClick={() => { props.onSendMessage!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2">
-                  <Send className="w-4 h-4" /> Send Message
+                <button
+                  type="button"
+                  onClick={() => props.onEdit!(row)}
+                  className={
+                    props.actionsIconOnly
+                      ? "inline-flex items-center justify-center p-1.5 rounded-md text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+                      : "inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs sm:text-sm text-zinc-700 hover:bg-zinc-100"
+                  }
+                  title="Edit"
+                  aria-label="Edit"
+                  data-testid={
+                    props.actionTestIdPrefix
+                      ? `${props.actionTestIdPrefix}-action-edit`
+                      : undefined
+                  }
+                >
+                  <Pencil className="w-4 h-4" />
+                  {!props.actionsIconOnly ? <span>Edit</span> : null}
                 </button>
               )}
               {props.onDelete && (!props.canDelete || props.canDelete(row)) && (
-                <button onClick={() => { props.onDelete!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
-                  <Trash2 className="w-4 h-4" /> {props.onDeleteLabel ?? "Delete"}
+                <button
+                  type="button"
+                  onClick={() => props.onDelete!(row)}
+                  className={
+                    props.actionsIconOnly
+                      ? "inline-flex items-center justify-center p-1.5 rounded-md text-red-600 hover:bg-red-50"
+                      : "inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs sm:text-sm text-red-600 hover:bg-red-50"
+                  }
+                  title={props.onDeleteLabel ?? "Delete"}
+                  aria-label={props.onDeleteLabel ?? "Delete"}
+                  data-testid={
+                    props.actionTestIdPrefix
+                      ? `${props.actionTestIdPrefix}-action-delete`
+                      : undefined
+                  }
+                >
+                  <Trash2 className="w-4 h-4" />
+                  {!props.actionsIconOnly ? <span>{props.onDeleteLabel ?? "Delete"}</span> : null}
                 </button>
               )}
-            </PortalMenu>
-          </div>
+            </div>
+          ) : (
+            <div className="flex justify-end">
+              <button
+                ref={actionsButtonRef}
+                type="button"
+                onClick={() => setOpenActionsRow((curr) => (curr === rowKey ? null : rowKey))}
+                className="p-1.5 sm:p-2 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
+                title="Actions"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+              <PortalMenu
+                open={menuOpen}
+                anchorRef={actionsButtonRef}
+                onClose={closeMenu}
+                width={208}
+              >
+                {props.onView && (
+                  <button onClick={() => { props.onView!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2">
+                    <Eye className="w-4 h-4" /> View
+                  </button>
+                )}
+                {props.onEdit && (
+                  <button onClick={() => { props.onEdit!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2">
+                    <Pencil className="w-4 h-4" /> Edit
+                  </button>
+                )}
+                {props.onDuplicate && (
+                  <button onClick={() => { props.onDuplicate!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2">
+                    <Copy className="w-4 h-4" /> Duplicate
+                  </button>
+                )}
+                {props.onParticipants && (
+                  <button onClick={() => { props.onParticipants!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2">
+                    <Users className="w-4 h-4" /> View Participants
+                  </button>
+                )}
+                {props.onOccupiedSlots && (
+                  <button onClick={() => { props.onOccupiedSlots!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2">
+                    <CalendarClock className="w-4 h-4" /> View Occupied Slots
+                  </button>
+                )}
+                {props.onManageChecklists && (
+                  <button onClick={() => { props.onManageChecklists!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2">
+                    <ClipboardCheck className="w-4 h-4" /> {props.onManageChecklistsLabel}
+                  </button>
+                )}
+                {props.onViewEngagements && (
+                  <button onClick={() => { props.onViewEngagements!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2">
+                    <CalendarDays className="w-4 h-4" /> View Engagements
+                  </button>
+                )}
+                {props.onViewDepartments && (
+                  <button onClick={() => { props.onViewDepartments!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2">
+                    <Building2 className="w-4 h-4" /> View Departments
+                  </button>
+                )}
+                {props.renderExtraMenuItems?.(row, closeMenu)}
+                {props.onQuestions && (
+                  <button onClick={() => { props.onQuestions!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2">
+                    <ListChecks className="w-4 h-4" /> {props.onQuestionsLabel}
+                  </button>
+                )}
+                {props.onSendMessage && (
+                  <button onClick={() => { props.onSendMessage!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2">
+                    <Send className="w-4 h-4" /> Send Message
+                  </button>
+                )}
+                {props.onDelete && (!props.canDelete || props.canDelete(row)) && (
+                  <button onClick={() => { props.onDelete!(row); closeMenu(); }} className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
+                    <Trash2 className="w-4 h-4" /> {props.onDeleteLabel ?? "Delete"}
+                  </button>
+                )}
+              </PortalMenu>
+            </div>
+          )}
         </td>
       )}
     </tr>
@@ -297,6 +381,9 @@ export function DataTable<T extends object>(
     renderExtraMenuItems: requestedExtraMenuItems,
     firstColumnClickableView = true,
     onReorder: requestedOnReorder,
+    actionsLayout = "menu",
+    actionsIconOnly = false,
+    actionTestIdPrefix,
     pagination,
   } = props;
   const onEdit = mutationsAllowed ? requestedOnEdit : undefined;
@@ -396,7 +483,13 @@ export function DataTable<T extends object>(
               </th>
             ))}
             {hasActions && (
-              <th className="px-3 sm:px-4 py-3 text-right font-medium text-zinc-600 w-14 sm:w-16">
+              <th
+                className={
+                  actionsLayout === "inline"
+                    ? "px-3 sm:px-4 py-3 text-right font-medium text-zinc-600 whitespace-nowrap"
+                    : "px-3 sm:px-4 py-3 text-right font-medium text-zinc-600 w-14 sm:w-16"
+                }
+              >
                 Actions
               </th>
             )}
@@ -446,6 +539,9 @@ export function DataTable<T extends object>(
                   setOpenActionsRow={setOpenActionsRow}
                   visibilityClass={visibilityClass}
                   onReorder={!!onReorder}
+                  actionsLayout={actionsLayout}
+                  actionsIconOnly={actionsIconOnly}
+                  actionTestIdPrefix={actionTestIdPrefix}
                 />
               ))}
             </SortableContext>

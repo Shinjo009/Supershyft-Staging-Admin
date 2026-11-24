@@ -10,15 +10,22 @@ import {
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import {
   Loader2,
+  Check,
   ChevronDown,
   ChevronRight,
   Eye,
+  FlaskConical,
   GripVertical,
   Link,
+  Package,
   Pencil,
   Plus,
   Search,
+  Star,
+  Tag,
+  Tags,
   Trash2,
+  Users,
   X,
 } from "lucide-react";
 import {
@@ -102,6 +109,11 @@ export function DiagnosticPackageDetailContent({
   const [editingPrepId, setEditingPrepId] = useState<number | null>(null);
 
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [forCustomersOpen, setForCustomersOpen] = useState(true);
+  const [reasonsOpen, setReasonsOpen] = useState(true);
+  const [categorizationOpen, setCategorizationOpen] = useState(true);
+  const [aboutExpanded, setAboutExpanded] = useState(false);
+  const [reasonsExpanded, setReasonsExpanded] = useState(false);
 
   const [mapModalOpen, setMapModalOpen] = useState(false);
   const [mapModalTestId, setMapModalTestId] = useState<number>(0);
@@ -169,6 +181,27 @@ export function DiagnosticPackageDetailContent({
     const assigned = new Set((detail?.filter_chips ?? []).map((c) => c.filter_chip_id));
     return filterChipCatalog.filter((c) => !assigned.has(c.filter_chip_id));
   }, [filterChipCatalog, detail?.filter_chips]);
+
+  const healthAreaPills = useMemo(() => {
+    const raw = detail?.health_areas_covered?.trim() ?? "";
+    if (!raw) return [];
+    return raw
+      .split(/[\n,]+/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+  }, [detail?.health_areas_covered]);
+
+  const aboutText = detail?.about_text?.trim() ?? "";
+  const aboutNeedsClamp = aboutText.length > 220;
+  const visibleReasons = reasonsExpanded ? reasons : reasons.slice(0, 3);
+  const complementaryKeys = useMemo(
+    () =>
+      Object.entries(detail?.complementary_consultation ?? {})
+        .filter(([, val]) => val)
+        .map(([key]) => key),
+    [detail?.complementary_consultation]
+  );
+  const packageStatusActive = (detail?.status ?? "").toLowerCase() === "active";
 
   const fetchProviderDiff = useCallback(
     async (
@@ -637,63 +670,165 @@ export function DiagnosticPackageDetailContent({
           {loading ? (
             <div className="text-sm text-zinc-500">Loading...</div>
           ) : activeTab === "overview" ? (
-            <div className="space-y-4">
+            <div className="space-y-4" data-testid="diag-overview">
+              <div
+                className="bg-white border border-zinc-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3"
+                data-testid="diag-overview-header"
+              >
+                <div className="flex items-start gap-3 min-w-0 flex-1">
+                  {detail?.package_image ? (
+                    <img
+                      src={detail.package_image}
+                      alt=""
+                      className="h-12 w-12 rounded-xl object-cover border border-zinc-200 shrink-0"
+                    />
+                  ) : (
+                    <div
+                      className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center shrink-0"
+                      data-testid="diag-overview-header-icon"
+                    >
+                      <FlaskConical className="w-5 h-5 text-blue-600" />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <h2 className="text-base font-semibold text-zinc-900 truncate">
+                      {detail?.package_name ?? "Package"}
+                    </h2>
+                    <p className="text-sm text-zinc-500 mt-0.5">
+                      {[
+                        diagnosticProviderDisplayLabel(detail?.diagnostic_provider),
+                        detail?.no_of_tests != null ? `${detail.no_of_tests} tests` : null,
+                        detail?.external_package_code
+                          ? `Lab code: ${detail.external_package_code}`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span
+                    className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${
+                      packageStatusActive
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-zinc-100 text-zinc-600"
+                    }`}
+                    data-testid="diag-overview-status-badge"
+                  >
+                    {packageStatusActive ? "Active" : "Inactive"}
+                  </span>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-3 text-sm">
-                  <h3 className="text-sm font-semibold text-zinc-900">Package</h3>
-                  <div className="flex gap-3">
-                    {detail?.package_image ? (
-                      <img
-                        src={detail.package_image}
-                        alt=""
-                        className="h-16 w-16 rounded-lg object-cover border border-zinc-200 shrink-0"
+                <div
+                  className="bg-white border border-zinc-200 rounded-xl p-4 space-y-3 text-sm"
+                  data-testid="diag-overview-package"
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50"
+                      data-testid="diag-overview-package-icon"
+                    >
+                      <Package className="w-4 h-4 text-blue-600" />
+                    </span>
+                    <h3 className="text-sm font-semibold text-zinc-900">Package Details</h3>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                    <div>
+                      <p className="text-zinc-500 text-xs">Provider</p>
+                      <p className="text-zinc-900">{diagnosticProviderDisplayLabel(detail?.diagnostic_provider)}</p>
+                    </div>
+                    <div>
+                      <p className="text-zinc-500 text-xs">Tests</p>
+                      <p className="text-zinc-900">{detail?.no_of_tests ?? "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-zinc-500 text-xs">Collection</p>
+                      <p className="text-zinc-900">{detail?.collection_type ?? "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-zinc-500 text-xs">Audience</p>
+                      <p className="text-zinc-900">{detail?.package_for ?? "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-zinc-500 text-xs">Gender</p>
+                      <p className="text-zinc-900">{detail?.gender_suitability ?? "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-zinc-500 text-xs">Lab code</p>
+                      <p className="text-zinc-900">{detail?.external_package_code ?? "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-zinc-500 text-xs">Report (hrs)</p>
+                      <p className="text-zinc-900">{detail?.report_duration_hours ?? "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-zinc-500 text-xs mb-1">Status</p>
+                      <PackageStatusToggle
+                        packageId={packageId}
+                        status={detail?.status}
+                        packageName={detail?.package_name}
+                        onStatusChange={(nextStatus) => {
+                          setDetail((d) => (d ? { ...d, status: nextStatus } : d));
+                          onUpdated?.();
+                        }}
+                        onError={(message) => setError(message)}
                       />
-                    ) : null}
-                    <div className="min-w-0 grid grid-cols-1 sm:grid-cols-2 gap-2 flex-1">
-                      <div><p className="text-zinc-500">Provider</p><p className="text-zinc-900">{diagnosticProviderDisplayLabel(detail?.diagnostic_provider)}</p></div>
-                      <div><p className="text-zinc-500">Lab code</p><p className="text-zinc-900">{detail?.external_package_code ?? "—"}</p></div>
-                      <div><p className="text-zinc-500">Tests</p><p className="text-zinc-900">{detail?.no_of_tests ?? "—"}</p></div>
-                      <div><p className="text-zinc-500">Report (hrs)</p><p className="text-zinc-900">{detail?.report_duration_hours ?? "—"}</p></div>
-                      <div><p className="text-zinc-500">Collection</p><p className="text-zinc-900">{detail?.collection_type ?? "—"}</p></div>
-                      <div><p className="text-zinc-500">Gender</p><p className="text-zinc-900">{detail?.gender_suitability ?? "—"}</p></div>
-                      <div><p className="text-zinc-500">Audience</p><p className="text-zinc-900">{detail?.package_for ?? "—"}</p></div>
-                      <div>
-                        <p className="text-zinc-500">Status</p>
-                        <PackageStatusToggle
-                          packageId={packageId}
-                          status={detail?.status}
-                          packageName={detail?.package_name}
-                          onStatusChange={(nextStatus) => {
-                            setDetail((d) => (d ? { ...d, status: nextStatus } : d));
-                            onUpdated?.();
-                          }}
-                          onError={(message) => setError(message)}
-                        />
-                      </div>
                     </div>
                   </div>
                 </div>
-                <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-2 text-sm">
-                  <h3 className="text-sm font-semibold text-zinc-900">Price</h3>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div><p className="text-zinc-500">Price</p><p className="text-zinc-900 font-medium">{detail?.price != null ? `₹${detail.price}` : "—"}</p></div>
-                    <div><p className="text-zinc-500">Original</p><p className="text-zinc-900">{detail?.original_price != null ? `₹${detail.original_price}` : "—"}</p></div>
-                    <div><p className="text-zinc-500">Min price</p><p className="text-zinc-900">{detail?.min_price != null ? `₹${detail.min_price}` : "—"}</p></div>
-                    <div><p className="text-zinc-500">Bookings</p><p className="text-zinc-900">{detail?.bookings_count ?? "—"}</p></div>
+
+                <div
+                  className="bg-white border border-zinc-200 rounded-xl p-4 space-y-3 text-sm"
+                  data-testid="diag-overview-price"
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50"
+                      data-testid="diag-overview-price-icon"
+                    >
+                      <Tag className="w-4 h-4 text-blue-600" />
+                    </span>
+                    <h3 className="text-sm font-semibold text-zinc-900">Price Details</h3>
                   </div>
-                  {detail?.is_most_popular ? (
-                    <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800">Most popular</span>
-                  ) : null}
-                  <div className="pt-1">
-                    <p className="text-zinc-500 text-xs mb-1">Complementary consultations</p>
-                    {detail?.complementary_consultation && Object.keys(detail.complementary_consultation).length > 0 ? (
-                      <ul className="text-zinc-900 text-sm list-disc ml-4">
-                        {Object.entries(detail.complementary_consultation)
-                          .filter(([, val]) => val)
-                          .map(([key]) => (
-                            <li key={key} className="capitalize">{key}</li>
-                          ))}
-                      </ul>
+                  <div className="flex flex-wrap items-baseline gap-2">
+                    <p className="text-2xl font-semibold text-zinc-900 tracking-tight">
+                      {detail?.price != null ? `₹${detail.price}` : "—"}
+                    </p>
+                    {detail?.original_price != null ? (
+                      <p className="text-sm text-zinc-400 line-through">₹{detail.original_price}</p>
+                    ) : null}
+                    {detail?.is_most_popular ? (
+                      <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800">
+                        Most popular
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-zinc-500 text-xs">Min price</p>
+                      <p className="text-zinc-900">{detail?.min_price != null ? `₹${detail.min_price}` : "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-zinc-500 text-xs">Bookings</p>
+                      <p className="text-zinc-900">{detail?.bookings_count ?? "—"}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-zinc-500 text-xs mb-1.5">Complementary consultations</p>
+                    {complementaryKeys.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {complementaryKeys.map((key) => (
+                          <span
+                            key={key}
+                            className="inline-flex px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-700 text-xs capitalize"
+                          >
+                            {key}
+                          </span>
+                        ))}
+                      </div>
                     ) : (
                       <p className="text-zinc-900">None</p>
                     )}
@@ -701,187 +836,354 @@ export function DiagnosticPackageDetailContent({
                 </div>
               </div>
 
-              <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-4 text-sm">
-                <h3 className="text-sm font-semibold text-zinc-900">For customers</h3>
-                <div>
-                  <p className="text-zinc-500 mb-1">About</p>
-                  <p className="text-zinc-900 whitespace-pre-wrap">{detail?.about_text?.trim() ? detail.about_text : "—"}</p>
-                </div>
-                <div>
-                  <p className="text-zinc-500 mb-1">Health areas covered</p>
-                  <p className="text-zinc-900 whitespace-pre-wrap">{detail?.health_areas_covered?.trim() ? detail.health_areas_covered : "—"}</p>
-                </div>
-                <div>
-                  <h4 className="text-sm font-medium text-zinc-900 mb-2">Reasons to book</h4>
-                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onReasonDragEnd}>
-                    <SortableContext items={reasons.map((reason) => reason.reason_id)} strategy={verticalListSortingStrategy}>
-                      <div className="space-y-2 mb-3">
-                        {reasons.length === 0 && <p className="text-xs text-zinc-400">No reasons yet.</p>}
-                        {reasons.map((reason, index) => (
-                          <SortableItem
-                            key={reason.reason_id}
-                            id={reason.reason_id}
-                            handle={mayEditDiagnostics ? <GripVertical className="w-4 h-4" /> : <span className="w-4 shrink-0" aria-hidden />}
-                            className="bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2"
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="text-xs text-zinc-500 mb-0.5">#{index + 1}</p>
-                                {editingReasonId === reason.reason_id ? (
-                                  <textarea
-                                    value={editingReasonText}
-                                    onChange={(e) => setEditingReasonText(e.target.value)}
-                                    className="w-full min-h-16 border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900 text-sm"
-                                  />
+              <div
+                className="bg-white border border-zinc-200 rounded-xl text-sm overflow-hidden"
+                data-testid="diag-overview-for-customers"
+              >
+                <button
+                  type="button"
+                  onClick={() => setForCustomersOpen((open) => !open)}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-zinc-50"
+                  aria-expanded={forCustomersOpen}
+                  data-testid="diag-overview-for-customers-toggle"
+                >
+                  <span className="inline-flex items-center gap-2 min-w-0">
+                    <span
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 shrink-0"
+                      data-testid="diag-overview-for-customers-icon"
+                    >
+                      <Users className="w-4 h-4 text-blue-600" />
+                    </span>
+                    <h3 className="text-sm font-semibold text-zinc-900">For customers</h3>
+                  </span>
+                  <ChevronDown
+                    className={`w-4 h-4 text-zinc-500 transition-transform ${forCustomersOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+                {forCustomersOpen ? (
+                  <div className="px-4 pb-4 border-t border-zinc-100 pt-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div>
+                      <p className="text-zinc-500 text-xs mb-1">About</p>
+                      {aboutText ? (
+                        <>
+                          <p className="text-zinc-900 whitespace-pre-wrap">
+                            {aboutExpanded || !aboutNeedsClamp
+                              ? aboutText
+                              : `${aboutText.slice(0, 220).trimEnd()}…`}
+                          </p>
+                          {aboutNeedsClamp ? (
+                            <button
+                              type="button"
+                              onClick={() => setAboutExpanded((v) => !v)}
+                              className="mt-1 text-sm font-medium text-zinc-900 underline underline-offset-2"
+                              data-testid="diag-overview-about-toggle"
+                            >
+                              {aboutExpanded ? "Show less" : "Read more"}
+                            </button>
+                          ) : null}
+                        </>
+                      ) : (
+                        <p className="text-zinc-900">—</p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-zinc-500 text-xs mb-1.5">Health areas covered</p>
+                      {healthAreaPills.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5" data-testid="diag-overview-health-areas">
+                          {healthAreaPills.map((area) => (
+                            <span
+                              key={area}
+                              className="inline-flex px-2.5 py-1 rounded-full bg-zinc-100 text-zinc-700 text-xs"
+                            >
+                              {area}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-zinc-900 whitespace-pre-wrap">—</p>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div
+                className="bg-white border border-zinc-200 rounded-xl text-sm overflow-hidden"
+                data-testid="diag-overview-reasons-section"
+              >
+                <button
+                  type="button"
+                  onClick={() => setReasonsOpen((open) => !open)}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-zinc-50"
+                  aria-expanded={reasonsOpen}
+                  data-testid="diag-overview-reasons-toggle"
+                >
+                  <span className="inline-flex items-center gap-2 min-w-0">
+                    <span
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 shrink-0"
+                      data-testid="diag-overview-reasons-icon"
+                    >
+                      <Star className="w-4 h-4 text-blue-600" />
+                    </span>
+                    <h3 className="text-sm font-semibold text-zinc-900">Reasons to book</h3>
+                  </span>
+                  <ChevronDown
+                    className={`w-4 h-4 text-zinc-500 transition-transform ${reasonsOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+                {reasonsOpen ? (
+                  <div className="px-4 pb-4 border-t border-zinc-100 pt-4" data-testid="diag-overview-reasons">
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onReasonDragEnd}>
+                      <SortableContext
+                        items={visibleReasons.map((reason) => reason.reason_id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="space-y-2 mb-3">
+                          {reasons.length === 0 && (
+                            <p className="text-xs text-zinc-400">No reasons yet.</p>
+                          )}
+                          {visibleReasons.map((reason, index) => (
+                            <SortableItem
+                              key={reason.reason_id}
+                              id={reason.reason_id}
+                              handle={
+                                mayEditDiagnostics ? (
+                                  <GripVertical className="w-4 h-4" />
                                 ) : (
-                                  <p className="text-sm text-zinc-900 whitespace-pre-wrap">{reason.reason_text}</p>
+                                  <span className="w-4 shrink-0" aria-hidden />
+                                )
+                              }
+                              className="bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 flex items-start gap-2">
+                                  <Check className="w-4 h-4 text-zinc-500 mt-0.5 shrink-0" />
+                                  <div className="min-w-0">
+                                    <p className="text-xs text-zinc-500 mb-0.5">#{index + 1}</p>
+                                    {editingReasonId === reason.reason_id ? (
+                                      <textarea
+                                        value={editingReasonText}
+                                        onChange={(e) => setEditingReasonText(e.target.value)}
+                                        className="w-full min-h-16 border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900 text-sm"
+                                      />
+                                    ) : (
+                                      <p className="text-sm text-zinc-900 whitespace-pre-wrap">
+                                        {reason.reason_text}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                {mayEditDiagnostics && (
+                                  <div className="flex gap-1 shrink-0">
+                                    {editingReasonId === reason.reason_id ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => void saveReasonEdit(reason.reason_id)}
+                                        className="px-2 py-1 text-xs rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+                                      >
+                                        Save
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingReasonId(reason.reason_id);
+                                          setEditingReasonText(reason.reason_text);
+                                        }}
+                                        className="p-1.5 rounded text-zinc-500 hover:bg-zinc-100"
+                                      >
+                                        <Pencil className="w-4 h-4" />
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => void deleteReason(reason)}
+                                      className="p-1.5 rounded text-zinc-500 hover:bg-zinc-100 hover:text-red-600"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
                                 )}
                               </div>
-                              {mayEditDiagnostics && (
-                                <div className="flex gap-1 shrink-0">
-                                  {editingReasonId === reason.reason_id ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => void saveReasonEdit(reason.reason_id)}
-                                      className="px-2 py-1 text-xs rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
-                                    >
-                                      Save
-                                    </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setEditingReasonId(reason.reason_id);
-                                        setEditingReasonText(reason.reason_text);
-                                      }}
-                                      className="p-1.5 rounded text-zinc-500 hover:bg-zinc-100"
-                                    >
-                                      <Pencil className="w-4 h-4" />
-                                    </button>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => void deleteReason(reason)}
-                                    className="p-1.5 rounded text-zinc-500 hover:bg-zinc-100 hover:text-red-600"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </SortableItem>
-                        ))}
-                      </div>
-                    </SortableContext>
-                  </DndContext>
-                  {mayEditDiagnostics && (
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <textarea
-                        value={reasonInput}
-                        onChange={(e) => setReasonInput(e.target.value)}
-                        className="flex-1 min-h-20 border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900 text-sm"
-                        placeholder="Add a reason…"
-                      />
+                            </SortableItem>
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                    {reasons.length > 3 ? (
                       <button
                         type="button"
-                        onClick={() => void addReason()}
-                        className="px-3 py-2 rounded-lg bg-zinc-900 text-white hover:bg-zinc-800 text-sm inline-flex items-center justify-center gap-2 shrink-0"
+                        onClick={() => setReasonsExpanded((v) => !v)}
+                        className="mb-3 text-sm font-medium text-zinc-900 underline underline-offset-2"
+                        data-testid="diag-overview-reasons-view-all"
                       >
-                        <Plus className="w-4 h-4" />
-                        Add
+                        {reasonsExpanded ? "Show less" : `View all (${reasons.length})`}
                       </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-white border border-zinc-200 rounded-xl p-4">
-                <h3 className="text-sm font-medium text-zinc-900 mb-2">Tags</h3>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {(detail?.tags ?? []).map((tag) => (
-                    <span key={tag.tag_id} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-zinc-100 text-zinc-700 text-xs">
-                      {tag.tag_name}
-                      {mayEditDiagnostics && (
+                    ) : null}
+                    {mayEditDiagnostics && (
+                      <div className="flex gap-2" data-testid="diag-overview-add-reason">
+                        <textarea
+                          value={reasonInput}
+                          onChange={(e) => setReasonInput(e.target.value)}
+                          rows={1}
+                          className="flex-1 min-h-[42px] resize-y border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900 text-sm"
+                          placeholder="Add a reason…"
+                          data-testid="diag-overview-reason-input"
+                        />
                         <button
                           type="button"
-                          onClick={() => void removeTag(tag)}
-                          className="text-zinc-500 hover:text-zinc-800"
-                          disabled={busyKey === `delete-tag-${tag.tag_id}`}
+                          onClick={() => void addReason()}
+                          className="self-start px-3 py-2 rounded-lg bg-zinc-900 text-white hover:bg-zinc-800 text-sm shrink-0"
+                          data-testid="diag-overview-reason-submit"
                         >
-                          <X className="w-3 h-3" />
+                          Add
                         </button>
-                      )}
-                    </span>
-                  ))}
-                </div>
-                {mayEditDiagnostics && (
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={tagInput}
-                      onChange={(e) => setTagInput(e.target.value)}
-                      placeholder="Add tag"
-                      className="flex-1 border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900"
-                    />
-                    <button type="button" onClick={() => void addTag()} className="px-3 py-2 rounded-lg bg-zinc-900 text-white hover:bg-zinc-800 text-sm">
-                      Add
-                    </button>
+                      </div>
+                    )}
                   </div>
-                )}
+                ) : null}
               </div>
 
-              <div className="bg-white border border-zinc-200 rounded-xl p-4">
-                <h3 className="text-sm font-medium text-zinc-900 mb-2">Filter chips</h3>
-                <p className="text-xs text-zinc-500 mb-3">
-                  Assign catalog chips to this package for pill-bar filtering ({packageFilterChips.length} assigned).
-                </p>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {packageFilterChips.map((chip) => (
+              <div
+                className="bg-white border border-zinc-200 rounded-xl overflow-hidden"
+                data-testid="diag-overview-categorization"
+              >
+                <button
+                  type="button"
+                  onClick={() => setCategorizationOpen((open) => !open)}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-zinc-50"
+                  aria-expanded={categorizationOpen}
+                  data-testid="diag-overview-categorization-toggle"
+                >
+                  <span className="inline-flex items-center gap-2 min-w-0">
                     <span
-                      key={chip.filter_chip_id}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-50 text-indigo-800 text-xs"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 shrink-0"
+                      data-testid="diag-overview-categorization-icon"
                     >
-                      {chip.display_name}
-                      {mayEditDiagnostics && (
-                        <button
-                          type="button"
-                          onClick={() => void removeFilterChipFromPackage(chip)}
-                          className="text-indigo-600 hover:text-indigo-900"
-                          disabled={busyKey === `delete-filter-chip-${chip.filter_chip_id}`}
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
+                      <Tags className="w-4 h-4 text-blue-600" />
                     </span>
-                  ))}
-                  {packageFilterChips.length === 0 && (
-                    <span className="text-xs text-zinc-400">No filter chips assigned.</span>
-                  )}
-                </div>
-                {mayEditDiagnostics && (
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <select
-                      value={selectedFilterChipId}
-                      onChange={(e) => setSelectedFilterChipId(e.target.value)}
-                      className="flex-1 border border-zinc-300 rounded-lg px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-zinc-900"
-                    >
-                      <option value="">Select a filter chip…</option>
-                      {assignableFilterChips.map((c) => (
-                        <option key={c.filter_chip_id} value={c.filter_chip_id}>
-                          {c.display_name} ({c.chip_key})
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => void addFilterChipToPackage()}
-                      disabled={!selectedFilterChipId || busyKey?.startsWith("add-filter-chip-")}
-                      className="px-3 py-2 rounded-lg bg-zinc-900 text-white hover:bg-zinc-800 text-sm disabled:opacity-50"
-                    >
-                      Add chip
-                    </button>
+                    <h3 className="text-sm font-semibold text-zinc-900">Categorization</h3>
+                  </span>
+                  <ChevronDown
+                    className={`w-4 h-4 text-zinc-500 transition-transform ${categorizationOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+                {categorizationOpen ? (
+                  <div className="px-4 pb-4 border-t border-zinc-100 grid grid-cols-1 lg:grid-cols-2 gap-6 pt-4">
+                    <div data-testid="diag-overview-tags">
+                      <h4 className="text-sm font-medium text-zinc-900 mb-2">Tags</h4>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {(detail?.tags ?? []).map((tag) => (
+                          <span
+                            key={tag.tag_id}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-zinc-100 text-zinc-700 text-xs"
+                            data-testid={`diag-overview-tag-${tag.tag_id}`}
+                          >
+                            {tag.tag_name}
+                            {mayEditDiagnostics && (
+                              <button
+                                type="button"
+                                onClick={() => void removeTag(tag)}
+                                className="text-zinc-500 hover:text-zinc-800"
+                                disabled={busyKey === `delete-tag-${tag.tag_id}`}
+                                aria-label={`Remove tag ${tag.tag_name}`}
+                                data-testid={`diag-overview-remove-tag-${tag.tag_id}`}
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </span>
+                        ))}
+                        {(detail?.tags ?? []).length === 0 && (
+                          <span className="text-xs text-zinc-400">No tags yet.</span>
+                        )}
+                      </div>
+                      {mayEditDiagnostics && (
+                        <div className="flex gap-2" data-testid="diag-overview-add-tag">
+                          <input
+                            type="text"
+                            value={tagInput}
+                            onChange={(e) => setTagInput(e.target.value)}
+                            placeholder="Add tag"
+                            className="flex-1 border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900 text-sm"
+                            data-testid="diag-overview-tag-input"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void addTag()}
+                            className="px-3 py-2 rounded-lg bg-zinc-900 text-white hover:bg-zinc-800 text-sm"
+                            data-testid="diag-overview-tag-submit"
+                          >
+                            Add
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div data-testid="diag-overview-filter-chips">
+                      <h4 className="text-sm font-medium text-zinc-900 mb-2">Filter chips</h4>
+                      <p className="text-xs text-zinc-500 mb-3">
+                        Assign catalog chips to this package for pill-bar filtering (
+                        {packageFilterChips.length} assigned).
+                      </p>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {packageFilterChips.map((chip) => (
+                          <span
+                            key={chip.filter_chip_id}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-50 text-indigo-800 text-xs"
+                            data-testid={`diag-overview-filter-chip-${chip.filter_chip_id}`}
+                          >
+                            {chip.display_name}
+                            {mayEditDiagnostics && (
+                              <button
+                                type="button"
+                                onClick={() => void removeFilterChipFromPackage(chip)}
+                                className="text-indigo-600 hover:text-indigo-900"
+                                disabled={busyKey === `delete-filter-chip-${chip.filter_chip_id}`}
+                                aria-label={`Remove filter chip ${chip.display_name}`}
+                                data-testid={`diag-overview-remove-filter-chip-${chip.filter_chip_id}`}
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </span>
+                        ))}
+                        {packageFilterChips.length === 0 && (
+                          <span className="text-xs text-zinc-400">No filter chips assigned.</span>
+                        )}
+                      </div>
+                      {mayEditDiagnostics && (
+                        <div
+                          className="flex flex-col sm:flex-row gap-2"
+                          data-testid="diag-overview-add-filter-chip"
+                        >
+                          <select
+                            value={selectedFilterChipId}
+                            onChange={(e) => setSelectedFilterChipId(e.target.value)}
+                            className="flex-1 border border-zinc-300 rounded-lg px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-zinc-900"
+                            data-testid="diag-overview-filter-chip-select"
+                          >
+                            <option value="">Select a filter chip…</option>
+                            {assignableFilterChips.map((c) => (
+                              <option key={c.filter_chip_id} value={c.filter_chip_id}>
+                                {c.display_name} ({c.chip_key})
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => void addFilterChipToPackage()}
+                            disabled={!selectedFilterChipId || busyKey?.startsWith("add-filter-chip-")}
+                            className="px-3 py-2 rounded-lg bg-zinc-900 text-white hover:bg-zinc-800 text-sm disabled:opacity-50"
+                            data-testid="diag-overview-filter-chip-submit"
+                          >
+                            Add chip
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
           ) : activeTab === "tests" ? (
