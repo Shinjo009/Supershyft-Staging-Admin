@@ -1,9 +1,18 @@
 import type { IntegrationSyncLog } from "../../lib/api";
 
+const ORANGE_RESCHEDULE_BODY_KEYS = [
+  "requested_slot_time",
+  "reschedule_reason",
+  "reschedule_explanation",
+] as const;
+
 export type IntegrationLogDetailView = {
   method: string;
   apiName: string;
+  path: unknown;
   query: unknown;
+  partnerBody: unknown;
+  internal: unknown;
   sent: unknown;
   received: unknown;
   error: string | null;
@@ -42,6 +51,18 @@ function fullApiUrl(log: IntegrationSyncLog): string {
   return (log.api_endpoint_url || "").trim();
 }
 
+function pickPath(log: IntegrationSyncLog): unknown {
+  const req = log.request_payload;
+  if (req && typeof req === "object" && !Array.isArray(req)) {
+    const record = req as Record<string, unknown>;
+    if (record.path !== undefined) return record.path;
+    const url = typeof record.url === "string" ? record.url : log.api_endpoint_url;
+    const match = url.match(/\/partner\/([^/]+)\/reschedule/i);
+    if (match?.[1]) return { request_id: match[1] };
+  }
+  return null;
+}
+
 function pickQuery(log: IntegrationSyncLog): unknown {
   const req = log.request_payload;
   if (req && typeof req === "object" && !Array.isArray(req)) {
@@ -51,11 +72,38 @@ function pickQuery(log: IntegrationSyncLog): unknown {
   return null;
 }
 
-function pickSent(log: IntegrationSyncLog): unknown {
+function pickPartnerBody(log: IntegrationSyncLog): unknown {
   const req = log.request_payload;
   if (req && typeof req === "object" && !Array.isArray(req)) {
     const record = req as Record<string, unknown>;
-    if (record.body !== undefined) return record.body;
+    if (record.body !== undefined && typeof record.body === "object" && record.body !== null) {
+      return record.body;
+    }
+    const legacy: Record<string, unknown> = {};
+    for (const key of ORANGE_RESCHEDULE_BODY_KEYS) {
+      if (record[key] !== undefined) legacy[key] = record[key];
+    }
+    if (Object.keys(legacy).length > 0) return legacy;
+  }
+  return null;
+}
+
+function pickInternal(log: IntegrationSyncLog): unknown {
+  const req = log.request_payload;
+  if (req && typeof req === "object" && !Array.isArray(req)) {
+    const record = req as Record<string, unknown>;
+    if (record.internal !== undefined) return record.internal;
+    if (record.audit !== undefined) return record.audit;
+  }
+  return null;
+}
+
+function pickSent(log: IntegrationSyncLog): unknown {
+  const partner = pickPartnerBody(log);
+  if (partner != null) return partner;
+  const req = log.request_payload;
+  if (req && typeof req === "object" && !Array.isArray(req)) {
+    const record = req as Record<string, unknown>;
     if (record.query !== undefined) {
       if (typeof record.url === "string") {
         return { url: record.url, query: record.query };
@@ -117,11 +165,15 @@ function pickApiName(log: IntegrationSyncLog): string {
 }
 
 export function buildIntegrationLogDetailView(log: IntegrationSyncLog): IntegrationLogDetailView {
+  const partnerBody = pickPartnerBody(log);
   return {
     method: pickMethod(log),
     apiName: pickApiName(log),
+    path: pickPath(log),
     query: pickQuery(log),
-    sent: pickSent(log),
+    partnerBody,
+    internal: pickInternal(log),
+    sent: partnerBody ?? pickSent(log),
     received: pickReceived(log),
     error: log.error_message ?? null,
   };
