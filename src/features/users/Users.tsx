@@ -1366,8 +1366,9 @@ export function Users() {
                 ? getFullName(deleteConfirm)
                 : deleteConfirm.phone}
             </span>
-            ? This removes the user, any linked sub-profiles, and related bookings, assessments,
-            and engagement participation. This cannot be undone.
+            ? This removes this user&apos;s related bookings, assessments, and engagement
+            participation. Linked sub-profiles are not deleted — remove those first if needed. This
+            cannot be undone.
           </p>
           <div className="flex flex-col-reverse sm:flex-row gap-3">
             <button
