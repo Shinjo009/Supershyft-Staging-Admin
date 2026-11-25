@@ -9,7 +9,6 @@ import {
   type DiagnosticFilterChipFor,
 } from "../../lib/api";
 import { usePermissions } from "../../contexts/PermissionContext";
-import { HeaderActionButton, PageHeaderActions } from "../../layouts/PageHeaderActions";
 
 interface DiagnosticFilterChipsProps {
   embedded?: boolean;
@@ -35,6 +34,7 @@ export function DiagnosticFilterChips({ embedded = false }: DiagnosticFilterChip
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [reordering, setReordering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -145,10 +145,46 @@ export function DiagnosticFilterChips({ embedded = false }: DiagnosticFilterChip
     }
   };
 
+  const handleReorder = async (newOrderKeys: (string | number)[]) => {
+    if (reordering) return;
+    const filterChipIds = newOrderKeys.map((key) => Number(key)).filter((id) => Number.isFinite(id));
+    if (filterChipIds.length === 0) return;
+
+    const previous = chips;
+    const byId = new Map(chips.map((chip) => [chip.filter_chip_id, chip]));
+    const next = filterChipIds
+      .map((id, index) => {
+        const chip = byId.get(id);
+        if (!chip) return null;
+        return { ...chip, display_order: index + 1 };
+      })
+      .filter((chip): chip is DiagnosticFilterChip => chip != null);
+
+    setChips(next);
+    setReordering(true);
+    setError(null);
+    try {
+      await diagnosticFilterChipsApi.reorder({ filter_chip_ids: filterChipIds });
+      await fetchChips();
+    } catch (err) {
+      setChips(previous);
+      setError(getApiError(err));
+    } finally {
+      setReordering(false);
+    }
+  };
+
   const columns: Column<DiagnosticFilterChip>[] = [
+    {
+      key: "display_order",
+      label: "#",
+      sortable: true,
+      render: (row) => (
+        <span className="tabular-nums text-zinc-700">{row.display_order ?? "—"}</span>
+      ),
+    },
     { key: "display_name", label: "Display name", sortable: true },
     { key: "chip_key", label: "Chip key", sortable: true },
-    { key: "display_order", label: "Order", sortable: true },
     {
       key: "chip_for",
       label: "Scope",
@@ -159,63 +195,42 @@ export function DiagnosticFilterChips({ embedded = false }: DiagnosticFilterChip
     {
       key: "status",
       label: "Status",
-      render: (row) => (
-        <span
-          className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-            (row.status ?? "").toLowerCase() === "active"
-              ? "bg-green-50 text-green-700"
-              : "bg-zinc-100 text-zinc-500"
-          }`}
-        >
-          {(row.status ?? "inactive").toLowerCase() === "active" ? "Active" : "Inactive"}
-        </span>
-      ),
+      render: (row) => {
+        const isActive = (row.status ?? "").toLowerCase() === "active";
+        return (
+          <span
+            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${
+              isActive ? "bg-green-50 text-green-700" : "bg-zinc-100 text-zinc-500"
+            }`}
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-green-600" : "bg-zinc-400"}`}
+              aria-hidden
+            />
+            {isActive ? "Active" : "Inactive"}
+          </span>
+        );
+      },
     },
   ];
 
+  const scopePillClass = (active: boolean) =>
+    `px-3.5 py-2 rounded-lg text-sm font-medium transition-colors border ${
+      active
+        ? "bg-zinc-900 text-white border-zinc-900"
+        : "bg-white text-zinc-700 border-zinc-300 hover:bg-zinc-50"
+    }`;
+
   return (
-    <div className="flex gap-4">
-      <aside className="w-44 shrink-0 border border-zinc-200 rounded-xl bg-white p-2 space-y-1 self-start">
-        <p className="text-xs font-medium text-zinc-500 px-2 py-1">Package chips</p>
-        <button
-          type="button"
-          onClick={() => {
-            setChipScope("public_package");
-            setPage(1);
-          }}
-          className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium ${
-            chipScope === "public_package" ? "bg-zinc-900 text-white" : "text-zinc-700 hover:bg-zinc-100"
-          }`}
-        >
-          Public packages
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setChipScope("custom_package");
-            setPage(1);
-          }}
-          className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium ${
-            chipScope === "custom_package" ? "bg-zinc-900 text-white" : "text-zinc-700 hover:bg-zinc-100"
-          }`}
-        >
-          Custom packages
-        </button>
-      </aside>
-      <div className="min-w-0 flex-1">
-      <PageHeaderActions>
-        {mayEdit && (
-          <HeaderActionButton label="Add filter chip" icon={Plus} onClick={openAdd} />
-        )}
-      </PageHeaderActions>
+    <div>
       {!embedded && (
         <h1 className="text-lg sm:text-xl font-semibold text-zinc-900 mb-6">Diagnostics filter chips</h1>
       )}
 
       {error && <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>}
 
-      <div className="mb-4 flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1 min-w-0">
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="relative w-full sm:w-[min(100%,18rem)] sm:shrink-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
           <input
             type="search"
@@ -226,8 +241,44 @@ export function DiagnosticFilterChips({ embedded = false }: DiagnosticFilterChip
             }}
             className="w-full pl-9 pr-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-zinc-900"
             placeholder="Search filter chips..."
+            data-testid="diag-filter-chips-search"
           />
         </div>
+        <div className="flex items-center gap-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              setChipScope("public_package");
+              setPage(1);
+            }}
+            className={scopePillClass(chipScope === "public_package")}
+            data-testid="diag-filter-chips-scope-public"
+          >
+            Public packages
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setChipScope("custom_package");
+              setPage(1);
+            }}
+            className={scopePillClass(chipScope === "custom_package")}
+            data-testid="diag-filter-chips-scope-custom"
+          >
+            Custom packages
+          </button>
+        </div>
+        {mayEdit && (
+          <button
+            type="button"
+            onClick={openAdd}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 sm:ml-auto shrink-0"
+            data-testid="diag-filter-chips-add"
+          >
+            <Plus className="w-4 h-4" />
+            Add Filter Chip
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden">
@@ -242,6 +293,11 @@ export function DiagnosticFilterChips({ embedded = false }: DiagnosticFilterChip
             keyExtractor={(row) => row.filter_chip_id}
             onEdit={mayEdit ? openEdit : undefined}
             onDelete={mayEdit ? openDeleteConfirm : undefined}
+            onReorder={mayEdit ? handleReorder : undefined}
+            mutationTaskKey="filter_chips"
+            actionsLayout="inline"
+            actionsIconOnly
+            actionTestIdPrefix="diag-filter-chips"
             pagination={{
               page,
               limit: LIST_LIMIT,
@@ -352,7 +408,6 @@ export function DiagnosticFilterChips({ embedded = false }: DiagnosticFilterChip
           </div>
         </Modal>
       )}
-      </div>
     </div>
   );
 }

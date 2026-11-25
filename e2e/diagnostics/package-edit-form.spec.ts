@@ -51,4 +51,18 @@ test.describe("Diagnostic package Edit form UI/UX", () => {
     await expect(page.getByRole("button", { name: "Save changes" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible();
   });
+
+  test("Basic Information hides Package image URL and shows B2C/B2B Package for labels", async ({
+    page,
+  }) => {
+    const basic = page.getByTestId("diag-package-form-section-basic");
+    await expect(basic.getByText("Package image URL")).toHaveCount(0);
+    await expect(basic.locator("label.block").filter({ hasText: "Upload package image" })).toBeVisible();
+
+    const packageFor = basic.locator("select").filter({ has: page.locator('option[value="public"]') });
+    await expect(packageFor).toBeVisible();
+    await expect(packageFor.locator('option[value="public"]')).toHaveText("B2C");
+    await expect(packageFor.locator('option[value="camp"]')).toHaveText("B2B");
+    await expect(packageFor.locator('option[value="both"]')).toHaveText("both");
+  });
 });

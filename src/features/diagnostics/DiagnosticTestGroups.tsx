@@ -189,6 +189,9 @@ export function DiagnosticTestGroups() {
             firstColumnClickableView
             mutationCategory="diagnostics"
             mutationTaskKey="tests_groups"
+            actionsLayout="inline"
+            actionsIconOnly
+            actionTestIdPrefix="diag-profiles"
             pagination={{
               page,
               limit: LIST_LIMIT,

@@ -106,17 +106,7 @@ export function DiagnosticPackageFormFields({
           required
         />
       </div>
-      <div>
-        <label className="block text-sm font-medium text-zinc-700 mb-1">Package image URL</label>
-        <input
-          type="url"
-          value={form.package_image ?? ""}
-          onChange={(e) => setForm((prev) => ({ ...prev, package_image: e.target.value }))}
-          className="w-full border border-zinc-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-zinc-900"
-          placeholder="https://"
-        />
-      </div>
-      <div>
+      <div className="sm:col-span-2">
         <label className="block text-sm font-medium text-zinc-700 mb-1">Upload package image</label>
         <label
           className={`flex items-center justify-center gap-2 w-full border border-dashed border-zinc-300 rounded-lg px-3 py-2 text-sm text-zinc-700 bg-zinc-50 hover:bg-zinc-100 cursor-pointer ${
@@ -178,8 +168,8 @@ export function DiagnosticPackageFormFields({
           }
           className="w-full border border-zinc-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-zinc-900"
         >
-          <option value="public">public</option>
-          <option value="camp">camp</option>
+          <option value="public">B2C</option>
+          <option value="camp">B2B</option>
           <option value="both">both</option>
         </select>
       </div>
