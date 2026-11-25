@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { SettingsFormCard, SettingsSectionHeading, inputClass } from "./SettingsFormCard";
@@ -9,6 +9,12 @@ import {
   type B2cDefaultsByType,
   emptyTypeDefaults,
 } from "./settingsUtils";
+import {
+  SettingsSegmentedControl,
+  YES_NO_OPTIONS,
+  boolToYesNo,
+  yesNoToBool,
+} from "./SettingsSegmentedControl";
 import { DiagnosticPackageGroupProviderSelect } from "../diagnostics/DiagnosticPackageGroupProviderSelect";
 import { getTypeConfig, getTypeHint } from "../engagements/engagementTypeConfig";
 import {
@@ -34,6 +40,41 @@ import {
 } from "../../lib/api";
 import { usePermissions } from "../../contexts/PermissionContext";
 import { fetchAllPages } from "../../lib/fetchAllPages";
+
+const DIAGNOSTIC_PACKAGE_MODE_OPTIONS = [
+  { value: "one", label: "One package" },
+  { value: "split", label: "Male and female packages" },
+] as const;
+
+function sectionTestId(title: string) {
+  return `onboarding-section-${title.trim().toLowerCase().replace(/\s+/g, "-")}`;
+}
+
+function CategoryHeading({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="shrink-0">
+        <SettingsSectionHeading>{children}</SettingsSectionHeading>
+      </div>
+      <div className="h-px flex-1 bg-zinc-200" aria-hidden />
+    </div>
+  );
+}
+
+function ConfigSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section data-testid={sectionTestId(title)} className="mt-6 space-y-3">
+      <CategoryHeading>{title}</CategoryHeading>
+      {children}
+    </section>
+  );
+}
 
 type OnboardingSettingsProps = {
   canEdit: boolean;
@@ -310,6 +351,16 @@ export function OnboardingSettings({ canEdit }: OnboardingSettingsProps) {
 
   const activeDisplayName =
     b2cEngagementTypes.find((t) => t.code === activeEngagementType)?.display_name ?? "Journey type";
+  const showPackages = activeTypeConfig.needsDiagnostic || activeTypeConfig.needsAssessment;
+  const showCollection = activeTypeConfig.needsBloodCollection;
+  const showConsultation = activeTypeConfig.needsConsultation;
+  const showProfiles = activeTypeConfig.needsMetsights || activeTypeConfig.needsFitPrint;
+  const showQuestionnaires = activeTypeConfig.needsAssessment;
+  const showProfilesQuestionnairesRow = showProfiles || showQuestionnaires;
+  const profileToggleCount =
+    (activeTypeConfig.needsMetsights ? 1 : 0) + (activeTypeConfig.needsFitPrint ? 1 : 0);
+  const profilesQuestionnairesToggleCount =
+    profileToggleCount + (showQuestionnaires ? 1 : 0);
 
   return (
     <div className="space-y-6">
@@ -321,7 +372,7 @@ export function OnboardingSettings({ canEdit }: OnboardingSettingsProps) {
 
       <SettingsFormCard
         title="Default journey type"
-        description="Used when a new patient onboarding flow does not specify which journey to start."
+        description="Fallback for new onboardings."
         success={fallbackSaveOk}
         dirty={fallbackDirty}
         saving={savingFallback}
@@ -331,8 +382,11 @@ export function OnboardingSettings({ canEdit }: OnboardingSettingsProps) {
         onDiscard={discardFallback}
       >
         <div>
-          <label className="block text-sm font-medium text-zinc-700 mb-1">Fallback journey type</label>
+          <label htmlFor="b2c-default-journey-type" className="sr-only">
+            Default journey type
+          </label>
           <select
+            id="b2c-default-journey-type"
             className={inputClass}
             value={defaultEngagementTypeCode}
             onChange={(ev) => {
@@ -397,382 +451,459 @@ export function OnboardingSettings({ canEdit }: OnboardingSettingsProps) {
             })}
           </nav>
 
-          <div className="flex-1 min-w-0 space-y-4">
-            {activeTypeHint ? <p className="text-xs text-zinc-500">{activeTypeHint}</p> : null}
+          <div className="flex-1 min-w-0">
+            <div>
+              <h3 className="text-sm font-semibold text-zinc-900">{activeDisplayName} configuration</h3>
+              {activeTypeHint ? <p className="text-xs text-zinc-500 mt-1">{activeTypeHint}</p> : null}
+            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <SettingsSectionHeading>Schedule</SettingsSectionHeading>
-              <div className="sm:col-span-2">
-                <label htmlFor="b2c-engagement-duration" className="block text-sm font-medium text-zinc-700 mb-1">
-                  Engagement duration (days)
-                </label>
-                <input
-                  id="b2c-engagement-duration"
-                  type="number"
-                  min={1}
-                  max={90}
-                  className={inputClass}
-                  value={activeDefaults.engagement_duration_days ?? 3}
-                  onChange={(ev) =>
-                    updateActiveDefaults({
-                      engagement_duration_days: Math.min(90, Math.max(1, Number(ev.target.value) || 3)),
-                    })
-                  }
-                  disabled={!canEdit}
-                />
-                <p className="text-xs text-zinc-500 mt-1">
-                  How long the engagement runs from the start date (inclusive). Example: 3 means the start date through
-                  two days after.
-                </p>
-              </div>
-
-              <SettingsSectionHeading>Packages</SettingsSectionHeading>
-
-              {activeTypeConfig.needsDiagnostic ? (
-                <div className="sm:col-span-2 space-y-3">
-                  <p className="text-sm font-medium text-zinc-700">Diagnostic packages</p>
-                  <div className="flex flex-wrap gap-4 text-sm text-zinc-700">
-                    <label className="inline-flex items-center gap-2">
+            <div>
+                  <ConfigSection title="Schedule">
+                    <div className="max-w-xs">
+                      <label
+                        htmlFor="b2c-engagement-duration"
+                        className="block text-sm font-medium text-zinc-700 mb-1"
+                      >
+                        Engagement duration (days)
+                      </label>
                       <input
-                        type="radio"
-                        name="diag-mode"
-                        checked={!diagnosticSplitMode}
-                        onChange={() =>
+                        id="b2c-engagement-duration"
+                        type="number"
+                        min={1}
+                        max={90}
+                        className={inputClass}
+                        value={activeDefaults.engagement_duration_days ?? 3}
+                        onChange={(ev) =>
                           updateActiveDefaults({
-                            diagnostic_package_id_male: null,
-                            diagnostic_package_id_female: null,
+                            engagement_duration_days: Math.min(
+                              90,
+                              Math.max(1, Number(ev.target.value) || 3)
+                            ),
                           })
                         }
                         disabled={!canEdit}
                       />
-                      One package
-                    </label>
-                    <label className="inline-flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="diag-mode"
-                        checked={diagnosticSplitMode}
-                        onChange={() =>
-                          updateActiveDefaults({
-                            diagnostic_package_id: null,
-                            diagnostic_package_id_male:
-                              activeDefaults.diagnostic_package_id_male ?? activeDefaults.diagnostic_package_id,
-                            diagnostic_package_id_female: activeDefaults.diagnostic_package_id_female,
-                          })
-                        }
-                        disabled={!canEdit}
-                      />
-                      Male and female packages
-                    </label>
-                  </div>
-                  {!diagnosticSplitMode ? (
-                    <DiagnosticPackageGroupProviderSelect
-                      groups={diagnosticPackageGroups}
-                      value={activeDefaults.diagnostic_package_id}
-                      onChange={(id) => updateActiveDefaults({ diagnostic_package_id: id })}
-                      bootstrapById={diagnosticBootstrapById}
-                      disabled={!canEdit}
-                      groupLabel="Default diagnostic package"
-                      emptyGroupLabel="None"
-                      emptyProviderLabel="Select provider"
-                    />
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <DiagnosticPackageGroupProviderSelect
-                        groups={diagnosticPackageGroups}
-                        value={activeDefaults.diagnostic_package_id_male}
-                        onChange={(id) =>
-                          updateActiveDefaults({ diagnostic_package_id: null, diagnostic_package_id_male: id })
-                        }
-                        bootstrapById={diagnosticBootstrapById}
-                        genderFilter="male"
-                        disabled={!canEdit}
-                        groupLabel="Male package"
-                        emptyGroupLabel="None"
-                      />
-                      <DiagnosticPackageGroupProviderSelect
-                        groups={diagnosticPackageGroups}
-                        value={activeDefaults.diagnostic_package_id_female}
-                        onChange={(id) =>
-                          updateActiveDefaults({ diagnostic_package_id: null, diagnostic_package_id_female: id })
-                        }
-                        bootstrapById={diagnosticBootstrapById}
-                        genderFilter="female"
-                        disabled={!canEdit}
-                        groupLabel="Female package"
-                        emptyGroupLabel="None"
-                      />
                     </div>
-                  )}
-                </div>
-              ) : null}
+                  </ConfigSection>
 
-              {activeTypeConfig.needsAssessment ? (
-                <div className="sm:col-span-2">
-                  <label htmlFor="b2c-assessment" className="block text-sm font-medium text-zinc-700 mb-1">
-                    Default assessment package
-                  </label>
-                  <select
-                    id="b2c-assessment"
-                    className={inputClass}
-                    value={activeDefaults.assessment_package_id || 0}
-                    onChange={(ev) => updateActiveDefaults({ assessment_package_id: Number(ev.target.value) })}
-                    disabled={!canEdit}
-                  >
-                    <option value={0}>Select package</option>
-                    {assessmentPackages.map((pkg) => {
-                      const isPro = (pkg.package_code ?? "").trim() === METSIGHTS_PRO_PACKAGE_CODE;
-                      const disabled =
-                        applySettingsProGate && isPro && activeProGate?.resolved && !activeProGate.allowed;
-                      return (
-                        <option key={pkg.package_id} value={pkg.package_id} disabled={disabled}>
-                          {labelAssessment(pkg)}
-                          {disabled ? " (needs LH, FSH, total testosterone on diagnostic package)" : ""}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  <MetsightsProOnboardingCallout
-                    activeStatus={activeProGate}
-                    parameterKeys={activeProParameterKeys}
-                  />
-                </div>
-              ) : null}
+                  {showPackages ? (
+                    <ConfigSection title="Packages">
+                      <div className="space-y-4">
+                        {activeTypeConfig.needsDiagnostic ? (
+                          <div className="space-y-4">
+                            {!diagnosticSplitMode ? (
+                              <div className="grid grid-cols-1 lg:grid-cols-[auto_minmax(0,1.4fr)_minmax(0,1fr)] gap-4 items-start">
+                                <div>
+                                  <p className="text-sm font-medium text-zinc-700 mb-1.5">
+                                    Diagnostic packages
+                                  </p>
+                                  <SettingsSegmentedControl
+                                    aria-label="Diagnostic packages"
+                                    value="one"
+                                    options={DIAGNOSTIC_PACKAGE_MODE_OPTIONS}
+                                    disabled={!canEdit}
+                                    onChange={(mode) => {
+                                      if (mode === "split") {
+                                        updateActiveDefaults({
+                                          diagnostic_package_id: null,
+                                          diagnostic_package_id_male:
+                                            activeDefaults.diagnostic_package_id_male ??
+                                            activeDefaults.diagnostic_package_id,
+                                          diagnostic_package_id_female:
+                                            activeDefaults.diagnostic_package_id_female,
+                                        });
+                                      }
+                                    }}
+                                  />
+                                </div>
+                                <DiagnosticPackageGroupProviderSelect
+                                  groups={diagnosticPackageGroups}
+                                  value={activeDefaults.diagnostic_package_id}
+                                  onChange={(id) =>
+                                    updateActiveDefaults({ diagnostic_package_id: id })
+                                  }
+                                  bootstrapById={diagnosticBootstrapById}
+                                  disabled={!canEdit}
+                                  groupLabel="Default diagnostic package"
+                                  emptyGroupLabel="None"
+                                  emptyProviderLabel="Select provider"
+                                  layout="row"
+                                  className="contents"
+                                />
+                              </div>
+                            ) : (
+                              <div className="space-y-4">
+                                <div>
+                                  <p className="text-sm font-medium text-zinc-700 mb-1.5">
+                                    Diagnostic packages
+                                  </p>
+                                  <SettingsSegmentedControl
+                                    aria-label="Diagnostic packages"
+                                    value="split"
+                                    options={DIAGNOSTIC_PACKAGE_MODE_OPTIONS}
+                                    disabled={!canEdit}
+                                    onChange={(mode) => {
+                                      if (mode === "one") {
+                                        updateActiveDefaults({
+                                          diagnostic_package_id_male: null,
+                                          diagnostic_package_id_female: null,
+                                        });
+                                      }
+                                    }}
+                                  />
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <DiagnosticPackageGroupProviderSelect
+                                    groups={diagnosticPackageGroups}
+                                    value={activeDefaults.diagnostic_package_id_male}
+                                    onChange={(id) =>
+                                      updateActiveDefaults({
+                                        diagnostic_package_id: null,
+                                        diagnostic_package_id_male: id,
+                                      })
+                                    }
+                                    bootstrapById={diagnosticBootstrapById}
+                                    genderFilter="male"
+                                    disabled={!canEdit}
+                                    groupLabel="Male package"
+                                    emptyGroupLabel="None"
+                                    layout="row"
+                                  />
+                                  <DiagnosticPackageGroupProviderSelect
+                                    groups={diagnosticPackageGroups}
+                                    value={activeDefaults.diagnostic_package_id_female}
+                                    onChange={(id) =>
+                                      updateActiveDefaults({
+                                        diagnostic_package_id: null,
+                                        diagnostic_package_id_female: id,
+                                      })
+                                    }
+                                    bootstrapById={diagnosticBootstrapById}
+                                    genderFilter="female"
+                                    disabled={!canEdit}
+                                    groupLabel="Female package"
+                                    emptyGroupLabel="None"
+                                    layout="row"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : null}
 
-              <SettingsSectionHeading>Collection</SettingsSectionHeading>
-              {activeTypeConfig.needsBloodCollection ? (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-zinc-700 mb-1">Blood collection type</label>
-                    <select
-                      className={inputClass}
-                      value={activeDefaults.blood_collection_type ?? ""}
-                      onChange={(ev) =>
-                        updateActiveDefaults({
-                          blood_collection_type: (ev.target.value || null) as BloodCollectionType | null,
-                        })
-                      }
-                      disabled={!canEdit}
-                    >
-                      {BLOOD_COLLECTION_TYPE_OPTIONS.map((option) => (
-                        <option key={option.value || "none"} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-zinc-700 mb-1">Slot duration (minutes)</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={480}
-                      className={inputClass}
-                      value={activeDefaults.slot_duration ?? 20}
-                      onChange={(ev) => updateActiveDefaults({ slot_duration: Number(ev.target.value) })}
-                      disabled={!canEdit}
-                    />
-                  </div>
-                  {activeDefaults.blood_collection_type === "home_collection" ? (
-                    <div className="sm:col-span-2">
-                      <span className="block text-sm font-medium text-zinc-700 mb-1">Auto booking</span>
-                      <div className="flex gap-5 py-2">
-                        <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
-                          <input
-                            type="radio"
-                            checked={Boolean(activeDefaults.auto_booking)}
-                            onChange={() => updateActiveDefaults({ auto_booking: true })}
-                            disabled={!canEdit}
-                          />
-                          Yes
-                        </label>
-                        <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
-                          <input
-                            type="radio"
-                            checked={!activeDefaults.auto_booking}
-                            onChange={() => updateActiveDefaults({ auto_booking: false })}
-                            disabled={!canEdit}
-                          />
-                          No
-                        </label>
+                        {activeTypeConfig.needsAssessment ? (
+                          <div>
+                            <label
+                              htmlFor="b2c-assessment"
+                              className="block text-sm font-medium text-zinc-700 mb-1"
+                            >
+                              Default assessment package
+                            </label>
+                            <select
+                              id="b2c-assessment"
+                              className={inputClass}
+                              value={activeDefaults.assessment_package_id || 0}
+                              onChange={(ev) =>
+                                updateActiveDefaults({
+                                  assessment_package_id: Number(ev.target.value),
+                                })
+                              }
+                              disabled={!canEdit}
+                            >
+                              <option value={0}>Select package</option>
+                              {assessmentPackages.map((pkg) => {
+                                const isPro =
+                                  (pkg.package_code ?? "").trim() === METSIGHTS_PRO_PACKAGE_CODE;
+                                const disabled =
+                                  applySettingsProGate &&
+                                  isPro &&
+                                  activeProGate?.resolved &&
+                                  !activeProGate.allowed;
+                                return (
+                                  <option
+                                    key={pkg.package_id}
+                                    value={pkg.package_id}
+                                    disabled={disabled}
+                                  >
+                                    {labelAssessment(pkg)}
+                                    {disabled
+                                      ? " (needs LH, FSH, total testosterone on diagnostic package)"
+                                      : ""}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                            <MetsightsProOnboardingCallout
+                              activeStatus={activeProGate}
+                              parameterKeys={activeProParameterKeys}
+                            />
+                          </div>
+                        ) : null}
                       </div>
-                    </div>
+                    </ConfigSection>
                   ) : null}
-                </>
-              ) : null}
 
-              {activeTypeConfig.needsConsultation ? (
-                <>
-                  <SettingsSectionHeading>Consultation</SettingsSectionHeading>
-                  <div>
-                    <label className="block text-sm font-medium text-zinc-700 mb-1">Consultation mode</label>
-                    <select
-                      className={inputClass}
-                      value={activeDefaults.consultation_mode ?? "online"}
-                      onChange={(ev) =>
-                        updateActiveDefaults({
-                          consultation_mode: (ev.target.value || null) as "online" | "offline" | null,
-                        })
-                      }
-                      disabled={!canEdit}
-                    >
-                      <option value="online">Online</option>
-                      <option value="offline">Offline</option>
-                    </select>
-                  </div>
-                </>
-              ) : null}
-
-              <SettingsSectionHeading>Payment</SettingsSectionHeading>
-              <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-zinc-700 mb-1">Payment type</label>
-                <select
-                  className={inputClass}
-                  value={activeDefaults.payment_type ?? "paid_by_patient"}
-                  onChange={(ev) =>
-                    updateActiveDefaults({
-                      payment_type: ev.target.value as "paid_by_patient" | "paid_by_group",
-                    })
-                  }
-                  disabled={!canEdit}
-                >
-                  <option value="paid_by_patient">Paid by patient</option>
-                  <option value="paid_by_group">Paid by group</option>
-                </select>
-                {activeDefaults.payment_type === "paid_by_group" ? (
-                  <p className="text-xs text-amber-700 mt-1">Patients will not be prompted for payment on onboard.</p>
-                ) : null}
-              </div>
-
-              <SettingsSectionHeading>Profiles</SettingsSectionHeading>
-              {activeTypeConfig.needsMetsights || activeTypeConfig.needsFitPrint ? (
-                <>
-                  {activeTypeConfig.needsMetsights ? (
-                    <div>
-                      <span className="block text-sm font-medium text-zinc-700 mb-1">Create profile on Metsights</span>
-                      <div className="flex gap-5 py-2">
-                        <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
+                  {showCollection ? (
+                    <ConfigSection title="Collection">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-zinc-700 mb-1">
+                            Blood collection type
+                          </label>
+                          <select
+                            className={inputClass}
+                            value={activeDefaults.blood_collection_type ?? ""}
+                            onChange={(ev) =>
+                              updateActiveDefaults({
+                                blood_collection_type: (ev.target.value ||
+                                  null) as BloodCollectionType | null,
+                              })
+                            }
+                            disabled={!canEdit}
+                          >
+                            {BLOOD_COLLECTION_TYPE_OPTIONS.map((option) => (
+                              <option key={option.value || "none"} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-zinc-700 mb-1">
+                            Slot duration (minutes)
+                          </label>
                           <input
-                            type="radio"
-                            checked={activeDefaults.create_profile_on_metsights}
-                            onChange={() => updateActiveDefaults({ create_profile_on_metsights: true })}
+                            type="number"
+                            min={1}
+                            max={480}
+                            className={inputClass}
+                            value={activeDefaults.slot_duration ?? 20}
+                            onChange={(ev) =>
+                              updateActiveDefaults({ slot_duration: Number(ev.target.value) })
+                            }
                             disabled={!canEdit}
                           />
-                          Yes
-                        </label>
-                        <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
-                          <input
-                            type="radio"
-                            checked={!activeDefaults.create_profile_on_metsights}
-                            onChange={() => updateActiveDefaults({ create_profile_on_metsights: false })}
+                        </div>
+                        <div>
+                          <span className="block text-sm font-medium text-zinc-700 mb-1.5">
+                            Auto booking
+                          </span>
+                          <SettingsSegmentedControl
+                            aria-label="Auto booking"
+                            value={boolToYesNo(Boolean(activeDefaults.auto_booking))}
+                            options={YES_NO_OPTIONS}
                             disabled={!canEdit}
+                            onChange={(v) =>
+                              updateActiveDefaults({ auto_booking: yesNoToBool(v) })
+                            }
                           />
-                          No
-                        </label>
+                        </div>
                       </div>
-                    </div>
+                    </ConfigSection>
                   ) : null}
-                  {activeTypeConfig.needsFitPrint ? (
-                    <div>
-                      <span className="block text-sm font-medium text-zinc-700 mb-1">Enroll for FitPrint Full</span>
-                      <div className="flex gap-5 py-2">
-                        <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
-                          <input
-                            type="radio"
-                            checked={activeDefaults.enroll_for_fitprint_full}
-                            onChange={() => updateActiveDefaults({ enroll_for_fitprint_full: true })}
-                            disabled={!canEdit}
-                          />
-                          Yes
-                        </label>
-                        <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
-                          <input
-                            type="radio"
-                            checked={!activeDefaults.enroll_for_fitprint_full}
-                            onChange={() => updateActiveDefaults({ enroll_for_fitprint_full: false })}
-                            disabled={!canEdit}
-                          />
-                          No
-                        </label>
-                      </div>
-                      {activeFitPrintInvalid ? (
-                        <p className="text-xs text-red-600">FitPrint Full requires Metsights profile creation.</p>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </>
-              ) : null}
 
-              {activeTypeConfig.needsAssessment ? (
-                <>
-                  <SettingsSectionHeading>Questionnaires</SettingsSectionHeading>
-                  <div className="sm:col-span-2">
-                    <span className="block text-sm font-medium text-zinc-700 mb-1">
-                      Load previous assessment questionnaires
-                    </span>
-                    <div className="flex gap-5 py-2">
-                      <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
-                        <input
-                          type="radio"
-                          checked={Boolean(activeDefaults.load_prev_assessment_questionnaires)}
-                          onChange={() =>
+                  {showConsultation ? (
+                    <ConfigSection title="Consultation">
+                      <div className="max-w-sm">
+                        <label className="block text-sm font-medium text-zinc-700 mb-1">
+                          Consultation mode
+                        </label>
+                        <select
+                          className={inputClass}
+                          value={activeDefaults.consultation_mode ?? "online"}
+                          onChange={(ev) =>
                             updateActiveDefaults({
-                              load_prev_assessment_questionnaires: true,
-                              load_prev_questionnaire_category_keys:
-                                activeDefaults.load_prev_questionnaire_category_keys?.length
-                                  ? activeDefaults.load_prev_questionnaire_category_keys
-                                  : [...DEFAULT_LOAD_PREV_QUESTIONNAIRE_CATEGORY_KEYS],
+                              consultation_mode: (ev.target.value || null) as
+                                | "online"
+                                | "offline"
+                                | null,
                             })
                           }
                           disabled={!canEdit}
-                        />
-                        Yes
-                      </label>
-                      <label className="inline-flex items-center gap-2 text-sm text-zinc-700">
-                        <input
-                          type="radio"
-                          checked={!activeDefaults.load_prev_assessment_questionnaires}
-                          onChange={() => updateActiveDefaults({ load_prev_assessment_questionnaires: false })}
-                          disabled={!canEdit}
-                        />
-                        No
-                      </label>
-                    </div>
-                    {activeDefaults.load_prev_assessment_questionnaires ? (
-                      <div className="mt-3 space-y-3 rounded-lg border border-zinc-200 p-3">
-                        {(["metsights", "supershyft"] as const).map((group) => {
-                          const rows =
-                            group === "metsights"
-                              ? loadPrevCategoriesByGroup.metsights
-                              : loadPrevCategoriesByGroup.supershyft;
-                          if (rows.length === 0) return null;
-                          return (
-                            <div key={group}>
-                              <p className="text-xs text-zinc-500 mb-1 capitalize">{group}</p>
-                              <div className="flex flex-wrap gap-x-4 gap-y-2">
-                                {rows.map((cat) => (
-                                  <label
-                                    key={cat.category_id}
-                                    className="inline-flex items-center gap-2 text-sm text-zinc-700"
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={selectedLoadPrevCategoryKeys.includes(cat.category_key)}
-                                      onChange={() => toggleLoadPrevCategoryKey(cat.category_key)}
-                                      disabled={!canEdit}
-                                    />
-                                    {cat.display_name || cat.category_key}
-                                  </label>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
+                        >
+                          <option value="online">Online</option>
+                          <option value="offline">Offline</option>
+                        </select>
                       </div>
-                    ) : null}
-                  </div>
-                </>
-              ) : null}
+                    </ConfigSection>
+                  ) : null}
+
+                  <ConfigSection title="Payment">
+                    <div className="max-w-sm">
+                      <label className="block text-sm font-medium text-zinc-700 mb-1">
+                        Payment type
+                      </label>
+                      <select
+                        className={inputClass}
+                        value={activeDefaults.payment_type ?? "paid_by_patient"}
+                        onChange={(ev) =>
+                          updateActiveDefaults({
+                            payment_type: ev.target.value as
+                              | "paid_by_patient"
+                              | "paid_by_group",
+                          })
+                        }
+                        disabled={!canEdit}
+                      >
+                        <option value="paid_by_patient">Paid by patient</option>
+                        <option value="paid_by_group">Paid by group</option>
+                      </select>
+                      {activeDefaults.payment_type === "paid_by_group" ? (
+                        <p className="text-xs text-amber-700 mt-1">
+                          Patients will not be prompted for payment on onboard.
+                        </p>
+                      ) : null}
+                    </div>
+                  </ConfigSection>
+
+                  {showProfilesQuestionnairesRow ? (
+                    <section
+                      data-testid="onboarding-section-profiles-questionnaires"
+                      className="mt-6 space-y-3"
+                    >
+                      <div
+                        className={`grid gap-4 ${
+                          showProfiles && showQuestionnaires
+                            ? profileToggleCount >= 2
+                              ? "grid-cols-1 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] sm:divide-x sm:divide-zinc-200"
+                              : "grid-cols-1 sm:grid-cols-2 sm:divide-x sm:divide-zinc-200"
+                            : "grid-cols-1"
+                        }`}
+                      >
+                        {showProfiles ? (
+                          <div data-testid="onboarding-section-profiles">
+                            <CategoryHeading>Profiles</CategoryHeading>
+                          </div>
+                        ) : null}
+                        {showQuestionnaires ? (
+                          <div
+                            data-testid="onboarding-section-questionnaires"
+                            className={showProfiles ? "sm:pl-6" : ""}
+                          >
+                            <CategoryHeading>Questionnaires</CategoryHeading>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div
+                        className={`grid gap-4 ${
+                          profilesQuestionnairesToggleCount >= 3
+                            ? "grid-cols-1 sm:grid-cols-3"
+                            : profilesQuestionnairesToggleCount === 2
+                              ? "grid-cols-1 sm:grid-cols-2"
+                              : "grid-cols-1"
+                        }`}
+                      >
+                        {activeTypeConfig.needsMetsights ? (
+                          <div>
+                            <span className="block text-sm font-medium text-zinc-700 mb-1.5">
+                              Create profile on Metsights
+                            </span>
+                            <SettingsSegmentedControl
+                              aria-label="Create profile on Metsights"
+                              value={boolToYesNo(activeDefaults.create_profile_on_metsights)}
+                              options={YES_NO_OPTIONS}
+                              disabled={!canEdit}
+                              onChange={(v) =>
+                                updateActiveDefaults({
+                                  create_profile_on_metsights: yesNoToBool(v),
+                                })
+                              }
+                            />
+                          </div>
+                        ) : null}
+                        {activeTypeConfig.needsFitPrint ? (
+                          <div>
+                            <span className="block text-sm font-medium text-zinc-700 mb-1.5">
+                              Enroll for FitPrint Full
+                            </span>
+                            <SettingsSegmentedControl
+                              aria-label="Enroll for FitPrint Full"
+                              value={boolToYesNo(activeDefaults.enroll_for_fitprint_full)}
+                              options={YES_NO_OPTIONS}
+                              disabled={!canEdit}
+                              onChange={(v) =>
+                                updateActiveDefaults({
+                                  enroll_for_fitprint_full: yesNoToBool(v),
+                                })
+                              }
+                            />
+                            {activeFitPrintInvalid ? (
+                              <p className="text-xs text-red-600 mt-1">
+                                FitPrint Full requires Metsights profile creation.
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {showQuestionnaires ? (
+                          <div>
+                            <span className="block text-sm font-medium text-zinc-700 mb-1.5">
+                              Load previous assessment questionnaires
+                            </span>
+                            <SettingsSegmentedControl
+                              aria-label="Load previous assessment questionnaires"
+                              value={boolToYesNo(
+                                Boolean(activeDefaults.load_prev_assessment_questionnaires)
+                              )}
+                              options={YES_NO_OPTIONS}
+                              disabled={!canEdit}
+                              onChange={(v) => {
+                                const enabled = yesNoToBool(v);
+                                updateActiveDefaults({
+                                  load_prev_assessment_questionnaires: enabled,
+                                  ...(enabled
+                                    ? {
+                                        load_prev_questionnaire_category_keys:
+                                          activeDefaults.load_prev_questionnaire_category_keys
+                                            ?.length
+                                            ? activeDefaults.load_prev_questionnaire_category_keys
+                                            : [...DEFAULT_LOAD_PREV_QUESTIONNAIRE_CATEGORY_KEYS],
+                                      }
+                                    : {}),
+                                });
+                              }}
+                            />
+                            {activeDefaults.load_prev_assessment_questionnaires ? (
+                              <div className="mt-3 space-y-3 rounded-lg border border-zinc-200 p-3">
+                                {(["metsights", "supershyft"] as const).map((group) => {
+                                  const rows =
+                                    group === "metsights"
+                                      ? loadPrevCategoriesByGroup.metsights
+                                      : loadPrevCategoriesByGroup.supershyft;
+                                  if (rows.length === 0) return null;
+                                  return (
+                                    <div key={group}>
+                                      <p className="text-xs text-zinc-500 mb-1 capitalize">{group}</p>
+                                      <div className="flex flex-wrap gap-x-4 gap-y-2">
+                                        {rows.map((cat) => (
+                                          <label
+                                            key={cat.category_id}
+                                            className="inline-flex items-center gap-2 text-sm text-zinc-700"
+                                          >
+                                            <input
+                                              type="checkbox"
+                                              checked={selectedLoadPrevCategoryKeys.includes(
+                                                cat.category_key
+                                              )}
+                                              onChange={() =>
+                                                toggleLoadPrevCategoryKey(cat.category_key)
+                                              }
+                                              disabled={!canEdit}
+                                            />
+                                            {cat.display_name || cat.category_key}
+                                          </label>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    </section>
+                  ) : null}
             </div>
           </div>
         </div>

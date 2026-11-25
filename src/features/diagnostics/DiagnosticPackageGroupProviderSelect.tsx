@@ -27,6 +27,8 @@ type Props = {
   emptyGroupLabel?: string;
   emptyProviderLabel?: string;
   className?: string;
+  /** `row` places package + provider side-by-side. */
+  layout?: "stack" | "row";
 };
 
 export function DiagnosticPackageGroupProviderSelect({
@@ -41,6 +43,7 @@ export function DiagnosticPackageGroupProviderSelect({
   emptyGroupLabel = "Select product",
   emptyProviderLabel = "Select provider",
   className,
+  layout = "stack",
 }: Props) {
   const filteredGroups = useMemo(
     () => filterGroupsByGender(groups, genderFilter),
@@ -82,7 +85,15 @@ export function DiagnosticPackageGroupProviderSelect({
     onChange(packageId ?? null);
   };
 
-  const rootClass = className ? `${className} space-y-3` : "space-y-3";
+  const layoutClass =
+    layout === "row" ? "grid grid-cols-1 sm:grid-cols-2 gap-4" : "space-y-3";
+  // `contents` lets package + provider cells join a parent CSS grid row.
+  const rootClass =
+    className === "contents"
+      ? "contents"
+      : className
+        ? `${className} ${layoutClass}`
+        : layoutClass;
 
   return (
     <div className={rootClass}>
@@ -105,30 +116,28 @@ export function DiagnosticPackageGroupProviderSelect({
           ))}
         </select>
       </div>
-      {selectedRow && providerKeys.length > 0 ? (
-        <div>
-          <label className="block text-sm font-medium text-zinc-700 mb-1">{providerLabel}</label>
-          <select
-            value={providerKey}
-            disabled={disabled}
-            onChange={(e) => handleProviderChange(e.target.value)}
-            className={selectClass}
-          >
-            <option value="">{emptyProviderLabel}</option>
-            {providerKeys.map((key) => {
-              const packageId = resolvePackageId(selectedRow, key);
-              const selectable =
-                packageId != null && hasExternalPackageCode(packageId, bootstrapById);
-              return (
-                <option key={key} value={key} disabled={!selectable}>
-                  {diagnosticProviderDisplayLabel(key)}
-                  {!selectable ? " (no external package code)" : ""}
-                </option>
-              );
-            })}
-          </select>
-        </div>
-      ) : null}
+      <div>
+        <label className="block text-sm font-medium text-zinc-700 mb-1">{providerLabel}</label>
+        <select
+          value={providerKey}
+          disabled={disabled || !selectedRow || providerKeys.length === 0}
+          onChange={(e) => handleProviderChange(e.target.value)}
+          className={selectClass}
+        >
+          <option value="">{emptyProviderLabel}</option>
+          {providerKeys.map((key) => {
+            const packageId = resolvePackageId(selectedRow!, key);
+            const selectable =
+              packageId != null && hasExternalPackageCode(packageId, bootstrapById);
+            return (
+              <option key={key} value={key} disabled={!selectable}>
+                {diagnosticProviderDisplayLabel(key)}
+                {!selectable ? " (no external package code)" : ""}
+              </option>
+            );
+          })}
+        </select>
+      </div>
     </div>
   );
 }
