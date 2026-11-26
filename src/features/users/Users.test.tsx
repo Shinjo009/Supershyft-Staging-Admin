@@ -108,6 +108,6 @@ describe("Users page load contract", () => {
         <Users />
       </MemoryRouter>
     );
-    await waitFor(() => expect(screen.getByText("Sub-account")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Child User")).toBeInTheDocument());
   });
 });

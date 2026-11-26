@@ -124,7 +124,6 @@ base.describe("Users page hierarchy (mocked API)", () => {
     await expect(page.getByText("Mia Brooks")).toBeVisible();
     await expect(page.getByText("2 Subaccounts")).toBeVisible();
     await expect(page.getByText("Leo Brooks")).toBeVisible();
-    await expect(page.getByText("Sub-account").first()).toBeVisible();
   });
 
   base("expands and collapses sub-accounts via chevron", async ({ page }) => {

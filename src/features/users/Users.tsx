@@ -838,8 +838,6 @@ export function Users() {
         const subCount = row._subAccountCount ?? 0;
         const isSubRow = Boolean(row._isSubRow);
         const expanded = expandedPrimaryIds.has(row.user_id);
-        const relationshipLabel =
-          row.relationship && row.relationship !== "self" ? row.relationship : null;
 
         const nameBlock = (
           <div className="flex flex-col min-w-0">
@@ -862,14 +860,6 @@ export function Users() {
               {!isSubRow && subCount > 0 && (
                 <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600">
                   {subCount} Subaccount{subCount === 1 ? "" : "s"}
-                </span>
-              )}
-              {isSubRow && (
-                <span
-                  className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600"
-                  title={relationshipLabel ?? undefined}
-                >
-                  Sub-account
                 </span>
               )}
             </div>
