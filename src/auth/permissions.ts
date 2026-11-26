@@ -184,7 +184,13 @@ export function categoryForPath(pathname: string): PermissionCategory | null {
   if (pathname.startsWith("/users")) return "users";
   if (pathname.includes("/reports")) return "reports";
   if (pathname.startsWith("/organisations")) return "organizations";
-  if (pathname === "/engagements/console" || /\/engagements\/[^/]+\/console/.test(pathname)) return "engagement_console";
+  if (
+    pathname === "/engagements/console" ||
+    /^\/engagements\/code\/[^/]+\/console/.test(pathname) ||
+    /^\/engagements\/[^/]+\/console/.test(pathname)
+  ) {
+    return "engagement_console";
+  }
   if (pathname.startsWith("/engagements")) return "engagements";
   if (pathname.startsWith("/assess")) return "assessments";
   if (pathname.startsWith("/diagnostics") || pathname.startsWith("/library/health-metrics")) return "diagnostics";

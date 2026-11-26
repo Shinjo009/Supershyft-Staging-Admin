@@ -115,15 +115,18 @@ type ModalMode =
   | "questionnaires"
   | null;
 
-export function EngagementConsolePage() {
-  const { engagementId } = useParams<{ engagementId: string }>();
+export function EngagementConsolePage({ engagementId: engagementIdProp }: { engagementId?: number } = {}) {
+  const { engagementId: engagementIdParam } = useParams<{ engagementId: string }>();
   const { employeeRole } = useAuth();
   const { canEditTask } = usePermissions();
   const mayEditBookings = canEditTask("engagement_console", "bookings");
   const mayEditQuestionnaires = canEditTask("engagement_console", "questionnaires");
   const isAdmin = employeeRole === "admin";
   const isOrgManager = employeeRole === "organization_manager";
-  const engId = Number(engagementId);
+  const engId =
+    engagementIdProp !== undefined && Number.isFinite(engagementIdProp)
+      ? engagementIdProp
+      : Number(engagementIdParam);
 
   const consoleListPath = isAdmin ? "/engagements" : "/engagements/console";
   const consoleListLabel = isAdmin

@@ -162,6 +162,11 @@ const SuperClub = lazy(() =>
 const EngagementConsolePage = lazy(() =>
   import("./features/console/EngagementConsolePage").then((m) => ({ default: m.EngagementConsolePage }))
 );
+const EngagementConsoleByCodePage = lazy(() =>
+  import("./features/console/EngagementConsoleByCodePage").then((m) => ({
+    default: m.EngagementConsoleByCodePage,
+  }))
+);
 const ConsoleEngagementsPage = lazy(() =>
   import("./features/console/ConsoleEngagementsPage").then((m) => ({ default: m.ConsoleEngagementsPage }))
 );
@@ -601,6 +606,18 @@ function AppRoutes() {
             <EmployeeRequiredRoute>
               <PermissionRoute category="engagement_console">
                 <ConsoleEngagementsPage />
+              </PermissionRoute>
+            </EmployeeRequiredRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/engagements/code/:engagementCode/console"
+        element={
+          <ProtectedRoute>
+            <EmployeeRequiredRoute>
+              <PermissionRoute category="engagement_console">
+                <EngagementConsoleByCodePage />
               </PermissionRoute>
             </EmployeeRequiredRoute>
           </ProtectedRoute>

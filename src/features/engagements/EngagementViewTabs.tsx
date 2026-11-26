@@ -165,7 +165,11 @@ export function EngagementOverviewTab({
 
         <div>
           <div className="text-xs font-medium text-zinc-500 mb-1">Console</div>
-          <ConsoleUrlActions engagementId={engagement.engagement_id} />
+          <ConsoleUrlActions
+            engagementId={engagement.engagement_id}
+            engagementCode={engagement.engagement_code}
+            engagementName={engagement.engagement_name ?? engagement.engagement_code ?? undefined}
+          />
         </div>
       </div>
 

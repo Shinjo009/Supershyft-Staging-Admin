@@ -8,6 +8,7 @@ import {
   getApiError,
   type ConsoleEngagementListItem,
 } from "../../lib/api";
+import { consoleSubpathForEngagement } from "../engagements/consoleUrlActions";
 
 function engagementLabel(eng: ConsoleEngagementListItem): string {
   return eng.engagement_name || eng.engagement_code || `Engagement ${eng.engagement_id}`;
@@ -88,7 +89,10 @@ export function ConsoleEngagementsPage() {
             {engagements.map((eng) => (
               <li key={eng.engagement_id}>
                 <Link
-                  to={`/engagements/${eng.engagement_id}/console`}
+                  to={consoleSubpathForEngagement({
+                    engagementId: eng.engagement_id,
+                    engagementCode: eng.engagement_code,
+                  })}
                   className="block p-4 bg-white border border-zinc-200 rounded-xl hover:border-zinc-300 hover:shadow-sm transition-shadow"
                 >
                   <div className="flex items-start justify-between gap-3">
