@@ -9,6 +9,7 @@ import {
   type ConsoleEngagementListItem,
 } from "../../lib/api";
 import { consoleSubpathForEngagement } from "../engagements/consoleUrlActions";
+import { formatEngagementStatusLabel } from "../engagements/engagementViewShared";
 
 function engagementLabel(eng: ConsoleEngagementListItem): string {
   return eng.engagement_name || eng.engagement_code || `Engagement ${eng.engagement_id}`;
@@ -50,13 +51,13 @@ export function ConsoleEngagementsPage() {
       : "Your Engagements";
 
   const subtitle = isAdmin
-    ? "All running engagements."
+    ? "All scheduled and running engagements."
     : isOrgManager
       ? "Engagements assigned to you where you are the organization contact person."
       : "Running engagements assigned to you as an onboarding assistant.";
 
   const emptyMessage = isAdmin
-    ? "No running engagements."
+    ? "No scheduled or running engagements."
     : isOrgManager
       ? "No engagements assigned to you for your organization."
       : "No running engagements assigned to you.";
@@ -112,9 +113,16 @@ export function ConsoleEngagementsPage() {
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs text-zinc-500 shrink-0">
-                      <Users className="w-3.5 h-3.5" />
-                      <span>{eng.participant_count ?? 0}</span>
+                    <div className="flex flex-col items-end gap-1.5 text-xs text-zinc-500 shrink-0">
+                      {eng.status ? (
+                        <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 font-medium text-zinc-700">
+                          {formatEngagementStatusLabel(eng.status)}
+                        </span>
+                      ) : null}
+                      <div className="flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5" />
+                        <span>{eng.participant_count ?? 0}</span>
+                      </div>
                     </div>
                   </div>
                 </Link>

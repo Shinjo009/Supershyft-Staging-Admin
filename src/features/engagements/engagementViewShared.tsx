@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 export function formatEngagementStatusLabel(status?: string | null): string {
   const normalized = (status ?? "").toLowerCase();
   if (normalized === "running") return "Running";
+  if (normalized === "scheduled") return "Scheduled";
   if (normalized === "completed") return "Completed";
   return status ?? "—";
 }

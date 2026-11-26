@@ -4015,6 +4015,11 @@ export const occupiedSlotsApi = {
     api.get<{ data: OccupiedSlots }>("/engagements/public/occupied-slots"),
 };
 
+export interface ConsoleBookingReadiness {
+  ready: boolean;
+  issues: { code: string; message: string }[];
+}
+
 export interface ConsoleEngagementListItem {
   engagement_id: number;
   engagement_name?: string | null;
@@ -4025,6 +4030,7 @@ export interface ConsoleEngagementListItem {
   participant_count?: number | null;
   blood_collection_type?: string | null;
   diagnostic_provider?: string | null;
+  booking_readiness?: ConsoleBookingReadiness;
 }
 
 export interface ConsoleParticipantBookResponse {

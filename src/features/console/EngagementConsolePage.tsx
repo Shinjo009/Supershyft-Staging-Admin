@@ -375,8 +375,16 @@ export function EngagementConsolePage({ engagementId: engagementIdProp }: { enga
   const isEngagementRunning =
     (engagement?.status ?? "").toLowerCase() === "running";
 
+  const bookingReadinessReady = engagement?.booking_readiness?.ready ?? true;
+
   const canBookParticipant = (p: Participant | null) =>
-    Boolean(mayEditBookings && p && isEngagementRunning && !isParticipantBooked(p));
+    Boolean(
+      mayEditBookings &&
+        p &&
+        isEngagementRunning &&
+        !isParticipantBooked(p) &&
+        bookingReadinessReady,
+    );
 
   const canCancelBooking = (p: Participant | null) =>
     Boolean(mayEditBookings && p && isEngagementRunning && isParticipantBooked(p));
@@ -585,9 +593,17 @@ export function EngagementConsolePage({ engagementId: engagementIdProp }: { enga
   }
 
   const isNotRunning =
-    isAdmin &&
-    engagement &&
-    (engagement.status ?? "").toLowerCase() !== "running";
+    engagement && (engagement.status ?? "").toLowerCase() !== "running";
+
+  const campBookingBlocked =
+    engagement?.booking_readiness != null && !engagement.booking_readiness.ready;
+
+  const hideScheduledNoteForBookingBanner = Boolean(
+    campBookingBlocked &&
+      engagement?.booking_readiness?.issues.some(
+        (issue) => issue.code === "ENGAGEMENT_NOT_RUNNING",
+      ),
+  );
 
   return (
     <ConsoleLayout
@@ -619,9 +635,23 @@ export function EngagementConsolePage({ engagementId: engagementIdProp }: { enga
         </div>
       ) : (
         <div className="space-y-4">
-          {isNotRunning && (
+          {isNotRunning && !hideScheduledNoteForBookingBanner && (
             <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
-              This engagement is not running — read-only view.
+              This engagement is scheduled and not running yet. You can view participants, but
+              bookings and edits are only possible once it is running.
+            </div>
+          )}
+          {campBookingBlocked && (
+            <div
+              className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-900 text-sm"
+              role="alert"
+            >
+              <p className="font-semibold">Bookings are blocked for this camp</p>
+              <ul className="mt-2 list-disc pl-5 space-y-1">
+                {engagement?.booking_readiness?.issues.map((issue) => (
+                  <li key={issue.code}>{issue.message}</li>
+                ))}
+              </ul>
             </div>
           )}
           {pageNotice && (
