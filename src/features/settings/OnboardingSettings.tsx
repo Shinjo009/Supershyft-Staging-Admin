@@ -203,7 +203,6 @@ export function OnboardingSettings({ canEdit }: OnboardingSettingsProps) {
   const activeDefaults = defaultsByType[activeEngagementType] ?? emptyTypeDefaults();
   const isTypeDirty = (kind: string) =>
     JSON.stringify(defaultsByType[kind]) !== JSON.stringify(savedDefaultsByType[kind]);
-  const fallbackDirty = defaultEngagementTypeCode !== savedDefaultEngagementTypeCode;
   const activeTypeDirty = isTypeDirty(activeEngagementType);
 
   const activeTypeConfig = getTypeConfig(activeEngagementType);
@@ -249,20 +248,23 @@ export function OnboardingSettings({ canEdit }: OnboardingSettingsProps) {
   const activeFitPrintInvalid =
     activeDefaults.enroll_for_fitprint_full && !activeDefaults.create_profile_on_metsights;
 
-  async function handleSaveFallback(e: React.FormEvent) {
-    e.preventDefault();
+  async function saveFallback(nextCode: string) {
+    if (!canEdit || savingFallback || nextCode === savedDefaultEngagementTypeCode) return;
+    const previous = savedDefaultEngagementTypeCode;
+    setDefaultEngagementTypeCode(nextCode);
     setSavingFallback(true);
     setError(null);
     setFallbackSaveOk(null);
     try {
       const res = await platformSettingsApi.patchB2cOnboarding({
-        default_engagement_type_code: defaultEngagementTypeCode,
+        default_engagement_type_code: nextCode,
       });
-      const savedDefault = res.data.data.default_engagement_type_code ?? defaultEngagementTypeCode;
+      const savedDefault = res.data.data.default_engagement_type_code ?? nextCode;
       setDefaultEngagementTypeCode(savedDefault);
       setSavedDefaultEngagementTypeCode(savedDefault);
       setFallbackSaveOk("Saved fallback journey type.");
     } catch (err) {
+      setDefaultEngagementTypeCode(previous);
       setError(getApiError(err));
     } finally {
       setSavingFallback(false);
@@ -325,12 +327,6 @@ export function OnboardingSettings({ canEdit }: OnboardingSettingsProps) {
     updateActiveDefaults({ load_prev_questionnaire_category_keys: next });
   }
 
-  function discardFallback() {
-    setDefaultEngagementTypeCode(savedDefaultEngagementTypeCode);
-    setFallbackSaveOk(null);
-    setError(null);
-  }
-
   function discardActiveType() {
     setDefaultsByType((prev) => ({
       ...prev,
@@ -374,12 +370,10 @@ export function OnboardingSettings({ canEdit }: OnboardingSettingsProps) {
         title="Default journey type"
         description="Fallback for new onboardings."
         success={fallbackSaveOk}
-        dirty={fallbackDirty}
         saving={savingFallback}
         readOnly={!canEdit}
-        saveLabel="Save"
-        onSubmit={handleSaveFallback}
-        onDiscard={discardFallback}
+        showActions={false}
+        onSubmit={(e) => e.preventDefault()}
       >
         <div>
           <label htmlFor="b2c-default-journey-type" className="sr-only">
@@ -390,10 +384,9 @@ export function OnboardingSettings({ canEdit }: OnboardingSettingsProps) {
             className={inputClass}
             value={defaultEngagementTypeCode}
             onChange={(ev) => {
-              setDefaultEngagementTypeCode(ev.target.value);
-              setFallbackSaveOk(null);
+              void saveFallback(ev.target.value);
             }}
-            disabled={!canEdit}
+            disabled={!canEdit || savingFallback}
           >
             {b2cEngagementTypes.map((t) => (
               <option key={t.code} value={t.code}>

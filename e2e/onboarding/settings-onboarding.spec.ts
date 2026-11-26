@@ -216,10 +216,28 @@ test.describe("B2C onboarding settings (mocked API)", () => {
     await expect(typeSaveButton(page)).toBeEnabled();
   });
 
-  test("fallback and type saves use separate actions", async ({ page }) => {
-    const fallbackSave = page.getByRole("button", { name: "Save", exact: true }).first();
-    await expect(fallbackSave).toBeVisible();
+  test("default journey type auto-saves without Discard or Save", async ({ page }) => {
+    const select = page.locator("#b2c-default-journey-type");
+    const fallbackCard = page
+      .getByRole("heading", { name: "Default journey type" })
+      .locator("xpath=ancestor::form[1]");
+
+    await expect(fallbackCard.getByRole("button", { name: "Save", exact: true })).toHaveCount(0);
+    await expect(fallbackCard.getByRole("button", { name: "Discard" })).toHaveCount(0);
     await expect(typeSaveButton(page)).toBeVisible();
+
+    await expect(select).toHaveValue("bio_ai");
+    const patchPromise = page.waitForRequest(
+      (req) =>
+        req.method() === "PATCH" &&
+        req.url().includes("/platform-settings/b2c-onboarding") &&
+        Boolean(req.postDataJSON()?.default_engagement_type_code)
+    );
+    await select.selectOption("consultation");
+    const patch = await patchPromise;
+    expect(patch.postDataJSON()?.default_engagement_type_code).toBe("consultation");
+    await expect(select).toHaveValue("consultation");
+    await expect(page.getByText("Saved fallback journey type.")).toBeVisible();
   });
 
   test("type save button is scoped to active journey type", async ({ page }) => {

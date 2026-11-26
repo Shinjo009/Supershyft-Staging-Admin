@@ -23,6 +23,7 @@ export function SettingsFormCard({
   dirty,
   saving,
   readOnly,
+  showActions = true,
   saveLabel = "Save",
   saveDisabled = false,
   saveDisabledReason,
@@ -37,6 +38,7 @@ export function SettingsFormCard({
   dirty?: boolean;
   saving?: boolean;
   readOnly?: boolean;
+  showActions?: boolean;
   saveLabel?: string;
   saveDisabled?: boolean;
   saveDisabledReason?: string | null;
@@ -61,7 +63,7 @@ export function SettingsFormCard({
         ) : null}
         {success ? <p className="text-sm text-emerald-700">{success}</p> : null}
       </div>
-      {!readOnly ? (
+      {!readOnly && showActions ? (
         <div className="flex flex-col items-end gap-1 border-t border-zinc-100 px-5 py-3">
           {saveDisabled && saveDisabledReason ? (
             <p className="text-xs text-amber-800 text-right max-w-md">{saveDisabledReason}</p>
