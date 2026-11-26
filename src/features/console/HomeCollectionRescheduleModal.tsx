@@ -7,6 +7,7 @@ import {
   diagnosticProviderLabel,
   formatHomeCollectionDate,
   getNextLocalDates,
+  isOrangeHealthProvider,
 } from "./homeCollectionUi";
 
 interface Props {
@@ -72,7 +73,9 @@ export function HomeCollectionRescheduleModal({
   const [lockError, setLockError] = useState<string | null>(null);
 
   const [rescheduleReason, setRescheduleReason] = useState("");
+  const [rescheduleExplanation, setRescheduleExplanation] = useState("");
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  const isOrangeRescheduleForm = isOrangeHealthProvider(diagnosticProvider);
   const [rescheduleError, setRescheduleError] = useState<string | null>(null);
 
   const [bookingId, setBookingId] = useState<string | null>(null);
@@ -151,8 +154,13 @@ export function HomeCollectionRescheduleModal({
   const handleReschedule = async () => {
     if (!selectedSlot || !selectedDate) return;
     const reason = rescheduleReason.trim();
+    const explanation = rescheduleExplanation.trim();
     if (!reason) {
       setRescheduleError("Reschedule reason is required.");
+      return;
+    }
+    if (isOrangeRescheduleForm && !explanation) {
+      setRescheduleError("Reschedule explanation is required.");
       return;
     }
     setRescheduleLoading(true);
@@ -163,6 +171,7 @@ export function HomeCollectionRescheduleModal({
         blood_collection_time_slot_id: selectedSlot.stm_id ?? "",
         blood_collection_time_slot: selectedSlot.slot_time ?? "",
         reschedule_reason: reason,
+        ...(isOrangeRescheduleForm ? { reschedule_explanation: explanation } : {}),
       });
       const data = res.data.data;
       const bid = data.booking_id ?? "";
@@ -190,6 +199,7 @@ export function HomeCollectionRescheduleModal({
     setSelectedDate(null);
     setSelectedSlot(null);
     setRescheduleReason("");
+    setRescheduleExplanation("");
     setBookingId(null);
     onClose();
   };
@@ -414,16 +424,47 @@ export function HomeCollectionRescheduleModal({
                 <span className="font-medium">Time:</span> {selectedSlot?.slot_time ?? "—"}
               </p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1">Reschedule reason</label>
-              <textarea
-                value={rescheduleReason}
-                onChange={(e) => setRescheduleReason(e.target.value)}
-                rows={3}
-                placeholder="Why is this collection being rescheduled?"
-                className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
-              />
-            </div>
+            {isOrangeRescheduleForm ? (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1">
+                    Reschedule reason
+                  </label>
+                  <textarea
+                    value={rescheduleReason}
+                    onChange={(e) => setRescheduleReason(e.target.value)}
+                    rows={2}
+                    placeholder="Short reason for rescheduling"
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1">
+                    Reschedule explanation
+                  </label>
+                  <textarea
+                    value={rescheduleExplanation}
+                    onChange={(e) => setRescheduleExplanation(e.target.value)}
+                    rows={3}
+                    placeholder="Additional details for Orange Health"
+                    className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
+                  />
+                </div>
+              </>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">
+                  Reschedule reason
+                </label>
+                <textarea
+                  value={rescheduleReason}
+                  onChange={(e) => setRescheduleReason(e.target.value)}
+                  rows={3}
+                  placeholder="Why is this collection being rescheduled?"
+                  className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
+                />
+              </div>
+            )}
             {rescheduleError && <p className="text-sm text-red-600">{rescheduleError}</p>}
             <div className="flex justify-end gap-2 pt-2">
               <button

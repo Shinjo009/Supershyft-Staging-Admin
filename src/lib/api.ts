@@ -4143,11 +4143,18 @@ export const consoleApi = {
   cancelParticipantBooking: (
     engagementId: number,
     userId: number,
-    remarks: string
+    params: { remarks: string; cancellation_explanation?: string }
   ) =>
     api.delete<{ data: { status: boolean; message?: string; booking_id?: string } }>(
       `/engagements/${engagementId}/console/participants/${userId}/book`,
-      { params: { remarks } }
+      {
+        params: {
+          remarks: params.remarks,
+          ...(params.cancellation_explanation
+            ? { cancellation_explanation: params.cancellation_explanation }
+            : {}),
+        },
+      }
     ),
   listParticipantAssessments: (engagementId: number, userId: number) =>
     api.get<{ data: ConsoleParticipantAssessment[] }>(
@@ -4252,6 +4259,7 @@ export const consoleApi = {
       blood_collection_time_slot_id: string;
       blood_collection_time_slot: string;
       reschedule_reason: string;
+      reschedule_explanation?: string;
     }
   ) =>
     api.patch<{

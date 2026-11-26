@@ -35,7 +35,7 @@ import {
 
 const CONSOLE_PAGE_SIZE = 10;
 const CONSOLE_SEARCH_LIMIT = 25;
-import { diagnosticProviderLabel } from "./homeCollectionUi";
+import { diagnosticProviderLabel, isOrangeHealthProvider } from "./homeCollectionUi";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -162,6 +162,7 @@ export function EngagementConsolePage() {
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [cancelRemarks, setCancelRemarks] = useState("");
+  const [cancelExplanation, setCancelExplanation] = useState("");
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [barcodeScannerOpen, setBarcodeScannerOpen] = useState(false);
@@ -316,6 +317,7 @@ export function EngagementConsolePage() {
     setBookingError(null);
     setSyncCollectionToNow(false);
     setCancelRemarks("");
+    setCancelExplanation("");
     setCancelError(null);
     setBarcodeScannerOpen(false);
   };
@@ -337,12 +339,14 @@ export function EngagementConsolePage() {
 
   const openCancelConfirm = () => {
     setCancelRemarks("");
+    setCancelExplanation("");
     setCancelError(null);
     setModalMode("cancel_confirm");
   };
 
   const openCancelRemarksModal = () => {
     setCancelRemarks("");
+    setCancelExplanation("");
     setCancelError(null);
     setModalMode("cancel");
   };
@@ -354,6 +358,7 @@ export function EngagementConsolePage() {
   const isHomeCollection = engagement?.blood_collection_type === "home_collection";
 
   const engagementProviderLabel = diagnosticProviderLabel(engagement?.diagnostic_provider);
+  const isOrangeCancelForm = isOrangeHealthProvider(engagement?.diagnostic_provider);
 
   const openBookModal = () => {
     if (!selectedParticipant) return;
@@ -415,6 +420,7 @@ export function EngagementConsolePage() {
   const openCancelFor = (p: Participant) => {
     setSelectedParticipant(p);
     setCancelRemarks("");
+    setCancelExplanation("");
     setCancelError(null);
     setModalMode("cancel_confirm");
     closeActionMenu();
@@ -514,15 +520,27 @@ export function EngagementConsolePage() {
   const handleCancelBooking = async () => {
     if (!selectedParticipant || !engId) return;
     const trimmed = cancelRemarks.trim();
+    const trimmedExplanation = cancelExplanation.trim();
     if (!trimmed) {
-      setCancelError("Remarks are required.");
+      setCancelError(
+        isOrangeCancelForm ? "Cancellation reason is required." : "Remarks are required."
+      );
+      return;
+    }
+    if (isOrangeCancelForm && !trimmedExplanation) {
+      setCancelError("Cancellation explanation is required.");
       return;
     }
     setCancelLoading(true);
     setCancelError(null);
     const userId = selectedParticipant.user_id;
     try {
-      await consoleApi.cancelParticipantBooking(engId, userId, trimmed);
+      await consoleApi.cancelParticipantBooking(engId, userId, {
+        remarks: trimmed,
+        ...(isOrangeCancelForm
+          ? { cancellation_explanation: trimmedExplanation }
+          : {}),
+      });
       setParticipants((prev) =>
         prev.map((p) =>
           p.user_id === userId
@@ -534,6 +552,7 @@ export function EngagementConsolePage() {
         prev ? { ...prev, booking_id: null, barcode: null } : prev
       );
       setCancelRemarks("");
+      setCancelExplanation("");
       setModalMode("detail");
 
       void reloadParticipants().then((parts) => {
@@ -994,18 +1013,47 @@ export function EngagementConsolePage() {
             <p className="text-sm text-zinc-600">
               Cancel {engagementProviderLabel} booking for {fullName(selectedParticipant)}.
             </p>
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1">
-                Remarks
-              </label>
-              <textarea
-                value={cancelRemarks}
-                onChange={(e) => setCancelRemarks(e.target.value)}
-                rows={3}
-                className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
-                placeholder="Reason for cancellation"
-              />
-            </div>
+            {isOrangeCancelForm ? (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1">
+                    Cancellation reason
+                  </label>
+                  <textarea
+                    value={cancelRemarks}
+                    onChange={(e) => setCancelRemarks(e.target.value)}
+                    rows={2}
+                    className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                    placeholder="Short reason for cancellation"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1">
+                    Cancellation explanation
+                  </label>
+                  <textarea
+                    value={cancelExplanation}
+                    onChange={(e) => setCancelExplanation(e.target.value)}
+                    rows={3}
+                    className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                    placeholder="Additional details for Orange Health"
+                  />
+                </div>
+              </>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">
+                  Remarks
+                </label>
+                <textarea
+                  value={cancelRemarks}
+                  onChange={(e) => setCancelRemarks(e.target.value)}
+                  rows={3}
+                  className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                  placeholder="Reason for cancellation"
+                />
+              </div>
+            )}
             {cancelError && (
               <p className="text-sm text-red-600">{cancelError}</p>
             )}
