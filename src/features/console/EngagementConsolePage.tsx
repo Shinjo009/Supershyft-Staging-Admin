@@ -353,6 +353,8 @@ export function EngagementConsolePage() {
 
   const isHomeCollection = engagement?.blood_collection_type === "home_collection";
 
+  const engagementProviderLabel = diagnosticProviderLabel(engagement?.diagnostic_provider);
+
   const openBookModal = () => {
     if (!selectedParticipant) return;
     if (isHomeCollection) {
@@ -957,7 +959,7 @@ export function EngagementConsolePage() {
             <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-200">
               <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
               <p className="text-sm text-amber-900">
-                Are you sure you want to cancel the Healthians booking for{" "}
+                Are you sure you want to cancel the {engagementProviderLabel} booking for{" "}
                 <span className="font-medium">{fullName(selectedParticipant)}</span>?
               </p>
             </div>
@@ -990,7 +992,7 @@ export function EngagementConsolePage() {
         {selectedParticipant && (
           <div className="space-y-4">
             <p className="text-sm text-zinc-600">
-              Cancel Healthians booking for {fullName(selectedParticipant)}.
+              Cancel {engagementProviderLabel} booking for {fullName(selectedParticipant)}.
             </p>
             <div>
               <label className="block text-sm font-medium text-zinc-700 mb-1">
@@ -1076,7 +1078,7 @@ export function EngagementConsolePage() {
         {selectedParticipant && (
           <div className="space-y-4">
             <p className="text-sm text-zinc-600">
-              Create a Healthians booking for{" "}
+              Create a {engagementProviderLabel} booking for{" "}
               <span className="font-medium text-zinc-900">{fullName(selectedParticipant)}</span>.
             </p>
             <div>
