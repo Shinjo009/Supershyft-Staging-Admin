@@ -172,6 +172,24 @@ export interface UserListItem {
   metsights_profile_id?: string | null;
   status?: string | null;
   created_at?: string | null;
+  parent_id?: number | null;
+  relationship?: string | null;
+  sub_account_count?: number;
+  sub_accounts?: UserListItem[];
+  matched_sub_ids?: number[];
+}
+
+/** Flatten hierarchical user list items (primary + nested sub-accounts). */
+export function flattenUserListItems(items: UserListItem[]): UserListItem[] {
+  const flat: UserListItem[] = [];
+  for (const item of items) {
+    const { sub_accounts: _subs, matched_sub_ids: _matched, ...primary } = item;
+    flat.push(primary);
+    for (const sub of item.sub_accounts ?? []) {
+      flat.push(sub);
+    }
+  }
+  return flat;
 }
 
 export function getApiError(err: unknown, context?: "auth" | "import"): string {
@@ -838,6 +856,7 @@ export const usersApi = {
         page: number;
         limit: number;
         total: number;
+        total_profiles?: number;
         with_metsights_profile?: number;
         total_participants?: number;
         protected_user_ids?: number[];

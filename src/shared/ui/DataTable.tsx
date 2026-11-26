@@ -88,6 +88,7 @@ interface DataTableProps<T> {
     total: number;
     onPageChange: (page: number) => void;
   };
+  getRowClassName?: (row: T) => string | undefined;
 }
 
 
@@ -118,6 +119,7 @@ interface SortableRowProps<T> {
   setOpenActionsRow: (val: string | number | null | ((curr: string | number | null) => string | number | null)) => void;
   visibilityClass: (col: Column<T>) => string;
   onReorder?: boolean;
+  rowClassName?: string;
 }
 
 function SortableRow<T extends object>(props: SortableRowProps<T>) {
@@ -147,7 +149,7 @@ function SortableRow<T extends object>(props: SortableRowProps<T>) {
     <tr
       ref={setNodeRef}
       style={style}
-      className={`border-b border-zinc-100 hover:bg-zinc-50 ${isDragging ? 'shadow-md' : ''}`}
+      className={`border-b border-zinc-100 hover:bg-zinc-50 ${isDragging ? "shadow-md" : ""} ${props.rowClassName ?? ""}`}
     >
       {props.onReorder && (
         <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-zinc-400">
@@ -298,6 +300,7 @@ export function DataTable<T extends object>(
     firstColumnClickableView = true,
     onReorder: requestedOnReorder,
     pagination,
+    getRowClassName,
   } = props;
   const onEdit = mutationsAllowed ? requestedOnEdit : undefined;
   const onDuplicate = mutationsAllowed ? requestedOnDuplicate : undefined;
@@ -422,6 +425,7 @@ export function DataTable<T extends object>(
                   key={String(keyExtractor(row))}
                   row={row}
                   rowKey={keyExtractor(row)}
+                  rowClassName={getRowClassName?.(row)}
                   columns={columns}
                   firstKey={firstKey}
                   hasActions={!!hasActions}
