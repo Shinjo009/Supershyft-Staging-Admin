@@ -59,6 +59,8 @@ export function Discounts() {
   const mayEditCodes = canEditTask("discounts", "codes");
   const [items, setItems] = useState<DiscountCodeRow[]>([]);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -87,17 +89,18 @@ export function Discounts() {
       const listRes = await discountsApi.list({
         search: search || undefined,
         status: statusFilter || undefined,
-        limit: 100,
+        page,
+        limit,
       });
       setItems(listRes.data.data.items || []);
-      setTotal(listRes.data.data.total || 0);
+      setTotal(listRes.data.meta?.total ?? listRes.data.data.total ?? 0);
       setAbuseEvents(listRes.data.meta?.abuse_events_24h ?? 0);
     } catch (e: any) {
       setError(e?.response?.data?.message || e?.message || "Failed to load discounts");
     } finally {
       setLoading(false);
     }
-  }, [search, statusFilter]);
+  }, [search, statusFilter, page, limit]);
 
   useEffect(() => {
     void loadList();
@@ -250,13 +253,19 @@ export function Discounts() {
       <div className="flex flex-wrap gap-2">
         <input
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
           placeholder="Search code or name"
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
         />
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setPage(1);
+          }}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
         >
           <option value="">All statuses</option>
@@ -698,6 +707,32 @@ export function Discounts() {
           </tbody>
         </table>
       </div>
+
+      {total > limit && (
+        <div className="flex items-center justify-between gap-3 text-sm text-zinc-600">
+          <span>
+            Page {page} of {Math.max(1, Math.ceil(total / limit))}
+          </span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={page <= 1 || loading}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="rounded border border-zinc-200 px-3 py-1.5 disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              disabled={page * limit >= total || loading}
+              onClick={() => setPage((p) => p + 1)}
+              className="rounded border border-zinc-200 px-3 py-1.5 disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

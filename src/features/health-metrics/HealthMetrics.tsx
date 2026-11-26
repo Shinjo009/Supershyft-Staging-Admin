@@ -55,21 +55,29 @@ export function HealthMetrics() {
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const [sortKey, setSortKey] = useState<SortKey>("test_id");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [sortKey, setSortKey] = useState<SortKey>("display_order");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [page, setPage] = useState(1);
+  const [limit] = useState(20);
+  const [total, setTotal] = useState(0);
 
   const fetchRows = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await diagnosticTestsApi.list({ parameter_type: "metric" });
+      const res = await diagnosticTestsApi.list({
+        parameter_type: "metric",
+        page,
+        limit,
+      });
       setRows(res.data.data ?? []);
+      setTotal(res.data.meta?.total ?? res.data.data?.length ?? 0);
     } catch (err) {
       setError(getApiError(err));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, limit]);
 
   useEffect(() => {
     void fetchRows();
@@ -132,6 +140,9 @@ export function HealthMetrics() {
         row.test_name.toLowerCase().includes(q) ||
         (row.parameter_key ?? "").toLowerCase().includes(q)
     );
+    if (sortKey === "display_order" && sortDir === "asc") {
+      return next;
+    }
     next.sort((a, b) => {
       let left: string | number = "";
       let right: string | number = "";
@@ -305,6 +316,7 @@ export function HealthMetrics() {
             onSort={handleSort}
             onEdit={openEdit}
             onDelete={handleDelete}
+            pagination={{ page, limit, total, onPageChange: setPage }}
           />
         )}
       </div>

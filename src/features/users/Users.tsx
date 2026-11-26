@@ -553,7 +553,7 @@ export function Users() {
     setSendMsgLoading(true);
     try {
       const [servicesRes, journeyRes] = await Promise.all([
-        notificationsApi.listServices(),
+        notificationsApi.listServices({ page: 1, limit: 100 }),
         participantJourneyApi.summary(row.user_id, { page: 1, limit: 100 }),
       ]);
       if (requestId !== sendMsgOpenRequestId.current) return;

@@ -44,6 +44,9 @@ export function MyTasks() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabFilter>("");
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
+  const [total, setTotal] = useState(0);
   const [sortKey, setSortKey] = useState<string>("task_id");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [updatingId, setUpdatingId] = useState<number | null>(null);
@@ -60,14 +63,17 @@ export function MyTasks() {
     try {
       const res = await checklistTasksApi.myTasks({
         status: tab || undefined,
+        page,
+        limit,
       });
       setData(res.data.data);
+      setTotal(res.data.meta?.total ?? res.data.data.length);
     } catch (err) {
       setError(getApiError(err));
     } finally {
       setLoading(false);
     }
-  }, [tab]);
+  }, [tab, page, limit]);
 
   useEffect(() => {
     void fetchTasks();
@@ -86,7 +92,7 @@ export function MyTasks() {
   }, [data, loading, location.state, navigate]);
 
   const handleSort = (key: string) => {
-    setSortDir((d) => (sortKey === key ? (d === "asc" ? "desc" : "asc") : "asc"));
+    setSortDir((d) => (sortKey === key ? (d === "asc" ? "desc" : "asc") : "desc"));
     setSortKey(key);
   };
 
@@ -223,13 +229,34 @@ export function MyTasks() {
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-4 mb-6">
         <div className="flex gap-4 sm:gap-6 border-b border-zinc-200">
-          <button type="button" className={tabClass(tab === "")} onClick={() => setTab("")}>
+          <button
+            type="button"
+            className={tabClass(tab === "")}
+            onClick={() => {
+              setTab("");
+              setPage(1);
+            }}
+          >
             All
           </button>
-          <button type="button" className={tabClass(tab === "pending")} onClick={() => setTab("pending")}>
+          <button
+            type="button"
+            className={tabClass(tab === "pending")}
+            onClick={() => {
+              setTab("pending");
+              setPage(1);
+            }}
+          >
             Pending
           </button>
-          <button type="button" className={tabClass(tab === "done")} onClick={() => setTab("done")}>
+          <button
+            type="button"
+            className={tabClass(tab === "done")}
+            onClick={() => {
+              setTab("done");
+              setPage(1);
+            }}
+          >
             Done
           </button>
         </div>
@@ -258,6 +285,7 @@ export function MyTasks() {
             onSort={handleSort}
             firstColumnClickableView={false}
             onEdit={openEdit}
+            pagination={{ page, limit, total, onPageChange: setPage }}
           />
         )}
       </div>

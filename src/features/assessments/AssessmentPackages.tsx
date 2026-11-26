@@ -43,8 +43,6 @@ import {
   type BloodParametersReloadResponse,
   getApiError,
 } from "../../lib/api";
-import { fetchAllPages } from "../../lib/fetchAllPages";
-
 const PKG_STATUS_OPTIONS = ["active", "inactive", "archived"] as const;
 const CAT_STATUS_OPTIONS = ["active", "inactive"] as const;
 const QUESTION_TYPES = [
@@ -225,13 +223,12 @@ export function AssessmentPackages() {
     setPkgLoading(true);
     setPkgError(null);
     try {
-      let rows = await fetchAllPages<AssessmentPackage>((page, limit) =>
-        assessmentPackagesApi.list({
-          page,
-          limit,
-          status: pkgStatusFilter || undefined,
-        })
-      );
+      const res = await assessmentPackagesApi.list({
+        page: pkgPage,
+        limit: pkgLimit,
+        status: pkgStatusFilter || undefined,
+      });
+      let rows = res.data.data ?? [];
       if (pkgSearch.trim()) {
         const search = pkgSearch.trim().toLowerCase();
         rows = rows.filter((row) =>
@@ -246,12 +243,11 @@ export function AssessmentPackages() {
         const cmp = aValue.localeCompare(bValue, undefined, { numeric: true });
         return pkgSortDir === "asc" ? cmp : -cmp;
       });
-      setPkgTotal(sorted.length);
-      const pagedRows = sorted.slice((pkgPage - 1) * pkgLimit, pkgPage * pkgLimit);
-      setPkgData(pagedRows);
+      setPkgTotal(res.data.meta?.total ?? sorted.length);
+      setPkgData(sorted);
 
       const counts = Object.fromEntries(
-        pagedRows.map((pkg) => [pkg.package_id, pkg.category_count ?? 0] as const)
+        sorted.map((pkg) => [pkg.package_id, pkg.category_count ?? 0] as const)
       );
       setPkgCategoryCounts(counts);
     } catch (error) {
@@ -275,13 +271,13 @@ export function AssessmentPackages() {
     setCatLoading(true);
     setCatError(null);
     try {
-      let rows = await fetchAllPages<QuestionnaireCategory>((page, limit) =>
-        questionnaireCategoriesApi.list({
-          page,
-          limit,
-          category_of: catCategoryOfFilter === "all" ? "all" : catCategoryOfFilter,
-        })
-      );
+      const res = await questionnaireCategoriesApi.list({
+        page: catPage,
+        limit: catLimit,
+        category_of: catCategoryOfFilter === "all" ? "all" : catCategoryOfFilter,
+        status: catStatusFilter || undefined,
+      });
+      let rows = res.data.data ?? [];
       if (catSearch.trim()) {
         const search = catSearch.trim().toLowerCase();
         rows = rows.filter((row) =>
@@ -289,17 +285,14 @@ export function AssessmentPackages() {
           row.category_key.toLowerCase().includes(search)
         );
       }
-      if (catStatusFilter) {
-        rows = rows.filter((row) => (row.status ?? "").toLowerCase() === catStatusFilter);
-      }
       const sorted = [...rows].sort((a, b) => {
         const aValue = String(a[catSortKey] ?? "");
         const bValue = String(b[catSortKey] ?? "");
         const cmp = aValue.localeCompare(bValue, undefined, { numeric: true });
         return catSortDir === "asc" ? cmp : -cmp;
       });
-      setCatTotal(sorted.length);
-      setCatData(sorted.slice((catPage - 1) * catLimit, catPage * catLimit));
+      setCatTotal(res.data.meta?.total ?? sorted.length);
+      setCatData(sorted);
     } catch (error) {
       setCatError(getApiError(error));
     } finally {
@@ -321,14 +314,13 @@ export function AssessmentPackages() {
     setQLoading(true);
     setQError(null);
     try {
-      let rows = await fetchAllPages<QuestionnaireQuestion>((page, limit) =>
-        questionnaireQuestionsApi.list({
-          page,
-          limit,
-          status: qStatusFilter || undefined,
-          type: qTypeFilter || undefined,
-        })
-      );
+      const res = await questionnaireQuestionsApi.list({
+        page: qPage,
+        limit: qLimit,
+        status: qStatusFilter || undefined,
+        type: qTypeFilter || undefined,
+      });
+      let rows = res.data.data ?? [];
       if (qSearch.trim()) {
         const search = qSearch.trim().toLowerCase();
         rows = rows.filter((row) => (row.question_text ?? "").toLowerCase().includes(search));
@@ -339,8 +331,8 @@ export function AssessmentPackages() {
         const cmp = aValue.localeCompare(bValue, undefined, { numeric: true });
         return qSortDir === "asc" ? cmp : -cmp;
       });
-      setQTotal(sorted.length);
-      setQData(sorted.slice((qPage - 1) * qLimit, qPage * qLimit));
+      setQTotal(res.data.meta?.total ?? sorted.length);
+      setQData(sorted);
     } catch (error) {
       setQError(getApiError(error));
     } finally {

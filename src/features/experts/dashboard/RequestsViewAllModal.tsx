@@ -27,7 +27,7 @@ export function RequestsViewAllModal({
     setError(null);
     void (async () => {
       try {
-        const res = await expertsPortalApi.listRequests();
+        const res = await expertsPortalApi.listRequests({ page: 1, limit: 100 });
         if (!cancelled) setItems(res.data.data ?? []);
       } catch (err) {
         if (!cancelled) {

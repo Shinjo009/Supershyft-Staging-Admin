@@ -17,6 +17,9 @@ export function ExpertRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [acceptingKey, setAcceptingKey] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(20);
+  const [total, setTotal] = useState(0);
 
   const { search, setSearch, dateFilter, setDateFilter, dateOptions, filtered } =
     useConsultationListFilter(items);
@@ -25,14 +28,15 @@ export function ExpertRequestsPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await expertsPortalApi.listRequests();
+      const res = await expertsPortalApi.listRequests({ page, limit });
       setItems(res.data.data ?? []);
+      setTotal(res.data.meta?.total ?? res.data.data?.length ?? 0);
     } catch (err) {
       setError(getApiError(err));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, limit]);
 
   useEffect(() => {
     void load();
@@ -86,36 +90,63 @@ export function ExpertRequestsPage() {
             <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
           </div>
         ) : (
-          <ExpertConsultationListTable
-            items={items}
-            filtered={filtered}
-            search={search}
-            onSearchChange={setSearch}
-            dateFilter={dateFilter}
-            onDateFilterChange={setDateFilter}
-            dateOptions={dateOptions}
-            countLabel="request"
-            emptyIcon={<Inbox className="w-10 h-10 text-zinc-300" />}
-            emptyMessage="No pending requests"
-            primaryActionLabel="Accept"
-            onPrimaryAction={(item) => void handleAccept(item)}
-            primaryActionDisabled={(item) => !canAccept(item)}
-            primaryActionLoading={(item) => acceptingKey === consultationRowKey(item)}
-            onRowClick={(item) => {
-              if (canAccept(item)) void handleAccept(item);
-            }}
-            renderStatus={(item) =>
-              item.date && item.slot ? (
-                <span className="inline-flex text-[11px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700">
-                  Ready
+          <>
+            <ExpertConsultationListTable
+              items={items}
+              filtered={filtered}
+              search={search}
+              onSearchChange={setSearch}
+              dateFilter={dateFilter}
+              onDateFilterChange={setDateFilter}
+              dateOptions={dateOptions}
+              countLabel="request"
+              emptyIcon={<Inbox className="w-10 h-10 text-zinc-300" />}
+              emptyMessage="No pending requests"
+              primaryActionLabel="Accept"
+              onPrimaryAction={(item) => void handleAccept(item)}
+              primaryActionDisabled={(item) => !canAccept(item)}
+              primaryActionLoading={(item) => acceptingKey === consultationRowKey(item)}
+              onRowClick={(item) => {
+                if (canAccept(item)) void handleAccept(item);
+              }}
+              renderStatus={(item) =>
+                item.date && item.slot ? (
+                  <span className="inline-flex text-[11px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700">
+                    Ready
+                  </span>
+                ) : (
+                  <span className="inline-flex text-[11px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">
+                    No slot
+                  </span>
+                )
+              }
+            />
+            {total > limit && (
+              <div className="flex items-center justify-between gap-3 pt-2 text-sm text-zinc-600">
+                <span>
+                  Page {page} of {Math.max(1, Math.ceil(total / limit))}
                 </span>
-              ) : (
-                <span className="inline-flex text-[11px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">
-                  No slot
-                </span>
-              )
-            }
-          />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={page <= 1 || loading}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="rounded border border-zinc-200 px-3 py-1.5 disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    disabled={page * limit >= total || loading}
+                    onClick={() => setPage((p) => p + 1)}
+                    className="rounded border border-zinc-200 px-3 py-1.5 disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </ExpertPortalLayout>

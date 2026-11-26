@@ -65,6 +65,9 @@ export function ChecklistTemplates() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
+  const [total, setTotal] = useState(0);
   const [sortKey, setSortKey] = useState<string>("created_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
@@ -105,19 +108,20 @@ export function ChecklistTemplates() {
     setLoading(true);
     setError(null);
     try {
-      const res = await checklistTemplatesApi.list();
+      const res = await checklistTemplatesApi.list({ page, limit });
       const templates = res.data.data;
       const enriched: TemplateRow[] = templates.map((t) => ({
         ...t,
         itemsCount: t.items_count ?? 0,
       }));
       setRows(enriched);
+      setTotal(res.data.meta?.total ?? templates.length);
     } catch (err) {
       setError(getApiError(err));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, limit]);
 
   useEffect(() => {
     void fetchRows();
@@ -358,7 +362,7 @@ export function ChecklistTemplates() {
   }, [filtered, sortKey, sortDir]);
 
   const handleSort = (key: string) => {
-    setSortDir((d) => (sortKey === key ? (d === "asc" ? "desc" : "asc") : "asc"));
+    setSortDir((d) => (sortKey === key ? (d === "asc" ? "desc" : "asc") : "desc"));
     setSortKey(key);
   };
 
@@ -446,7 +450,10 @@ export function ChecklistTemplates() {
             type="search"
             placeholder="Search templates by name…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
             className="w-full pl-9 pr-4 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent"
           />
         </div>
@@ -472,6 +479,7 @@ export function ChecklistTemplates() {
             onView={(r) => void openDrawer(r)}
             onEdit={(r) => openEditModal(r)}
             onDelete={(r) => setDeactivateTarget(r)}
+            pagination={{ page, limit, total, onPageChange: setPage }}
           />
         )}
       </div>

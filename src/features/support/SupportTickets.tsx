@@ -24,6 +24,9 @@ export function SupportTickets() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"" | SupportTicketStatus>("");
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
+  const [total, setTotal] = useState(0);
   const [sortKey, setSortKey] = useState<"ticket_id" | "status" | "created_at">("created_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [createOpen, setCreateOpen] = useState(false);
@@ -37,51 +40,40 @@ export function SupportTickets() {
     setLoading(true);
     setError(null);
     try {
-      const response = await supportApi.listTickets(
-        statusFilter ? { status: statusFilter } : undefined
-      );
+      const response = await supportApi.listTickets({
+        status: statusFilter || undefined,
+        page,
+        limit,
+        sort_by: sortKey,
+        sort_dir: sortDir,
+      });
       setTickets(response.data.data);
+      setTotal(response.data.meta?.total ?? response.data.data.length);
     } catch (err) {
       setError(getApiError(err));
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, page, limit, sortKey, sortDir]);
 
   useEffect(() => {
     fetchTickets();
   }, [fetchTickets]);
 
   const filtered = useMemo(() => {
-    let rows = tickets;
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      rows = rows.filter((ticket) => {
-        const contact = ticket.contact_input.toLowerCase();
-        const queryText = ticket.query_text.toLowerCase();
-        return (
-          contact.includes(q) ||
-          queryText.includes(q) ||
-          String(ticket.ticket_id).includes(q) ||
-          String(ticket.user_id ?? "").includes(q)
-        );
-      });
-    }
-
-    const sorted = [...rows].sort((a, b) => {
-      const value = (ticket: SupportTicket) => {
-        if (sortKey === "ticket_id") return ticket.ticket_id;
-        if (sortKey === "status") return ticket.status;
-        return ticket.created_at;
-      };
-      const aVal = value(a);
-      const bVal = value(b);
-      const cmp = String(aVal).localeCompare(String(bVal), undefined, { numeric: true });
-      return sortDir === "asc" ? cmp : -cmp;
+    if (!search.trim()) return tickets;
+    const q = search.trim().toLowerCase();
+    return tickets.filter((ticket) => {
+      const contact = ticket.contact_input.toLowerCase();
+      const queryText = ticket.query_text.toLowerCase();
+      return (
+        contact.includes(q) ||
+        queryText.includes(q) ||
+        String(ticket.ticket_id).includes(q) ||
+        String(ticket.user_id ?? "").includes(q)
+      );
     });
-
-    return sorted;
-  }, [search, sortDir, sortKey, tickets]);
+  }, [search, tickets]);
 
   const openDetails = (ticket: SupportTicket) => {
     navigate(`/support/${ticket.ticket_id}`);
@@ -95,8 +87,9 @@ export function SupportTickets() {
 
   const handleSort = (key: string) => {
     const nextKey = key as "ticket_id" | "status" | "created_at";
-    setSortDir((dir) => (sortKey === nextKey ? (dir === "asc" ? "desc" : "asc") : "asc"));
+    setSortDir((dir) => (sortKey === nextKey ? (dir === "asc" ? "desc" : "asc") : "desc"));
     setSortKey(nextKey);
+    setPage(1);
   };
 
   const formatDate = (value?: string | null) => {
@@ -212,7 +205,10 @@ export function SupportTickets() {
         </div>
         <select
           value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value as "" | SupportTicketStatus)}
+          onChange={(event) => {
+            setStatusFilter(event.target.value as "" | SupportTicketStatus);
+            setPage(1);
+          }}
           className="sm:w-auto px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
         >
           <option value="">All statuses</option>
@@ -238,6 +234,7 @@ export function SupportTickets() {
             sortDir={sortDir}
             onSort={handleSort}
             onView={openDetails}
+            pagination={{ page, limit, total, onPageChange: setPage }}
           />
         )}
       </div>

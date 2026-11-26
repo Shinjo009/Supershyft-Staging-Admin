@@ -72,7 +72,7 @@ export function NotificationLogsTab() {
   const [catalogEvents, setCatalogEvents] = useState<CatalogEventItem[]>([]);
 
   useEffect(() => {
-    notificationsApi.listServices().then((r) => setServices(r.data.data)).catch(() => {});
+    notificationsApi.listServices({ page: 1, limit: 100 }).then((r) => setServices(r.data.data)).catch(() => {});
     notificationsCatalogApi.getEvents().then((r) => setCatalogEvents(r.data.data)).catch(() => {});
   }, []);
 

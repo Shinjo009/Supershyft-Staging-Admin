@@ -57,7 +57,7 @@ export function NotificationServiceFormPage({ mode }: { mode: NotificationServic
     setLoading(true);
     setError(null);
     try {
-      const res = await notificationsApi.listServices();
+      const res = await notificationsApi.listServices({ page: 1, limit: 100 });
       const row = res.data.data.find((s) => s.notification_service_id === serviceId);
       if (!row) throw new Error("Service not found");
       setLoadedRow(row);

@@ -43,6 +43,7 @@ describe("ChecklistTemplates", () => {
             items_count: 0,
           },
         ],
+        meta: { page: 1, limit: 10, total: 2 },
       },
     });
   });
@@ -57,6 +58,7 @@ describe("ChecklistTemplates", () => {
     await waitFor(() => {
       expect(mockList).toHaveBeenCalledTimes(1);
     });
+    expect(mockList).toHaveBeenCalledWith({ page: 1, limit: 10 });
     expect(mockGet).not.toHaveBeenCalled();
   });
 });

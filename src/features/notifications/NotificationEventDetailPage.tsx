@@ -60,8 +60,8 @@ export function NotificationEventDetailPage() {
     try {
       const [catalogRes, bindingsRes, servicesRes] = await Promise.all([
         notificationsCatalogApi.getEvents(),
-        notificationBindingsApi.list({ event_code: eventCode }),
-        notificationsApi.listServices(),
+        notificationBindingsApi.list({ event_code: eventCode, page: 1, limit: 100 }),
+        notificationsApi.listServices({ page: 1, limit: 100 }),
       ]);
       const catalog = catalogRes.data.data;
       const bindingRows = bindingsRes.data.data;

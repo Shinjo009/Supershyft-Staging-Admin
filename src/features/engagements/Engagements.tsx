@@ -156,7 +156,7 @@ function EngagementChecklistModal({
     try {
       const [clRes, tRes, empRes] = await Promise.all([
         engagementChecklistsApi.list(engagementId),
-        checklistTemplatesApi.list(),
+        checklistTemplatesApi.list({ page: 1, limit: 100 }),
         employeesApi.list({ status: "active", limit: 100 }),
       ]);
       setChecklists(clRes.data.data);

@@ -295,8 +295,17 @@ export interface SupportTicketStatusUpdatePayload {
 export const supportApi = {
   submitTicket: (payload: SupportTicketCreate) =>
     api.post<{ data: SupportTicket; meta: Record<string, unknown> }>("/support/tickets", payload),
-  listTickets: (params?: { status?: SupportTicketStatus }) =>
-    api.get<{ data: SupportTicket[]; meta: Record<string, unknown> }>("/support/tickets", { params }),
+  listTickets: (params?: {
+    status?: SupportTicketStatus;
+    page?: number;
+    limit?: number;
+    sort_by?: string;
+    sort_dir?: "asc" | "desc";
+  }) =>
+    api.get<{
+      data: SupportTicket[];
+      meta: { page: number; limit: number; total: number; status_counts?: Record<string, number> };
+    }>("/support/tickets", { params }),
   getTicket: (ticketId: number) =>
     api.get<{ data: SupportTicket; meta: Record<string, unknown> }>(`/support/tickets/${ticketId}`),
   updateTicketStatus: (ticketId: number, payload: SupportTicketStatusUpdatePayload) =>
@@ -2280,8 +2289,11 @@ export interface ExpertDashboardPayload {
 export const expertsPortalApi = {
   me: () => api.get<{ data: ExpertDetail }>("/experts/portal/me"),
   getDashboard: () => api.get<{ data: ExpertDashboardPayload }>("/experts/portal/dashboard"),
-  listRequests: () =>
-    api.get<{ data: ConsultationRequestItem[] }>("/experts/portal/requests"),
+  listRequests: (params?: { page?: number; limit?: number }) =>
+    api.get<{
+      data: ConsultationRequestItem[];
+      meta: { page: number; limit: number; total: number };
+    }>("/experts/portal/requests", { params }),
   confirmRequest: (payload: {
     user_id: number;
     engagement_id: number;
@@ -4094,8 +4106,11 @@ export type ConsoleParticipantListParams = {
 };
 
 export const consoleApi = {
-  listEngagements: () =>
-    api.get<{ data: ConsoleEngagementListItem[] }>("/engagements/console/engagements"),
+  listEngagements: (params?: { page?: number; limit?: number }) =>
+    api.get<{
+      data: ConsoleEngagementListItem[];
+      meta: { page: number; limit: number; total: number };
+    }>("/engagements/console/engagements", { params }),
   bootstrap: (id: number, params?: ConsoleParticipantListParams) =>
     api.get<{
       data: {
@@ -5513,10 +5528,10 @@ export interface DiscountOption {
 }
 
 export const discountsApi = {
-  list: (params?: { status?: string; search?: string; limit?: number; offset?: number }) =>
+  list: (params?: { status?: string; search?: string; page?: number; limit?: number }) =>
     api.get<{
       data: { items: DiscountCodeRow[]; total: number };
-      meta?: { abuse_events_24h?: number };
+      meta?: { page?: number; limit?: number; total?: number; abuse_events_24h?: number };
     }>("/discounts", { params }),
 
   get: (id: number) => api.get<{ data: DiscountCodeRow }>(`/discounts/${id}`),
@@ -5613,7 +5628,11 @@ export interface MyTask extends ChecklistTask {
 }
 
 export const checklistTemplatesApi = {
-  list: () => api.get<{ data: ChecklistTemplate[]; meta: Record<string, unknown> }>("/checklist-templates"),
+  list: (params?: { page?: number; limit?: number }) =>
+    api.get<{
+      data: ChecklistTemplate[];
+      meta: { page: number; limit: number; total: number };
+    }>("/checklist-templates", { params }),
   get: (id: number) =>
     api.get<{ data: ChecklistTemplateDetail; meta: Record<string, unknown> }>(`/checklist-templates/${id}`),
   create: (body: { name: string; description?: string; audience?: "internal" | "user" }) =>
@@ -5673,8 +5692,11 @@ export const checklistTasksApi = {
     api.patch<{ data: ChecklistTask; meta: Record<string, unknown> }>(`/checklist/tasks/${taskId}/status`, body),
   update: (taskId: number, body: { notes?: string | null; due_date?: string | null }) =>
     api.put<{ data: ChecklistTask; meta: Record<string, unknown> }>(`/checklist/tasks/${taskId}`, body),
-  myTasks: (params?: { status?: string }) =>
-    api.get<{ data: MyTask[]; meta: Record<string, unknown> }>("/checklist/my-tasks", { params }),
+  myTasks: (params?: { status?: string; page?: number; limit?: number }) =>
+    api.get<{
+      data: MyTask[];
+      meta: { page: number; limit: number; total: number };
+    }>("/checklist/my-tasks", { params }),
 };
 
 // Notifications
@@ -5888,8 +5910,11 @@ export const notificationsApi = {
       meta: Record<string, unknown>;
     }>("/notifications/prepare-reports", body),
 
-  listServices: () =>
-    api.get<{ data: NotificationServiceItem[]; meta: Record<string, unknown> }>("/notifications/services"),
+  listServices: (params?: { page?: number; limit?: number }) =>
+    api.get<{
+      data: NotificationServiceItem[];
+      meta: { page: number; limit: number; total: number };
+    }>("/notifications/services", { params }),
   createService: (body: {
     service_key: string;
     display_name: string;
@@ -6194,8 +6219,11 @@ export const notificationsCatalogApi = {
 };
 
 export const notificationBindingsApi = {
-  list: (params?: { event_code?: string }) =>
-    api.get<{ data: NotificationBindingItem[]; meta: Record<string, unknown> }>("/notifications/bindings", {
+  list: (params?: { event_code?: string; page?: number; limit?: number }) =>
+    api.get<{
+      data: NotificationBindingItem[];
+      meta: { page: number; limit: number; total: number };
+    }>("/notifications/bindings", {
       params,
     }),
   get: (id: number) =>
@@ -6211,9 +6239,10 @@ export const notificationBindingsApi = {
       return res.data.data;
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 405) {
-        const list = await api.get<{ data: NotificationBindingItem[]; meta: Record<string, unknown> }>(
-          "/notifications/bindings"
-        );
+        const list = await api.get<{
+          data: NotificationBindingItem[];
+          meta: { page: number; limit: number; total: number };
+        }>("/notifications/bindings", { params: { page: 1, limit: 100 } });
         const row = list.data.data.find((b) => b.id === id);
         if (row) return row;
       }

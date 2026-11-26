@@ -491,7 +491,7 @@ export function NotificationBindingWizard() {
     try {
       const [evRes, svcRes] = await Promise.all([
         notificationsCatalogApi.getEvents(),
-        notificationsApi.listServices(),
+        notificationsApi.listServices({ page: 1, limit: 100 }),
       ]);
       const catalog = evRes.data.data;
       setEvents(catalog);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Loader2, Users, Calendar } from "lucide-react";
 import { ConsoleLayout } from "../../layouts/ConsoleLayout";
@@ -21,26 +21,27 @@ export function ConsoleEngagementsPage() {
   const [engagements, setEngagements] = useState<ConsoleEngagementListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(20);
+  const [total, setTotal] = useState(0);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadEngagements = useCallback(async () => {
     setLoading(true);
     setError(null);
-    consoleApi
-      .listEngagements()
-      .then((res) => {
-        if (!cancelled) setEngagements(res.data.data);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(getApiError(err));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    try {
+      const res = await consoleApi.listEngagements({ page, limit });
+      setEngagements(res.data.data);
+      setTotal(res.data.meta?.total ?? res.data.data.length);
+    } catch (err) {
+      setError(getApiError(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [page, limit]);
+
+  useEffect(() => {
+    void loadEngagements();
+  }, [loadEngagements]);
 
   const title = isAdmin
     ? "Engagement Console"
@@ -84,39 +85,66 @@ export function ConsoleEngagementsPage() {
         ) : engagements.length === 0 ? (
           <div className="py-16 text-center text-sm text-zinc-500">{emptyMessage}</div>
         ) : (
-          <ul className="space-y-3">
-            {engagements.map((eng) => (
-              <li key={eng.engagement_id}>
-                <Link
-                  to={`/engagements/${eng.engagement_id}/console`}
-                  className="block p-4 bg-white border border-zinc-200 rounded-xl hover:border-zinc-300 hover:shadow-sm transition-shadow"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-medium text-zinc-900 truncate">
-                        {engagementLabel(eng)}
-                      </p>
-                      {eng.engagement_code && (
-                        <p className="text-xs text-zinc-500 mt-0.5">{eng.engagement_code}</p>
-                      )}
-                      {(eng.start_date || eng.end_date) && (
-                        <p className="flex items-center gap-1.5 text-xs text-zinc-500 mt-2">
-                          <Calendar className="w-3.5 h-3.5 shrink-0" />
-                          <span>
-                            {eng.start_date ?? "—"} — {eng.end_date ?? "—"}
-                          </span>
+          <>
+            <ul className="space-y-3">
+              {engagements.map((eng) => (
+                <li key={eng.engagement_id}>
+                  <Link
+                    to={`/engagements/${eng.engagement_id}/console`}
+                    className="block p-4 bg-white border border-zinc-200 rounded-xl hover:border-zinc-300 hover:shadow-sm transition-shadow"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium text-zinc-900 truncate">
+                          {engagementLabel(eng)}
                         </p>
-                      )}
+                        {eng.engagement_code && (
+                          <p className="text-xs text-zinc-500 mt-0.5">{eng.engagement_code}</p>
+                        )}
+                        {(eng.start_date || eng.end_date) && (
+                          <p className="flex items-center gap-1.5 text-xs text-zinc-500 mt-2">
+                            <Calendar className="w-3.5 h-3.5 shrink-0" />
+                            <span>
+                              {eng.start_date ?? "—"} — {eng.end_date ?? "—"}
+                            </span>
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-zinc-500 shrink-0">
+                        <Users className="w-3.5 h-3.5" />
+                        <span>{eng.participant_count ?? 0}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs text-zinc-500 shrink-0">
-                      <Users className="w-3.5 h-3.5" />
-                      <span>{eng.participant_count ?? 0}</span>
-                    </div>
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            {total > limit && (
+              <div className="flex items-center justify-between gap-3 pt-2 text-sm text-zinc-600">
+                <span>
+                  Page {page} of {Math.max(1, Math.ceil(total / limit))}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={page <= 1 || loading}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="rounded border border-zinc-200 px-3 py-1.5 disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    disabled={page * limit >= total || loading}
+                    onClick={() => setPage((p) => p + 1)}
+                    className="rounded border border-zinc-200 px-3 py-1.5 disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </ConsoleLayout>

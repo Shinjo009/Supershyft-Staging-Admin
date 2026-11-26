@@ -35,19 +35,23 @@ export function NotificationBindingsTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit] = useState(20);
+  const [total, setTotal] = useState(0);
 
   const fetchList = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await notificationBindingsApi.list();
+      const res = await notificationBindingsApi.list({ page, limit });
       setData(res.data.data);
+      setTotal(res.data.meta?.total ?? res.data.data.length);
     } catch (err) {
       setError(getApiError(err));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, limit]);
 
   useEffect(() => {
     fetchList();
@@ -192,6 +196,7 @@ export function NotificationBindingsTab() {
             firstColumnClickableView
             mutationCategory="notifications"
             mutationTaskKey="defaults"
+            pagination={{ page, limit, total, onPageChange: setPage }}
           />
         )}
       </div>

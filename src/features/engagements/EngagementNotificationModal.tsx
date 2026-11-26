@@ -250,7 +250,7 @@ export function EngagementNotificationModal({
 
     setServicesLoading(true);
     notificationsApi
-      .listServices()
+      .listServices({ page: 1, limit: 100 })
       .then((res) => setServices(res.data.data.filter((s) => s.is_active)))
       .catch(() => setServices([]))
       .finally(() => setServicesLoading(false));

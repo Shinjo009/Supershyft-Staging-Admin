@@ -90,7 +90,7 @@ export function EngagementNotificationSetupPanel({
     let cancelled = false;
     void (async () => {
       try {
-        const res = await notificationsApi.listServices();
+        const res = await notificationsApi.listServices({ page: 1, limit: 100 });
         if (!cancelled) {
           setCatalogServices(res.data.data ?? []);
         }

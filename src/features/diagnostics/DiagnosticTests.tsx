@@ -231,8 +231,8 @@ export function DiagnosticTests({ onRequestCreate }: DiagnosticTestsProps) {
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const [sortKey, setSortKey] = useState<SortKey>("test_id");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [sortKey, setSortKey] = useState<SortKey>("display_order");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   const [genderTab, setGenderTab] = useState<GenderTab>("male");
 
@@ -331,7 +331,12 @@ export function DiagnosticTests({ onRequestCreate }: DiagnosticTestsProps) {
     }
   };
 
+  // Keep server catalog order (display_order ASC) by default; only re-sort the
+  // current page when the admin explicitly picks another column.
   const sortedRows = useMemo(() => {
+    if (sortKey === "display_order" && sortDir === "asc") {
+      return rows;
+    }
     const next = [...rows];
     next.sort((a, b) => {
       let left: string | number = "";
