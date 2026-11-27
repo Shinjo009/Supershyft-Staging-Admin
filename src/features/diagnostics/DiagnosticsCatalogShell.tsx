@@ -8,7 +8,7 @@ import {
 const TABS: { key: DiagnosticsCatalogTab; label: string }[] = [
   { key: "packages", label: "Packages" },
   { key: "test-groups", label: "Profiles" },
-  { key: "tests", label: "Tests" },
+  { key: "tests", label: "Parameters" },
   { key: "filter-chips", label: "Filter chips" },
 ];
 

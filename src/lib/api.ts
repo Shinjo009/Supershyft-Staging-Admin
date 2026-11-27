@@ -5262,6 +5262,8 @@ export const diagnosticTestsApi = {
     api.put<{ data: DiagnosticTestStandalone }>(`/diagnostics/health-parameters/${testId}`, payload),
   delete: (testId: number) =>
     api.delete<{ data: { deleted: boolean } }>(`/diagnostics/health-parameters/${testId}`),
+  reorder: (payload: { test_ids: number[] }) =>
+    api.patch<{ data: { reordered: boolean } }>("/diagnostics/health-parameters/order", payload),
 };
 
 export const diagnosticTestGroupsApi = {
