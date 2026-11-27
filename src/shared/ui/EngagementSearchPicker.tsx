@@ -43,6 +43,7 @@ type EngagementSearchPickerProps = {
   onChange: (engagementId: number) => void;
   disabled?: boolean;
   required?: boolean;
+  /** Pass empty string to hide the visible label (aria-label still applied). */
   label?: string;
   placeholder?: string;
   className?: string;
@@ -150,20 +151,25 @@ export function EngagementSearchPicker({
 
   const showDropdown = dropdownOpen && !disabled;
 
+  const showLabel = Boolean(label);
+
   return (
     <div ref={rootRef} className={className}>
       <label className="block">
-        <span className="text-zinc-600 text-xs">
-          {label}
-          {required ? " *" : ""}
-        </span>
-        <div className="relative mt-1">
+        {showLabel ? (
+          <span className="text-zinc-600 text-xs">
+            {label}
+            {required ? " *" : ""}
+          </span>
+        ) : null}
+        <div className={`relative ${showLabel ? "mt-1" : ""}`}>
           <input
             type="text"
             role="combobox"
             aria-expanded={showDropdown}
             aria-controls={listboxId}
             aria-autocomplete="list"
+            aria-label={showLabel ? undefined : label || placeholder || "Engagement"}
             autoComplete="off"
             disabled={disabled}
             value={displayValue}

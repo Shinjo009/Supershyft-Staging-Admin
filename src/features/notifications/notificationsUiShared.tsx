@@ -569,14 +569,14 @@ export const FILTER_DEBOUNCE_MS = 300;
 
 export type TimePreset = "" | "1h" | "24h" | "7d" | "30d" | "custom";
 
-export const DEFAULT_TIME_PRESET: TimePreset = "1h";
+export const DEFAULT_TIME_PRESET: TimePreset = "7d";
 
 export const TIME_PRESETS: { key: TimePreset; label: string }[] = [
   { key: "", label: "All time" },
   { key: "1h", label: "Last 1h" },
-  { key: "24h", label: "24h" },
-  { key: "7d", label: "7d" },
-  { key: "30d", label: "30d" },
+  { key: "24h", label: "Last 24h" },
+  { key: "7d", label: "Last 7 days" },
+  { key: "30d", label: "Last 30 days" },
   { key: "custom", label: "Custom" },
 ];
 

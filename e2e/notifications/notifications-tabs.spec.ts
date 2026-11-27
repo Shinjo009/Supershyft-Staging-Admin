@@ -16,11 +16,48 @@ test.describe("Notifications area (staging)", () => {
     await expect(tabBar.getByRole("button", { name: "Events", exact: true })).toHaveCount(0);
   });
 
-  test("Logs tab has table filters", async ({ page }) => {
-    await expect(page.getByText("Status", { exact: false }).first()).toBeVisible();
-    await expect(page.getByText("Dispatched", { exact: false }).first()).toBeVisible();
-    await page.getByRole("button", { name: "All" }).first().click();
+  test("Logs tab has search left of status and compact columns", async ({ page }) => {
+    const search = page.getByPlaceholder(/search by name, phone or message/i);
+    await expect(search).toBeVisible();
+
+    const allStatus = page.getByRole("button", { name: "All" }).first();
+    await expect(allStatus).toBeVisible();
+
+    const searchBox = await search.boundingBox();
+    const allBox = await allStatus.boundingBox();
+    expect(searchBox).toBeTruthy();
+    expect(allBox).toBeTruthy();
+    if (searchBox && allBox) {
+      expect(searchBox.x).toBeLessThan(allBox.x);
+    }
+
+    await expect(page.getByLabel("Service", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Channel", { exact: true })).toBeVisible();
+    await expect(page.getByPlaceholder("Engagement")).toBeVisible();
+    await expect(page.getByLabel(/view all columns/i)).toHaveCount(0);
+
     await expect(page.getByRole("columnheader", { name: /ID/i })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: /^Service$/i })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: /^Channel$/i })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: /^Status$/i })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: /^Recipient$/i })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: /^Engagement$/i })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: /^Message$/i })).toBeVisible();
+
+    await expect(page.getByRole("columnheader", { name: /^Queue$/i })).toHaveCount(0);
+    await expect(page.getByRole("columnheader", { name: /^Event$/i })).toHaveCount(0);
+    await expect(page.getByRole("columnheader", { name: /^Dispatched$/i })).toHaveCount(0);
+    await expect(page.getByRole("columnheader", { name: /^Completed$/i })).toHaveCount(0);
+
+    const actionsBtn = page.locator('button[title="Actions"]').first();
+    await expect(actionsBtn).toBeVisible({ timeout: 15000 });
+    await actionsBtn.click();
+    await page.getByRole("button", { name: /view all columns/i }).click();
+
+    await expect(page.getByRole("columnheader", { name: /^Queue$/i })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: /^Event$/i })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: /^Dispatched$/i })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: /^Completed$/i })).toBeVisible();
   });
 
   test("Services add page uses channel-specific fields", async ({ page }) => {

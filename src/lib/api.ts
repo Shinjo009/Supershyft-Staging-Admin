@@ -5874,6 +5874,7 @@ export const notificationsApi = {
     engagement_id?: number;
     dispatched_from?: string;
     dispatched_to?: string;
+    search?: string;
   }) =>
     api.get<{ data: NotificationItem[]; meta: { page: number; limit: number; total: number } }>(
       "/notifications",
