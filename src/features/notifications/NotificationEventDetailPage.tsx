@@ -243,7 +243,7 @@ export function NotificationEventDetailPage() {
           <p className="mt-3 text-sm text-zinc-500">
             Check the code from{" "}
             <Link to="/notifications/notifications" className="text-zinc-900 underline">
-              Notifications
+              Event Rules
             </Link>{" "}
             or pick an event when adding a binding.
           </p>

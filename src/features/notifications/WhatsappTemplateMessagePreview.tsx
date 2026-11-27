@@ -7,6 +7,8 @@ type Props = {
   headerUrl?: string | null;
   headerLabel?: string | null;
   className?: string;
+  /** When false, omit the small "Message preview" caption above the bubble. */
+  showCaption?: boolean;
   /** @deprecated use bodyText */
   message?: string;
 };
@@ -119,6 +121,7 @@ export function WhatsappTemplateMessagePreview({
   headerUrl,
   headerLabel,
   className = "",
+  showCaption = true,
 }: Props) {
   const text = (bodyText ?? message ?? "").trim() || "(empty template body)";
   const fmt = (headerFormat ?? "").trim().toUpperCase();
@@ -127,7 +130,7 @@ export function WhatsappTemplateMessagePreview({
 
   return (
     <div className={`max-w-md ${className}`}>
-      <p className="text-xs text-zinc-500 mb-2">Message preview</p>
+      {showCaption ? <p className="text-xs text-zinc-500 mb-2">Message preview</p> : null}
       <div
         className="rounded-lg rounded-tl-sm shadow-sm overflow-hidden border border-emerald-100/80"
         style={{ backgroundColor: "#dcf8c6" }}

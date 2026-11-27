@@ -29,12 +29,31 @@ test.describe("Notification binding wizard", () => {
     await expect(page.getByRole("button", { name: "Create new" })).toBeVisible();
   });
 
-  test("email path shows preview control after event selected", async ({ page }) => {
+  test("email path shows side-by-side Email Preview on step 3", async ({ page }) => {
     await page.goto("/notifications/notifications/new");
     await page.getByRole("button", { name: /OTP/i }).first().click();
     await page.getByRole("button", { name: "Continue" }).click();
     await page.getByRole("button", { name: "Create new" }).click();
     await page.getByRole("button", { name: "Email" }).click();
-    await expect(page.getByText("Preview")).toBeVisible();
+
+    await expect(page.getByRole("heading", { name: "Email Preview" })).toBeVisible();
+    await expect(page.getByText("Subject:", { exact: false })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Plain text" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "HTML" })).toBeVisible();
+    await expect(page.getByText("Variables", { exact: true }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /Expand email preview/i })).toBeVisible();
+  });
+
+  test("whatsapp path shows Message Preview column on step 3", async ({ page }) => {
+    await page.goto("/notifications/notifications/new");
+    await page.getByRole("button", { name: /OTP/i }).first().click();
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("button", { name: "Create new" }).click();
+    await page.getByRole("button", { name: "WhatsApp" }).click();
+
+    await expect(page.getByText("Display name", { exact: true })).toBeVisible();
+    await expect(page.getByText("Template name", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Message Preview" })).toBeVisible();
+    await expect(page.getByText("Variables", { exact: true }).first()).toBeVisible();
   });
 });

@@ -72,7 +72,7 @@ base.describe("Settings notifications (mocked API)", () => {
     ).toBeVisible();
     await expect(page.getByText("Support alerts", { exact: true })).toHaveCount(0);
     await expect(page.getByText("Engagement notification defaults", { exact: true })).toHaveCount(0);
-    await expect(page.getByRole("link", { name: /Manage default bindings in Notifications/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Manage default bindings in Event Rules/i })).toBeVisible();
   });
 
   base("updates help copy when toggling strict mode", async ({ page }) => {
@@ -84,7 +84,7 @@ base.describe("Settings notifications (mocked API)", () => {
 
     await checkbox.uncheck();
     await expect(
-      page.getByText(/uses default bindings from Notifications/i)
+      page.getByText(/uses default bindings from Event Rules/i)
     ).toBeVisible();
   });
 
@@ -113,8 +113,8 @@ base.describe("Settings notifications (mocked API)", () => {
     await expect(page.getByRole("button", { name: "Save" })).toBeDisabled();
   });
 
-  base("link opens Notifications default bindings", async ({ page }) => {
-    await page.getByRole("link", { name: /Manage default bindings in Notifications/i }).click();
+  base("link opens Event Rules default bindings", async ({ page }) => {
+    await page.getByRole("link", { name: /Manage default bindings in Event Rules/i }).click();
     await expect(page).toHaveURL(/\/notifications\/notifications/);
   });
 });

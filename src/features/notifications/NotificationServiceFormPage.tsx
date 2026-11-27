@@ -6,10 +6,10 @@ import {
   PageHeaderActions,
   usePageHeader,
 } from "../../layouts/PageHeaderActions";
-import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
+import { usePermissions } from "../../contexts/PermissionContext";
 import { notificationsApi, type NotificationServiceItem, getApiError } from "../../lib/api";
-import { formatDateTime } from "./notificationsUiShared";
 import { NotificationServiceFormFields } from "./NotificationServiceFormFields";
+import { NotificationServiceDetailView } from "./NotificationServiceDetailView";
 import {
   EMPTY_SERVICE_FORM,
   buildContentFields,
@@ -141,18 +141,49 @@ export function NotificationServiceFormPage({ mode }: { mode: NotificationServic
 
   const readOnly = mode === "view" || !mayEdit;
 
+  if (mode === "view") {
+    if (!loadedRow) {
+      return (
+        <div className="p-4 sm:p-6 w-full max-w-6xl mx-auto space-y-4">
+          {error ? (
+            <div className="p-3 rounded-lg bg-red-50 text-red-700 text-sm" role="alert">
+              {error}
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-600">Service not found.</p>
+          )}
+          <Link to={listPath} className="text-sm text-zinc-900 underline">
+            Back to services
+          </Link>
+        </div>
+      );
+    }
+
+    return (
+      <div className="p-4 sm:p-6 w-full max-w-6xl mx-auto space-y-4">
+        {mayEdit && serviceId != null ? (
+          <PageHeaderActions>
+            <HeaderActionButton
+              label="Edit"
+              icon={Pencil}
+              onClick={() => navigate(`/notifications/services/${serviceId}/edit`)}
+            />
+          </PageHeaderActions>
+        ) : null}
+
+        {error && (
+          <div className="p-3 rounded-lg bg-red-50 text-red-700 text-sm" role="alert">
+            {error}
+          </div>
+        )}
+
+        <NotificationServiceDetailView service={loadedRow} />
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 sm:p-6 w-full max-w-4xl mx-auto">
-      {mode === "view" && mayEdit && serviceId != null ? (
-        <PageHeaderActions>
-          <HeaderActionButton
-            label="Edit"
-            icon={Pencil}
-            onClick={() => navigate(`/notifications/services/${serviceId}/edit`)}
-          />
-        </PageHeaderActions>
-      ) : null}
-
       <div className="bg-white rounded-xl border border-zinc-200 p-4 sm:p-6 lg:p-8">
         {error && (
           <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm" role="alert">
@@ -167,10 +198,6 @@ export function NotificationServiceFormPage({ mode }: { mode: NotificationServic
             readOnly={readOnly}
             serviceKeyDisabled={mode !== "add"}
           />
-
-          {loadedRow?.created_at ? (
-            <p className="text-xs text-zinc-500">Created {formatDateTime(loadedRow.created_at)}</p>
-          ) : null}
 
           {!readOnly ? (
             <div className="flex flex-col sm:flex-row gap-3 pt-2 border-t border-zinc-100">
@@ -189,19 +216,7 @@ export function NotificationServiceFormPage({ mode }: { mode: NotificationServic
                 Cancel
               </button>
             </div>
-          ) : (
-            <div className="pt-2 border-t border-zinc-100">
-              <PermissionGate category="notifications" taskKey="services" action="edit">
-                <button
-                  type="button"
-                  onClick={() => serviceId && navigate(`/notifications/services/${serviceId}/edit`)}
-                  className="text-sm text-zinc-700 underline"
-                >
-                  Edit this service
-                </button>
-              </PermissionGate>
-            </div>
-          )}
+          ) : null}
         </form>
       </div>
     </div>

@@ -15,7 +15,7 @@ const TAB_KEYS: NotificationsTabKey[] = ["logs", "services", "notifications"];
 const TAB_LABELS: Record<NotificationsTabKey, string> = {
   logs: "Logs",
   services: "Services",
-  notifications: "Notifications",
+  notifications: "Event Rules",
 };
 
 function normalizeTabParam(param: string | undefined): NotificationsTabKey | "redirect" {

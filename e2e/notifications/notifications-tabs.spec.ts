@@ -8,11 +8,12 @@ test.describe("Notifications area (staging)", () => {
     await expect(page).toHaveURL(/\/notifications\/logs/);
   });
 
-  test("shows Logs, Services, Notifications tabs (no Events)", async ({ page }) => {
+  test("shows Logs, Services, Event Rules tabs (no Events)", async ({ page }) => {
     const tabBar = page.locator("div.flex.gap-1.mb-5.border-b.border-zinc-200");
     await expect(tabBar.getByRole("button", { name: "Logs", exact: true })).toBeVisible();
     await expect(tabBar.getByRole("button", { name: "Services", exact: true })).toBeVisible();
-    await expect(tabBar.getByRole("button", { name: "Notifications", exact: true })).toBeVisible();
+    await expect(tabBar.getByRole("button", { name: "Event Rules", exact: true })).toBeVisible();
+    await expect(tabBar.getByRole("button", { name: "Notifications", exact: true })).toHaveCount(0);
     await expect(tabBar.getByRole("button", { name: "Events", exact: true })).toHaveCount(0);
   });
 
@@ -83,8 +84,8 @@ test.describe("Notifications area (staging)", () => {
     }
   });
 
-  test("Notifications bindings tab loads list with search", async ({ page }) => {
-    await page.getByRole("button", { name: "Notifications" }).click();
+  test("Event Rules bindings tab loads list with search", async ({ page }) => {
+    await page.getByRole("button", { name: "Event Rules" }).click();
     await expect(page).toHaveURL(/\/notifications\/notifications$/);
     await expect(page.getByPlaceholder(/search events, recipients, services/i)).toBeVisible();
     await expect(page.getByRole("columnheader", { name: /Event/i })).toBeVisible();

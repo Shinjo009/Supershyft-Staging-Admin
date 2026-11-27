@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams, useLocation } from "react-router-dom";
-import { ArrowLeft, Check, Loader2, Search } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Eye, Loader2, Mail, Maximize2, Search } from "lucide-react";
 import { Modal } from "../../shared/ui/Modal";
 import {
   engagementNotificationsApi,
@@ -1081,185 +1081,247 @@ export function NotificationBindingWizard() {
             ) : null}
 
             {(serviceMode === "create" || editingServiceId != null) && (
-              <>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setChannel("whatsapp")}
-                    className={filterChipClass(channel === "whatsapp")}
-                  >
-                    WhatsApp
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setChannel("email")}
-                    className={filterChipClass(channel === "email")}
-                  >
-                    Email
-                  </button>
-                </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 items-start">
+                <div className="space-y-4 min-w-0">
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setChannel("whatsapp")}
+                      className={filterChipClass(channel === "whatsapp")}
+                    >
+                      WhatsApp
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setChannel("email")}
+                      className={filterChipClass(channel === "email")}
+                    >
+                      Email
+                    </button>
+                  </div>
 
-                <label className="block text-sm text-zinc-800">
-                  Display name
-                  <input
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    className="mt-1 w-full max-w-2xl border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
-                  />
-                </label>
+                  <label className="block text-sm text-zinc-800">
+                    Display name
+                    <input
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      className="mt-1 w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
+                    />
+                  </label>
 
-                {channel === "whatsapp" && (
-                  <>
-                    <div className="flex flex-col sm:flex-row gap-2 sm:items-end max-w-3xl">
-                      <label className="flex-1 text-sm text-zinc-800">
-                        Template name
+                  {channel === "whatsapp" && (
+                    <>
+                      <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
+                        <label className="flex-1 text-sm text-zinc-800">
+                          Template name
+                          <input
+                            value={templateName}
+                            onChange={(e) => setTemplateName(e.target.value)}
+                            className="mt-1 w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={lookupTemplate}
+                          disabled={templateLookupLoading}
+                          className="px-3 py-2 border border-zinc-300 rounded-lg text-sm shrink-0 hover:bg-zinc-50"
+                        >
+                          {templateLookupLoading ? "Looking up…" : "Look up"}
+                        </button>
+                      </div>
+                      {templateMeta && <WhatsappTemplateMetaStatus meta={templateMeta} />}
+                      <details open className="group space-y-1.5">
+                        <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-zinc-800">
+                          Variables
+                          <ChevronDown className="w-4 h-4 text-zinc-500 transition-transform group-open:rotate-180" />
+                        </summary>
+                        <TemplateVariablePills
+                          fields={headerInsertFields}
+                          legend=""
+                          hint={templateVariableHint}
+                          onInsert={handleTemplateVariableInsert}
+                        />
+                      </details>
+                      {showHeaderAttachment && !templateMeta?.found && templateName.trim() && (
+                        <p className="text-xs text-amber-800">
+                          This template name uses a document/image header — use Look up to confirm with Meta, then
+                          fill the amber attachment box below the status card.
+                        </p>
+                      )}
+                      {showHeaderAttachment && (
+                        <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/80 p-3">
+                          <p className="text-sm font-medium text-zinc-900">Header attachment (PDF / image)</p>
+                          <p className="text-xs text-zinc-600">
+                            Required for this Meta template. Paste a public HTTPS link or use{" "}
+                            {"{{variable}}"} (not one of the numbered body slots below).
+                          </p>
+                          <input
+                            {...fieldInputProps("wa-header-doc")}
+                            value={headerDocument}
+                            onChange={(e) => setHeaderDocument(e.target.value)}
+                            aria-label="Header PDF or image URL"
+                            placeholder="https://…/guidelines.pdf or {{gift.gift_card_url}}"
+                            className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm"
+                          />
+                          {showHeaderFilename && (
+                            <div className="space-y-1 pt-1">
+                              <p className="text-xs text-zinc-600">
+                                Document filename (camp15 only) — literal name or {"{{variable}}"} sent to WhatsApp
+                                with the header link.
+                              </p>
+                              <input
+                                {...fieldInputProps("wa-header-filename")}
+                                value={headerDocumentFilename}
+                                onChange={(e) => setHeaderDocumentFilename(e.target.value)}
+                                aria-label="Header document filename"
+                                placeholder="document.pdf or {{report.filename}}"
+                                className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {slotValues.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-xs text-zinc-500">
+                            Template variables (use {"{{field}}"} or literal text)
+                          </p>
+                          {slotValues.map((val, i) => (
+                            <div key={i} className="flex gap-2">
+                              <span className="text-xs text-zinc-500 w-8 pt-2">{i + 1}</span>
+                              <input
+                                {...fieldInputProps(`wa-slot-${i}`)}
+                                value={val}
+                                onChange={(e) => {
+                                  const next = [...slotValues];
+                                  next[i] = e.target.value;
+                                  setSlotValues(next);
+                                }}
+                                className="flex-1 border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {channel === "email" && (
+                    <div className="space-y-3">
+                      <details open className="group space-y-1.5">
+                        <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-zinc-800">
+                          Variables
+                          <ChevronDown className="w-4 h-4 text-zinc-500 transition-transform group-open:rotate-180" />
+                        </summary>
+                        <TemplateVariablePills
+                          fields={variableFields}
+                          legend=""
+                          hint={templateVariableHint}
+                          onInsert={handleTemplateVariableInsert}
+                        />
+                      </details>
+                      <label className="block text-sm text-zinc-800">
+                        Subject
                         <input
-                          value={templateName}
-                          onChange={(e) => setTemplateName(e.target.value)}
+                          {...fieldInputProps("email-subject")}
+                          value={emailSubject}
+                          onChange={(e) => setEmailSubject(e.target.value)}
                           className="mt-1 w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
                         />
                       </label>
-                      <button
-                        type="button"
-                        onClick={lookupTemplate}
-                        disabled={templateLookupLoading}
-                        className="px-3 py-2 border border-zinc-300 rounded-lg text-sm shrink-0 hover:bg-zinc-50"
-                      >
-                        {templateLookupLoading ? "Looking up…" : "Look up"}
-                      </button>
-                    </div>
-                    {templateMeta && <WhatsappTemplateMetaStatus meta={templateMeta} />}
-                    {whatsappPreviewText ? (
-                      <WhatsappTemplateMessagePreview
-                        bodyText={whatsappPreviewText}
-                        headerFormat={templateMeta?.header_format}
-                        headerUrl={whatsappPreviewHeaderUrl}
-                        headerLabel={whatsappPreviewHeaderLabel}
-                        className="max-w-3xl"
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEmailMode("plain")}
+                          className={filterChipClass(emailMode === "plain")}
+                        >
+                          Plain text
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEmailMode("html")}
+                          className={filterChipClass(emailMode === "html")}
+                        >
+                          HTML
+                        </button>
+                      </div>
+                      <textarea
+                        {...fieldInputProps("email-body")}
+                        value={emailMode === "html" ? emailHtml : emailBody}
+                        onChange={(e) =>
+                          emailMode === "html" ? setEmailHtml(e.target.value) : setEmailBody(e.target.value)
+                        }
+                        className="w-full border border-zinc-300 rounded-lg p-3 text-sm min-h-[160px] font-mono focus:outline-none focus:ring-2 focus:ring-zinc-900"
                       />
-                    ) : null}
-                    <TemplateVariablePills
-                      fields={headerInsertFields}
-                      legend="Variables"
-                      className="max-w-3xl"
-                      hint={templateVariableHint}
-                      onInsert={handleTemplateVariableInsert}
-                    />
-                    {showHeaderAttachment && !templateMeta?.found && templateName.trim() && (
-                      <p className="text-xs text-amber-800 max-w-3xl">
-                        This template name uses a document/image header — use Look up to confirm with Meta, then
-                        fill the amber attachment box below the status card.
-                      </p>
-                    )}
-                    {showHeaderAttachment && (
-                      <div className="space-y-2 max-w-3xl rounded-lg border border-amber-200 bg-amber-50/80 p-3">
-                        <p className="text-sm font-medium text-zinc-900">Header attachment (PDF / image)</p>
-                        <p className="text-xs text-zinc-600">
-                          Required for this Meta template. Paste a public HTTPS link or use{" "}
-                          {"{{variable}}"} (not one of the numbered body slots below).
-                        </p>
-                        <input
-                          {...fieldInputProps("wa-header-doc")}
-                          value={headerDocument}
-                          onChange={(e) => setHeaderDocument(e.target.value)}
-                          aria-label="Header PDF or image URL"
-                          placeholder="https://…/guidelines.pdf or {{gift.gift_card_url}}"
-                          className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm"
+                    </div>
+                  )}
+                </div>
+
+                <div className="lg:sticky lg:top-4 min-w-0">
+                  {channel === "whatsapp" ? (
+                    <div className="rounded-xl border border-zinc-200 bg-white p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Eye className="w-4 h-4 text-zinc-500" aria-hidden />
+                        <h3 className="text-sm font-semibold text-zinc-900">Message Preview</h3>
+                      </div>
+                      {whatsappPreviewText ? (
+                        <WhatsappTemplateMessagePreview
+                          bodyText={whatsappPreviewText}
+                          headerFormat={templateMeta?.header_format}
+                          headerUrl={whatsappPreviewHeaderUrl}
+                          headerLabel={whatsappPreviewHeaderLabel}
+                          className="max-w-none"
+                          showCaption={false}
                         />
-                        {showHeaderFilename && (
-                          <div className="space-y-1 pt-1">
-                            <p className="text-xs text-zinc-600">
-                              Document filename (camp15 only) — literal name or {"{{variable}}"} sent to WhatsApp
-                              with the header link.
-                            </p>
-                            <input
-                              {...fieldInputProps("wa-header-filename")}
-                              value={headerDocumentFilename}
-                              onChange={(e) => setHeaderDocumentFilename(e.target.value)}
-                              aria-label="Header document filename"
-                              placeholder="document.pdf or {{report.filename}}"
-                              className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm"
-                            />
-                          </div>
+                      ) : (
+                        <p className="text-sm text-zinc-500">
+                          {templateName.trim()
+                            ? templateLookupLoading
+                              ? "Loading preview…"
+                              : "Look up the template to see a message preview."
+                            : "Enter a template name and look it up to preview."}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-zinc-200 bg-white p-4 space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Mail className="w-4 h-4 text-zinc-500" aria-hidden />
+                          <h3 className="text-sm font-semibold text-zinc-900">Email Preview</h3>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewOpen(true)}
+                          className="inline-flex items-center gap-1 text-xs text-zinc-600 hover:text-zinc-900"
+                          aria-label="Expand email preview"
+                        >
+                          <Maximize2 className="w-3.5 h-3.5" />
+                          Expand
+                        </button>
+                      </div>
+                      <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-800">
+                        <span className="text-zinc-500">Subject:</span>{" "}
+                        {emailSubject.trim() || "(no subject)"}
+                      </div>
+                      <div className="rounded-lg border border-zinc-200 p-3 min-h-[180px] max-h-[28rem] overflow-y-auto">
+                        {emailMode === "html" ? (
+                          <div
+                            className="prose prose-sm max-w-none text-zinc-900"
+                            dangerouslySetInnerHTML={{
+                              __html: emailHtml.trim() || "<p>(empty)</p>",
+                            }}
+                          />
+                        ) : (
+                          <pre className="whitespace-pre-wrap text-sm text-zinc-900 font-sans">
+                            {emailBody.trim() || "(empty)"}
+                          </pre>
                         )}
                       </div>
-                    )}
-                    {slotValues.length > 0 && (
-                      <div className="space-y-2 max-w-3xl">
-                        <p className="text-xs text-zinc-500">
-                          Template variables (use {"{{field}}"} or literal text)
-                        </p>
-                        {slotValues.map((val, i) => (
-                          <div key={i} className="flex gap-2">
-                            <span className="text-xs text-zinc-500 w-8 pt-2">{i + 1}</span>
-                            <input
-                              {...fieldInputProps(`wa-slot-${i}`)}
-                              value={val}
-                              onChange={(e) => {
-                                const next = [...slotValues];
-                                next[i] = e.target.value;
-                                setSlotValues(next);
-                              }}
-                              className="flex-1 border border-zinc-300 rounded-lg px-3 py-2 text-sm"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {channel === "email" && (
-                  <div className="space-y-3 max-w-3xl">
-                    <TemplateVariablePills
-                      fields={variableFields}
-                      legend="Variables"
-                      hint={templateVariableHint}
-                      onInsert={handleTemplateVariableInsert}
-                    />
-                    <label className="block text-sm text-zinc-800">
-                      Subject
-                      <input
-                        {...fieldInputProps("email-subject")}
-                        value={emailSubject}
-                        onChange={(e) => setEmailSubject(e.target.value)}
-                        className="mt-1 w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
-                      />
-                    </label>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setEmailMode("plain")}
-                        className={filterChipClass(emailMode === "plain")}
-                      >
-                        Plain text
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEmailMode("html")}
-                        className={filterChipClass(emailMode === "html")}
-                      >
-                        HTML
-                      </button>
                     </div>
-                    <textarea
-                      {...fieldInputProps("email-body")}
-                      value={emailMode === "html" ? emailHtml : emailBody}
-                      onChange={(e) =>
-                        emailMode === "html" ? setEmailHtml(e.target.value) : setEmailBody(e.target.value)
-                      }
-                      className="w-full border border-zinc-300 rounded-lg p-3 text-sm min-h-[140px] font-mono focus:outline-none focus:ring-2 focus:ring-zinc-900"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setPreviewOpen(true)}
-                      className="text-sm text-zinc-700 underline"
-                    >
-                      Preview
-                    </button>
-                  </div>
-                )}
-              </>
+                  )}
+                </div>
+              </div>
             )}
 
             <div className="flex flex-wrap gap-3 pt-2">

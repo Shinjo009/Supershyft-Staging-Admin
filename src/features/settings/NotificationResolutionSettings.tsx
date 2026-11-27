@@ -64,8 +64,8 @@ export function NotificationResolutionSettings({ canEdit }: NotificationResoluti
   }
 
   const helpText = strict
-    ? "For each event, only bindings on that engagement count. If nothing is configured for that event, no message is sent—even if defaults exist under Notifications."
-    : "If an engagement has no bindings for an event, the system uses default bindings from Notifications (global and per journey type).";
+    ? "For each event, only bindings on that engagement count. If nothing is configured for that event, no message is sent—even if defaults exist under Event Rules."
+    : "If an engagement has no bindings for an event, the system uses default bindings from Event Rules (global and per journey type).";
 
   return (
     <SettingsFormCard
@@ -98,7 +98,7 @@ export function NotificationResolutionSettings({ canEdit }: NotificationResoluti
           to="/notifications/notifications"
           className="inline-block text-xs text-zinc-600 hover:text-zinc-900 underline-offset-2 hover:underline"
         >
-          Manage default bindings in Notifications →
+          Manage default bindings in Event Rules →
         </Link>
       </div>
     </SettingsFormCard>

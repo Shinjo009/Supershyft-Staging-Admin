@@ -150,7 +150,7 @@ export function TemplateVariablePills({
 
   return (
     <div className={`space-y-1.5 ${className}`.trim()}>
-      <p className="text-xs font-medium text-zinc-600">{legend}</p>
+      {legend ? <p className="text-xs font-medium text-zinc-600">{legend}</p> : null}
       <div
         className="max-h-52 overflow-y-auto rounded-lg border border-zinc-200 bg-zinc-50/80 p-2 space-y-2"
         role="list"
