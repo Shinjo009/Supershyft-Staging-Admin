@@ -6,8 +6,8 @@
  * left untouched. This file uses the same building blocks and toolbar:
  *   headings H1-H4, bullet / numbered / task lists, quote, code block,
  *   image, text alignment; bold, italic, strike, inline code, underline,
- *   highlight, link, superscript, subscript, search and replace, and
- *   light/dark mode. On a narrow screen, highlight and link open in the toolbar.
+ *   highlight, link, superscript, subscript, search and replace.
+ *   On a narrow screen, highlight and link open in the toolbar.
  */
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { EditorContent, EditorContext, useEditor } from '@tiptap/react'
@@ -43,6 +43,7 @@ import { FontSizeDropdown } from './components/tiptap-ui/font-size-dropdown/font
 import { FontWeightDropdown } from './components/tiptap-ui/font-weight-dropdown/font-weight-dropdown'
 import { ImageUploadButton } from './components/tiptap-ui/image-upload-button'
 import { VideoInsertButton, normalizeVideoUrl } from './components/tiptap-ui/video-insert-button/video-insert-button'
+import { CtaInsertButton } from './components/tiptap-ui/cta-insert-button/cta-insert-button'
 import { DividerButton } from './components/tiptap-ui/divider-button/divider-button'
 import { TableInsertButton } from './components/tiptap-ui/table-insert-button/table-insert-button'
 import { ListDropdownMenu } from './components/tiptap-ui/list-dropdown-menu'
@@ -61,7 +62,6 @@ import { HighlighterIcon } from './components/tiptap-icons/highlighter-icon'
 import { LinkIcon } from './components/tiptap-icons/link-icon'
 
 import { useIsBreakpoint } from './hooks/use-is-breakpoint'
-import { ThemeToggle } from './components/tiptap-templates/simple/theme-toggle'
 
 import './styles/_variables.scss'
 import './styles/_keyframe-animations.scss'
@@ -72,7 +72,7 @@ import { pageBackgroundStyle } from '../pageBackgroundStyle'
 import { normalizeInstagramUrl, vimeoId, youtubeId, type StoryBlock } from './lib/storyBlocks'
 import { scrollSelectionIntoStoryPane } from './lib/scrollSelectionIntoStoryPane'
 import { docToStory, storyToDoc } from './lib/tiptapStory'
-import { StoryAudio, StoryImage, StoryInstagram, StoryVideo } from './storyMediaNodes'
+import { StoryAudio, StoryCta, StoryImage, StoryInstagram, StoryVideo } from './storyMediaNodes'
 import { FontWeight } from './components/tiptap-extension/font-weight-extension'
 import { NodeBackground } from './components/tiptap-extension/node-background-extension'
 import { StorySection } from './components/tiptap-extension/section-node-extension'
@@ -207,6 +207,7 @@ function MainToolbarContent({
       <ToolbarGroup>
         <ImageUploadButton text="Image" />
         <VideoInsertButton text="Video" uploadVideo={uploadVideo} onUploadError={onUploadError} />
+        <CtaInsertButton text="CTA" />
         <SectionButton />
       </ToolbarGroup>
       <ToolbarSeparator />
@@ -222,7 +223,6 @@ function MainToolbarContent({
           data-active-state={isSearchAndReplaceOpen ? 'on' : 'off'}
           onClick={onSearchAndReplaceClick}
         />
-        <ThemeToggle />
       </ToolbarGroup>
       {actions}
     </>
@@ -310,6 +310,7 @@ export const StoryRichEditor = forwardRef<StoryRichEditorHandle, Props>(function
       StoryVideo,
       StoryAudio,
       StoryInstagram,
+      StoryCta,
       Typography,
       Selection,
       FindAndReplace.configure({

@@ -17,7 +17,6 @@ import {
   type CommandB2CSummary,
   type CommandPeriodParams,
 } from "../../../lib/api";
-import { PlaceholderCard } from "./cards";
 import { MetricCard } from "./MetricCard";
 import { B2C_KPI_CARD_ORDER, type CardId } from "./period";
 
@@ -87,6 +86,8 @@ export function B2CGrid({
         return summary.collection_tomorrow;
       case "tests_completed":
         return summary.tests_completed;
+      case "lab_report_delivered":
+        return summary.lab_report_delivered;
       case "bio_ai_reports":
         return summary.bio_ai_reports;
       case "consultation_done":
@@ -107,15 +108,6 @@ export function B2CGrid({
       <div className="grid items-stretch gap-3 lg:grid-cols-3">
         <div className="grid grid-cols-2 grid-rows-3 gap-3 lg:col-span-1">
           {B2C_KPI_CARD_ORDER.map((card) => {
-            if (card.id === "lab_report_delivered") {
-              return (
-                <PlaceholderCard
-                  key={card.id}
-                  id={card.id}
-                  title={card.title}
-                />
-              );
-            }
             const Icon = KPI_ICONS[card.id];
             const value = valueFor(card.id);
             const clickable = card.interaction === "new_page";

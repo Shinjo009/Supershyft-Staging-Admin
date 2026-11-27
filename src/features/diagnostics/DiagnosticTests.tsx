@@ -387,13 +387,11 @@ export function DiagnosticTests() {
 
     const previous = rows;
     const byId = new Map(rows.map((row) => [row.test_id, row]));
-    const next = testIds
-      .map((id, index) => {
-        const row = byId.get(id);
-        if (!row) return null;
-        return { ...row, display_order: index + 1 };
-      })
-      .filter((row): row is DiagnosticTestStandalone => row != null);
+    const next = testIds.flatMap((id, index) => {
+      const row = byId.get(id);
+      if (!row) return [];
+      return [{ ...row, display_order: index + 1 }];
+    });
 
     setRows(next);
     setSortKey("display_order");

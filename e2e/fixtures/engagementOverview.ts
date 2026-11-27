@@ -59,8 +59,8 @@ const PROGRESS = {
   total_registered: 8,
   blood_collected: 1,
   questionnaire_filled: 8,
-  blood_report_sent: 0,
-  bio_ai_report_sent: 0,
+  blood_report_sent: 2,
+  bio_ai_report_sent: 1,
   consultation_done: 0,
 };
 

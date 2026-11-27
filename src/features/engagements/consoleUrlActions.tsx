@@ -1,20 +1,49 @@
 import { useState } from "react";
-import { Copy, ExternalLink, Link2, Monitor } from "lucide-react";
+import { Copy, ExternalLink, Link2, Monitor, Share2 } from "lucide-react";
 import { PermissionGate } from "../../contexts/PermissionContext";
 
 export function consoleUrlForEngagement(engagementId: number): string {
   return `${window.location.origin}/engagements/${engagementId}/console`;
 }
 
+export function consoleSubpathForEngagement(options: {
+  engagementId: number;
+  engagementCode?: string | null;
+}): string {
+  const code = (options.engagementCode ?? "").trim();
+  if (code) {
+    return `/engagements/code/${encodeURIComponent(code)}/console`;
+  }
+  return `/engagements/${options.engagementId}/console`;
+}
+
+export function consoleUrlForEngagementCode(code: string): string {
+  const trimmed = code.trim();
+  return `${window.location.origin}/engagements/code/${encodeURIComponent(trimmed)}/console`;
+}
+
+function resolveConsoleUrl(engagementId: number, engagementCode?: string | null): string {
+  const code = (engagementCode ?? "").trim();
+  if (code) {
+    return consoleUrlForEngagementCode(code);
+  }
+  return consoleUrlForEngagement(engagementId);
+}
+
 export function ConsoleUrlActions({
   engagementId,
+  engagementCode,
+  engagementName,
   variant = "default",
 }: {
   engagementId: number;
+  engagementCode?: string | null;
+  engagementName?: string | null;
   variant?: "default" | "compact";
 }) {
   const [copied, setCopied] = useState(false);
-  const url = consoleUrlForEngagement(engagementId);
+  const [shareCopied, setShareCopied] = useState(false);
+  const url = resolveConsoleUrl(engagementId, engagementCode);
 
   const handleCopy = async () => {
     try {
@@ -23,6 +52,28 @@ export function ConsoleUrlActions({
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
       // ignore clipboard errors
+    }
+  };
+
+  const handleShare = async () => {
+    const shareTitle = "Engagement console";
+    const shareText = (engagementName ?? "").trim() || shareTitle;
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: shareTitle, text: shareText, url });
+        return;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
+      }
+    }
+    setShareCopied(true);
+    try {
+      await navigator.clipboard.writeText(url);
+      window.setTimeout(() => setShareCopied(false), 2000);
+    } catch {
+      setShareCopied(false);
     }
   };
 
@@ -50,6 +101,15 @@ export function ConsoleUrlActions({
               <Copy className="w-3.5 h-3.5" />
               {copied ? "Copied" : "Copy"}
             </button>
+            <button
+              type="button"
+              onClick={() => void handleShare()}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 text-xs font-medium"
+              title="Share console URL"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              {shareCopied ? "Copied" : "Share"}
+            </button>
             <a
               href={url}
               target="_blank"
@@ -75,7 +135,16 @@ export function ConsoleUrlActions({
             onClick={() => void handleCopy()}
             className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-medium"
           >
+            <Copy className="w-3.5 h-3.5" />
             {copied ? "Copied" : "Copy URL"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleShare()}
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-medium"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            {shareCopied ? "Copied" : "Share"}
           </button>
           <a
             href={url}

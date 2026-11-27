@@ -111,7 +111,16 @@ function IntegrationLogDetailPanel({
         <dt className="text-zinc-500">API</dt>
         <dd className="font-mono font-medium text-zinc-900 break-all">{view.apiName}</dd>
       </dl>
-      <JsonBlock title="Sent" value={view.sent} onCopied={onCopied} />
+      {view.path != null && <JsonBlock title="Path" value={view.path} onCopied={onCopied} />}
+      {view.query != null && <JsonBlock title="Query" value={view.query} onCopied={onCopied} />}
+      {view.partnerBody != null ? (
+        <JsonBlock title="Partner body" value={view.partnerBody} onCopied={onCopied} />
+      ) : (
+        <JsonBlock title="Sent" value={view.sent} onCopied={onCopied} />
+      )}
+      {view.internal != null && (
+        <JsonBlock title="Internal" value={view.internal} onCopied={onCopied} />
+      )}
       <JsonBlock title="Received" value={view.received} onCopied={onCopied} />
       {view.error && <JsonBlock title="Error" value={view.error} onCopied={onCopied} variant="error" />}
     </div>

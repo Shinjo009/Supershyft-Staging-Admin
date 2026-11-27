@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Users } from "./Users";
@@ -68,5 +68,46 @@ describe("Users page load contract", () => {
     await waitFor(() => expect(listMock).toHaveBeenCalled());
     expect(statsMock).not.toHaveBeenCalled();
     expect(employeesGetMock).not.toHaveBeenCalled();
+  });
+
+  it("auto-expands primary row when search matches a sub-account", async () => {
+    listMock.mockResolvedValue({
+      data: {
+        data: [
+          {
+            user_id: 1,
+            first_name: "Parent",
+            last_name: "User",
+            phone: "9000000001",
+            status: "active",
+            sub_account_count: 1,
+            sub_accounts: [
+              {
+                user_id: 2,
+                first_name: "Child",
+                last_name: "User",
+                phone: "9000000002",
+                status: "active",
+                parent_id: 1,
+                relationship: "child",
+              },
+            ],
+            matched_sub_ids: [2],
+          },
+        ],
+        meta: {
+          page: 1,
+          limit: 20,
+          total: 1,
+          protected_user_ids: [],
+        },
+      },
+    });
+    render(
+      <MemoryRouter>
+        <Users />
+      </MemoryRouter>
+    );
+    await waitFor(() => expect(screen.getByText("Child User")).toBeInTheDocument());
   });
 });

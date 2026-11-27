@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { getApiError, usersApi, type UserDetail, type UserListItem } from "../../lib/api";
+import {
+  flattenUserListItems,
+  getApiError,
+  usersApi,
+  type UserDetail,
+  type UserListItem,
+} from "../../lib/api";
 
 function userDetailToListItem(u: UserDetail): UserListItem {
   return {
@@ -21,7 +27,8 @@ function formatUserLabel(u: UserListItem): string {
   const last = (u.last_name ?? "").trim();
   const name = [first, last].filter(Boolean).join(" ").trim();
   const base = name || u.email || u.phone || `User #${u.user_id}`;
-  return `${base} (#${u.user_id})`;
+  const subSuffix = u.parent_id != null ? " · Sub-account" : "";
+  return `${base} (#${u.user_id})${subSuffix}`;
 }
 
 function formatUserSecondary(u: UserListItem): string | null {
@@ -69,7 +76,7 @@ export function UserSearchPicker({
         sort_by: "name",
         sort_dir: "asc",
       });
-      setOptions(res.data.data);
+      setOptions(flattenUserListItems(res.data.data));
     } catch (err) {
       setFetchError(getApiError(err));
       setOptions([]);

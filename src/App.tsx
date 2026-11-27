@@ -10,6 +10,7 @@ import { Dashboard } from "./features/dashboard/Dashboard";
 import { PublicServiceabilityPage } from "./features/serviceability/PublicServiceabilityPage";
 
 import { loginPathWithRedirect } from "./lib/authStorage";
+import { ChunkLoadErrorBoundary } from "./components/ChunkLoadErrorBoundary";
 
 const Organisations = lazy(() =>
   import("./features/organisations/Organisations").then((m) => ({ default: m.Organisations }))
@@ -160,6 +161,11 @@ const SuperClub = lazy(() =>
 );
 const EngagementConsolePage = lazy(() =>
   import("./features/console/EngagementConsolePage").then((m) => ({ default: m.EngagementConsolePage }))
+);
+const EngagementConsoleByCodePage = lazy(() =>
+  import("./features/console/EngagementConsoleByCodePage").then((m) => ({
+    default: m.EngagementConsoleByCodePage,
+  }))
 );
 const ConsoleEngagementsPage = lazy(() =>
   import("./features/console/ConsoleEngagementsPage").then((m) => ({ default: m.ConsoleEngagementsPage }))
@@ -351,6 +357,7 @@ function PermissionRoute({
 function AppRoutes() {
   const location = useLocation();
   return (
+    <ChunkLoadErrorBoundary>
     <Suspense fallback={<RouteFallback />}>
     <Routes key={location.pathname}>
       <Route path="/login" element={<Login />} />
@@ -605,6 +612,18 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/engagements/code/:engagementCode/console"
+        element={
+          <ProtectedRoute>
+            <EmployeeRequiredRoute>
+              <PermissionRoute category="engagement_console">
+                <EngagementConsoleByCodePage />
+              </PermissionRoute>
+            </EmployeeRequiredRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/engagements/:engagementId/console"
         element={
           <ProtectedRoute>
@@ -699,6 +718,7 @@ function AppRoutes() {
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     </Suspense>
+    </ChunkLoadErrorBoundary>
   );
 }
 

@@ -345,7 +345,7 @@ export function useOperationsDashboard() {
         try {
           const usersRes = await usersApi.list({ page: 1, limit: 1 });
           const meta = usersRes.data.meta;
-          const total = Number(meta.total) || 0;
+          const total = Number(meta.total_profiles ?? meta.total) || 0;
           let active = total;
           try {
             const activeRes = await usersApi.list({ page: 1, limit: 1, status: "active" });

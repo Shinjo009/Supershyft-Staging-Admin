@@ -358,6 +358,7 @@ export function EngagementDetailPage() {
                 <EngagementOnboardingAssistantsPanel
                   engagementId={engagement.engagement_id}
                   engagementStatus={engagement.status}
+                  engagementCode={engagement.engagement_code}
                   engagementName={engagement.engagement_name ?? engagement.engagement_code ?? undefined}
                   canEdit={mayEditAssistants}
                 />

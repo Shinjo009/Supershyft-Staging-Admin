@@ -116,6 +116,15 @@
   margin: 1rem 0;
 }
 
+.story-rich-editor .story-cta {
+  margin: 1.25rem 0;
+}
+
+.story-rich-editor .story-cta a {
+  cursor: pointer;
+  user-select: none;
+}
+
 .story-rich-editor .story-section,
 .story-rich-editor .ProseMirror div[data-type="section"] {
   margin: 1rem 0;

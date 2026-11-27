@@ -8,6 +8,7 @@ import type { JSONContent } from '@tiptap/react'
 import {
   CODE_LANGUAGES,
   FAQ_DEFAULT_HEADING,
+  CTA_DEFAULT_STYLE,
   FONT_FAMILIES,
   fontSizeCss,
   fontWeightName,
@@ -16,16 +17,23 @@ import {
   blockAlign,
   blockText,
   codeLanguage,
+  ctaAlignment,
+  ctaHref,
+  ctaStyle,
   emptyCell,
   headingTag,
+  isCtaButton,
   isTaskList,
   listTag,
   mediaAlt,
   mediaSrc,
   packCell,
+  packCtaStyle,
+  safeHref,
   sectionBackground,
   sectionChildren,
   withAlign,
+  type CtaAlignment,
   type Mark,
   type RichCell,
   type StoryBlock,
@@ -261,6 +269,32 @@ function blockToNodes(block: StoryBlock): JSONContent[] {
       if (!items.length) return []
       return [{ type: 'storyFaq', attrs: { heading, itemsJson: serializeFaqItems(items) } }]
     }
+    case 'a': {
+      if (!isCtaButton(block)) return []
+      const text = blockText(block).trim()
+      const href = safeHref(ctaHref(block))
+      if (!text || !href) return []
+      const style = ctaStyle(block)
+      return [
+        {
+          type: 'storyCta',
+          attrs: {
+            text,
+            href,
+            target: String(block.attributes?.target || '_blank'),
+            alignment: ctaAlignment(block),
+            backgroundColor: style.backgroundColor,
+            color: style.color,
+            fontSize: style.fontSize,
+            fontWeight: style.fontWeight,
+            borderRadius: style.borderRadius,
+            padding: style.padding,
+            borderWidth: style.borderWidth,
+            borderColor: style.borderColor,
+          },
+        },
+      ]
+    }
     default:
       return []
   }
@@ -472,6 +506,33 @@ function nodeToBlocks(node: JSONContent): StoryBlock[] {
         .filter((item) => item.text && item.answer.text)
       if (!items.length) return []
       return [{ tag: 'faq', text: heading, items }]
+    }
+    case 'storyCta': {
+      const text = String(node.attrs?.text || '').trim()
+      const href = safeHref(String(node.attrs?.href || ''))
+      if (!text || !href) return []
+      const alignment = String(node.attrs?.alignment || '').trim().toLowerCase() as CtaAlignment
+      const block: StoryBlock = {
+        tag: 'a',
+        type: 'button',
+        text,
+        attributes: {
+          href,
+          target: String(node.attrs?.target || '_blank'),
+          style: packCtaStyle({
+            backgroundColor: String(node.attrs?.backgroundColor || CTA_DEFAULT_STYLE.backgroundColor),
+            color: String(node.attrs?.color || CTA_DEFAULT_STYLE.color),
+            fontSize: String(node.attrs?.fontSize || CTA_DEFAULT_STYLE.fontSize),
+            fontWeight: String(node.attrs?.fontWeight || CTA_DEFAULT_STYLE.fontWeight),
+            borderRadius: String(node.attrs?.borderRadius || CTA_DEFAULT_STYLE.borderRadius),
+            padding: String(node.attrs?.padding || CTA_DEFAULT_STYLE.padding),
+            borderWidth: String(node.attrs?.borderWidth || CTA_DEFAULT_STYLE.borderWidth),
+            borderColor: String(node.attrs?.borderColor || CTA_DEFAULT_STYLE.borderColor),
+          }),
+        },
+      }
+      if (alignment === 'center' || alignment === 'right') block.alignment = alignment
+      return [block]
     }
     default:
       return []

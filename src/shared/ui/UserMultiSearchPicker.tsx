@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Loader2, X } from "lucide-react";
-import { getApiError, usersApi, type UserDetail, type UserListItem } from "../../lib/api";
+import {
+  flattenUserListItems,
+  getApiError,
+  usersApi,
+  type UserDetail,
+  type UserListItem,
+} from "../../lib/api";
 
 function userDetailToListItem(u: UserDetail): UserListItem {
   return {
@@ -16,12 +22,15 @@ function userDetailToListItem(u: UserDetail): UserListItem {
   };
 }
 
-export function formatUserLabel(u: Pick<UserListItem, "user_id" | "first_name" | "last_name" | "email" | "phone">): string {
+export function formatUserLabel(
+  u: Pick<UserListItem, "user_id" | "first_name" | "last_name" | "email" | "phone" | "parent_id">
+): string {
   const first = (u.first_name ?? "").trim();
   const last = (u.last_name ?? "").trim();
   const name = [first, last].filter(Boolean).join(" ").trim();
   const base = name || u.email || u.phone || `User #${u.user_id}`;
-  return `${base} (#${u.user_id})`;
+  const subSuffix = u.parent_id != null ? " · Sub-account" : "";
+  return `${base} (#${u.user_id})${subSuffix}`;
 }
 
 function formatUserSecondary(u: UserListItem): string | null {
@@ -67,7 +76,8 @@ export function UserMultiSearchPicker({
         sort_by: "name",
         sort_dir: "asc",
       });
-      setOptions(res.data.data.filter((user) => !value.includes(user.user_id)));
+      const flat = flattenUserListItems(res.data.data);
+      setOptions(flat.filter((user) => !value.includes(user.user_id)));
     } catch (err) {
       setFetchError(getApiError(err));
       setOptions([]);

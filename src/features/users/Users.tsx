@@ -1,6 +1,16 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Plus, Loader2, ListTree, AlertTriangle, UserPlus, Eye } from "lucide-react";
+import {
+  Search,
+  Plus,
+  Loader2,
+  ListTree,
+  AlertTriangle,
+  UserPlus,
+  Eye,
+  ChevronRight,
+  ChevronDown,
+} from "lucide-react";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { PermissionGate, usePermissions } from "../../contexts/PermissionContext";
 import { Modal } from "../../shared/ui/Modal";
@@ -29,6 +39,12 @@ function hasMetsightsProfileId(user: UserListItem): boolean {
 const STATUS_OPTIONS = ["active", "inactive"];
 const GENDER_OPTIONS = ["male", "female", "other"];
 const SEARCH_DEBOUNCE_MS = 300;
+
+type UserListDisplayRow = UserListItem & {
+  _isSubRow?: boolean;
+  _subAccountCount?: number;
+  _parentMatchedSubIds?: number[];
+};
 
 const METSIGHTS_BIOAI_TYPE_CODES = new Set(["1", "2"]);
 
@@ -166,6 +182,7 @@ export function Users() {
   const mayViewEngagements = canView("engagements");
   const navigate = useNavigate();
   const [data, setData] = useState<UserListItem[]>([]);
+  const [expandedPrimaryIds, setExpandedPrimaryIds] = useState<Set<number>>(() => new Set());
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
@@ -264,7 +281,17 @@ export function Users() {
         sort_by: sortKey === "name" ? "name" : sortKey,
         sort_dir: sortDir,
       });
-      setData(res.data.data);
+      const primaries = res.data.data;
+      setData(primaries);
+      const autoExpand = new Set<number>();
+      for (const p of primaries) {
+        if ((p.matched_sub_ids?.length ?? 0) > 0) {
+          autoExpand.add(p.user_id);
+        }
+      }
+      if (autoExpand.size > 0) {
+        setExpandedPrimaryIds((prev) => new Set([...prev, ...autoExpand]));
+      }
       setTotal(res.data.meta.total);
       const meta = res.data.meta;
       if (typeof meta.with_metsights_profile === "number" && typeof meta.total_participants === "number") {
@@ -281,6 +308,42 @@ export function Users() {
       setLoading(false);
     }
   }, [page, limit, statusFilter, debouncedSearch, sortKey, sortDir]);
+
+  const togglePrimaryExpanded = (primaryUserId: number) => {
+    setExpandedPrimaryIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(primaryUserId)) {
+        next.delete(primaryUserId);
+      } else {
+        next.add(primaryUserId);
+      }
+      return next;
+    });
+  };
+
+  const displayRows = useMemo((): UserListDisplayRow[] => {
+    const rows: UserListDisplayRow[] = [];
+    for (const primary of data) {
+      const subCount = primary.sub_account_count ?? primary.sub_accounts?.length ?? 0;
+      const matchedSubIds = primary.matched_sub_ids ?? [];
+      rows.push({
+        ...primary,
+        _isSubRow: false,
+        _subAccountCount: subCount,
+        _parentMatchedSubIds: matchedSubIds,
+      });
+      if (expandedPrimaryIds.has(primary.user_id)) {
+        for (const sub of primary.sub_accounts ?? []) {
+          rows.push({
+            ...sub,
+            _isSubRow: true,
+            _parentMatchedSubIds: matchedSubIds,
+          });
+        }
+      }
+    }
+    return rows;
+  }, [data, expandedPrimaryIds]);
 
   useEffect(() => {
     fetchList();
@@ -764,7 +827,7 @@ export function Users() {
     }
   };
 
-  const columns: Column<UserListItem>[] = [
+  const columns: Column<UserListDisplayRow>[] = [
     {
       key: "name",
       label: "Name",
@@ -772,9 +835,13 @@ export function Users() {
       render: (row) => {
         const showMissingMetsightsWarning =
           row.is_participant === true && !hasMetsightsProfileId(row);
-        return (
-          <div className="flex flex-col">
-            <div className="flex items-center gap-1.5 min-w-0">
+        const subCount = row._subAccountCount ?? 0;
+        const isSubRow = Boolean(row._isSubRow);
+        const expanded = expandedPrimaryIds.has(row.user_id);
+
+        const nameBlock = (
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
               <span className="font-medium text-zinc-900 truncate">{getFullName(row)}</span>
               {showMissingMetsightsWarning && (
                 <span className="relative group/warn shrink-0">
@@ -790,8 +857,48 @@ export function Users() {
                   </span>
                 </span>
               )}
+              {!isSubRow && subCount > 0 && (
+                <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600">
+                  {subCount} Subaccount{subCount === 1 ? "" : "s"}
+                </span>
+              )}
             </div>
             <span className="text-xs text-zinc-500">{row.phone}</span>
+          </div>
+        );
+
+        if (isSubRow) {
+          return (
+            <div className="flex items-stretch gap-2 pl-1">
+              <span className="w-5 shrink-0 border-l border-b border-zinc-200 rounded-bl-md self-start h-5 ml-2" aria-hidden />
+              {nameBlock}
+            </div>
+          );
+        }
+
+        return (
+          <div className="flex items-start gap-1">
+            {subCount > 0 ? (
+              <button
+                type="button"
+                className="p-1 rounded hover:bg-zinc-100 text-zinc-500 shrink-0 mt-0.5"
+                aria-expanded={expanded}
+                aria-label={expanded ? "Collapse sub-accounts" : "Expand sub-accounts"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  togglePrimaryExpanded(row.user_id);
+                }}
+              >
+                {expanded ? (
+                  <ChevronDown className="w-4 h-4" />
+                ) : (
+                  <ChevronRight className="w-4 h-4" />
+                )}
+              </button>
+            ) : (
+              <span className="w-6 shrink-0" aria-hidden />
+            )}
+            {nameBlock}
           </div>
         );
       },
@@ -978,7 +1085,7 @@ export function Users() {
         ) : (
           <DataTable
             columns={columns}
-            data={data}
+            data={displayRows}
             keyExtractor={(r) => r.user_id}
             sortKey={sortKey}
             sortDir={sortDir}
@@ -993,6 +1100,11 @@ export function Users() {
               setDeleteConfirm(r);
             }}
             onSendMessage={maySendNotifications ? openSendMessage : undefined}
+            getRowClassName={(row) =>
+              row._isSubRow && row._parentMatchedSubIds?.includes(row.user_id)
+                ? "bg-sky-50/70"
+                : undefined
+            }
             pagination={{ page, limit, total, onPageChange: setPage }}
           />
         )}
@@ -1366,8 +1478,9 @@ export function Users() {
                 ? getFullName(deleteConfirm)
                 : deleteConfirm.phone}
             </span>
-            ? This removes the user, any linked sub-profiles, and related bookings, assessments,
-            and engagement participation. This cannot be undone.
+            ? This removes this user&apos;s related bookings, assessments, and engagement
+            participation. Linked sub-profiles are not deleted — remove those first if needed. This
+            cannot be undone.
           </p>
           <div className="flex flex-col-reverse sm:flex-row gap-3">
             <button

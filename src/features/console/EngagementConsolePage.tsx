@@ -35,7 +35,7 @@ import {
 
 const CONSOLE_PAGE_SIZE = 10;
 const CONSOLE_SEARCH_LIMIT = 25;
-import { diagnosticProviderLabel } from "./homeCollectionUi";
+import { diagnosticProviderLabel, isOrangeHealthProvider } from "./homeCollectionUi";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -115,15 +115,18 @@ type ModalMode =
   | "questionnaires"
   | null;
 
-export function EngagementConsolePage() {
-  const { engagementId } = useParams<{ engagementId: string }>();
+export function EngagementConsolePage({ engagementId: engagementIdProp }: { engagementId?: number } = {}) {
+  const { engagementId: engagementIdParam } = useParams<{ engagementId: string }>();
   const { employeeRole } = useAuth();
   const { canEditTask } = usePermissions();
   const mayEditBookings = canEditTask("engagement_console", "bookings");
   const mayEditQuestionnaires = canEditTask("engagement_console", "questionnaires");
   const isAdmin = employeeRole === "admin";
   const isOrgManager = employeeRole === "organization_manager";
-  const engId = Number(engagementId);
+  const engId =
+    engagementIdProp !== undefined && Number.isFinite(engagementIdProp)
+      ? engagementIdProp
+      : Number(engagementIdParam);
 
   const consoleListPath = isAdmin ? "/engagements" : "/engagements/console";
   const consoleListLabel = isAdmin
@@ -162,6 +165,7 @@ export function EngagementConsolePage() {
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [cancelRemarks, setCancelRemarks] = useState("");
+  const [cancelExplanation, setCancelExplanation] = useState("");
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [barcodeScannerOpen, setBarcodeScannerOpen] = useState(false);
@@ -316,6 +320,7 @@ export function EngagementConsolePage() {
     setBookingError(null);
     setSyncCollectionToNow(false);
     setCancelRemarks("");
+    setCancelExplanation("");
     setCancelError(null);
     setBarcodeScannerOpen(false);
   };
@@ -337,12 +342,14 @@ export function EngagementConsolePage() {
 
   const openCancelConfirm = () => {
     setCancelRemarks("");
+    setCancelExplanation("");
     setCancelError(null);
     setModalMode("cancel_confirm");
   };
 
   const openCancelRemarksModal = () => {
     setCancelRemarks("");
+    setCancelExplanation("");
     setCancelError(null);
     setModalMode("cancel");
   };
@@ -352,6 +359,9 @@ export function EngagementConsolePage() {
   };
 
   const isHomeCollection = engagement?.blood_collection_type === "home_collection";
+
+  const engagementProviderLabel = diagnosticProviderLabel(engagement?.diagnostic_provider);
+  const isOrangeCancelForm = isOrangeHealthProvider(engagement?.diagnostic_provider);
 
   const openBookModal = () => {
     if (!selectedParticipant) return;
@@ -365,8 +375,16 @@ export function EngagementConsolePage() {
   const isEngagementRunning =
     (engagement?.status ?? "").toLowerCase() === "running";
 
+  const bookingReadinessReady = engagement?.booking_readiness?.ready ?? true;
+
   const canBookParticipant = (p: Participant | null) =>
-    Boolean(mayEditBookings && p && isEngagementRunning && !isParticipantBooked(p));
+    Boolean(
+      mayEditBookings &&
+        p &&
+        isEngagementRunning &&
+        !isParticipantBooked(p) &&
+        bookingReadinessReady,
+    );
 
   const canCancelBooking = (p: Participant | null) =>
     Boolean(mayEditBookings && p && isEngagementRunning && isParticipantBooked(p));
@@ -413,6 +431,7 @@ export function EngagementConsolePage() {
   const openCancelFor = (p: Participant) => {
     setSelectedParticipant(p);
     setCancelRemarks("");
+    setCancelExplanation("");
     setCancelError(null);
     setModalMode("cancel_confirm");
     closeActionMenu();
@@ -512,15 +531,27 @@ export function EngagementConsolePage() {
   const handleCancelBooking = async () => {
     if (!selectedParticipant || !engId) return;
     const trimmed = cancelRemarks.trim();
+    const trimmedExplanation = cancelExplanation.trim();
     if (!trimmed) {
-      setCancelError("Remarks are required.");
+      setCancelError(
+        isOrangeCancelForm ? "Cancellation reason is required." : "Remarks are required."
+      );
+      return;
+    }
+    if (isOrangeCancelForm && !trimmedExplanation) {
+      setCancelError("Cancellation explanation is required.");
       return;
     }
     setCancelLoading(true);
     setCancelError(null);
     const userId = selectedParticipant.user_id;
     try {
-      await consoleApi.cancelParticipantBooking(engId, userId, trimmed);
+      await consoleApi.cancelParticipantBooking(engId, userId, {
+        remarks: trimmed,
+        ...(isOrangeCancelForm
+          ? { cancellation_explanation: trimmedExplanation }
+          : {}),
+      });
       setParticipants((prev) =>
         prev.map((p) =>
           p.user_id === userId
@@ -532,6 +563,7 @@ export function EngagementConsolePage() {
         prev ? { ...prev, booking_id: null, barcode: null } : prev
       );
       setCancelRemarks("");
+      setCancelExplanation("");
       setModalMode("detail");
 
       void reloadParticipants().then((parts) => {
@@ -561,9 +593,17 @@ export function EngagementConsolePage() {
   }
 
   const isNotRunning =
-    isAdmin &&
-    engagement &&
-    (engagement.status ?? "").toLowerCase() !== "running";
+    engagement && (engagement.status ?? "").toLowerCase() !== "running";
+
+  const campBookingBlocked =
+    engagement?.booking_readiness != null && !engagement.booking_readiness.ready;
+
+  const hideScheduledNoteForBookingBanner = Boolean(
+    campBookingBlocked &&
+      engagement?.booking_readiness?.issues.some(
+        (issue) => issue.code === "ENGAGEMENT_NOT_RUNNING",
+      ),
+  );
 
   return (
     <ConsoleLayout
@@ -595,9 +635,23 @@ export function EngagementConsolePage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {isNotRunning && (
+          {isNotRunning && !hideScheduledNoteForBookingBanner && (
             <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
-              This engagement is not running — read-only view.
+              This engagement is scheduled and not running yet. You can view participants, but
+              bookings and edits are only possible once it is running.
+            </div>
+          )}
+          {campBookingBlocked && (
+            <div
+              className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-900 text-sm"
+              role="alert"
+            >
+              <p className="font-semibold">Bookings are blocked for this camp</p>
+              <ul className="mt-2 list-disc pl-5 space-y-1">
+                {engagement?.booking_readiness?.issues.map((issue) => (
+                  <li key={issue.code}>{issue.message}</li>
+                ))}
+              </ul>
             </div>
           )}
           {pageNotice && (
@@ -957,7 +1011,7 @@ export function EngagementConsolePage() {
             <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-200">
               <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
               <p className="text-sm text-amber-900">
-                Are you sure you want to cancel the Healthians booking for{" "}
+                Are you sure you want to cancel the {engagementProviderLabel} booking for{" "}
                 <span className="font-medium">{fullName(selectedParticipant)}</span>?
               </p>
             </div>
@@ -990,20 +1044,49 @@ export function EngagementConsolePage() {
         {selectedParticipant && (
           <div className="space-y-4">
             <p className="text-sm text-zinc-600">
-              Cancel Healthians booking for {fullName(selectedParticipant)}.
+              Cancel {engagementProviderLabel} booking for {fullName(selectedParticipant)}.
             </p>
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1">
-                Remarks
-              </label>
-              <textarea
-                value={cancelRemarks}
-                onChange={(e) => setCancelRemarks(e.target.value)}
-                rows={3}
-                className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
-                placeholder="Reason for cancellation"
-              />
-            </div>
+            {isOrangeCancelForm ? (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1">
+                    Cancellation reason
+                  </label>
+                  <textarea
+                    value={cancelRemarks}
+                    onChange={(e) => setCancelRemarks(e.target.value)}
+                    rows={2}
+                    className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                    placeholder="Short reason for cancellation"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1">
+                    Cancellation explanation
+                  </label>
+                  <textarea
+                    value={cancelExplanation}
+                    onChange={(e) => setCancelExplanation(e.target.value)}
+                    rows={3}
+                    className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                    placeholder="Additional details for Orange Health"
+                  />
+                </div>
+              </>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">
+                  Remarks
+                </label>
+                <textarea
+                  value={cancelRemarks}
+                  onChange={(e) => setCancelRemarks(e.target.value)}
+                  rows={3}
+                  className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                  placeholder="Reason for cancellation"
+                />
+              </div>
+            )}
             {cancelError && (
               <p className="text-sm text-red-600">{cancelError}</p>
             )}
@@ -1076,7 +1159,7 @@ export function EngagementConsolePage() {
         {selectedParticipant && (
           <div className="space-y-4">
             <p className="text-sm text-zinc-600">
-              Create a Healthians booking for{" "}
+              Create a {engagementProviderLabel} booking for{" "}
               <span className="font-medium text-zinc-900">{fullName(selectedParticipant)}</span>.
             </p>
             <div>

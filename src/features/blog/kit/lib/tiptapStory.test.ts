@@ -12,7 +12,11 @@ import {
 
 function assertUniformCells(blocks: StoryBlock[]) {
   for (const block of blocks) {
-    expect(block).not.toHaveProperty('type')
+    if (block.tag === 'a' && block.type === 'button') {
+      expect(block.type).toBe('button')
+    } else {
+      expect(block).not.toHaveProperty('type')
+    }
     expect(typeof block.tag).toBe('string')
     if (block.items) {
       for (const item of block.items) {
@@ -174,6 +178,120 @@ describe('tiptapStory tag-only roundtrip', () => {
     const again = docToStory(doc)
     expect(again[0].items?.[1]).toEqual({ text: 'Old two', marks: [], checked: true })
     expect(again[0].checked).toBeUndefined()
+  })
+
+  it('roundtrips CTA button blocks with alignment and styles', () => {
+    const doc = {
+      type: 'doc',
+      content: [
+        {
+          type: 'storyCta',
+          attrs: {
+            text: 'Book Your Health Checkup',
+            href: 'https://supershyft.com/gifting',
+            target: '_blank',
+            alignment: 'center',
+            backgroundColor: '#0B2C2A',
+            color: '#FFFFFF',
+            fontSize: '16px',
+            fontWeight: '600',
+            borderRadius: '8px',
+            padding: '14px 28px',
+            borderWidth: '0px',
+            borderColor: '#0B2C2A',
+          },
+        },
+      ],
+    }
+    const story = docToStory(doc)
+    assertUniformCells(story)
+    expect(story[0]).toEqual({
+      tag: 'a',
+      type: 'button',
+      text: 'Book Your Health Checkup',
+      attributes: {
+        href: 'https://supershyft.com/gifting',
+        target: '_blank',
+        style: {
+          backgroundColor: '#0B2C2A',
+          color: '#FFFFFF',
+          fontSize: '16px',
+          fontWeight: '600',
+          borderRadius: '8px',
+          padding: '14px 28px',
+        },
+      },
+      alignment: 'center',
+    })
+    expect(story[0].attributes?.style).not.toHaveProperty('borderWidth')
+
+    const again = docToStory(storyToDoc(story))
+    assertUniformCells(again)
+    expect(again[0]).toEqual(story[0])
+    expect(storyToDoc(story).content?.[0]?.type).toBe('storyCta')
+  })
+
+  it('roundtrips CTA border width and color when set', () => {
+    const doc = {
+      type: 'doc',
+      content: [
+        {
+          type: 'storyCta',
+          attrs: {
+            text: 'Join',
+            href: 'https://example.com/join',
+            target: '_blank',
+            alignment: 'right',
+            backgroundColor: '#FFFFFF',
+            color: '#0B2C2A',
+            fontSize: '18px',
+            fontWeight: '700',
+            borderRadius: '12px',
+            padding: '10px 20px',
+            borderWidth: '2px',
+            borderColor: '#CC203B',
+          },
+        },
+      ],
+    }
+    const story = docToStory(doc)
+    expect(story[0].attributes?.style).toEqual({
+      backgroundColor: '#FFFFFF',
+      color: '#0B2C2A',
+      fontSize: '18px',
+      fontWeight: '700',
+      borderRadius: '12px',
+      padding: '10px 20px',
+      borderWidth: '2px',
+      borderColor: '#CC203B',
+    })
+    expect(docToStory(storyToDoc(story))[0]).toEqual(story[0])
+  })
+
+  it('omits left alignment on CTA blocks', () => {
+    const story: StoryBlock[] = [
+      {
+        tag: 'a',
+        type: 'button',
+        text: 'Go',
+        attributes: {
+          href: 'https://example.com',
+          target: '_blank',
+          style: {
+            backgroundColor: '#0B2C2A',
+            color: '#FFFFFF',
+            fontSize: '16px',
+            fontWeight: '600',
+            borderRadius: '8px',
+            padding: '14px 28px',
+          },
+        },
+        alignment: 'left',
+      },
+    ]
+    const again = docToStory(storyToDoc(story))
+    expect(again[0].alignment).toBeUndefined()
+    expect(again[0].attributes?.href).toBe('https://example.com')
   })
 
   it('roundtrips highlight marks', () => {

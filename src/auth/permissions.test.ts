@@ -75,6 +75,7 @@ describe("RBAC permission contracts", () => {
   it("maps report and console routes before their broader parents", () => {
     expect(categoryForPath("/organisations/camps/12/reports")).toBe("reports");
     expect(categoryForPath("/engagements/55/console")).toBe("engagement_console");
+    expect(categoryForPath("/engagements/code/ABC/console")).toBe("engagement_console");
     expect(categoryForPath("/engagements")).toBe("engagements");
     expect(categoryForPath("/discounts")).toBe("discounts");
   });

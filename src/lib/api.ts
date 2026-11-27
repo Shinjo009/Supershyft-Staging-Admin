@@ -172,6 +172,24 @@ export interface UserListItem {
   metsights_profile_id?: string | null;
   status?: string | null;
   created_at?: string | null;
+  parent_id?: number | null;
+  relationship?: string | null;
+  sub_account_count?: number;
+  sub_accounts?: UserListItem[];
+  matched_sub_ids?: number[];
+}
+
+/** Flatten hierarchical user list items (primary + nested sub-accounts). */
+export function flattenUserListItems(items: UserListItem[]): UserListItem[] {
+  const flat: UserListItem[] = [];
+  for (const item of items) {
+    const { sub_accounts: _subs, matched_sub_ids: _matched, ...primary } = item;
+    flat.push(primary);
+    for (const sub of item.sub_accounts ?? []) {
+      flat.push(sub);
+    }
+  }
+  return flat;
 }
 
 export function getApiError(err: unknown, context?: "auth" | "import"): string {
@@ -847,6 +865,7 @@ export const usersApi = {
         page: number;
         limit: number;
         total: number;
+        total_profiles?: number;
         with_metsights_profile?: number;
         total_participants?: number;
         protected_user_ids?: number[];
@@ -4008,6 +4027,11 @@ export const occupiedSlotsApi = {
     api.get<{ data: OccupiedSlots }>("/engagements/public/occupied-slots"),
 };
 
+export interface ConsoleBookingReadiness {
+  ready: boolean;
+  issues: { code: string; message: string }[];
+}
+
 export interface ConsoleEngagementListItem {
   engagement_id: number;
   engagement_name?: string | null;
@@ -4018,6 +4042,7 @@ export interface ConsoleEngagementListItem {
   participant_count?: number | null;
   blood_collection_type?: string | null;
   diagnostic_provider?: string | null;
+  booking_readiness?: ConsoleBookingReadiness;
 }
 
 export interface ConsoleParticipantBookResponse {
@@ -4139,11 +4164,18 @@ export const consoleApi = {
   cancelParticipantBooking: (
     engagementId: number,
     userId: number,
-    remarks: string
+    params: { remarks: string; cancellation_explanation?: string }
   ) =>
     api.delete<{ data: { status: boolean; message?: string; booking_id?: string } }>(
       `/engagements/${engagementId}/console/participants/${userId}/book`,
-      { params: { remarks } }
+      {
+        params: {
+          remarks: params.remarks,
+          ...(params.cancellation_explanation
+            ? { cancellation_explanation: params.cancellation_explanation }
+            : {}),
+        },
+      }
     ),
   listParticipantAssessments: (engagementId: number, userId: number) =>
     api.get<{ data: ConsoleParticipantAssessment[] }>(
@@ -4248,6 +4280,7 @@ export const consoleApi = {
       blood_collection_time_slot_id: string;
       blood_collection_time_slot: string;
       reschedule_reason: string;
+      reschedule_explanation?: string;
     }
   ) =>
     api.patch<{
@@ -4667,7 +4700,6 @@ export interface DiagnosticPackageListItem {
   has_cancer_screening?: boolean | null;
   complementary_consultation?: Record<string, boolean> | null;
   gender_suitability?: string | null;
-  package_for?: "public" | "camp" | "both" | null;
   display_order?: number | null;
   tags?: DiagnosticTag[];
   filter_chips?: PackageFilterChip[];
@@ -4680,6 +4712,8 @@ export interface DiagnosticWarning {
 }
 
 export interface DiagnosticPackageGroupListItem extends DiagnosticPackageListItem {
+  /** Admin groups list only — not present on the public/member slim list. */
+  package_for?: "public" | "camp" | "both" | null;
   package_group: Record<string, number>;
   has_unmapped_tests?: boolean;
   warnings?: DiagnosticWarning[];
@@ -6572,6 +6606,7 @@ export interface CommandB2CSummary {
   total_bookings: number;
   collection_tomorrow: number;
   tests_completed: number;
+  lab_report_delivered: number;
   bio_ai_reports: number;
   consultation_done: number;
   packages: CommandB2CPackageRow[];
@@ -6586,6 +6621,7 @@ export type CommandPeriodParams = {
   page?: number;
   limit?: number;
   include_rows?: boolean;
+  search?: string;
 };
 
 export interface CommandAudienceSplitMeta {
@@ -6776,6 +6812,11 @@ export const commandDashboardApi = {
       data: CommandB2CUserRow[];
       meta: { period: string; page: number; limit: number; total: number };
     }>("/admin/dashboard/command/b2c/tests-completed", { params }),
+  b2cLabReportDelivered: (params?: CommandPeriodParams) =>
+    api.get<{
+      data: CommandB2CUserRow[];
+      meta: { period: string; page: number; limit: number; total: number };
+    }>("/admin/dashboard/command/b2c/lab-report-delivered", { params }),
   b2cBioAiReports: (params?: CommandPeriodParams) =>
     api.get<{
       data: CommandB2CUserRow[];

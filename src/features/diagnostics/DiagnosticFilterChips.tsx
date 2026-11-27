@@ -152,13 +152,11 @@ export function DiagnosticFilterChips({ embedded = false }: DiagnosticFilterChip
 
     const previous = chips;
     const byId = new Map(chips.map((chip) => [chip.filter_chip_id, chip]));
-    const next = filterChipIds
-      .map((id, index) => {
-        const chip = byId.get(id);
-        if (!chip) return null;
-        return { ...chip, display_order: index + 1 };
-      })
-      .filter((chip): chip is DiagnosticFilterChip => chip != null);
+    const next = filterChipIds.flatMap((id, index) => {
+      const chip = byId.get(id);
+      if (!chip) return [];
+      return [{ ...chip, display_order: index + 1 }];
+    });
 
     setChips(next);
     setReordering(true);

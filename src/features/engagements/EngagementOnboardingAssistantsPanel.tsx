@@ -205,10 +205,13 @@ const subTabClass = (active: boolean) =>
 export function EngagementOnboardingAssistantsPanel({
   engagementId,
   engagementStatus,
+  engagementCode,
+  engagementName,
   canEdit = true,
 }: {
   engagementId: number;
   engagementStatus?: string | null;
+  engagementCode?: string | null;
   engagementName?: string;
   canEdit?: boolean;
 }) {
@@ -470,7 +473,12 @@ export function EngagementOnboardingAssistantsPanel({
 
       {isRunning && !addStaffOpen && (
         <div className="border-b border-zinc-200">
-          <ConsoleUrlActions engagementId={engagementId} variant="compact" />
+          <ConsoleUrlActions
+            engagementId={engagementId}
+            engagementCode={engagementCode}
+            engagementName={engagementName}
+            variant="compact"
+          />
         </div>
       )}
 
