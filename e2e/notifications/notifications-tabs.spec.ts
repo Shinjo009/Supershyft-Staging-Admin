@@ -1,7 +1,11 @@
 import { test, expect } from "@playwright/test";
 import { loginAsEmployee } from "../helpers/adminLogin";
 
+const hasStagingPhone = Boolean(process.env.E2E_ADMIN_PHONE?.trim());
+
 test.describe("Notifications area (staging)", () => {
+  test.skip(!hasStagingPhone, "Set E2E_ADMIN_PHONE for live staging smoke.");
+
   test.beforeEach(async ({ page }) => {
     await loginAsEmployee(page);
     await page.goto("/notifications/logs");
@@ -18,9 +22,8 @@ test.describe("Notifications area (staging)", () => {
   });
 
   test("Logs tab has user search left of status and compact columns", async ({ page }) => {
-    const search = page.getByPlaceholder(/search by name, phone, or email/i);
+    const search = page.getByRole("combobox", { name: /search by name, phone, or email/i });
     await expect(search).toBeVisible();
-    await expect(page.getByRole("combobox")).toBeVisible();
 
     const allStatus = page.getByRole("button", { name: "All" }).first();
     await expect(allStatus).toBeVisible();
