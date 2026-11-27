@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useLocation } from "react-router-dom";
-import { Calendar, Columns3, Loader2, Search, Trash2, X } from "lucide-react";
+import { Calendar, Columns3, Loader2, Trash2, X } from "lucide-react";
 import { DataTable, type Column } from "../../shared/ui/DataTable";
 import { EngagementSearchPicker } from "../../shared/ui/EngagementSearchPicker";
+import { UserSearchPicker } from "../../shared/ui/UserSearchPicker";
 import { usePermissions } from "../../contexts/PermissionContext";
 import {
   notificationsApi,
@@ -49,13 +50,13 @@ export function NotificationLogsTab() {
   const [statusFilters, setStatusFilters] = useState<string[]>(
     requestedStatus ? [requestedStatus] : []
   );
-  const [timePreset, setTimePreset] = useState<TimePreset>(requestedStatus ? "" : DEFAULT_TIME_PRESET);
+  const [timePreset, setTimePreset] = useState<TimePreset>(DEFAULT_TIME_PRESET);
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
   const [serviceKeyFilter, setServiceKeyFilter] = useState("");
   const [channelFilter, setChannelFilter] = useState("");
+  const [userIdFilter, setUserIdFilter] = useState(0);
   const [engagementIdFilter, setEngagementIdFilter] = useState(0);
-  const [searchQuery, setSearchQuery] = useState("");
   const [showAllColumns, setShowAllColumns] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,15 +66,13 @@ export function NotificationLogsTab() {
   const [debouncedStatusFilters, setDebouncedStatusFilters] = useState<string[]>(
     requestedStatus ? [requestedStatus] : []
   );
-  const [debouncedTimePreset, setDebouncedTimePreset] = useState<TimePreset>(
-    requestedStatus ? "" : DEFAULT_TIME_PRESET
-  );
+  const [debouncedTimePreset, setDebouncedTimePreset] = useState<TimePreset>(DEFAULT_TIME_PRESET);
   const [debouncedCustomFrom, setDebouncedCustomFrom] = useState("");
   const [debouncedCustomTo, setDebouncedCustomTo] = useState("");
   const [debouncedServiceKey, setDebouncedServiceKey] = useState("");
   const [debouncedChannel, setDebouncedChannel] = useState("");
+  const [debouncedUserId, setDebouncedUserId] = useState(0);
   const [debouncedEngagementId, setDebouncedEngagementId] = useState(0);
-  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const [services, setServices] = useState<NotificationServiceItem[]>([]);
 
@@ -89,8 +88,8 @@ export function NotificationLogsTab() {
       setDebouncedCustomTo(customTo);
       setDebouncedServiceKey(serviceKeyFilter);
       setDebouncedChannel(channelFilter);
+      setDebouncedUserId(userIdFilter);
       setDebouncedEngagementId(engagementIdFilter);
-      setDebouncedSearch(searchQuery.trim());
     }, FILTER_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
   }, [
@@ -100,8 +99,8 @@ export function NotificationLogsTab() {
     customTo,
     serviceKeyFilter,
     channelFilter,
+    userIdFilter,
     engagementIdFilter,
-    searchQuery,
   ]);
 
   const listQueryParams = useMemo(() => {
@@ -112,8 +111,8 @@ export function NotificationLogsTab() {
       status: debouncedStatusFilters.length ? debouncedStatusFilters.join(",") : undefined,
       service_key: debouncedServiceKey || undefined,
       channel: debouncedChannel || undefined,
+      user_id: debouncedUserId > 0 ? debouncedUserId : undefined,
       engagement_id: debouncedEngagementId > 0 ? debouncedEngagementId : undefined,
-      search: debouncedSearch || undefined,
       ...range,
     };
   }, [
@@ -122,8 +121,8 @@ export function NotificationLogsTab() {
     debouncedStatusFilters,
     debouncedServiceKey,
     debouncedChannel,
+    debouncedUserId,
     debouncedEngagementId,
-    debouncedSearch,
     debouncedTimePreset,
     debouncedCustomFrom,
     debouncedCustomTo,
@@ -164,14 +163,13 @@ export function NotificationLogsTab() {
     setCustomTo("");
     setServiceKeyFilter("");
     setChannelFilter("");
+    setUserIdFilter(0);
     setEngagementIdFilter(0);
-    setSearchQuery("");
     resetPage();
   };
 
   const activeFilterLabels = useMemo(() => {
     const labels: string[] = [];
-    if (searchQuery.trim()) labels.push(`Search: ${searchQuery.trim()}`);
     if (statusFilters.length) labels.push(`Status: ${statusFilters.join(", ")}`);
     if (timePreset === "custom") {
       if (customFrom || customTo) labels.push("Custom date range");
@@ -184,16 +182,17 @@ export function NotificationLogsTab() {
       labels.push(`Service: ${svc?.display_name ?? serviceKeyFilter}`);
     }
     if (channelFilter) labels.push(`Channel: ${channelFilter}`);
+    if (userIdFilter > 0) labels.push(`User #${userIdFilter}`);
     if (engagementIdFilter > 0) labels.push(`Engagement #${engagementIdFilter}`);
     return labels;
   }, [
-    searchQuery,
     statusFilters,
     timePreset,
     customFrom,
     customTo,
     serviceKeyFilter,
     channelFilter,
+    userIdFilter,
     engagementIdFilter,
     services,
   ]);
@@ -425,20 +424,16 @@ export function NotificationLogsTab() {
 
       <div className="mb-4 space-y-3 overflow-visible">
         <div className="flex items-center gap-2 min-w-0 overflow-visible">
-          <div className="relative flex-1 min-w-[10rem] max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                resetPage();
-              }}
-              placeholder="Search by name, phone or message..."
-              className={`${controlClassName} pl-9`}
-              aria-label="Search notifications by name, phone or message"
-            />
-          </div>
+          <UserSearchPicker
+            value={userIdFilter}
+            onChange={(id) => {
+              setUserIdFilter(id);
+              resetPage();
+            }}
+            label=""
+            placeholder="Search by name, phone, or email…"
+            className="flex-1 min-w-[10rem] max-w-xs [&_input]:h-9"
+          />
 
           <div className="flex items-center gap-1.5 shrink-0">
             <button

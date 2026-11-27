@@ -17,9 +17,10 @@ test.describe("Notifications area (staging)", () => {
     await expect(tabBar.getByRole("button", { name: "Events", exact: true })).toHaveCount(0);
   });
 
-  test("Logs tab has search left of status and compact columns", async ({ page }) => {
-    const search = page.getByPlaceholder(/search by name, phone or message/i);
+  test("Logs tab has user search left of status and compact columns", async ({ page }) => {
+    const search = page.getByPlaceholder(/search by name, phone, or email/i);
     await expect(search).toBeVisible();
+    await expect(page.getByRole("combobox")).toBeVisible();
 
     const allStatus = page.getByRole("button", { name: "All" }).first();
     await expect(allStatus).toBeVisible();
@@ -32,6 +33,7 @@ test.describe("Notifications area (staging)", () => {
       expect(searchBox.x).toBeLessThan(allBox.x);
     }
 
+    await expect(page.getByLabel("Date range")).toHaveValue("1h");
     await expect(page.getByLabel("Service", { exact: true })).toBeVisible();
     await expect(page.getByLabel("Channel", { exact: true })).toBeVisible();
     await expect(page.getByPlaceholder("Engagement")).toBeVisible();
