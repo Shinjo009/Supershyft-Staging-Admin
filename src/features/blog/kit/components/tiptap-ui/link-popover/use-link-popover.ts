@@ -13,6 +13,8 @@ import {
   isNodeTypeSelected,
   sanitizeUrl,
 } from "../../../lib/tiptap-utils"
+import { normalizeInstagramUrl, vimeoId, youtubeId } from "../../../lib/storyBlocks"
+import { normalizeVideoUrl } from "../video-insert-button/video-insert-button"
 
 /**
  * Configuration for the link popover functionality
@@ -137,15 +139,32 @@ export function useLinkHandler(props: LinkHandlerProps) {
   const setLink = useCallback(() => {
     if (!url || !editor) return
 
+    const trimmed = url.trim()
+    const instagram = normalizeInstagramUrl(trimmed)
+    if (instagram) {
+      editor.chain().focus().setStoryInstagram({ src: instagram }).run()
+      setUrl(null)
+      onSetLink?.()
+      return
+    }
+
+    const videoCandidate = normalizeVideoUrl(trimmed)
+    if (youtubeId(videoCandidate) || vimeoId(videoCandidate)) {
+      editor.chain().focus().setStoryVideo({ src: videoCandidate }).run()
+      setUrl(null)
+      onSetLink?.()
+      return
+    }
+
     const { selection } = editor.state
     const isEmpty = selection.empty
 
     let chain = editor.chain().focus()
 
-    chain = chain.extendMarkRange("link").setLink({ href: url })
+    chain = chain.extendMarkRange("link").setLink({ href: trimmed })
 
     if (isEmpty) {
-      chain = chain.insertContent({ type: "text", text: url })
+      chain = chain.insertContent({ type: "text", text: trimmed })
     }
 
     chain.run()

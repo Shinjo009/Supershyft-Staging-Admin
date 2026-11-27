@@ -35,6 +35,12 @@ function readingText(blocks: StoryBlock[] | undefined): string {
       for (const row of block.rows || []) {
         for (const cell of row || []) parts.push(cellText(cell));
       }
+    } else if (tag === "faq") {
+      parts.push(typeof block.text === "string" ? block.text : "");
+      for (const item of block.items || []) {
+        parts.push(cellText(item));
+        if (item && typeof item === "object" && item.answer) parts.push(cellText(item.answer));
+      }
     }
   }
   return parts.filter(Boolean).join(" ");

@@ -18,6 +18,9 @@ function assertUniformCells(blocks: StoryBlock[]) {
       for (const item of block.items) {
         expect(item).toEqual(expect.objectContaining({ text: expect.any(String), marks: expect.any(Array) }))
         expect(typeof item).toBe('object')
+        if (block.tag === 'faq') {
+          expect(item.answer).toEqual(expect.objectContaining({ text: expect.any(String), marks: expect.any(Array) }))
+        }
       }
     }
     if (block.headers) {
@@ -68,6 +71,21 @@ describe('tiptapStory tag-only roundtrip', () => {
           content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Inside' }] }],
         },
         { type: 'storyVideo', attrs: { src: 'https://www.youtube.com/watch?v=xdA0pGDiUPE' } },
+        { type: 'storyInstagram', attrs: { src: 'https://www.instagram.com/p/ABC123xyz/' } },
+        {
+          type: 'storyFaq',
+          attrs: {
+            heading: 'Frequently Asked Questions',
+            itemsJson: JSON.stringify([
+              {
+                id: 'faq-1',
+                text: 'What is SuperShyft?',
+                marks: [],
+                answer: { text: 'A healthcare platform.', marks: [] },
+              },
+            ]),
+          },
+        },
         { type: 'horizontalRule' },
         {
           type: 'codeBlock',
@@ -80,21 +98,25 @@ describe('tiptapStory tag-only roundtrip', () => {
     const story = docToStory(doc)
     assertUniformCells(story)
 
-    expect(story.map((b) => b.tag)).toEqual(['h2', 'p', 'ul', 'section', 'video', 'hr', 'pre'])
+    expect(story.map((b) => b.tag)).toEqual(['h2', 'p', 'ul', 'section', 'video', 'instagram', 'faq', 'hr', 'pre'])
     expect(story[1].attributes?.style?.textAlign).toBe('justify')
     expect(story[2].items?.[0]).toEqual({ text: 'First', marks: [] })
     expect(story[2].items?.[1].marks?.some((m) => m.type === 'bold')).toBe(true)
     expect(story[3].attributes?.style?.backgroundColor).toBeTruthy()
     expect(story[4].attributes?.src).toContain('youtube')
-    expect(story[6].attributes?.language).toBe('python')
+    expect(story[5].attributes?.src).toContain('instagram.com/p/')
+    expect(story[6].text).toBe('Frequently Asked Questions')
+    expect(story[6].items?.[0]?.answer?.text).toBe('A healthcare platform.')
+    expect(story[8].attributes?.language).toBe('python')
 
     const again = docToStory(storyToDoc(story))
     assertUniformCells(again)
     expect(again.map((b) => b.tag)).toEqual(story.map((b) => b.tag))
     expect(again[0].text).toBe('Introduction')
     expect(again[0]).not.toHaveProperty('content')
-    expect(again[6].text).toBe('print(1)')
+    expect(again[8].text).toBe('print(1)')
     expect(again[2].items?.[0]).toEqual({ text: 'First', marks: [] })
+    expect(again[6].items?.[0]?.answer?.text).toBe('A healthcare platform.')
   })
 
   it('roundtrips task lists with per-item checked', () => {

@@ -5,7 +5,9 @@
 import { mergeAttributes, Node } from '@tiptap/core'
 import type { DOMOutputSpec } from 'prosemirror-model'
 import { Image } from '@tiptap/extension-image'
-import { mediaUrl, vimeoId, youtubeId } from './lib/storyBlocks'
+import { ReactNodeViewRenderer } from '@tiptap/react'
+import { InstagramNodeView } from './components/tiptap-node/instagram-node/instagram-node'
+import { instagramEmbedUrl, mediaUrl, normalizeInstagramUrl, vimeoId, youtubeId } from './lib/storyBlocks'
 
 export const StoryImage = Image.extend({
   renderHTML({ HTMLAttributes }) {
@@ -21,6 +23,9 @@ declare module '@tiptap/core' {
     }
     storyAudio: {
       setStoryAudio: (options: { src: string }) => ReturnType
+    }
+    storyInstagram: {
+      setStoryInstagram: (options: { src: string }) => ReturnType
     }
   }
 }
@@ -138,6 +143,64 @@ export const StoryAudio = Node.create({
         (options) =>
         ({ commands }) => {
           const src = String(options?.src || '').trim()
+          if (!src) return false
+          return commands.insertContent({ type: this.name, attrs: { src } })
+        },
+    }
+  },
+})
+
+export const StoryInstagram = Node.create({
+  name: 'storyInstagram',
+  group: 'block',
+  atom: true,
+  draggable: true,
+  selectable: true,
+
+  addAttributes() {
+    return {
+      src: {
+        default: null,
+        parseHTML: (element) =>
+          normalizeInstagramUrl(element.getAttribute('data-src') || '') ||
+          normalizeInstagramUrl(element.getAttribute('data-instgrm-permalink') || '') ||
+          '',
+      },
+    }
+  },
+
+  parseHTML() {
+    return [{ tag: 'figure[data-story-instagram]' }, { tag: 'blockquote.instagram-media' }]
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    const raw = normalizeInstagramUrl(String(HTMLAttributes.src || '')) || String(HTMLAttributes.src || '')
+    const embed = instagramEmbedUrl(raw) || raw
+    return [
+      'figure',
+      { class: 'story-instagram', 'data-story-instagram': '', 'data-src': raw },
+      [
+        'iframe',
+        {
+          src: embed,
+          title: 'Instagram post',
+          class: 'story-instagram-iframe',
+          allowfullscreen: 'true',
+        },
+      ],
+    ]
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(InstagramNodeView)
+  },
+
+  addCommands() {
+    return {
+      setStoryInstagram:
+        (options) =>
+        ({ commands }) => {
+          const src = normalizeInstagramUrl(String(options?.src || '').trim())
           if (!src) return false
           return commands.insertContent({ type: this.name, attrs: { src } })
         },

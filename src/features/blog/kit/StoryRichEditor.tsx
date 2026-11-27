@@ -69,16 +69,18 @@ import './components/tiptap-templates/simple/simple-editor.scss'
 import './storyRichEditor.css'
 
 import { pageBackgroundStyle } from '../pageBackgroundStyle'
-import { vimeoId, youtubeId, type StoryBlock } from './lib/storyBlocks'
+import { normalizeInstagramUrl, vimeoId, youtubeId, type StoryBlock } from './lib/storyBlocks'
 import { scrollSelectionIntoStoryPane } from './lib/scrollSelectionIntoStoryPane'
 import { docToStory, storyToDoc } from './lib/tiptapStory'
-import { StoryAudio, StoryImage, StoryVideo } from './storyMediaNodes'
+import { StoryAudio, StoryImage, StoryInstagram, StoryVideo } from './storyMediaNodes'
 import { FontWeight } from './components/tiptap-extension/font-weight-extension'
 import { NodeBackground } from './components/tiptap-extension/node-background-extension'
 import { StorySection } from './components/tiptap-extension/section-node-extension'
 import { StoryColor } from './components/tiptap-extension/story-color-extension'
 import { TableBackspace } from './components/tiptap-extension/table-backspace-extension'
 import { SectionButton } from './components/tiptap-ui/section-button/section-button'
+import { FaqButton } from './components/tiptap-ui/faq-button/faq-button'
+import { StoryFaq } from './components/tiptap-extension/faq-node-extension'
 
 export const IMAGE_MAX_BYTES = 5 * 1024 * 1024
 
@@ -111,16 +113,24 @@ type Props = {
   actions?: ReactNode
 }
 
-function pastedVideoUrl(text: string): string | null {
+type PastedEmbed =
+  | { kind: 'instagram'; src: string }
+  | { kind: 'video'; src: string }
+
+function pastedEmbed(text: string): PastedEmbed | null {
   const raw = text.trim()
   if (!raw || /\s/.test(raw)) return null
+  const instagram = normalizeInstagramUrl(raw)
+  if (instagram) return { kind: 'instagram', src: instagram }
   const normalized = normalizeVideoUrl(raw)
   try {
     const parsed = new URL(normalized)
     if (parsed.protocol !== 'https:') return null
-    if (youtubeId(normalized) || vimeoId(normalized)) return normalized
+    if (youtubeId(normalized) || vimeoId(normalized)) return { kind: 'video', src: normalized }
     const path = parsed.pathname.toLowerCase()
-    if (path.endsWith('.mp4') || path.endsWith('.webm') || path.endsWith('.ogv')) return normalized
+    if (path.endsWith('.mp4') || path.endsWith('.webm') || path.endsWith('.ogv')) {
+      return { kind: 'video', src: normalized }
+    }
   } catch {
     return null
   }
@@ -199,6 +209,10 @@ function MainToolbarContent({
         <VideoInsertButton text="Video" uploadVideo={uploadVideo} onUploadError={onUploadError} />
         <SectionButton />
       </ToolbarGroup>
+      <ToolbarSeparator />
+      <ToolbarGroup>
+        <FaqButton />
+      </ToolbarGroup>
       <Spacer />
       {isMobile ? <ToolbarSeparator /> : null}
       <ToolbarGroup>
@@ -253,11 +267,18 @@ export const StoryRichEditor = forwardRef<StoryRichEditorHandle, Props>(function
       handleScrollToSelection: scrollSelectionIntoStoryPane,
       handlePaste: (view, event) => {
         const text = event.clipboardData?.getData('text/plain') || ''
-        const videoUrl = pastedVideoUrl(text)
-        if (!videoUrl) return false
+        const embed = pastedEmbed(text)
+        if (!embed) return false
+        if (embed.kind === 'instagram') {
+          const type = view.state.schema.nodes.storyInstagram
+          if (!type) return false
+          const node = type.create({ src: embed.src })
+          view.dispatch(view.state.tr.replaceSelectionWith(node).scrollIntoView())
+          return true
+        }
         const type = view.state.schema.nodes.storyVideo
         if (!type) return false
-        const node = type.create({ src: videoUrl })
+        const node = type.create({ src: embed.src })
         view.dispatch(view.state.tr.replaceSelectionWith(node).scrollIntoView())
         return true
       },
@@ -279,6 +300,7 @@ export const StoryRichEditor = forwardRef<StoryRichEditorHandle, Props>(function
       FontWeight,
       StoryColor,
       StorySection,
+      StoryFaq,
       NodeBackground,
       Superscript,
       Subscript,
@@ -287,6 +309,7 @@ export const StoryRichEditor = forwardRef<StoryRichEditorHandle, Props>(function
       StoryImage,
       StoryVideo,
       StoryAudio,
+      StoryInstagram,
       Typography,
       Selection,
       FindAndReplace.configure({

@@ -7,6 +7,7 @@
 import type { JSONContent } from '@tiptap/react'
 import {
   CODE_LANGUAGES,
+  FAQ_DEFAULT_HEADING,
   FONT_FAMILIES,
   fontSizeCss,
   fontWeightName,
@@ -31,6 +32,12 @@ import {
   type TextAlign,
 } from './storyBlocks'
 import { normalizeSectionHex, SECTION_DEFAULT_BG } from '../components/tiptap-extension/section-node-extension'
+import {
+  newFaqItemId,
+  parseFaqItems,
+  serializeFaqItems,
+  type FaqItemAttr,
+} from '../components/tiptap-extension/faq-types'
 
 type InlineMark = { type: string; attrs?: Record<string, unknown> }
 
@@ -234,6 +241,26 @@ function blockToNodes(block: StoryBlock): JSONContent[] {
       const src = mediaSrc(block)
       return src ? [{ type: 'storyVideo', attrs: { src } }] : []
     }
+    case 'instagram': {
+      const src = mediaSrc(block)
+      return src ? [{ type: 'storyInstagram', attrs: { src } }] : []
+    }
+    case 'faq': {
+      const heading = blockText(block).trim() || FAQ_DEFAULT_HEADING
+      const items: FaqItemAttr[] = (block.items || [])
+        .filter((item) => item && typeof item === 'object')
+        .map((item) => ({
+          id: newFaqItemId(),
+          text: item.text || '',
+          marks: item.marks || [],
+          answer: {
+            text: item.answer?.text || '',
+            marks: item.answer?.marks || [],
+          },
+        }))
+      if (!items.length) return []
+      return [{ type: 'storyFaq', attrs: { heading, itemsJson: serializeFaqItems(items) } }]
+    }
     default:
       return []
   }
@@ -425,6 +452,26 @@ function nodeToBlocks(node: JSONContent): StoryBlock[] {
     case 'storyVideo': {
       const src = String(node.attrs?.src || '').trim()
       return src ? [{ tag: node.type === 'storyAudio' ? 'audio' : 'video', attributes: { src } }] : []
+    }
+    case 'storyInstagram': {
+      const src = String(node.attrs?.src || '').trim()
+      return src ? [{ tag: 'instagram', attributes: { src } }] : []
+    }
+    case 'storyFaq': {
+      const heading = String(node.attrs?.heading || '').trim() || FAQ_DEFAULT_HEADING
+      const rawItems = parseFaqItems(node.attrs?.itemsJson ?? node.attrs?.items)
+      const items: RichCell[] = rawItems
+        .map((item) => ({
+          text: String(item?.text || '').trim(),
+          marks: Array.isArray(item?.marks) ? item.marks : [],
+          answer: {
+            text: String(item?.answer?.text || '').trim(),
+            marks: Array.isArray(item?.answer?.marks) ? item.answer.marks : [],
+          },
+        }))
+        .filter((item) => item.text && item.answer.text)
+      if (!items.length) return []
+      return [{ tag: 'faq', text: heading, items }]
     }
     default:
       return []

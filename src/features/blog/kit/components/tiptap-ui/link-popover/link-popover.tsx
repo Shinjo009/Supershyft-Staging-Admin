@@ -144,6 +144,7 @@ const LinkMain: React.FC<LinkMainProps> = ({
             autoCorrect="off"
             autoCapitalize="off"
             className="tiptap-link-input"
+            data-testid="blog-link-popover-input"
           />
 
           <ButtonGroup>
@@ -285,6 +286,7 @@ export const LinkPopover = forwardRef<HTMLButtonElement, LinkPopoverProps>(
             disabled={!canSet}
             data-active-state={isActive ? "on" : "off"}
             data-disabled={!canSet}
+            data-testid="blog-link-popover"
             aria-label={label}
             aria-pressed={isActive}
             onClick={handleClick}

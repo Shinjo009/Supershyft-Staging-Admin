@@ -270,3 +270,176 @@
 .story-rich-editor .tiptap td p {
   margin: 0;
 }
+
+/* Instagram embed atom */
+.story-rich-editor .story-instagram {
+  margin: 1.25rem 0;
+  padding: 0.75rem;
+  border: 1px solid #e4e4e7;
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.story-rich-editor .story-instagram-iframe {
+  display: block;
+  width: 100%;
+  max-width: 540px;
+  min-height: 680px;
+  margin: 0 auto;
+  border: 0;
+  border-radius: 12px;
+  background: #fafafa;
+}
+
+.story-rich-editor .story-instagram-fallback a {
+  color: #71717a;
+  text-decoration: underline;
+}
+
+.story-rich-editor .story-instagram-empty {
+  margin: 0.75rem 0;
+  text-align: center;
+  color: #71717a;
+  font-size: 0.875rem;
+}
+
+.story-rich-editor .story-instagram.is-selected {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+}
+
+.story-rich-editor .story-instagram-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.5rem;
+}
+
+.story-rich-editor .story-instagram-actions,
+.story-rich-editor .story-instagram-edit-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.story-rich-editor .story-instagram-url-input {
+  min-width: 220px;
+  flex: 1 1 220px;
+  border: 1px solid #d4d4d8;
+  border-radius: 8px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.875rem;
+}
+
+.story-rich-editor .story-instagram-actions button,
+.story-rich-editor .story-instagram-edit-row button {
+  border: 1px solid #d4d4d8;
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #3f3f46;
+  cursor: pointer;
+}
+
+.story-rich-editor .story-instagram-actions button:hover,
+.story-rich-editor .story-instagram-edit-row button:hover {
+  background: #f4f4f5;
+}
+
+/* FAQ editor node */
+.story-rich-editor .story-faq {
+  margin: 1.5rem 0;
+  padding: 1rem 1.1rem 1.25rem;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.story-rich-editor .story-faq.is-selected {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+}
+
+.story-rich-editor .story-faq-editor-heading {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #e4e4e7;
+  padding: 0.25rem 0 0.6rem;
+  margin-bottom: 0.85rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #0a2540;
+  background: transparent;
+}
+
+.story-rich-editor .story-faq-item-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.story-rich-editor .story-faq-item-row.is-dragging {
+  opacity: 0.55;
+}
+
+.story-rich-editor .story-faq-drag {
+  cursor: grab;
+  color: #94a3b8;
+  padding: 0.45rem 0.2rem;
+  user-select: none;
+}
+
+.story-rich-editor .story-faq-fields {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.story-rich-editor .story-faq-fields input,
+.story-rich-editor .story-faq-fields textarea {
+  width: 100%;
+  border: 1px solid #e4e4e7;
+  border-radius: 8px;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.9rem;
+  color: #18181b;
+  background: #fff;
+}
+
+.story-rich-editor .story-faq-fields input {
+  font-weight: 700;
+  color: #0a2540;
+}
+
+.story-rich-editor .story-faq-fields textarea {
+  min-height: 72px;
+  resize: vertical;
+  color: #505050;
+}
+
+.story-rich-editor .story-faq-item-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.story-rich-editor .story-faq-item-actions button,
+.story-rich-editor .story-faq-add {
+  border: 1px solid #d4d4d8;
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #3f3f46;
+  cursor: pointer;
+}
+
+.story-rich-editor .story-faq-add {
+  margin-top: 0.85rem;
+}

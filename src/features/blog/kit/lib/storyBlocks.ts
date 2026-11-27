@@ -244,7 +244,14 @@ export type Mark = {
 }
 
 /** Always an object so list/table cells stay uniform in the database. */
-export type RichCell = { text: string; marks: Mark[]; /** Task list items only */ checked?: boolean }
+export type RichCell = {
+  text: string
+  marks: Mark[]
+  /** Task list items only */
+  checked?: boolean
+  /** FAQ items only: answer paired with question `text` */
+  answer?: { text: string; marks: Mark[] }
+}
 
 export type StoryAttributes = {
   style?: {
@@ -257,13 +264,15 @@ export type StoryAttributes = {
   listType?: 'task'
 }
 
+export const FAQ_DEFAULT_HEADING = 'Frequently Asked Questions'
+
 /**
  * Tag-only story block stored in posts.content.
- * Discriminator is `tag` (HTML tags + section/video/audio). No `type` field.
+ * Discriminator is `tag` (HTML tags + section/video/audio/instagram/faq). No `type` field.
  */
 export type StoryBlock = {
   tag: string
-  /** Text body for p / heading / blockquote / pre. */
+  /** Text body for p / heading / blockquote / pre / faq heading. */
   text?: string
   /** Nested blocks for section only. Legacy posts may still store a string here. */
   content?: string | StoryBlock[]
@@ -272,6 +281,7 @@ export type StoryBlock = {
   attributes?: StoryAttributes
   /** @deprecated Prefer `checked` on each task item. Kept for reading legacy posts. */
   checked?: boolean[]
+  /** List items, or FAQ question/answer pairs. */
   items?: RichCell[]
   headers?: RichCell[]
   rows?: RichCell[][]
@@ -844,6 +854,45 @@ export function vimeoId(url: string): string | null {
     return null
   }
   return null
+}
+
+/** Instagram post / Reel / TV shortcode, or null if not embeddable. */
+export function instagramId(url: string): string | null {
+  try {
+    const parsed = new URL(url.trim())
+    if (parsed.protocol !== 'https:') return null
+    const host = parsed.hostname.replace(/^www\./, '')
+    if (!['instagram.com', 'm.instagram.com', 'instagr.am'].includes(host)) return null
+    const parts = parsed.pathname.split('/').filter(Boolean)
+    if (parts.length < 2) return null
+    if (!['p', 'reel', 'tv'].includes(parts[0])) return null
+    if (!/^[\w-]+$/.test(parts[1])) return null
+    return parts[1]
+  } catch {
+    return null
+  }
+}
+
+/** Canonical Instagram permalink for storage / embeds. */
+export function normalizeInstagramUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url.trim())
+    if (parsed.protocol !== 'https:') return null
+    const host = parsed.hostname.replace(/^www\./, '')
+    if (!['instagram.com', 'm.instagram.com', 'instagr.am'].includes(host)) return null
+    const parts = parsed.pathname.split('/').filter(Boolean)
+    if (parts.length < 2 || !['p', 'reel', 'tv'].includes(parts[0]) || !/^[\w-]+$/.test(parts[1])) return null
+    return `https://www.instagram.com/${parts[0]}/${parts[1]}/`
+  } catch {
+    return null
+  }
+}
+
+/** Official Instagram iframe embed URL (more reliable than embed.js in editors). */
+export function instagramEmbedUrl(url: string): string | null {
+  const permalink = normalizeInstagramUrl(url)
+  if (!permalink) return null
+  return `${permalink.replace(/\/$/, '')}/embed`
 }
 
 export function mediaUrl(url: string | undefined): string | null {
