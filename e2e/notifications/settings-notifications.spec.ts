@@ -7,51 +7,80 @@ const hasStagingPhone = Boolean(process.env.E2E_ADMIN_PHONE?.trim());
 async function mockNotificationResolutionApi(page: Page) {
   let strict = true;
 
-  await page.route("**/employees/auth/me**", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        data: {
-          employee_id: 9001,
-          name: "E2E Admin",
-          role: "admin",
-          permissions: null,
-          pending_task_count: 0,
-        },
-        meta: {},
-      }),
-    });
-  });
+  await page.route("**/*", async (route) => {
+    const request = route.request();
+    const url = request.url();
+    const method = request.method();
 
-  await page.route("**/platform-settings/notification-resolution**", async (route) => {
-    const method = route.request().method();
-    if (method === "GET") {
+    if (method === "OPTIONS") {
+      await route.fulfill({ status: 204 });
+      return;
+    }
+
+    if (url.includes("/employees/auth/me") || url.includes("/employees/auth/refresh-token")) {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          data: { strict_engagement_notification_bindings: strict },
+          data: url.includes("refresh-token")
+            ? {
+                tokens: {
+                  access_token: "e2e-access-token",
+                  refresh_token: "e2e-refresh-token",
+                },
+              }
+            : {
+                employee_id: 9001,
+                name: "E2E Admin",
+                role: "admin",
+                permissions: null,
+                pending_task_count: 0,
+              },
           meta: {},
         }),
       });
       return;
     }
-    if (method === "PATCH") {
-      const body = route.request().postDataJSON() as {
-        strict_engagement_notification_bindings?: boolean;
-      };
-      strict = Boolean(body.strict_engagement_notification_bindings);
+
+    if (url.includes("/platform-settings/notification-resolution")) {
+      if (method === "GET") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            data: { strict_engagement_notification_bindings: strict },
+            meta: {},
+          }),
+        });
+        return;
+      }
+      if (method === "PATCH") {
+        const body = request.postDataJSON() as {
+          strict_engagement_notification_bindings?: boolean;
+        };
+        strict = Boolean(body.strict_engagement_notification_bindings);
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            data: { strict_engagement_notification_bindings: strict },
+            meta: {},
+          }),
+        });
+        return;
+      }
+    }
+
+    // Keep fake-token sessions from 401 → login on incidental admin API calls.
+    if (url.includes("/api/") || url.includes(":8000/")) {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({
-          data: { strict_engagement_notification_bindings: strict },
-          meta: {},
-        }),
+        body: JSON.stringify({ data: {}, meta: {} }),
       });
       return;
     }
+
     await route.continue();
   });
 }
